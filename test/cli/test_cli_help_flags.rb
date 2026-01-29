@@ -1,0 +1,58 @@
+require "minitest/autorun"
+require "stringio"
+require "aura/cli"
+
+class TestCliHelpFlags < Minitest::Test
+  def setup
+    require "aura/commands/application_command"
+    @klass = Aura::Commands::ApplicationCommand
+  end
+
+  def test_dash_h_routes_to_help
+    start_was = @klass.method(:start)
+    begin
+      $called = false
+      @klass.define_singleton_method(:start) do |argv, config = {}|
+        $called = argv.first == "help"
+      end
+      Aura::CLI.start(["-h"]) 
+      assert $called, "-h did not route to help"
+    ensure
+      @klass.define_singleton_method(:start) do |*args|
+        start_was.call(*args)
+      end
+    end
+  end
+
+  def test_dash_dash_help_routes_to_help
+    start_was = @klass.method(:start)
+    begin
+      $called = false
+      @klass.define_singleton_method(:start) do |argv, config = {}|
+        $called = argv.first == "help"
+      end
+      Aura::CLI.start(["--help"]) 
+      assert $called, "--help did not route to help"
+    ensure
+      @klass.define_singleton_method(:start) do |*args|
+        start_was.call(*args)
+      end
+    end
+  end
+
+  def test_empty_args_routes_to_help
+    start_was = @klass.method(:start)
+    begin
+      $called = false
+      @klass.define_singleton_method(:start) do |argv, config = {}|
+        $called = argv.first == "help"
+      end
+      Aura::CLI.start([])
+      assert $called, "empty args did not route to help"
+    ensure
+      @klass.define_singleton_method(:start) do |*args|
+        start_was.call(*args)
+      end
+    end
+  end
+end
