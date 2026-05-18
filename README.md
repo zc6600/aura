@@ -1,68 +1,160 @@
 # Aura OS
 
-Aura OS is an AI-native operating system that treats the filesystem as an agent's workspace and extended memory. Instead of relying solely on linear prompt history, Aura OS enables agents to reason, persist, and collaborate through structured files and tools.
+> ✨ *"Aura doesn't just give an Agent tools; it gives an Agent an environment to invent them."*
 
-## Overview
+Aura OS is an AI-native operating system that treats the filesystem as an agent's workspace and extended memory. Instead of relying solely on linear prompt history, Aura OS enables agents to reason, persist, and extend their capabilities freely through structured files, custom tools, and automated environment hooks.
 
-- **Folder-as-a-Workspace**: Agents operate by reading and writing to project files, using directories to organize capabilities and knowledge.
-- **Ruby Kernel (Host)**: A daemon that monitors `tools/` and `knowledge/`, orchestrates processes across runtimes (Python, Ruby, Shell), and enforces security.
-- **Tool Protocol**: Each capability is a self-contained directory with `logic.py`, `manifest.json`, and `test.py`. Tools become Active only after tests pass.
-- **State & Metabolism**: Persistent events in SQLite (`state/aura_state.db`) with background summarization when `config.yml` exceeds `max_state_chars`.
-- **Hint System**: Automatic discovery of `.hint` files and `AURA_README.md` to inject context without bloating prompts.
+---
 
-## Documentation
+## 🏗️ Core Architecture: Decoupled Workspace Layout
 
-- Architecture: `aura/docs/ARCHITECTURE.md`
-- Tool Protocol: `aura/docs/TOOL_PROTOCOL.md`
-- State Management: `aura/docs/STATE_MANAGEMENT.md`
-- Security Model: `aura/docs/SECURITY.md`
-- Deep Design Doc (Part I: Kernel & Semantic Space) in `aura/docs/ARCHITECTURE.md`
-- Deep Design Doc (Part II: State Metabolism & Persistent Memory) in `aura/docs/STATE_MANAGEMENT.md`
-- Deep Design Doc (Part III: Execution Engine & Security Sandbox) in `aura/docs/SECURITY.md`
- - Testing Strategy (TDD): `aura/docs/TESTING.md`
+To keep your code repository perfectly clean and isolate the agent's operations securely, Aura OS uses a **decoupled environment architecture**:
 
-## Quick Start
-
-```bash
-git clone https://github.com/your-repo/aura.git
-cd aura/aura
-bundle install
+```
+my_project/                 <-- Clean User Workspace (Files visible to LLM)
+├── .gitignore              <-- Automatically ignores the hidden .aura/ folder
+├── src/                    <-- Your code files
+└── .aura/                  <-- Hidden Isolated Environment (Agent resources)
+    ├── config/
+    │   └── config.yml      <-- Local workspace runtime settings
+    ├── state/
+    │   └── aura.db         <-- SQLite event log and metabolic database
+    ├── tools/
+    │   └── read_file/      <-- Custom tools, manifests, and unit tests
+    └── skills/
+        └── custom.rb       <-- Dynamic ruby procedural skills
 ```
 
-- Place tools under `tools/[tool_name]/` with `logic.py`, `manifest.json`, and `test.py`.
-- Add read-only reference material to `knowledge/`.
-- Define runtime and permissions in `manifest.json`.
-- Provide environment hints via `.hint` files and `AURA_README.md`.
-- Configure state limits with `config.yml` (e.g., `max_state_chars`).
+* **Clean User Workspace**: The host workspace is kept pristine. Transient files, sqlite databases, memory summaries, and test runs are completely isolated within `.aura/`.
+* **Security & Sandboxing**: Tools run within the parent user workspace (enabling sandboxed read/writes of code), but they fetch configurations, schemas, and credentials safely from the hidden `.aura/` folder.
 
-## Activation Flow
+---
 
-- Creation: Author `logic.py` and `test.py` inside a tool directory.
-- Verification: Kernel executes `test.py` and captures stderr on failure for iterative fixes.
-- Activation: Tool is marked Active only when `test.py` exits with code `0`.
+## 🚀 Key Features
 
-## Developer Priorities (Part I)
+* **Folder-as-a-Workspace**: Organizes context, memory summaries, and tools as standard directory items.
+* **Global CLI Packaging**: Packageable as a standard Ruby Gem with global system-wide commands.
+* **Git-under-the-hood VCS**: Features a powerful local version control pipeline mapping standard git flows to clean, branded CLI operations.
+* **Metabolism & SQLite Memory**: Persists event histories and memories in SQLite, with automatic summaries generated once context windows are saturated.
+* **Hierarchical Configurations**: Get and set deeply nested parameters (e.g. `llm.model`) in local or global configs using simple dot-notation.
 
-- Build Ruby watcher daemon with debounce and directory locking.
-- Implement `.hint` scanning and prompt composition (implicit sensing and navigation).
-- Define Draft→Active tool state machine with failure feedback and dependency healing.
+---
 
-## Developer Priorities (Part II)
+## 💻 Installation & Quick Start
 
-- Implement Ruby SQLite data-access layer and transactions.
-- Build metabolism scheduler to monitor `config.max_state_chars` and trigger summarization.
-- Create prompt templating to compose `[Summary] + [Active Window Logs] + [Variables]`.
+### 1. Installation
 
-## Developer Priorities (Part III)
+Aura OS requires **Ruby 3.0+** and **Git** installed on your system.
 
-- Implement runtime wrapper and interpreter routing from `manifest.runtime` and file extension.
-- Add dependency management for Python (`.venv`, `pip`) and Ruby (`bundle`).
-- Enforce path sanitization and permissions; structure error feedback via `Open3`.
+```bash
+# Clone the repository
+git clone https://github.com/your-repo/aura.git
+cd aura/aura
 
-## Contributing
+# Package and install the CLI globally
+gem build aura.gemspec
+gem install ./aura-0.1.0.gem
+```
 
-Contributions are welcome. Please open issues or Pull Requests for improvements to the kernel, tooling, protocol, and documentation.
+Verify that Aura is installed globally:
+```bash
+aura version
+aura doctor
+```
 
-## License
+### 2. Initialize a Project
+
+Initialize a new project environment (this clones universal templates from your global storage in `~/.aura/repo` into your target directory's hidden `.aura/` folder):
+
+```bash
+aura new my_agent_project
+cd my_agent_project
+```
+
+### 3. Managing Configurations
+
+You can read or write configurations using deeply-nested dot-notation.
+
+```bash
+# Get a local config key
+aura config llm.model
+
+# Set a local config key (converts boolean/numeric types automatically)
+aura config llm.model claude-3-5-sonnet
+aura config security.strict_path_isolation true
+
+# Set a global template key (propagated to all future "aura new" projects!)
+aura config llm.provider anthropic --global
+```
+
+### 4. Git-Powered Version Control (VCS)
+
+Aura packages a full local version control workflow inside `.aura/` so you can stage, commit, and push/sync your newly developed custom tools back to your parent templates globally:
+
+```bash
+# 1. Inspect what's modified or untracked in your local environment
+aura status
+
+# 2. Stage a newly created custom tool
+aura add tools/my_custom_tool
+
+# 3. Commit the changes
+aura commit -m "Added standard enterprise search tool"
+
+# 4. Sync (push) the tool back to your global templates (~/.aura/repo)
+aura sync
+
+# 5. Pull template updates from the global repository into your active workspace
+aura pull
+```
+
+---
+
+## 🧠 Using the Kernel
+
+The kernel acts as the agent's main processor loop, orchestrating context and plan steps:
+
+```bash
+# Observe the workspace (performs context compilation)
+aura kernel observe .
+
+# Plan a task (requires LLM integration to output tool instructions)
+aura kernel plan .
+
+# Run a specific tool manually
+aura kernel run_call . read_file '{"file_path": "README.md"}'
+```
+
+### State Memory Inspection
+Since Aura stores state in **SQLite**, you can inspect event narratives directly:
+```bash
+# View last 5 event stages
+sqlite3 .aura/state/aura.db "SELECT * FROM events ORDER BY id DESC LIMIT 5;"
+
+# Read the latest context summary after metabolism
+sqlite3 .aura/state/aura.db "SELECT content FROM summaries ORDER BY id DESC LIMIT 1;"
+```
+
+---
+
+## 🛠️ MCP (Model Context Protocol) Support
+
+Aura OS supports stdio and SSE transports for the Model Context Protocol, enabling agents to tap into hundreds of community-built capabilities.
+
+To add MCP servers, edit your local `.aura/tools/mcp/config.yml` or global `~/.aura/repo/tools/mcp/config.yml`:
+```yaml
+servers:
+  - name: google-search
+    transport: sse
+    url: "https://mcp-server.example.com/sse"
+  - name: local-filesystem
+    transport: stdio
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/search"]
+```
+
+---
+
+## 📄 License
 
 Licensed under the MIT License.
