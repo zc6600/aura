@@ -229,7 +229,18 @@ module Aura
           puts "\e[31m⛔️ Error: Not an Aura workspace: .aura folder not found in this or parent directories.\e[0m"
           exit 1
         end
-        res = Aura.git_run(aura_dir, "add", *paths)
+        
+        require "pathname"
+        resolved_paths = paths.map do |p|
+          abs_p = File.expand_path(p)
+          if abs_p.start_with?(aura_dir)
+            Pathname.new(abs_p).relative_path_from(Pathname.new(aura_dir)).to_s
+          else
+            p
+          end
+        end
+
+        res = Aura.git_run(aura_dir, "add", *resolved_paths)
         if res[:success]
           puts "\e[32mSuccessfully staged changes inside .aura.\e[0m"
         else
