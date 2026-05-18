@@ -31,6 +31,42 @@ echo -e "${GREEN}✨ Welcome to the Aura OS One-Click Installer & Setup Engine �
 echo -e "${BLUE}======================================================================${NC}"
 echo ""
 
+# Helper function to install Ruby automatically
+install_ruby() {
+    echo -e "${YELLOW}⚠️  Ruby is not installed on your system.${NC}"
+    read -p "❓ Would you like the installer to attempt to install Ruby automatically? (y/N): " -r AUTO_INSTALL
+    if [[ ! "$AUTO_INSTALL" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        echo -e "${RED}⛔️ Error: Ruby is required to proceed. Please install Ruby manually and run the setup again.${NC}"
+        exit 1
+    fi
+
+    echo -e "${BLUE}  - Detecting system package manager...${NC}"
+    if command -v brew &> /dev/null; then
+        echo -e "  - Found Homebrew. Running: ${BLUE}brew install ruby${NC}"
+        brew install ruby
+    elif command -v apt-get &> /dev/null; then
+        echo -e "  - Found apt package manager. Running: ${BLUE}sudo apt-get update && sudo apt-get install -y ruby ruby-dev build-essential${NC}"
+        sudo apt-get update && sudo apt-get install -y ruby ruby-dev build-essential
+    elif command -v yum &> /dev/null; then
+        echo -e "  - Found yum package manager. Running: ${BLUE}yum install -y ruby ruby-devel gcc make${NC}"
+        if [ "$EUID" -ne 0 ]; then
+            sudo yum install -y ruby ruby-devel gcc make
+        else
+            yum install -y ruby ruby-devel gcc make
+        fi
+    elif command -v dnf &> /dev/null; then
+        echo -e "  - Found dnf package manager. Running: ${BLUE}dnf install -y ruby ruby-devel gcc make${NC}"
+        if [ "$EUID" -ne 0 ]; then
+            sudo dnf install -y ruby ruby-devel gcc make
+        else
+            dnf install -y ruby ruby-devel gcc make
+        fi
+    else
+        echo -e "${RED}⛔️ Error: No supported package manager (brew, apt-get, yum, dnf) found. Please install Ruby manually.${NC}"
+        exit 1
+    fi
+}
+
 # ------------------------------------------------------------------------------
 # STEP 1: Dependency Check
 # ------------------------------------------------------------------------------
@@ -38,8 +74,7 @@ echo -e "${BLUE}[Step 1/6] Running System Diagnostics...${NC}"
 
 # Check Ruby
 if ! command -v ruby &> /dev/null; then
-    echo -e "${RED}⛔️ Error: Ruby is not installed. Please install Ruby 3.0+ before proceeding.${NC}"
-    exit 1
+    install_ruby
 fi
 
 RUBY_VER=$(ruby -e 'print RUBY_VERSION')
