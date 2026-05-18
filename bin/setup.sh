@@ -96,20 +96,52 @@ else
 fi
 
 # Ask if user wants to set up keys now
-read -p "❓ Would you like to configure your LLM API Keys now? (y/N): " -r RESPONSE
+SELECTED_PROVIDER="local"
+SELECTED_MODEL=""
+SELECTED_BASE=""
+
+read -p "❓ Would you like to configure your default LLM Provider and API Keys now? (y/N): " -r RESPONSE
 if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-    read -p "🔑 Enter Anthropic API Key (or press Enter to skip): " ANTHROPIC_KEY
-    if [ ! -z "$ANTHROPIC_KEY" ]; then
-        # Replace line in .env (macOS compatible sed)
-        sed -i '' "s/ANTHROPIC_API_KEY=/ANTHROPIC_API_KEY=$ANTHROPIC_KEY/g" "$DOTENV_PATH"
-        echo -e "    - Anthropic API Key injected."
+    echo -e "  Select your preferred LLM Provider:"
+    echo -e "    1) local (Offline Mock Adapter - Default)"
+    echo -e "    2) openai (OpenAI / Compatible Proxy)"
+    echo -e "    3) openrouter (OpenRouter Hub)"
+    read -p "  Enter choice (1-3, default: 1): " CHOICE
+
+    if [ "$CHOICE" == "2" ]; then
+        SELECTED_PROVIDER="openai"
+        read -p "  🔑 Enter OpenAI API Key (or press Enter to skip): " OPENAI_KEY
+        if [ ! -z "$OPENAI_KEY" ]; then
+            sed -i '' "s/OPENAI_API_KEY=/OPENAI_API_KEY=$OPENAI_KEY/g" "$DOTENV_PATH"
+            echo -e "    - OpenAI API Key saved to .env."
+        fi
+        read -p "  🤖 Enter OpenAI Model name (default: gpt-4o): " OPENAI_MODEL
+        SELECTED_MODEL=${OPENAI_MODEL:-"gpt-4o"}
+        read -p "  🌐 Enter Custom API Base URL (optional, press Enter to use default): " API_BASE
+        if [ ! -z "$API_BASE" ]; then
+            SELECTED_BASE=$API_BASE
+            # Append to .env
+            echo "OPENAI_API_BASE=$API_BASE" >> "$DOTENV_PATH"
+        fi
+    elif [ "$CHOICE" == "3" ]; then
+        SELECTED_PROVIDER="openrouter"
+        read -p "  🔑 Enter OpenRouter API Key (or press Enter to skip): " OPENROUTER_KEY
+        if [ ! -z "$OPENROUTER_KEY" ]; then
+            echo "OPENROUTER_API_KEY=$OPENROUTER_KEY" >> "$DOTENV_PATH"
+            echo -e "    - OpenRouter API Key saved to .env."
+        fi
+        read -p "  🤖 Enter OpenRouter Model name (default: google/gemini-2.5-flash): " OR_MODEL
+        SELECTED_MODEL=${OR_MODEL:-"google/gemini-2.5-flash"}
+    else
+        SELECTED_PROVIDER="local"
+        echo -e "    - Selected Offline Mock Local provider."
     fi
 
-    read -p "🔑 Enter OpenAI API Key (or press Enter to skip): " OPENAI_KEY
-    if [ ! -z "$OPENAI_KEY" ]; then
-        # Replace line in .env (macOS compatible sed)
-        sed -i '' "s/OPENAI_API_KEY=/OPENAI_API_KEY=$OPENAI_KEY/g" "$DOTENV_PATH"
-        echo -e "    - OpenAI API Key injected."
+    # Also offer to configure Anthropic key as it's heavily used by agent workflows
+    read -p "  🔑 Enter Anthropic API Key (optional, press Enter to skip): " ANTHROPIC_KEY
+    if [ ! -z "$ANTHROPIC_KEY" ]; then
+        sed -i '' "s/ANTHROPIC_API_KEY=/ANTHROPIC_API_KEY=$ANTHROPIC_KEY/g" "$DOTENV_PATH"
+        echo -e "    - Anthropic API Key saved to .env."
     fi
 fi
 echo -e "${GREEN}✓ Credentials configured successfully!${NC}\n"
@@ -180,6 +212,20 @@ else
     fi
 fi
 echo -e "${GREEN}✓ Path integration check completed!${NC}\n"
+
+# Apply selected LLM configurations globally
+if [ "$SELECTED_PROVIDER" != "local" ]; then
+    echo -e "  - Configuring global default LLM provider to ${GREEN}$SELECTED_PROVIDER${NC}..."
+    ruby -Ilib bin/aura config llm.provider "$SELECTED_PROVIDER" --global > /dev/null
+    if [ ! -z "$SELECTED_MODEL" ]; then
+        echo -e "  - Configuring global default LLM model to ${GREEN}$SELECTED_MODEL${NC}..."
+        ruby -Ilib bin/aura config llm.model "$SELECTED_MODEL" --global > /dev/null
+    fi
+    if [ ! -z "$SELECTED_BASE" ]; then
+        echo -e "  - Configuring global default LLM API base to ${GREEN}$SELECTED_BASE${NC}..."
+        ruby -Ilib bin/aura config llm.api_base "$SELECTED_BASE" --global > /dev/null
+    fi
+fi
 
 # ------------------------------------------------------------------------------
 # STEP 6: Global Diagnostics Verification
