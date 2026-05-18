@@ -2,8 +2,16 @@ module Aura
   module LLM
     class Env
       def self.load_from(project_path)
-        path = File.join(project_path, ".env")
-        return unless File.exist?(path)
+        # 1. Load local workspace .env first (precedes global fallback)
+        local_env = File.join(project_path, ".env")
+        load_file(local_env) if File.exist?(local_env)
+
+        # 2. Load global fallback ~/.aura/.env second (only sets unset keys)
+        global_env = File.join(Dir.home, ".aura", ".env")
+        load_file(global_env) if File.exist?(global_env)
+      end
+
+      def self.load_file(path)
         begin
           File.readlines(path).each do |line|
             line = line.strip

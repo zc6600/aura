@@ -439,4 +439,40 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     
     assert_equal File.realdirpath(@test_workspace), File.realdirpath(called_path)
   end
+
+  def test_cascading_env_loading_precedence
+    local_env_path = File.join(@test_workspace, ".env")
+    FileUtils.mkdir_p(@test_workspace)
+    File.write(local_env_path, "LOCAL_SECRET=local_val\nSHARED_SECRET=local_override")
+
+    Dir.instance_variable_set(:@stubbed_home, @tmp_dir)
+    class << Dir
+      alias_method :original_home, :home
+      define_method(:home) do
+        Dir.instance_variable_get(:@stubbed_home)
+      end
+    end
+
+    begin
+      global_dir = File.join(@tmp_dir, ".aura")
+      FileUtils.mkdir_p(global_dir)
+      File.write(File.join(global_dir, ".env"), "GLOBAL_SECRET=global_val\nSHARED_SECRET=global_fallback")
+
+      require "aura/llm/env"
+      Aura::LLM::Env.load_from(@test_workspace)
+    ensure
+      class << Dir
+        alias_method :home, :original_home
+        remove_method :original_home
+      end
+    end
+
+    assert_equal "local_val", ENV["LOCAL_SECRET"]
+    assert_equal "global_val", ENV["GLOBAL_SECRET"]
+    assert_equal "local_override", ENV["SHARED_SECRET"]
+  ensure
+    ENV.delete("LOCAL_SECRET")
+    ENV.delete("GLOBAL_SECRET")
+    ENV.delete("SHARED_SECRET")
+  end
 end
