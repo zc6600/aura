@@ -47,6 +47,21 @@ module Aura
     File.join(Dir.home, ".aura", "projects.yml")
   end
 
+  # Climb parent directories to locate a valid .aura folder, avoiding global ~/.aura
+  def self.find_aura_dir(start_dir = Dir.pwd)
+    dir = File.expand_path(start_dir)
+    loop do
+      hidden = File.join(dir, ".aura")
+      if File.directory?(hidden) && hidden != File.expand_path("~/.aura")
+        return hidden
+      end
+      parent = File.dirname(dir)
+      break if parent == dir
+      dir = parent
+    end
+    nil
+  end
+
   # Retrieve all registered projects as a Hash mapping name to absolute path
   def self.registered_projects
     cfg_path = global_projects_config_path

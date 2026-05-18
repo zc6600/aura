@@ -18,10 +18,14 @@ module Aura
         true
       end
 
-      desc "new PROJECT_NAME", "Initialize an in-place Aura environment linked to a project name"
-      def new(project_name)
+      desc "new [PROJECT_NAME]", "Initialize an in-place Aura environment linked to a project name (defaults to aura_YYYY_MM_DD)"
+      def new(project_name = nil)
         Aura.ensure_global_repo!
         
+        if project_name.nil? || project_name.to_s.strip.empty?
+          project_name = Time.now.strftime("aura_%Y_%m_%d")
+        end
+
         target_dir = Dir.pwd
         hidden = File.join(target_dir, ".aura")
         
@@ -591,17 +595,7 @@ module Aura
       private
 
       def find_aura_dir
-        dir = Dir.pwd
-        loop do
-          hidden = File.join(dir, ".aura")
-          if File.directory?(hidden) && hidden != File.expand_path("~/.aura")
-            return hidden
-          end
-          parent = File.dirname(dir)
-          break if parent == dir
-          dir = parent
-        end
-        nil
+        Aura.find_aura_dir(Dir.pwd)
       end
 
       def get_hash_value(hash, key)

@@ -357,4 +357,51 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
   ensure
     ENV["AURA_SESSION_NAME"] = nil
   end
+
+  def test_date_based_fallback_name
+    cli = Aura::Commands::ApplicationCommand.new
+    FileUtils.mkdir_p(@test_workspace)
+    Dir.chdir(@test_workspace) do
+      cli.new
+    end
+    hidden = File.join(@test_workspace, ".aura")
+    assert File.directory?(hidden)
+    expected_name = Time.now.strftime("aura_%Y_%m_%d")
+    local_cfg = YAML.load_file(File.join(hidden, "config", "config.yml"))
+    assert_equal expected_name, local_cfg["project_name"]
+  end
+
+  def test_climb_parent_directories_workspace_resolution
+    # Initialize workspace
+    cli = Aura::Commands::ApplicationCommand.new
+    FileUtils.mkdir_p(@test_workspace)
+    Dir.chdir(@test_workspace) do
+      cli.new("climbing_project")
+    end
+
+    # Create a deep subdirectory inside workspace
+    deep_dir = File.join(@test_workspace, "src", "components", "buttons")
+    FileUtils.mkdir_p(deep_dir)
+
+    # Instantiate KernelCommand
+    k_cli = Aura::Commands::KernelCommand.new
+    
+    # Test resolve_project_path! starts searching from subfolder and climbs up successfully
+    resolved = k_cli.send(:resolve_project_path!, deep_dir)
+    assert_equal File.realdirpath(@test_workspace), File.realdirpath(resolved)
+
+    # Test resolve_project_path! defaults to Dir.pwd when arg is nil, climbing up successfully
+    Dir.chdir(deep_dir) do
+      resolved = k_cli.send(:resolve_project_path!, nil)
+      assert_equal File.realdirpath(@test_workspace), File.realdirpath(resolved)
+    end
+
+    # Test resolve_project_path! aborts/exits when outside a workspace
+    non_workspace = @tmp_dir
+    assert_raises(SystemExit) do
+      capture_io do
+        k_cli.send(:resolve_project_path!, non_workspace)
+      end
+    end
+  end
 end

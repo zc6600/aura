@@ -7,12 +7,13 @@ module Aura
         true
       end
 
-      desc "observe PROJECT_PATH", "Observe current environment and assemble context"
+      desc "observe [PROJECT_PATH]", "Observe current environment and assemble context"
       method_option :human, type: :boolean, aliases: "-H", default: false, desc: "Human-readable output"
       method_option :preview_lines, type: :numeric, aliases: "-n", default: 5, desc: "Lines to show in context preview"
-      def observe(project_path)
+      def observe(project_path = nil)
         require "aura/kernel"
-        runner = Aura::Kernel::Runner.new(File.expand_path(project_path))
+        resolved_path = resolve_project_path!(project_path)
+        runner = Aura::Kernel::Runner.new(File.expand_path(resolved_path))
         begin
           ctx = runner.observe
         rescue Aura::Context::ContextOverflowError => e
@@ -26,25 +27,27 @@ module Aura
         end
       end
 
-      desc "run_call PROJECT_PATH TOOL ARGS", "Run a specific tool call"
-      def run_call(project_path, tool, args_json)
+      desc "run_call TOOL ARGS [PROJECT_PATH]", "Run a specific tool call"
+      def run_call(tool, args_json, project_path = nil)
         require "aura/kernel"
-        runner = Aura::Kernel::Runner.new(File.expand_path(project_path))
+        resolved_path = resolve_project_path!(project_path)
+        runner = Aura::Kernel::Runner.new(File.expand_path(resolved_path))
         args = JSON.parse(args_json)
         out = runner.run_call({ "tool" => tool, "args" => args })
         puts out.is_a?(String) ? out : out.to_json
       end
 
-      desc "once PROJECT_PATH", "Run Kernel once with a provided call payload"
+      desc "once [PROJECT_PATH]", "Run Kernel once with a provided call payload"
       method_option :call, type: :string, aliases: "-c", desc: "JSON payload: {\"tool\":..., \"args\":{...}}"
       method_option :input, type: :string, aliases: "-i", desc: "User input to plan a single call when no payload is provided"
       method_option :ask, type: :boolean, aliases: "-a", default: false, desc: "Prompt for user input if not provided"
       method_option :human, type: :boolean, aliases: "-H", default: false, desc: "Human-readable output"
       method_option :verbose, type: :boolean, aliases: "-v", default: false, desc: "Show detailed output"
       method_option :preview_lines, type: :numeric, aliases: "-n", default: 5, desc: "Lines to show in context preview"
-      def once(project_path)
+      def once(project_path = nil)
         require "aura/kernel"
-        runner = Aura::Kernel::Runner.new(File.expand_path(project_path))
+        resolved_path = resolve_project_path!(project_path)
+        runner = Aura::Kernel::Runner.new(File.expand_path(resolved_path))
         input = options[:input]
         if options[:ask] && input.to_s.strip.empty?
           $stdout.print "Input> "
@@ -90,13 +93,14 @@ module Aura
         end
       end
 
-      desc "plan PROJECT_PATH", "Run planner to produce next step"
+      desc "plan [PROJECT_PATH]", "Run planner to produce next step"
       method_option :goal, type: :string, aliases: "-g", desc: "Goal text to guide planning"
       method_option :human, type: :boolean, aliases: "-H", default: false, desc: "Human-readable output"
       method_option :preview_lines, type: :numeric, aliases: "-n", default: 5, desc: "Lines to show in context preview"
-      def plan(project_path)
+      def plan(project_path = nil)
         require "aura/kernel"
-        runner = Aura::Kernel::Runner.new(File.expand_path(project_path))
+        resolved_path = resolve_project_path!(project_path)
+        runner = Aura::Kernel::Runner.new(File.expand_path(resolved_path))
         ctx = nil
         begin
           ctx = runner.observe
@@ -119,14 +123,15 @@ module Aura
         end
       end
 
-      desc "loop PROJECT_PATH", "Loop planner and tool calls until final"
+      desc "loop [PROJECT_PATH]", "Loop planner and tool calls until final"
       method_option :goal, type: :string, aliases: "-g", desc: "Goal text to guide planning"
       method_option :human, type: :boolean, aliases: "-H", default: false, desc: "Human-readable output"
       method_option :verbose, type: :boolean, aliases: "-v", default: false, desc: "Show detailed output"
       method_option :max_steps, type: :numeric, aliases: "-m", desc: "Maximum loop steps"
-      def loop(project_path)
+      def loop(project_path = nil)
         require "aura/kernel"
-        runner = Aura::Kernel::Runner.new(File.expand_path(project_path))
+        resolved_path = resolve_project_path!(project_path)
+        runner = Aura::Kernel::Runner.new(File.expand_path(resolved_path))
         steps = []
         final_res = nil
         goal = options[:goal]
@@ -249,6 +254,17 @@ module Aura
           keys = res.keys.map(&:to_s)
           return "Result returned (fields: #{keys.join(', ')})" if keys.any?
           "Result returned"
+        end
+
+        def resolve_project_path!(project_path)
+          start_dir = project_path.to_s.strip.empty? ? Dir.pwd : project_path
+          aura_dir = Aura.find_aura_dir(start_dir)
+          if aura_dir
+            File.dirname(aura_dir)
+          else
+            puts "\e[31m⛔️ Error: Not in an Aura workspace. No .aura folder found in parent directories.\e[0m"
+            exit 1
+          end
         end
       end
     end
