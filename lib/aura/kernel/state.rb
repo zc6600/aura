@@ -13,21 +13,29 @@ module Aura
         @db_path = if env_db && !env_db.to_s.strip.empty?
           File.expand_path(env_db, @project_path)
         else
-          begin
-            cfg = File.join(@project_path, "config", "config.yml")
-            if File.exist?(cfg)
-              require "yaml"
-              data = YAML.load_file(cfg)
-              p = data.dig("state_management", "db_path")
-              if p && !p.to_s.empty?
-                File.expand_path(p, @project_path)
-              else
-                File.join(@state_dir, "aura.db")
-              end
+          # Resolve session name
+          session_name = ENV["AURA_SESSION_NAME"]
+          if session_name.nil? || session_name.to_s.strip.empty?
+            active_txt = File.join(@state_dir, "active_session.txt")
+            session_name = if File.exist?(active_txt)
+              File.read(active_txt).strip rescue "default"
             else
-              File.join(@state_dir, "aura.db")
+              FileUtils.mkdir_p(@state_dir)
+              File.write(active_txt, "default") rescue nil
+              "default"
             end
           end
+          session_name = "default" if session_name.to_s.strip.empty?
+
+          # Backward compatibility: migrate legacy state/aura.db
+          legacy_db = File.join(@state_dir, "aura.db")
+          default_db = File.join(@state_dir, "sessions", "default.db")
+          if File.exist?(legacy_db) && !File.exist?(default_db)
+            FileUtils.mkdir_p(File.dirname(default_db))
+            FileUtils.mv(legacy_db, default_db) rescue nil
+          end
+
+          File.join(@state_dir, "sessions", "#{session_name}.db")
         end
         FileUtils.mkdir_p(@state_dir)
         FileUtils.mkdir_p(File.dirname(@db_path))

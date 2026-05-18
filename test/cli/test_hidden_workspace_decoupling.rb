@@ -281,4 +281,80 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
       assert_match(/Successfully switched active agent profile to 'main'/, out)
     end
   end
+
+  def test_conversation_sessions_isolation
+    FileUtils.mkdir_p(@test_workspace)
+    hidden = File.join(@test_workspace, ".aura")
+    state_dir = File.join(hidden, "state")
+    FileUtils.mkdir_p(state_dir)
+
+    # 1. Test Legacy Migration
+    legacy_db = File.join(state_dir, "aura.db")
+    SQLite3::Database.new(legacy_db).close
+    
+    state = Aura::Kernel::State.new(hidden)
+    default_db = File.join(state_dir, "sessions", "default.db")
+    assert File.exist?(default_db), "Legacy aura.db should be migrated to sessions/default.db"
+    refute File.exist?(legacy_db), "Legacy aura.db should be cleanly moved/removed"
+
+    # 2. Test Session Separation in State
+    state = Aura::Kernel::State.new(hidden)
+    state.record_event({ phase: "user", content: "hello world" })
+    
+    db_default = state.instance_variable_get(:@db)
+    assert_equal 1, db_default.get_first_value("SELECT COUNT(*) FROM events")
+    
+    # Start a brand new session by changing ENV
+    begin
+      ENV["AURA_SESSION_NAME"] = "data_scientist_run"
+      state_ds = Aura::Kernel::State.new(hidden)
+      
+      db_ds = state_ds.instance_variable_get(:@db)
+      assert_equal 0, db_ds.get_first_value("SELECT COUNT(*) FROM events")
+      state_ds.record_event({ phase: "user", content: "run python script" })
+      assert_equal 1, db_ds.get_first_value("SELECT COUNT(*) FROM events")
+      
+      # Verify default db still only has its original turns (no memory leaking!)
+      ENV["AURA_SESSION_NAME"] = "default"
+      state_default = Aura::Kernel::State.new(hidden)
+      db_default2 = state_default.instance_variable_get(:@db)
+      assert_equal 1, db_default2.get_first_value("SELECT COUNT(*) FROM events")
+    ensure
+      ENV["AURA_SESSION_NAME"] = nil
+    end
+
+    # 3. Test SlashCommandManager /session command and Hot-Reload callback
+    config_loader = -> { {} }
+    runner_mock = Object.new
+    def runner_mock.undo; true; end
+    
+    reload_called = false
+    on_reload = -> { reload_called = true }
+    
+    slash = Aura::CLI::Shell::SlashCommandManager.new(@test_workspace, config_loader, runner_mock, on_reload: on_reload)
+    
+    # List sessions
+    out, err = capture_io do
+      slash.handle("/session list")
+    end
+    assert_match(/Aura Conversation Sessions:/, out)
+    assert_match(/default/, out)
+    assert_match(/data_scientist_run/, out)
+    
+    # Switch session
+    out, err = capture_io do
+      slash.handle("/session scientist")
+    end
+    assert_match(/Switching conversation session to 'scientist'/, out)
+    assert_match(/Successfully switched and hot-loaded session 'scientist'/, out)
+    assert reload_called, "on_reload callback should have been triggered on session switch"
+    assert_equal "scientist", ENV["AURA_SESSION_NAME"]
+    
+    # Verify active_session.txt is updated
+    active_txt = File.join(state_dir, "active_session.txt")
+    assert File.exist?(active_txt)
+    assert_equal "scientist", File.read(active_txt).strip
+  ensure
+    ENV["AURA_SESSION_NAME"] = nil
+  end
 end

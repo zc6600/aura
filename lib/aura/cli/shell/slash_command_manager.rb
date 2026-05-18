@@ -1,0 +1,135 @@
+# frozen_string_literal: true
+
+require "yaml"
+require "fileutils"
+
+module Aura
+  module CLI
+    module Shell
+      class SlashCommandManager
+        def initialize(project_path, config_loader, runner, on_reload: nil)
+          @project_path = project_path
+          @config_loader = config_loader
+          @runner = runner
+          @on_reload = on_reload
+        end
+
+        def handle(input)
+          return false unless input.start_with?("/")
+
+          parts = input.strip.split(/\s+/, 2)
+          cmd = parts[0].downcase
+          args = parts[1]
+
+          case cmd
+          when "/model"
+            handle_model(args)
+          when "/help"
+            handle_help
+          when "/undo"
+            handle_undo
+          when "/redo"
+            handle_redo
+          when "/session"
+            handle_session(args)
+          else
+            puts "Unknown command: #{cmd}"
+          end
+          true
+        end
+
+        private
+
+        def handle_session(args)
+          env_path = Aura.environment_path(@project_path)
+          sessions_dir = File.join(env_path, "state", "sessions")
+          active_txt = File.join(env_path, "state", "active_session.txt")
+          current = File.exist?(active_txt) ? File.read(active_txt).strip : "default"
+
+          if args.nil? || args.empty? || args.strip.downcase == "list"
+            puts "Aura Conversation Sessions:"
+            puts "-" * 60
+            if File.directory?(sessions_dir)
+              Dir.glob(File.join(sessions_dir, "*.db")).each do |db_file|
+                name = File.basename(db_file, ".db")
+                active_star = (name == current) ? "* " : "  "
+                puts "#{active_star}#{name}"
+              end
+            else
+              puts "  * default"
+            end
+            puts "-" * 60
+            puts "Usage: /session <session_name>  - Switch session"
+            puts "       /session new             - Start a new timestamped session"
+          else
+            name = args.strip
+            if name.downcase == "new"
+              name = "session_#{Time.now.strftime('%Y%m%d_%H%M%S')}"
+            end
+
+            FileUtils.mkdir_p(File.dirname(active_txt))
+            File.write(active_txt, name)
+            ENV["AURA_SESSION_NAME"] = name
+
+            puts "🔄 Switching conversation session to '#{name}'..."
+            
+            if @on_reload
+              @on_reload.call
+              puts "\e[32mSuccessfully switched and hot-loaded session '#{name}'!\e[0m"
+            else
+              puts "\e[33mSession registered. Please restart chat shell to activate.\e[0m"
+            end
+          end
+        end
+
+        def handle_undo
+          if @runner.undo
+            puts "✅ Undid last turn."
+          else
+            puts "⚠️  Nothing to undo."
+          end
+        end
+
+        def handle_redo
+          if @runner.redo
+            puts "✅ Redid last turn."
+          else
+            puts "⚠️  Nothing to redo."
+          end
+        end
+
+        def handle_model(args)
+          config = @config_loader.call
+          if args.nil? || args.empty?
+            puts "Current model: #{config.dig('llm', 'model') || 'default'}"
+            puts "Usage: /model <model_name>"
+          else
+            update_config("llm", "model", args)
+            puts "Model switched to: #{args}"
+          end
+        end
+
+        def handle_help
+          puts "Available commands:"
+          puts "  /model <name>    - Switch LLM model"
+          puts "  /undo            - Undo last turn (removes from memory)"
+          puts "  /redo            - Redo last undone turn"
+          puts "  /session [name]  - List, switch, or create new conversation sessions"
+          puts "  /help            - Show this help"
+          puts "  auto on/off      - Toggle auto mode"
+          puts "  exit/quit        - Exit the shell"
+        end
+
+        def update_config(section, key, value)
+          cfg_path = File.join(@project_path, "config", "config.yml")
+          data = File.exist?(cfg_path) ? YAML.load_file(cfg_path) : {}
+          data[section] ||= {}
+          data[section][key] = value
+          File.write(cfg_path, YAML.dump(data))
+          # Reload config in the caller context if needed via callback, 
+          # but here we rely on the next call to @config_loader.call to pick it up.
+        end
+      end
+    end
+  end
+end
