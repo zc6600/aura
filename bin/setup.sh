@@ -7,12 +7,24 @@
 
 set -e
 
+# Check if running remotely or inside the repository
+IS_REMOTE_INSTALL=false
+TEMP_CLONE_DIR=""
+
 # Color codes for visual feedback
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
+
+if [ ! -f "aura.gemspec" ] || [ ! -d "lib" ]; then
+    echo -e "${YELLOW}⚠️ Running setup script remotely. Cloning Aura OS repository temporarily...${NC}"
+    TEMP_CLONE_DIR=$(mktemp -d /tmp/aura_installer.XXXXXX)
+    git clone --depth 1 https://github.com/zc6600/aura.git "$TEMP_CLONE_DIR" > /dev/null
+    cd "$TEMP_CLONE_DIR"
+    IS_REMOTE_INSTALL=true
+fi
 
 echo -e "${BLUE}======================================================================${NC}"
 echo -e "${GREEN}✨ Welcome to the Aura OS One-Click Installer & Setup Engine ✨${NC}"
@@ -71,7 +83,12 @@ echo -e "${GREEN}✓ Dependencies successfully installed!${NC}\n"
 # ------------------------------------------------------------------------------
 echo -e "${BLUE}[Step 3/6] Configuring Environment Credentials...${NC}"
 
-DOTENV_PATH=".env"
+if [ "$IS_REMOTE_INSTALL" = true ]; then
+    mkdir -p "$HOME/.aura"
+    DOTENV_PATH="$HOME/.aura/.env"
+else
+    DOTENV_PATH=".env"
+fi
 
 if [ ! -f "$DOTENV_PATH" ]; then
     echo -e "  - Creating workspace environment file ${YELLOW}.env${NC}..."
@@ -251,6 +268,12 @@ else
     echo -e "   Please run: ${BLUE}source $SHELL_PROFILE${NC} or open a new terminal."
     echo -e "   Then you can run: ${BLUE}aura new <project_name>${NC} anywhere!"
     echo -e "${YELLOW}======================================================================${NC}"
+fi
+
+if [ "$IS_REMOTE_INSTALL" = true ]; then
+    echo -e "  - Cleaning up temporary installation directory..."
+    cd /
+    rm -rf "$TEMP_CLONE_DIR"
 fi
 
 exit 0

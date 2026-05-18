@@ -358,6 +358,7 @@ module Aura
         else
           Aura::LLM::Env.load_from(Dir.pwd)
         end
+        Aura::LLM::Env.load_from(File.expand_path("~/.aura"))
         api_key = Aura::LLM::Env.resolve_api_key(provider)
         
         client = Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
