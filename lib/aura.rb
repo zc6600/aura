@@ -116,11 +116,35 @@ module Aura
     end
 
     # Ensure config.yml is placed in the config/ subfolder for workspace compatibility
+    # If the target config file already exists (e.g. configured by setup.sh), deep-merge to preserve user settings.
     repo_config_dir = File.join(repo, "config")
     repo_config_file = File.join(repo, "config.yml")
     if File.exist?(repo_config_file)
       FileUtils.mkdir_p(repo_config_dir)
-      FileUtils.mv(repo_config_file, File.join(repo_config_dir, "config.yml"))
+      target_config_file = File.join(repo_config_dir, "config.yml")
+      if File.exist?(target_config_file)
+        begin
+          require "yaml"
+          existing_cfg = YAML.load_file(target_config_file) || {}
+          template_cfg = YAML.load_file(repo_config_file) || {}
+          
+          # Deep-merge existing_cfg (user choices) on top of template_cfg
+          merged_cfg = template_cfg.merge(existing_cfg) do |key, oldval, newval|
+            if oldval.is_a?(Hash) && newval.is_a?(Hash)
+              oldval.merge(newval)
+            else
+              newval
+            end
+          end
+          
+          File.write(target_config_file, YAML.dump(merged_cfg))
+          FileUtils.rm(repo_config_file)
+        rescue StandardError
+          FileUtils.mv(repo_config_file, target_config_file, force: true)
+        end
+      else
+        FileUtils.mv(repo_config_file, target_config_file)
+      end
     end
 
     # Initialize global repo as a Git repository so local .aura folders can remote clone/pull/push
