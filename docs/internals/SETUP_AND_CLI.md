@@ -47,7 +47,7 @@ To prevent accidental pollution of the raw framework codebase (e.g., generating 
 ```ruby
 if File.exist?("aura.gemspec") && File.exist?("lib/aura.rb")
   # Restricted unless running safe setup/utility commands
-  unless ["help", "--help", "-h", "doctor", "version", "new", "ask", "list", "delete"].include?(first)
+  unless ["help", "--help", "-h", "doctor", "version", "new", "ask", "list", "delete", "branch"].include?(first)
     puts "⛔️ You are trying to run Aura from the source root directory."
     exit 1
   end
@@ -62,4 +62,5 @@ The following utility commands are **safely whitelisted** and can be run from th
 * **`aura ask "question"`**: Directly query the active LLM from any workspace without agent wrappers.
 * **`aura list`**: Lists all globally registered active/missing workspaces.
 * **`aura delete <project_name>`**: Deletes and unregisters a workspace environment.
+* **`aura branch [profile_name]`**: Lists, switches, or creates customized agent profiles (Git branches) inside `.aura/`.
 * **`aura help`**: Displays command flags and descriptions.

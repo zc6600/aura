@@ -244,4 +244,41 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     registered = Aura.registered_projects
     assert_nil registered["manually_imported_project"]
   end
+
+  def test_agent_branching_and_profiles
+    cli = Aura::Commands::ApplicationCommand.new
+    FileUtils.mkdir_p(@test_workspace)
+    Dir.chdir(@test_workspace) do
+      cli.new("test_project")
+    end
+
+    Dir.chdir(@test_workspace) do
+      # 1. List branches (should have only main active)
+      out, err = capture_io do
+        cli.branch
+      end
+      assert_match(/main/, out)
+
+      # 2. Switch to a new profile (does not exist, prompt for creation)
+      $stdin = StringIO.new("y")
+      out, err = capture_io do
+        cli.branch("data-scientist")
+      end
+      $stdin = STDIN
+
+      assert_match(/Successfully created and switched to new agent profile 'data-scientist'/, out)
+
+      # 3. List branches again (should show active data-scientist)
+      out, err = capture_io do
+        cli.branch
+      end
+      assert_match(/\* data-scientist/, out)
+
+      # 4. Switch back to main (already exists)
+      out, err = capture_io do
+        cli.branch("main")
+      end
+      assert_match(/Successfully switched active agent profile to 'main'/, out)
+    end
+  end
 end

@@ -528,6 +528,66 @@ module Aura
         end
       end
 
+      desc "branch [PROFILE_NAME]", "List, switch, or create customized agent profiles in the active workspace"
+      def branch(profile_name = nil)
+        aura_dir = find_aura_dir
+        if aura_dir.nil?
+          puts "\e[31m⛔️ Error: Not an Aura workspace: .aura folder not found in this or parent directories.\e[0m"
+          exit 1
+        end
+
+        if profile_name.nil?
+          # List branches
+          res = Aura.git_run(aura_dir, "branch")
+          if res[:success]
+            puts "Customized Agent Profiles (Branches):"
+            puts "-" * 60
+            puts res[:stdout]
+            puts "-" * 60
+          else
+            puts "\e[31mFailed to list agent profiles: #{res[:stderr]}\e[0m"
+          end
+        else
+          # Check if branch exists
+          res = Aura.git_run(aura_dir, "branch", "--list", profile_name.to_s)
+          exists = res[:success] && !res[:stdout].strip.empty?
+
+          if exists
+            # Switch branch
+            checkout_res = Aura.git_run(aura_dir, "checkout", profile_name.to_s)
+            if checkout_res[:success]
+              puts "\e[32mSuccessfully switched active agent profile to '#{profile_name}'!\e[0m"
+            else
+              puts "\e[31mFailed to switch agent profile:\n#{checkout_res[:stderr]}\e[0m"
+            end
+          else
+            # Prompt to create
+            puts "❓ Agent profile '#{profile_name}' does not exist."
+            print "   Do you want to create a new profile from the current active? (y/N): "
+            $stdout.flush
+            begin
+              tty = File.open("/dev/tty", "r")
+              confirm = tty.gets.strip
+              tty.close
+            rescue StandardError
+              confirm = $stdin.gets&.strip || "n"
+            end
+
+            if confirm =~ /\A(y|yes)\z/i
+              # Create and checkout branch
+              create_res = Aura.git_run(aura_dir, "checkout", "-b", profile_name.to_s)
+              if create_res[:success]
+                puts "\e[32mSuccessfully created and switched to new agent profile '#{profile_name}'!\e[0m"
+              else
+                puts "\e[31mFailed to create agent profile:\n#{create_res[:stderr]}\e[0m"
+              end
+            else
+              puts "Cancelled."
+            end
+          end
+        end
+      end
+
       private
 
       def find_aura_dir
