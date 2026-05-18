@@ -42,6 +42,59 @@ module Aura
     File.join(Dir.home, ".aura", "config.yml")
   end
 
+  # Global projects registry file (~/.aura/projects.yml)
+  def self.global_projects_config_path
+    File.join(Dir.home, ".aura", "projects.yml")
+  end
+
+  # Retrieve all registered projects as a Hash mapping name to absolute path
+  def self.registered_projects
+    cfg_path = global_projects_config_path
+    return {} unless File.exist?(cfg_path)
+    begin
+      data = YAML.load_file(cfg_path)
+      data.is_a?(Hash) && data["projects"] ? data["projects"] : {}
+    rescue StandardError
+      {}
+    end
+  end
+
+  # Register a workspace path with a project name globally
+  def self.register_project!(name, path)
+    cfg_path = global_projects_config_path
+    FileUtils.mkdir_p(File.dirname(cfg_path))
+    begin
+      require "yaml"
+      data = File.exist?(cfg_path) ? (YAML.load_file(cfg_path) || {}) : {}
+    rescue StandardError
+      data = {}
+    end
+    data = {} unless data.is_a?(Hash)
+    data["projects"] ||= {}
+    data["projects"][name.to_s] = File.expand_path(path)
+    File.write(cfg_path, YAML.dump(data))
+  end
+
+  # Unregister a project name globally
+  def self.unregister_project!(name)
+    cfg_path = global_projects_config_path
+    return false unless File.exist?(cfg_path)
+    begin
+      require "yaml"
+      data = YAML.load_file(cfg_path) || {}
+    rescue StandardError
+      return false
+    end
+    data = {} unless data.is_a?(Hash)
+    data["projects"] ||= {}
+    if data["projects"].delete(name.to_s)
+      File.write(cfg_path, YAML.dump(data))
+      true
+    else
+      false
+    end
+  end
+
   # Execute a Git command safely inside a directory
   def self.git_run(dir, *args)
     out, err, status = Open3.capture3("git", "-C", dir, *args)

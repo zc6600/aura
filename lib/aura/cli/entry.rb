@@ -8,10 +8,9 @@ module Aura
     class EntryPoint
       def self.start(argv)
         # raise "DEBUG: Entry point reached. CWD: #{Dir.pwd}"
-        # Prevent running from source root (unless asking for help/version/doctor/new/ask)
+        first = argv&.first
         if File.exist?("aura.gemspec") && File.exist?("lib/aura.rb") && !argv.include?("--version") && !argv.include?("-v")
-           first = argv&.first
-           unless ["help", "--help", "-h", "doctor", "version", "new", "ask"].include?(first)
+           unless ["help", "--help", "-h", "doctor", "version", "new", "ask", "list", "delete"].include?(first)
              puts "\e[31m⛔️  You are trying to run Aura from the source root directory.\e[0m"
              puts "Please run it in a separate mission directory (e.g., `tmp_mission_00`)."
              exit 1
