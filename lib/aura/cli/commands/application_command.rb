@@ -327,6 +327,63 @@ module Aura
         end
       end
 
+      desc "ask QUESTION", "Directly ask the LLM a question without any Aura OS context wrapping"
+      method_option :model, type: :string, desc: "Override model name"
+      method_option :provider, type: :string, desc: "Override provider name (local, openai, openrouter)"
+      method_option :system, type: :string, desc: "System prompt instructions"
+      def ask(question)
+        require "aura/llm/client"
+        require "aura/llm/env"
+        
+        # Load configuration (checking active .aura workspace config first, then global config)
+        aura_dir = find_aura_dir
+        cfg_path = if aura_dir
+                     File.join(aura_dir, "config", "config.yml")
+                   else
+                     File.join(Aura.global_repo_path, "config", "config.yml")
+                   end
+        
+        cfg = File.exist?(cfg_path) ? (YAML.load_file(cfg_path) || {}) : {}
+        
+        # Determine provider, api_base, model, temperature
+        provider = options[:provider] || options["provider"] || cfg.dig("llm", "provider") || "local"
+        api_base = cfg.dig("llm", "api_base")
+        model = options[:model] || options["model"] || cfg.dig("llm", "model")
+        temp = cfg.dig("llm", "temperature") || 0.7
+        max_tokens = cfg.dig("llm", "max_tokens")
+        
+        # Load API keys from active workspace environment or shell environment
+        if aura_dir
+          Aura::LLM::Env.load_from(File.dirname(aura_dir))
+        else
+          Aura::LLM::Env.load_from(Dir.pwd)
+        end
+        api_key = Aura::LLM::Env.resolve_api_key(provider)
+        
+        client = Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
+        
+        messages = []
+        system_instruction = options[:system] || options["system"]
+        if system_instruction
+          messages << { role: "system", content: system_instruction }
+        end
+        messages << { role: "user", content: question }
+        
+        puts "\e[34m🤖 Connecting to #{provider} (#{model || 'default model'})...\e[0m"
+        puts ""
+        
+        # Stream response
+        begin
+          client.complete_stream(messages, { temperature: temp, max_tokens: max_tokens }) do |delta|
+            print delta
+            $stdout.flush
+          end
+          puts ""
+        rescue StandardError => e
+          puts "\n\e[31m⛔️ Error calling LLM: #{e.message}\e[0m"
+        end
+      end
+
       private
 
       def find_aura_dir
