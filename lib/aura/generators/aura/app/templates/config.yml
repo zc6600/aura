@@ -91,8 +91,8 @@ hints:
 # 语言模型 (LLM)
 # ----------------------------------------------------------------
 llm:
-  provider: "local"
-  model: "gpt-4o"
+  provider: "openrouter"
+  model: "google/gemini-3.1-flash-lite"
   api_base: ""
   temperature: 0.2
   max_tokens: 20000
