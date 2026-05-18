@@ -209,4 +209,39 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     assert_nil registered["test_project"]
     refute File.exist?(File.join(@test_workspace, ".aura"))
   end
+
+  def test_register_and_prune_commands
+    cli = Aura::Commands::ApplicationCommand.new
+    FileUtils.mkdir_p(@test_workspace)
+    
+    # 1. Initialize local folder without registering (manually copy/mock it)
+    hidden = File.join(@test_workspace, ".aura")
+    FileUtils.mkdir_p(File.join(hidden, "config"))
+    File.write(File.join(hidden, "config", "config.yml"), YAML.dump({}))
+    
+    # 2. Run register inside CWD
+    Dir.chdir(@test_workspace) do
+      cli.register("manually_imported_project")
+    end
+    
+    # Verify registered
+    registered = Aura.registered_projects
+    assert_equal File.realdirpath(@test_workspace), File.realdirpath(registered["manually_imported_project"])
+    
+    # Verify local config contains name
+    local_cfg = YAML.load_file(File.join(hidden, "config", "config.yml"))
+    assert_equal "manually_imported_project", local_cfg["project_name"]
+
+    # 3. Test pruning: delete local .aura folder and run prune
+    FileUtils.rm_rf(hidden)
+    out, err = capture_io do
+      cli.prune
+    end
+    assert_match(/Pruned missing project 'manually_imported_project'/, out)
+    assert_match(/Successfully pruned 1 missing project/, out)
+    
+    # Verify unregistered
+    registered = Aura.registered_projects
+    assert_nil registered["manually_imported_project"]
+  end
 end

@@ -481,6 +481,53 @@ module Aura
         end
       end
 
+      desc "register PROJECT_NAME", "Register the current directory as an active Aura project globally"
+      def register(project_name)
+        aura_dir = find_aura_dir
+        if aura_dir.nil?
+          puts "\e[31m⛔️ Error: No .aura directory found in this workspace. Run 'aura new <name>' first.\e[0m"
+          exit 1
+        end
+
+        # Register in projects registry
+        Aura.register_project!(project_name, Dir.pwd)
+
+        # Write project name to local config
+        cfg_path = File.join(aura_dir, "config", "config.yml")
+        begin
+          cfg = File.exist?(cfg_path) ? (YAML.load_file(cfg_path) || {}) : {}
+          cfg["project_name"] = project_name.to_s
+          File.write(cfg_path, YAML.dump(cfg))
+        rescue StandardError
+        end
+
+        puts "\e[32mSuccessfully registered workspace at #{Dir.pwd} as '#{project_name}'!\e[0m"
+      end
+
+      desc "prune", "Remove all registered projects whose physical directories no longer exist"
+      def prune
+        projects = Aura.registered_projects
+        if projects.empty?
+          puts "No projects registered."
+          return
+        end
+
+        pruned_count = 0
+        projects.each do |name, path|
+          unless File.directory?(File.join(path, ".aura"))
+            Aura.unregister_project!(name)
+            puts "\e[33mPruned missing project '#{name}' (path: #{path})\e[0m"
+            pruned_count += 1
+          end
+        end
+
+        if pruned_count > 0
+          puts "\e[32mSuccessfully pruned #{pruned_count} missing project(s)!\e[0m"
+        else
+          puts "No missing projects to prune."
+        end
+      end
+
       private
 
       def find_aura_dir
