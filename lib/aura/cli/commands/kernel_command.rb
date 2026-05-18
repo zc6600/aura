@@ -257,14 +257,7 @@ module Aura
         end
 
         def resolve_project_path!(project_path)
-          start_dir = project_path.to_s.strip.empty? ? Dir.pwd : project_path
-          aura_dir = Aura.find_aura_dir(start_dir)
-          if aura_dir
-            File.dirname(aura_dir)
-          else
-            puts "\e[31m⛔️ Error: Not in an Aura workspace. No .aura folder found in parent directories.\e[0m"
-            exit 1
-          end
+          Aura.resolve_project_path!(project_path)
         end
       end
     end

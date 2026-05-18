@@ -110,11 +110,12 @@ module Aura
         puts "Aura CLI: OK"
       end
 
-      desc "context PROJECT_PATH", "Compile and print project context"
-      def context(project_path)
+      desc "context [PROJECT_PATH]", "Compile and print project context"
+      def context(project_path = nil)
         require "aura/context"
         require "aura/kernel/state"
-        root = File.expand_path(project_path)
+        resolved_path = Aura.resolve_project_path!(project_path)
+        root = File.expand_path(resolved_path)
         # Decouple workspace path from environment path
         env_path = Aura.environment_path(root)
         db = Aura::Kernel::State.new(env_path)
@@ -128,19 +129,21 @@ module Aura
       desc "kernel SUBCOMMAND ...", "Kernel commands"
       subcommand "kernel", Aura::Commands::KernelCommand
 
-      desc "chat PROJECT_PATH", "Start an interactive Aura chat session"
+      desc "chat [PROJECT_PATH]", "Start an interactive Aura chat session"
       method_option :verbose, type: :boolean, aliases: "-v", desc: "Show detailed output"
-      def chat(project_path)
-        Aura::Commands::ShellCommand.new.start(project_path)
+      def chat(project_path = nil)
+        resolved_path = Aura.resolve_project_path!(project_path)
+        Aura::Commands::ShellCommand.new.start(resolved_path)
       end
 
-      desc "web PROJECT_PATH", "Start a lightweight Aura web server (events JSON & SSE)"
+      desc "web [PROJECT_PATH]", "Start a lightweight Aura web server (events JSON & SSE)"
       method_option :port, type: :numeric, aliases: "-p", default: 9299, desc: "Port to bind"
       method_option :host, type: :string, aliases: "-h", default: "127.0.0.1", desc: "Host address"
-      def web(project_path)
+      def web(project_path = nil)
         require "socket"
         require "sqlite3"
-        root = File.expand_path(project_path)
+        resolved_path = Aura.resolve_project_path!(project_path)
+        root = File.expand_path(resolved_path)
         env_path = Aura.environment_path(root)
         
         cfg = File.join(env_path, "config", "config.yml")

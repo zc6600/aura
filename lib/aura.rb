@@ -62,6 +62,18 @@ module Aura
     nil
   end
 
+  # Resolve project workspace path by climbing parent directories. Halts with error if not in a workspace.
+  def self.resolve_project_path!(project_path)
+    start_dir = project_path.to_s.strip.empty? ? Dir.pwd : project_path
+    aura_dir = find_aura_dir(start_dir)
+    if aura_dir
+      File.dirname(aura_dir)
+    else
+      puts "\e[31m⛔️ Error: Not in an Aura workspace. No .aura folder found in parent directories.\e[0m"
+      exit 1
+    end
+  end
+
   # Retrieve all registered projects as a Hash mapping name to absolute path
   def self.registered_projects
     cfg_path = global_projects_config_path

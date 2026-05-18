@@ -403,4 +403,40 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
       end
     end
   end
+
+  def test_chat_command_resolves_workspace_automatically
+    cli = Aura::Commands::ApplicationCommand.new
+    FileUtils.mkdir_p(@test_workspace)
+    Dir.chdir(@test_workspace) do
+      cli.new("chat_climbing_project")
+    end
+
+    deep_dir = File.join(@test_workspace, "src", "components")
+    FileUtils.mkdir_p(deep_dir)
+
+    class << Aura::Commands::ShellCommand
+      alias_method :original_new, :new
+      define_method(:new) do
+        mock_shell = Object.new
+        mock_shell.define_singleton_method(:start) do |project_path|
+          Aura::Commands::ShellCommand.instance_variable_set(:@called_path, project_path)
+        end
+        mock_shell
+      end
+    end
+
+    begin
+      Dir.chdir(deep_dir) do
+        cli.chat
+      end
+    ensure
+      called_path = Aura::Commands::ShellCommand.instance_variable_get(:@called_path)
+      class << Aura::Commands::ShellCommand
+        alias_method :new, :original_new
+        remove_method :original_new
+      end
+    end
+    
+    assert_equal File.realdirpath(@test_workspace), File.realdirpath(called_path)
+  end
 end
