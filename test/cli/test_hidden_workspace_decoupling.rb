@@ -366,9 +366,8 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     end
     hidden = File.join(@test_workspace, ".aura")
     assert File.directory?(hidden)
-    expected_name = Time.now.strftime("aura_%Y_%m_%d")
     local_cfg = YAML.load_file(File.join(hidden, "config", "config.yml"))
-    assert_equal expected_name, local_cfg["project_name"]
+    assert_match(/^aura_\d{4}_\d{2}_\d{2}_\d{6}$/, local_cfg["project_name"])
   end
 
   def test_climb_parent_directories_workspace_resolution

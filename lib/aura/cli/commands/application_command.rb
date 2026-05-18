@@ -18,12 +18,12 @@ module Aura
         true
       end
 
-      desc "new [PROJECT_NAME]", "Initialize an in-place Aura environment linked to a project name (defaults to aura_YYYY_MM_DD)"
+      desc "new [PROJECT_NAME]", "Initialize an in-place Aura environment linked to a project name (defaults to aura_YYYY_MM_DD_HHMMSS)"
       def new(project_name = nil)
         Aura.ensure_global_repo!
         
         if project_name.nil? || project_name.to_s.strip.empty?
-          project_name = Time.now.strftime("aura_%Y_%m_%d")
+          project_name = Time.now.strftime("aura_%Y_%m_%d_%H%M%S")
         end
 
         target_dir = Dir.pwd
