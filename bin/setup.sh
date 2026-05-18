@@ -34,7 +34,7 @@ echo ""
 # Helper function to install Ruby automatically
 install_ruby() {
     echo -e "${YELLOW}⚠️  Ruby is not installed on your system.${NC}"
-    read -p "❓ Would you like the installer to attempt to install Ruby automatically? (y/N): " -r AUTO_INSTALL
+    read -p "❓ Would you like the installer to attempt to install Ruby automatically? (y/N): " -r AUTO_INSTALL < /dev/tty
     if [[ ! "$AUTO_INSTALL" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         echo -e "${RED}⛔️ Error: Ruby is required to proceed. Please install Ruby manually and run the setup again.${NC}"
         exit 1
@@ -152,24 +152,24 @@ SELECTED_PROVIDER="local"
 SELECTED_MODEL=""
 SELECTED_BASE=""
 
-read -p "❓ Would you like to configure your default LLM Provider and API Keys now? (y/N): " -r RESPONSE
+read -p "❓ Would you like to configure your default LLM Provider and API Keys now? (y/N): " -r RESPONSE < /dev/tty
 if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     echo -e "  Select your preferred LLM Provider:"
     echo -e "    1) local (Offline Mock Adapter - Default)"
     echo -e "    2) openai (OpenAI / Compatible Proxy)"
     echo -e "    3) openrouter (OpenRouter Hub)"
-    read -p "  Enter choice (1-3, default: 1): " CHOICE
+    read -p "  Enter choice (1-3, default: 1): " CHOICE < /dev/tty
 
     if [ "$CHOICE" == "2" ]; then
         SELECTED_PROVIDER="openai"
-        read -p "  🔑 Enter OpenAI API Key (or press Enter to skip): " OPENAI_KEY
+        read -p "  🔑 Enter OpenAI API Key (or press Enter to skip): " OPENAI_KEY < /dev/tty
         if [ ! -z "$OPENAI_KEY" ]; then
-            sed -i '' "s/OPENAI_API_KEY=/OPENAI_API_KEY=$OPENAI_KEY/g" "$DOTENV_PATH"
+            ruby -pi -e "gsub('OPENAI_API_KEY=', 'OPENAI_API_KEY=$OPENAI_KEY')" "$DOTENV_PATH"
             echo -e "    - OpenAI API Key saved to .env."
         fi
-        read -p "  🤖 Enter OpenAI Model name (default: gpt-4o): " OPENAI_MODEL
+        read -p "  🤖 Enter OpenAI Model name (default: gpt-4o): " OPENAI_MODEL < /dev/tty
         SELECTED_MODEL=${OPENAI_MODEL:-"gpt-4o"}
-        read -p "  🌐 Enter Custom API Base URL (optional, press Enter to use default): " API_BASE
+        read -p "  🌐 Enter Custom API Base URL (optional, press Enter to use default): " API_BASE < /dev/tty
         if [ ! -z "$API_BASE" ]; then
             SELECTED_BASE=$API_BASE
             # Append to .env
@@ -177,12 +177,12 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         fi
     elif [ "$CHOICE" == "3" ]; then
         SELECTED_PROVIDER="openrouter"
-        read -p "  🔑 Enter OpenRouter API Key (or press Enter to skip): " OPENROUTER_KEY
+        read -p "  🔑 Enter OpenRouter API Key (or press Enter to skip): " OPENROUTER_KEY < /dev/tty
         if [ ! -z "$OPENROUTER_KEY" ]; then
             echo "OPENROUTER_API_KEY=$OPENROUTER_KEY" >> "$DOTENV_PATH"
             echo -e "    - OpenRouter API Key saved to .env."
         fi
-        read -p "  🤖 Enter OpenRouter Model name (default: google/gemini-2.5-flash): " OR_MODEL
+        read -p "  🤖 Enter OpenRouter Model name (default: google/gemini-2.5-flash): " OR_MODEL < /dev/tty
         SELECTED_MODEL=${OR_MODEL:-"google/gemini-2.5-flash"}
     else
         SELECTED_PROVIDER="local"
@@ -190,9 +190,9 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     fi
 
     # Also offer to configure Anthropic key as it's heavily used by agent workflows
-    read -p "  🔑 Enter Anthropic API Key (optional, press Enter to skip): " ANTHROPIC_KEY
+    read -p "  🔑 Enter Anthropic API Key (optional, press Enter to skip): " ANTHROPIC_KEY < /dev/tty
     if [ ! -z "$ANTHROPIC_KEY" ]; then
-        sed -i '' "s/ANTHROPIC_API_KEY=/ANTHROPIC_API_KEY=$ANTHROPIC_KEY/g" "$DOTENV_PATH"
+        ruby -pi -e "gsub('ANTHROPIC_API_KEY=', 'ANTHROPIC_API_KEY=$ANTHROPIC_KEY')" "$DOTENV_PATH"
         echo -e "    - Anthropic API Key saved to .env."
     fi
 fi
@@ -248,7 +248,7 @@ else
     fi
 
     if [ ! -z "$SHELL_PROFILE" ]; then
-        read -p "❓ Would you like to automatically append this directory to $SHELL_PROFILE? (Y/n): " -r PATH_RESP
+        read -p "❓ Would you like to automatically append this directory to $SHELL_PROFILE? (Y/n): " -r PATH_RESP < /dev/tty
         if [[ ! "$PATH_RESP" =~ ^([nN][oO]|[nN])$ ]]; then
             echo "" >> "$SHELL_PROFILE"
             echo "# Aura OS Gem Binaries Path Integration" >> "$SHELL_PROFILE"
