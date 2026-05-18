@@ -1,0 +1,29 @@
+{
+    "name": "ocr_and_verify",
+    "description": "Extract text from an image and verify it against expected text segments (AutoFigure Stage 3).",
+    "runtime": "python3",
+    "entry": "logic.py",
+    "test": "test.py",
+    "permissions": {
+        "file_system": "read-write"
+    },
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "image_path": {
+                "type": "string",
+                "description": "Path to the image file to analyze."
+            },
+            "expected_texts": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "List of text strings expected to be found in the image."
+            }
+        },
+        "required": [
+            "image_path"
+        ]
+    }
+}

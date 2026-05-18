@@ -1,0 +1,25 @@
+{
+    "name": "final",
+    "description": "Return the final response to the user.",
+    "runtime": "python3",
+    "entry": "logic.py",
+    "test": "test.py",
+    "auto_load": true,
+    "permissions": {
+        "file_system": "read-only",
+        "self_edit": false
+    },
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "content": {
+                "type": "string",
+                "description": "Final response text"
+            }
+        },
+        "required": [
+            "content"
+        ]
+    },
+    "attach_output_to_summary": false
+}

@@ -1,0 +1,4 @@
+# Bash Command Tool Hint
+- **Purpose**: Run shell commands for setup, inspection, or automation.
+- **Safety**: Prefer minimal, read-only commands. Avoid destructive or irreversible actions unless required.
+- **Output**: Use `max_output_chars` to limit large outputs and `pid`/`fetch` for long-running commands.

@@ -1,0 +1,4 @@
+# Write File Tool Hint
+- **Purpose**: Create or update text files within allowed paths.
+- **Safety**: Keep edits minimal and targeted; avoid overwriting large files without confirmation.
+- **Permissions**: Use context_permissions to restrict writes to specific directories.

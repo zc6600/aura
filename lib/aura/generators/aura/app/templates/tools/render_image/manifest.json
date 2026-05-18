@@ -1,0 +1,32 @@
+{
+    "name": "render_image",
+    "description": "Generate images from text descriptions using configured models (DALL-E 3, SDXL, etc.). Reads model choice from global config.yml.",
+    "runtime": "python3",
+    "entry": "logic.py",
+    "test": "test.py",
+    "permissions": {
+        "file_system": "read-write",
+        "network": "full-access"
+    },
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "prompt": {
+                "type": "string",
+                "description": "The detailed text description for image generation."
+            },
+            "output_path": {
+                "type": "string",
+                "description": "Path to save the generated image (e.g., 'output.png')."
+            },
+            "size": {
+                "type": "string",
+                "description": "Image size (e.g., '1024x1024'). Optional, defaults to global config."
+            }
+        },
+        "required": [
+            "prompt",
+            "output_path"
+        ]
+    }
+}

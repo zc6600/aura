@@ -1,0 +1,107 @@
+{
+    "name": "chunk_search",
+    "description": "Search local workspace files under a path and return ranked chunks with hints.",
+    "runtime": "python3",
+    "entry": "logic.py",
+    "test": "test.py",
+    "dependencies": {
+        "pip": []
+    },
+    "permissions": {
+        "file_system": "read-only",
+        "self_edit": false,
+        "allow_paths": [
+            "./knowledge"
+        ]
+    },
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Workspace-relative local file or directory path"
+            },
+            "query": {
+                "type": "string",
+                "description": "Query text for retrieval"
+            },
+            "retrieval_mode": {
+                "type": "string",
+                "description": "Retrieval mode: embedding | tfidf | keyword"
+            },
+            "order": {
+                "type": "string",
+                "description": "Sort order: path | mtime_asc | mtime_desc"
+            },
+            "top_k": {
+                "type": "integer",
+                "description": "Top-k chunks when query is provided"
+            },
+            "max_chunks": {
+                "type": "integer",
+                "description": "Maximum number of chunks to return"
+            },
+            "chunk_size": {
+                "type": "integer",
+                "description": "Chunk size in characters"
+            },
+            "chunk_overlap": {
+                "type": "integer",
+                "description": "Overlap size in characters"
+            },
+            "chunk_fields": {
+                "type": "array",
+                "description": "Chunk fields to include in output"
+            },
+            "file_fields": {
+                "type": "array",
+                "description": "File fields to include in output"
+            },
+            "max_chunk_fields": {
+                "type": "integer",
+                "description": "Maximum number of chunk fields to return"
+            },
+            "max_file_fields": {
+                "type": "integer",
+                "description": "Maximum number of file fields to return"
+            },
+            "embedding_provider": {
+                "type": "string",
+                "description": "Embedding provider: openai | openrouter | tfidf"
+            },
+            "embedding_model": {
+                "type": "string",
+                "description": "Embedding model name"
+            },
+            "embedding_api_base": {
+                "type": "string",
+                "description": "Embedding API base URL"
+            },
+            "embedding_api_key": {
+                "type": "string",
+                "description": "Embedding API key"
+            },
+            "embedding_api_key_env": {
+                "type": "string",
+                "description": "Env var name for embedding API key"
+            },
+            "embedding_batch_size": {
+                "type": "integer",
+                "description": "Embedding batch size"
+            },
+            "embedding_max_file_chars": {
+                "type": "integer",
+                "description": "Skip embedding for files exceeding this character count"
+            },
+            "context_permissions": {
+                "type": "array",
+                "description": "Allowed path prefixes"
+            }
+        },
+        "required": [
+            "path",
+            "order"
+        ]
+    },
+    "attach_output_to_summary": false
+}

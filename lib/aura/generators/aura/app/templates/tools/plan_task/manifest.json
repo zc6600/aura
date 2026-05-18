@@ -1,0 +1,22 @@
+{
+    "name": "plan_task",
+    "description": "Update or store a long-term task plan that persists across sessions.",
+    "runtime": "python3",
+    "entry": "logic.py",
+    "test": "test.py",
+    "permissions": {
+        "state_access": "read-write"
+    },
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "plan": {
+                "type": "string",
+                "description": "Text describing the current plan, progress, or next steps"
+            }
+        },
+        "required": [
+            "plan"
+        ]
+    }
+}

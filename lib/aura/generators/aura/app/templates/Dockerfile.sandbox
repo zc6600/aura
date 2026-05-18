@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install basic dependencies
+RUN pip install --no-cache-dir requests pyyaml
+
+# Create a non-privileged user
+RUN useradd -m aura
+USER aura
+
+ENTRYPOINT ["python"]

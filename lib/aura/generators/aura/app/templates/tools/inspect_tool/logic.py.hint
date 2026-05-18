@@ -1,0 +1,4 @@
+# Inspect Tool Hint
+- **Purpose**: Discover a tool's manifest, permissions, inputs, and hints.
+- **When**: Use before calling a tool that appears only in the TOOL INDEX.
+- **Tip**: Check permissions and required inputs first to avoid blocked calls.
