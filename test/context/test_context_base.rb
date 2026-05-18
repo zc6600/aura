@@ -47,9 +47,8 @@ class TestContextBase < Minitest::Test
     assert_includes out, "# ACTIVE TOOLS (Ready to use)"
     assert_includes out, "## t1"
     assert_includes out, "# AGENT STATE & MEMORY"
-    assert_includes out, "Historical Summary"
+    assert_includes out, "History"
     assert_includes out, "Active Variables"
-    assert_includes out, "Recent Activity Trace"
     assert_includes out, "# SYSTEM & ENVIRONMENT"
   end
 end

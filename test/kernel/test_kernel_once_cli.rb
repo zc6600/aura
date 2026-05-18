@@ -15,7 +15,7 @@ class TestKernelOnceCli < Minitest::Test
   end
 
   def test_kernel_once_runs_tool
-    require "aura/commands/kernel_command"
+    require "aura/cli/commands/kernel_command"
     payload = { tool: "read_file", args: { file_path: "config/config.yml", context_permissions: ["."] } }.to_json
     out = StringIO.new
     begin

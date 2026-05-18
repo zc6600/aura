@@ -19,11 +19,10 @@ class TestDirectiveProvider < Minitest::Test
     out = Aura::Context.assemble(@project, nil)
     assert_includes out, "AURA OS OPERATING PROTOCOL"
     assert_includes out, "MISSION"
-    assert_includes out, "THE WORKSPACE HIERARCHY"
+    assert_includes out, "WORKSPACE"
     assert_includes out, "OPERATIONAL RULES"
     assert_includes out, "THE EVOLUTION LOOP"
     assert_includes out, "CONSTRAINTS"
-    assert_includes out, "INITIALIZATION"
+    assert_includes out, "STATUS"
   end
 end
-

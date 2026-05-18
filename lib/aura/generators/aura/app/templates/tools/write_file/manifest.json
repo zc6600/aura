@@ -11,13 +11,16 @@
   "input_schema": {
     "type": "object",
     "properties": {
-      "file_path": { "type": "string" },
-      "content": { "type": "string" },
-      "context_permissions": { "type": "array" },
-      "forbidden_extensions": { "type": "array" },
-      "read_only_directories": { "type": "array" }
+      "file_path": { "type": "string", "description": "Workspace-relative file path" },
+      "content": { "type": "string", "description": "File content to write" },
+      "context_permissions": { "type": "array", "description": "Allowed path prefixes" },
+      "forbidden_extensions": { "type": "array", "description": "Disallowed file extensions" },
+      "read_only_directories": { "type": "array", "description": "Directories that must remain read-only" }
     },
-    "required": ["file_path", "content"]
-  }
+    "required": [
+      "file_path",
+      "content"
+    ]
+  },
+  "attach_output_to_summary": false
 }
-

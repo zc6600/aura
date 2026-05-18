@@ -1,7 +1,7 @@
 require "minitest/autorun"
 require "stringio"
 require "fileutils"
-require "aura/cli"
+require "aura/cli/entry"
 
 class TestCliToolsInspect < Minitest::Test
   def setup
@@ -16,7 +16,7 @@ class TestCliToolsInspect < Minitest::Test
 
   def test_tools_inspect_prints_json
     Dir.chdir(@app) do
-      require "aura/commands/tools_command"
+      require "aura/cli/commands/tools_command"
       Aura::Commands::ToolsCommand.class_eval do
         def tool_inspect(name)
           puts({ tool: name }.to_json)

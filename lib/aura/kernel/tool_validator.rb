@@ -1,29 +1,105 @@
+require "open3"
+require "aura/kernel/registry"
+require "aura/context/manager"
+
 module Aura
   module Kernel
     class ToolValidator
-      def initialize(project_path)
+      def initialize(project_path, registry = nil, state = nil)
         @project_path = project_path
+        @registry = registry || Aura::Kernel::ToolRegistry.new(project_path)
+        @state = state
       end
 
       def status_for(name)
-        dir = File.join(@project_path, "tools", name)
+        return { state: "draft", reason: "tool name is nil" } if name.nil? || name.to_s.empty?
+        return { state: "ready", verified: true } if name.to_s.start_with?("mcp.")
+        tool_data = @registry.find(name)
+        unless tool_data
+          dir = File.join(@project_path, "tools", name)
+          if Dir.exist?(dir) && !File.exist?(File.join(dir, "manifest.json"))
+            return { state: "draft", reason: "missing: manifest.json" }
+          end
+          return { state: "draft", reason: "tool not found: #{name}" }
+        end
+        
+        dir = tool_data[:path]
+        manifest = tool_data[:manifest] || {}
         cfg = load_config
         req = (cfg.dig("tool_protocol", "required_files") || [])
+        test_file = manifest["test"] || manifest.dig("verification", "test_file") || "test.py"
+        skip_test = manifest["skip_test"] == true || (manifest.dig("verification", "require_test") == false)
+        req = req.reject { |f| skip_test && (f == test_file || f == "test.py") }
         missing = req.reject { |f| File.exist?(File.join(dir, f)) }
         return { state: "draft", reason: "missing: #{missing.join(', ')}" } unless missing.empty?
-        { state: "ready" }
+
+        # Check if it was previously verified
+        if @state
+          vars = @state.get_active_variables
+          if vars["tool_status:#{name}"] == "ready"
+            return { state: "ready", verified: true }
+          end
+        end
+
+        if skip_test
+          { state: "ready", verified: false }
+        else
+          { state: "ready" }
+        end
       end
 
       def ensure_active(name)
-        dir = File.join(@project_path, "tools", name)
-        manifest = read_manifest(dir)
-        test_entry = manifest["test"] || "test.py"
-        runtime = manifest["runtime"] || "python3"
-        test_path = File.join(dir, test_entry)
-        return { ok: false, advice: "missing test: #{test_entry}" } unless File.exist?(test_path)
-        out, err, status = Open3.capture3(runtime, test_path, chdir: @project_path)
-        return { ok: true, out: out } if status.success?
-        { ok: false, advice: build_advice(name, err.empty? ? out : err) }
+        return { ok: true } if name.to_s.start_with?("mcp.")
+        tool_data = @registry.find(name)
+        return { ok: false, advice: "tool not found: #{name}" } unless tool_data
+
+        dir = tool_data[:path]
+        manifest = tool_data[:manifest]
+
+        # Cache Check: If state is available and file hasn't changed, skip test
+        if @state && cache_valid?(name, dir)
+          return { ok: true, cached: true }
+        end
+
+        # Context Check
+        req_context = manifest["requires_context"]
+        if req_context
+          active = context_manager.active_contexts(req_context)
+          if active.empty?
+            return { ok: false, advice: "Tool '#{name}' requires active '#{req_context}' context. Please call an entry tool (like '#{find_entry_for(req_context)}') first." }
+          end
+        end
+
+        skip_test = manifest["skip_test"] == true || (manifest.dig("verification", "require_test") == false)
+        unless skip_test
+          test_entry = manifest["test"] || manifest.dig("verification", "test_file") || "test.py"
+          runtime_key = manifest["runtime"]
+          runtime_key = runtime_key["language"] || runtime_key["runtime"] if runtime_key.is_a?(Hash)
+          runtime = runtime_key || "python3"
+          test_path = File.join(dir, test_entry)
+          return { ok: false, advice: "missing test: #{test_entry}" } unless File.exist?(test_path)
+        end
+        
+        # Use standardized tool runner
+        runner_script = File.expand_path("../../runners/tool_runner.py", __dir__)
+        
+        if skip_test
+          mark_verified(name, dir) if @state
+          return { ok: true }
+        else
+          if File.exist?(runner_script)
+            cmd = [runtime, runner_script, dir]
+            out, err, status = Open3.capture3(*cmd, chdir: @project_path)
+          else
+            out, err, status = Open3.capture3(runtime, test_path, chdir: @project_path)
+          end
+          if status.success?
+            mark_verified(name, dir) if @state
+            return { ok: true, out: out }
+          end
+          mark_failed(name, err.empty? ? out : err) if @state
+          { ok: false, advice: build_advice(name, err.empty? ? out : err) }
+        end
       end
 
       def build_advice(name, trace)
@@ -42,6 +118,40 @@ module Aura
           end
         end
 
+        def cache_valid?(name, dir)
+          return false unless @state
+          vars = @state.get_active_variables
+          return false unless vars["tool_status:#{name}"] == "ready"
+
+          last_mtime = vars["tool_mtime:#{name}"]
+          return false unless last_mtime
+          
+          current_mtime = max_mtime(dir)
+          last_mtime.to_i == current_mtime
+        end
+
+        def mark_verified(name, dir)
+          return unless @state
+          @state.set_variable("tool_status:#{name}", "ready")
+          @state.set_variable("tool_mtime:#{name}", max_mtime(dir))
+          @state.set_variable("tool_error:#{name}", "")
+        end
+
+        def mark_failed(name, error)
+          return unless @state
+          @state.set_variable("tool_status:#{name}", "failed")
+          # Save the last line (actual exception) instead of just "Traceback..."
+          msg = error.to_s.strip.split("\n").last || error.to_s
+          @state.set_variable("tool_error:#{name}", msg)
+        end
+
+        def max_mtime(dir)
+          # Get max mtime of any file in tool directory (non-recursive)
+          files = Dir.glob(File.join(dir, "*"))
+          return 0 if files.empty?
+          files.map { |f| File.mtime(f).to_i }.max
+        end
+
         def read_manifest(dir)
           path = File.join(dir, "manifest.json")
           begin
@@ -50,7 +160,18 @@ module Aura
             {}
           end
         end
+
+        def context_manager
+          @context_manager ||= Aura::Context::Manager.new(@project_path)
+        end
+
+        def find_entry_for(context_type)
+          @registry.all_tools.each do |tname|
+            t = @registry.find(tname)
+            return tname if t[:manifest]["creates_context"] == context_type
+          end
+          "entry tool"
+        end
     end
   end
 end
-

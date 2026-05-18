@@ -36,23 +36,56 @@ module Aura
       template "Gemfile"
     end
 
+    def task
+      template "task.md", "task.md"
+    end
+
     def tools
       directory "tools"
+    end
+
+    def knowledge
+      empty_directory "knowledge"
+    end
+
+    def skills
+      directory "skills"
+    end
+
+    def anchors
+      empty_directory "anchors"
+      template "anchors/README.md", "anchors/README.md"
+    end
+
+    def projects
+      empty_directory "projects"
     end
 
     def config
       empty_directory "config"
       template "config.yml", "config/config.yml"
+      template "boot.rb", "config/boot.rb"
+      template "Dockerfile.sandbox", "Dockerfile.sandbox"
     end
 
     def bin
       empty_directory "bin"
       template "bin/aura", "bin/aura"
-      chmod "bin/aura", 0755
+      chmod "bin/aura", 0755, verbose: false
+      template "sandbox-wrapper.sh", "bin/sandbox-wrapper"
+      chmod "bin/sandbox-wrapper", 0755, verbose: false
     end
 
     def readme
       template "AURA_README.md", "AURA_README.md"
+    end
+
+    def instructions
+      empty_directory "instructions"
+      template "instructions/SOUL.md", "instructions/SOUL.md"
+      template "instructions/AGENTS.md", "instructions/AGENTS.md"
+      template "instructions/USER.md", "instructions/USER.md"
+      template "instructions/TOOLS.md", "instructions/TOOLS.md"
     end
   end
 
@@ -75,10 +108,16 @@ module Aura
 
       def create_root_files
         build(:gemfile)
+        build(:task)
+        build(:instructions)
       end
 
       def create_app_files
         build(:tools)
+        build(:knowledge)
+        build(:skills)
+        build(:anchors)
+        build(:projects)
       end
 
       def create_config_files
@@ -93,6 +132,16 @@ module Aura
         build(:readme)
       end
 
+      def apply_project_template
+        name = options[:project_template]
+        return if name.nil? || name.to_s.strip.empty?
+        template_root = File.join(self.class.source_root, "projects", name.to_s)
+        unless File.directory?(template_root)
+          raise Thor::Error, "Project template '#{name}' not found. Available: #{available_project_templates.join(', ')}"
+        end
+        directory File.join("projects", name.to_s), "."
+      end
+
       private
         def build(method, *args)
           builder.send(method, *args)
@@ -100,6 +149,14 @@ module Aura
 
         def builder
           @builder ||= AppBuilder.new(self)
+        end
+
+        def available_project_templates
+          root = File.join(self.class.source_root, "projects")
+          return [] unless Dir.exist?(root)
+          Dir.children(root).select { |f| File.directory?(File.join(root, f)) }.sort
+        rescue StandardError
+          []
         end
     end
   end

@@ -13,10 +13,12 @@ system:
 # ----------------------------------------------------------------
 state_management:
   database_type: "sqlite"
-  db_path: "state/aura_state.db"
+  db_path: "state/aura.db"
   
   # 触发代谢的阈值（字符数）
-  max_state_chars: 4000 
+  max_state_chars: 100000 
+  keep_last_summary_n_steps: 20
+  recent_events_n: 20
   
   # 总结策略
   summarization:
@@ -29,29 +31,29 @@ state_management:
 # 工具进化协议 (Tool Evolution Protocol)
 # ----------------------------------------------------------------
 tool_protocol:
-  # 是否允许 Agent 安装系统依赖（需谨慎开启）
   allow_dependency_install: true
-  
-  # 自动运行测试的超时时间（秒）
   test_timeout: 30
-  
-  # 解释器映射
   runtimes:
     python: "python3"
     ruby: "ruby"
     shell: "bash"
     nodejs: "node"
-
-  # 核心工具（始终加载到上下文）
   core_tools:
     - "read_file"
     - "inspect_tool"
-
-  # 强制要求的工具文件（缺一不可则无法激活）
+    - "write_file"
+  auto_verify:
+    - "write_file"
+    - "bash_command"
+    - "plan_task"
   required_files:
     - "logic.py"
     - "manifest.json"
     - "test.py"
+  call_summary:
+    suggested_chars: 120
+    max_chars: 256
+    attach_max_chars: 1024
 
 # ----------------------------------------------------------------
 # 权限与安全控制 (Unix-style Permissions)
@@ -71,6 +73,12 @@ security:
     - "system_tools"
     - "core_protocols"
 
+  # 沙箱配置：通过容器或受限环境运行工具
+  sandbox:
+    enabled: false
+    provider: "docker" # 选项: docker, local
+    image: "aura-sandbox:latest"
+
 # ----------------------------------------------------------------
 # 感知引导系统 (Hint System)
 # ----------------------------------------------------------------
@@ -78,3 +86,38 @@ hints:
   auto_inject_readme: true   # 是否自动注入 AURA_README.md
   scan_dot_hint_files: true  # 是否扫描 .hint 结尾的文件
   include_error_traceback: true # 测试失败时是否将完整 stderr 返回给 Agent
+
+# ----------------------------------------------------------------
+# 语言模型 (LLM)
+# ----------------------------------------------------------------
+llm:
+  provider: "local"
+  model: "gpt-4o"
+  api_base: ""
+  temperature: 0.2
+  max_tokens: 20000
+
+embedding:
+  provider: "openrouter"
+  model: "qwen/qwen3-embedding-8b"
+  api_base: ""
+  api_key_env: "OPENROUTER_API_KEY"
+
+# ----------------------------------------------------------------
+# 图像生成 (Image Generation)
+# 用于 render_image 工具
+# ----------------------------------------------------------------
+image_generation:
+  provider: "openai" # 选项: openai, stability
+  model: "dall-e-3"
+  size: "1024x1024"
+  api_key_env: "OPENAI_API_KEY" # 对应 .env 中的环境变量名
+
+knowledge_db:
+  storage: "local"
+
+context_compression:
+  # State-aware compression policy (主策略)
+  event_max_chars: 800          # 单条事件在上下文中的最大展示长度
+  event_min_count_threshold: 10 # 事件保留条数降到该阈值后，开始裁剪摘要
+  summary_trim_step: 5          # 每次裁剪的摘要行数（近似按行处理）

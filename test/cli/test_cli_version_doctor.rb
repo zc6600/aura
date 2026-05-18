@@ -1,9 +1,9 @@
 require "minitest/autorun"
-require "aura/cli"
+require "aura/cli/entry"
 
 class TestCliVersionDoctor < Minitest::Test
   def setup
-    require "aura/commands/application_command"
+    require "aura/cli/commands/application_command"
     @klass = Aura::Commands::ApplicationCommand
   end
 

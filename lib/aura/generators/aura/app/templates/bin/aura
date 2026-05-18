@@ -1,22 +1,9 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
-begin
-  self_path = File.expand_path(__FILE__)
-  candidates = [
-    File.expand_path("../../bin/aura", __dir__),
-    File.expand_path("../../aura/bin/aura", __dir__),
-    File.expand_path("../aura/bin/aura", __dir__),
-    File.expand_path("../../../aura/bin/aura", __dir__)
-  ].uniq.reject { |p| p == self_path }
+APP_PATH = File.expand_path("../..", __FILE__)
 
-  framework_bin = candidates.find { |p| File.exist?(p) }
-  if framework_bin
-    exec(framework_bin, *ARGV)
-  else
-    require "aura/cli"
-    Aura::CLI.start(ARGV)
-  end
-rescue LoadError => e
-  $stderr.puts "Aura CLI not found. Ensure Aura framework is available. Error: #{e.message}"
-  exit 127
-end
+require_relative "../config/boot"
+
+require "aura/cli"
+Aura::CLI.start(ARGV)

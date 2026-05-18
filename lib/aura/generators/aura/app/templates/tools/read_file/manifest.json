@@ -1,6 +1,6 @@
 {
     "name": "read_file",
-    "description": "读取指定文件的内容。支持文本格式。如果是大数据文件，建议配合 hint 系统使用。",
+    "description": "Read text files within allowed paths. Use hints for large files.",
     "runtime": "python3",
     "entry": "logic.py",
     "test": "test.py",
@@ -16,11 +16,16 @@
         "properties": {
             "file_path": {
                 "type": "string",
-                "description": "相对于工作空间的完整路径"
+                "description": "Workspace-relative file path"
+            },
+            "context_permissions": {
+                "type": "array",
+                "description": "Allowed path prefixes"
             }
         },
         "required": [
             "file_path"
         ]
-    }
+    },
+    "attach_output_to_summary": false
 }

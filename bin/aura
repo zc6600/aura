@@ -2,6 +2,7 @@
 
 $LOAD_PATH.unshift File.expand_path('../lib', __dir__)
 
-require 'aura/cli'
+require "aura/cli/entry"
 
-Aura::CLI.start(ARGV)
+# This allows running the CLI from the gem's bin directory or when installed as a gem
+Aura::CLI::EntryPoint.start(ARGV)

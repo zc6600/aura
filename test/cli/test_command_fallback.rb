@@ -1,6 +1,6 @@
 require "minitest/autorun"
 require "stringio"
-require "aura/command"
+require "aura/cli/command"
 
 class TestCommandFallback < Minitest::Test
   def test_unknown_command_message

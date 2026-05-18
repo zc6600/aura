@@ -1,6 +1,6 @@
 {
   "name": "inspect_tool",
-  "description": "Inspect a tool directory and return its manifest, hint, and file list.",
+  "description": "Inspect a tool directory and return its manifest, hints, and file list.",
   "runtime": "python3",
   "entry": "logic.py",
   "test": "test.py",
@@ -12,9 +12,8 @@
   "input_schema": {
     "type": "object",
     "properties": {
-      "tool_name": { "type": "string", "description": "Name of tool under /tools" }
+      "tool_name": { "type": "string", "description": "Tool name under /tools" }
     },
     "required": ["tool_name"]
   }
 }
-

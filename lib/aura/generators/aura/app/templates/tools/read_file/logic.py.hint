@@ -1,6 +1,6 @@
 # Read File Tool Hint
-- **功能**: 这是你获取外部知识的主要手段。
-- **限制**: 
-  - 无法读取二进制文件（如图片、可执行文件）。
-  - 如果文件超过 10,000 字符，建议分段读取（未来功能）或查看总结。
-- **建议**: 在调用此工具前，先使用 `ls` 查看文件夹结构。
+- **Purpose**: Primary way to retrieve knowledge from workspace files.
+- **Limits**:
+  - Text files only (no binary files like images or executables).
+  - For very large files, prefer targeted reads or use hints first.
+- **Tip**: Use `inspect_tool` or `bash_command` to locate files before reading.

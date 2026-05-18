@@ -17,7 +17,7 @@ class TestReadFile(unittest.TestCase):
     def test_read_success(self):
         result = read_file(self.test_file, ["."], True)
         self.assertEqual(result["content"], "Hello Aura OS")
-        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["status"], "ok")
 
     def test_file_not_found(self):
         result = read_file("non_existent_file.txt", ["."], True)

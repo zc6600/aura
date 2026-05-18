@@ -19,7 +19,7 @@ class TestWriteFile(unittest.TestCase):
     def test_write_success_with_permission(self):
         target = os.path.join(self.tmp_dir, "b.txt")
         out = write_file(target, "y", allowed_paths=["tmp"], strict_mode=True)
-        self.assertEqual(out.get("status"), "success")
+        self.assertEqual(out.get("status"), "ok")
         self.assertTrue(os.path.exists(target))
 
     def test_forbidden_extension(self):
@@ -29,4 +29,3 @@ class TestWriteFile(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

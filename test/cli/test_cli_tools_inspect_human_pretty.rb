@@ -1,7 +1,7 @@
 require "minitest/autorun"
 require "stringio"
 require "fileutils"
-require "aura/cli"
+require "aura/cli/entry"
 
 class TestCliToolsInspectFormats < Minitest::Test
   def setup

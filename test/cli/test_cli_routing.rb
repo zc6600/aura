@@ -1,9 +1,9 @@
 require "minitest/autorun"
-require "aura/cli"
+require "aura/cli/entry"
 
 class TestCliRouting < Minitest::Test
   def test_help_routes_to_application
-    require "aura/commands/application_command"
+    require "aura/cli/commands/application_command"
     $called = false
     klass = Aura::Commands::ApplicationCommand
     def klass.start(*); $called = true; end

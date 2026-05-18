@@ -77,7 +77,7 @@ ordered.compact.join("\n\n")
 - `ToolProvider` reads metadata and hints only; execution and sandboxing are handled elsewhere.
 
 ## Dependencies
-- Ruby standard library only (`json`, etc.); zero external dependencies.
+- Core framework depends on common libraries (`thor`, `sqlite3`). Context components are read-only and can operate with minimal dependencies; optional adapters (e.g., `sqlite3`) enable state sections.
 
 ## Testing
 - Integration sample: `test/context/test_context_base.rb`.
