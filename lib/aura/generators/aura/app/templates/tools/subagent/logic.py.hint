@@ -1,0 +1,20 @@
+用于启动一个隔离state的子Agent处理独立任务，避免污染主任务上下文。传入 goal，可选 subagent_id 与 max_steps。
+
+max_steps建议：小任务3-4，中等任务5-7，深度调研8-10。
+
+什么时候应该用subagent：
+- 这是一个完整、独立的子任务，且不希望污染主任务上下文。
+- 需要在独立空间内多轮探索、整理，再回传报告。
+
+
+示例：
+{"goal":"围绕RAG系统做一次系统性调研：关键benchmark、常见评测指标、主流基线方法，以及近两年代表性论文","subagent_id":"rag_landscape","max_steps":9}
+{"goal":"通读并提炼AURA_README的核心设计点，同时给出可能的架构风险清单","subagent_id":"doc_reader","max_steps":5}
+{"goal":"为skills/skills.md生成结构化目录与要点摘要，并标注需要补充的空白条目","subagent_id":"skills_outline","max_steps":5}
+{"goal":"检查tools目录里哪些工具缺少test.py，并给出修复优先级排序","subagent_id":"tool_audit","max_steps":6}
+{"goal":"拟定实验复现SOP草案（含步骤、依赖、可复现实验记录模板）","subagent_id":"sop_draft","max_steps":8}
+{"goal":"从state/aura.db最近事件中提取错误模式，并总结可复用的修复策略清单","subagent_id":"debug_patterns","max_steps":7}
+{"goal":"为一个新模型设计评测计划：数据集、基线、消融维度、预期失败模式","subagent_id":"eval_plan","max_steps":8}
+{"goal":"对当前项目做技术债巡检：识别高风险文件、缺失测试、潜在安全风险","subagent_id":"tech_debt_scan","max_steps":9}
+{"goal":"把一份长文草稿重写成IMRaD结构，并给出每部分要点","subagent_id":"paper_rewrite","max_steps":7}
+{"goal":"为一个新工具设计算法流程图的文字版（步骤+输入输出）","subagent_id":"workflow_writer","max_steps":5}

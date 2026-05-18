@@ -115,6 +115,14 @@ module Aura
       FileUtils.cp_r(File.join(gem_templates, "."), repo)
     end
 
+    # Ensure config.yml is placed in the config/ subfolder for workspace compatibility
+    repo_config_dir = File.join(repo, "config")
+    repo_config_file = File.join(repo, "config.yml")
+    if File.exist?(repo_config_file)
+      FileUtils.mkdir_p(repo_config_dir)
+      FileUtils.mv(repo_config_file, File.join(repo_config_dir, "config.yml"))
+    end
+
     # Initialize global repo as a Git repository so local .aura folders can remote clone/pull/push
     git_run(repo, "init")
     git_run(repo, "config", "user.name", "Aura CLI")

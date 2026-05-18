@@ -1,0 +1,21 @@
+用于多智能体协作的共享“黑板”总线。支持原子写入、结构化读取以及跨进程锁同步。
+
+核心操作：
+- write: 写入数据，自动注入时间戳与发送者ID。
+- read: 读取数据，返回含 metadata 与 payload 的标准化 JSON。
+- lock: 获取独占锁，用于多专家并行写入时的竞态保护。
+- release: 释放锁。
+
+示例：
+{"action": "write", "key": "spec_v1", "content": {"files": ["main.py", "utils.py"], "version": "1.0"}}
+{"action": "read", "key": "spec_v1"}
+{"action": "lock", "key": "consensus_lock", "timeout": 15}
+{"action": "release", "key": "consensus_lock"}
+{"action": "list", "key": "*"}
+{"action": "delete", "key": "expired_result"}
+
+协作模式：
+- 专家投票：多个 subagent 异步写入 `state/bus/vote_{id}.json`，主进程最后读取并汇总。
+- 状态同步：主进程写入 `global_config.json`，子进程读取以对齐任务背景。
+- 锁同步：在高并发 Swarm 模式下，针对同一个 key 的并发更新建议先执行 `lock` 以确保数据一致性。
+- 清理过期数据：长链任务结束后，用 `list` 检查残留 key，然后用 `delete` 清理。
