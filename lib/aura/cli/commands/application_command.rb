@@ -594,7 +594,9 @@ module Aura
         dir = Dir.pwd
         loop do
           hidden = File.join(dir, ".aura")
-          return hidden if File.directory?(hidden)
+          if File.directory?(hidden) && hidden != File.expand_path("~/.aura")
+            return hidden
+          end
           parent = File.dirname(dir)
           break if parent == dir
           dir = parent
