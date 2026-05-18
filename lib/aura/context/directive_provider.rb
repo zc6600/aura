@@ -10,7 +10,7 @@ module Aura
       def provide
         file = resolve_system_prompt_path
         return "" unless File.exist?(file)
-        content = File.read(file)
+        content = File.read(file, encoding: "utf-8")
         content
           .gsub("{{project_path}}", @project_path)
           .strip + "\n"
@@ -37,7 +37,7 @@ module Aura
       def provide
         file = resolve_task_path
         return nil if file.nil? || file.empty?
-        content = File.read(file).strip
+        content = File.read(file, encoding: "utf-8").strip
         return nil if content.empty?
         "# LONG-RUN TASK\n#{content}"
       end
