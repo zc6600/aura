@@ -77,4 +77,33 @@ class TestSecureToolIpc < Minitest::Test
       FileUtils.rm_f(outside_file)
     end
   end
+
+  def test_read_file_range_reading_and_truncation
+    # Create a file with 1200 lines
+    lines_content = (1..1200).map { |i| "Line #{i}" }.join("\n")
+    File.write(File.join(@tmp_dir, "large_lines.txt"), lines_content)
+
+    # 1. Default read (no range specified) should truncate at 1000 lines and report total
+    res_default = @engine.execute("read_file", { "file_path" => "large_lines.txt" })
+    assert_equal "ok", res_default["status"]
+    assert res_default["is_truncated"]
+    assert_equal 1200, res_default["total_lines"]
+    # Check that it contains line 1000 but not 1001
+    assert_match(/Line 1000/, res_default["content"])
+    refute_match(/Line 1001/, res_default["content"])
+    assert_match(/Use start_line and end_line parameters/, res_default["content"])
+
+    # 2. Specific range read (e.g., lines 1005 to 1010)
+    res_range = @engine.execute("read_file", {
+      "file_path" => "large_lines.txt",
+      "start_line" => 1005,
+      "end_line" => 1010
+    })
+    assert_equal "ok", res_range["status"]
+    assert res_range["is_truncated"]
+    assert_equal 1200, res_range["total_lines"]
+    
+    expected_content = (1005..1010).map { |i| "Line #{i}" }.join("\n") + "\n"
+    assert_equal expected_content, res_range["content"]
+  end
 end

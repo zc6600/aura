@@ -10,7 +10,7 @@ def _is_within_base(base_dir, target_path):
     except Exception:
         return False
 
-def read_file(file_path, allowed_paths=None, strict_mode=None):
+def read_file(file_path, allowed_paths=None, strict_mode=None, start_line=None, end_line=None):
     base_dir = os.path.realpath(os.getcwd())
     target_path = os.path.realpath(os.path.join(base_dir, file_path or ""))
 
@@ -33,9 +33,42 @@ def read_file(file_path, allowed_paths=None, strict_mode=None):
         return {"error": f"File not found: {file_path}", "status": "failed", "code": "not_found"}
 
     try:
-        with open(target_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            return {"content": content, "status": "ok"}
+        lines = []
+        total_lines = 0
+        
+        s_line = int(start_line) if start_line is not None else None
+        e_line = int(end_line) if end_line is not None else None
+
+        with open(target_path, 'r', encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                total_lines += 1
+                if s_line is not None or e_line is not None:
+                    bound_start = s_line if s_line is not None else 1
+                    bound_end = e_line if e_line is not None else float('inf')
+                    if bound_start <= total_lines <= bound_end:
+                        lines.append(line)
+                else:
+                    if total_lines <= 1000:
+                        lines.append(line)
+
+        content = "".join(lines)
+        is_truncated = False
+
+        if s_line is not None or e_line is not None:
+            bound_end = e_line if e_line is not None else float('inf')
+            if total_lines > bound_end:
+                is_truncated = True
+        else:
+            if total_lines > 1000:
+                is_truncated = True
+                content += f"\n\n... [File truncated. Showing lines 1-1000 of {total_lines}. Use start_line and end_line parameters to read specific sections of the file.]\n"
+
+        return {
+            "content": content,
+            "status": "ok",
+            "total_lines": total_lines,
+            "is_truncated": is_truncated
+        }
     except Exception as e:
         return {"error": str(e), "status": "failed", "code": "io_error"}
 
@@ -48,7 +81,9 @@ if __name__ == "__main__":
         path = args.get("file_path")
         perms = args.get("context_permissions")
         strict_mode = args.get("strict_mode")
-        result = read_file(path, perms, strict_mode)
+        start_line = args.get("start_line")
+        end_line = args.get("end_line")
+        result = read_file(path, perms, strict_mode, start_line, end_line)
         print(json.dumps(result))
     except Exception as e:
         print(json.dumps({"status": "failed", "error": f"Kernel communication error: {str(e)}", "code": "bad_request"}))

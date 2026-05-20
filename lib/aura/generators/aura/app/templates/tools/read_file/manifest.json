@@ -18,6 +18,14 @@
                 "type": "string",
                 "description": "Workspace-relative file path"
             },
+            "start_line": {
+                "type": "integer",
+                "description": "Optional starting line number (1-indexed, inclusive) to read a specific range."
+            },
+            "end_line": {
+                "type": "integer",
+                "description": "Optional ending line number (1-indexed, inclusive) to read a specific range."
+            },
             "context_permissions": {
                 "type": "array",
                 "description": "Allowed path prefixes"
