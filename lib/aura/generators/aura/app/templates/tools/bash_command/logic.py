@@ -266,12 +266,11 @@ def execute_command(command, chdir=None, timeout_seconds=None, max_output_chars=
         return {"error": str(e), "status": "error"}
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "No arguments provided"}))
-        sys.exit(1)
-        
     try:
-        args = json.loads(sys.argv[1])
+        if len(sys.argv) > 1 and sys.argv[1].strip():
+            args = json.loads(sys.argv[1])
+        else:
+            args = json.loads(sys.stdin.read())
         command = args.get("command")
         res = execute_command(
             command,

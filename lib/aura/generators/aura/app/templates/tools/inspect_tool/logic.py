@@ -81,7 +81,10 @@ def inspect_tool(tool_name):
 
 if __name__ == "__main__":
     try:
-        input_data = json.loads(sys.argv[1])
+        if len(sys.argv) > 1 and sys.argv[1].strip():
+            input_data = json.loads(sys.argv[1])
+        else:
+            input_data = json.loads(sys.stdin.read())
         name = input_data.get("tool_name")
         if not name:
             raise ValueError("Field 'tool_name' is required.")

@@ -78,7 +78,11 @@ module Aura
         # Apply sandboxing if enabled
         cmd, final_args = apply_sandbox(cfg, runtime, logic, payload)
         
-        out, err, status = Open3.capture3(*cmd, final_args, chdir: @project_path)
+        if final_args.bytesize > 65536
+          out, err, status = Open3.capture3(*cmd, stdin_data: final_args, chdir: @project_path)
+        else
+          out, err, status = Open3.capture3(*(cmd + [final_args]), stdin_data: final_args, chdir: @project_path)
+        end
         body = err.to_s.strip.empty? ? out : err
         if status.success?
           obj = parse_json_safe(body)

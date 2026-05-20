@@ -8,7 +8,10 @@ def final(content):
 
 if __name__ == "__main__":
     try:
-        args = json.loads(sys.argv[1])
+        if len(sys.argv) > 1 and sys.argv[1].strip():
+            args = json.loads(sys.argv[1])
+        else:
+            args = json.loads(sys.stdin.read())
         content = args.get("content")
         result = final(content)
         print(json.dumps(result))

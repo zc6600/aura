@@ -7,13 +7,15 @@ DEFAULT_READ_ONLY = ["system_tools", "core_protocols"]
 
 def _is_within_base(base_dir, target_path):
     try:
-        return os.path.commonpath([base_dir, target_path]) == base_dir
+        real_base = os.path.realpath(base_dir)
+        real_target = os.path.realpath(target_path)
+        return os.path.commonpath([real_base, real_target]) == real_base
     except Exception:
         return False
 
 def write_file(file_path, content, allowed_paths=None, forbidden_ext=None, read_only_dirs=None, strict_mode=None):
-    base_dir = os.path.abspath(os.getcwd())
-    target_path = os.path.abspath(os.path.join(base_dir, file_path or ""))
+    base_dir = os.path.realpath(os.getcwd())
+    target_path = os.path.realpath(os.path.join(base_dir, file_path or ""))
 
     if not _is_within_base(base_dir, target_path):
         return {"error": "Security Error: Attempted to write outside of workspace.", "status": "failed", "code": "security_violation"}
@@ -55,7 +57,10 @@ def write_file(file_path, content, allowed_paths=None, forbidden_ext=None, read_
 
 if __name__ == "__main__":
     try:
-        args = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
+        if len(sys.argv) > 1 and sys.argv[1].strip():
+            args = json.loads(sys.argv[1])
+        else:
+            args = json.loads(sys.stdin.read())
         path = args.get("file_path")
         content = args.get("content", "")
         perms = args.get("context_permissions")

@@ -235,7 +235,10 @@ def handle_action(args):
 
 if __name__ == "__main__":
     try:
-        args = json.loads(sys.argv[1])
+        if len(sys.argv) > 1 and sys.argv[1].strip():
+            args = json.loads(sys.argv[1])
+        else:
+            args = json.loads(sys.stdin.read())
         if not args.get("action") or not args.get("db_name"):
             raise ValueError("Fields 'action' and 'db_name' are required.")
         result = handle_action(args)
