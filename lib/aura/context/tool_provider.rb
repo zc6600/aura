@@ -178,8 +178,9 @@ module Aura
             return "No specific guidance provided."
           end
           content = File.read(hint_file).strip
-          if content.length > 10000
-            content = content[0, 10000] + " ... [truncated]"
+          max_file_chars = fetch_max_file_chars
+          if content.length > max_file_chars
+            content = content[0, max_file_chars] + " ... [truncated]"
           end
           content
         else
@@ -314,6 +315,12 @@ module Aura
           "Usage: #{usage_from_schema(info['input_schema'])}",
           "Hint: Use this tool to get real-time feedback on code changes."
         ].join("\n")
+      end
+
+      def fetch_max_file_chars
+        cfg = load_config
+        limit = cfg.dig("hints", "max_file_chars")
+        limit ? limit.to_i : 10000
       end
 
       def ignored?(rel_path)

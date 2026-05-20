@@ -56,8 +56,9 @@ module Aura
           return nil unless File.exist?(file)
           content = File.read(file).strip
           return nil if content.empty?
-          if content.length > 10000
-            content = content[0, 10000] + " ... [truncated: exceeds 10000 character limit]"
+          max_file_chars = fetch_max_file_chars
+          if content.length > max_file_chars
+            content = content[0, max_file_chars] + " ... [truncated: exceeds #{max_file_chars} character limit]"
           end
           content
         rescue StandardError
@@ -207,8 +208,9 @@ module Aura
             hint = ""
             if File.exist?(hint_path) && !ignored?(rel_hint_path)
               hint_content = File.read(hint_path).strip
-              if hint_content.length > 10000
-                hint_content = hint_content[0, 10000] + " ... [truncated]"
+              max_file_chars = fetch_max_file_chars
+              if hint_content.length > max_file_chars
+                hint_content = hint_content[0, max_file_chars] + " ... [truncated]"
               end
               hint = " (Context: #{hint_content})"
             end
@@ -396,6 +398,12 @@ module Aura
           cfg = load_config
           limit = cfg.dig("hints", "max_hint_chars")
           limit ? limit.to_i : 1000
+        end
+
+        def fetch_max_file_chars
+          cfg = load_config
+          limit = cfg.dig("hints", "max_file_chars")
+          limit ? limit.to_i : 10000
         end
 
         def ignored?(rel_path)

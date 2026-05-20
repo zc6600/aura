@@ -87,6 +87,7 @@ hints:
   scan_dot_hint_files: true  # 是否扫描 .hint 结尾的文件
   include_error_traceback: true # 测试失败时是否将完整 stderr 返回给 Agent
   max_hint_chars: 1000       # @aura-hint 提示信息的最大字符数上限，超出截断并报警
+  max_file_chars: 10000      # AURA_README.md 和 .hint 文件的最大字数上限，超出截断
   ignore_list: []            # 忽略 hint 注入的文件/路径/模式列表 (例如: [\"magic.py\", \"tools/my_tool/my_tool.hint\"])
 
 # ----------------------------------------------------------------

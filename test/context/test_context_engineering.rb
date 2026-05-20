@@ -216,6 +216,29 @@ class TestContextEngineering < Minitest::Test
     assert_includes tool_out, "T" * 10000
     assert_includes tool_out, "... [truncated]"
     refute_includes tool_out, "T" * 12000
+
+    # Now set a custom max_file_chars limit of 50
+    File.write(File.join(@project, "config", "config.yml"), <<~YAML)
+      hints:
+        auto_inject_readme: true
+        max_file_chars: 50
+    YAML
+
+    ep_custom = Aura::Context::EnvironmentProvider.new(@project)
+    out_custom = ep_custom.provide
+    assert_includes out_custom, "R" * 50
+    assert_includes out_custom, "... [truncated: exceeds 50 character limit]"
+    refute_includes out_custom, "R" * 51
+
+    assert_includes out_custom, "K" * 50
+    assert_includes out_custom, "... [truncated]"
+    refute_includes out_custom, "K" * 51
+
+    tp_custom = Aura::Context::ToolProvider.new(@project)
+    tool_out_custom = tp_custom.provide
+    assert_includes tool_out_custom, "T" * 50
+    assert_includes tool_out_custom, "... [truncated]"
+    refute_includes tool_out_custom, "T" * 51
   end
 
   def test_ignore_list_skips_files

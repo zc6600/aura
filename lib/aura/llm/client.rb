@@ -39,6 +39,15 @@ module Aura
           when "openai"
             require "aura/llm/adapters/openai"
             Aura::LLM::Adapters::OpenAI.new(api_base: @api_base, api_key: @api_key, model: @model)
+          when "deepseek"
+            require "aura/llm/adapters/deepseek"
+            Aura::LLM::Adapters::DeepSeek.new(api_base: @api_base, api_key: @api_key, model: @model)
+          when "gemini"
+            require "aura/llm/adapters/gemini"
+            Aura::LLM::Adapters::Gemini.new(api_base: @api_base, api_key: @api_key, model: @model)
+          when "anthropic"
+            require "aura/llm/adapters/anthropic"
+            Aura::LLM::Adapters::Anthropic.new(api_base: @api_base, api_key: @api_key, model: @model)
           else
             require "aura/llm/adapters/local"
             Aura::LLM::Adapters::Local.new

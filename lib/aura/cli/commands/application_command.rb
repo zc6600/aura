@@ -136,6 +136,7 @@ module Aura
                              when "openrouter" then "OPENROUTER_API_KEY"
                              when "anthropic" then "ANTHROPIC_API_KEY"
                              when "gemini" then "GEMINI_API_KEY"
+                             when "deepseek" then "DEEPSEEK_API_KEY"
                              else nil
                              end
               api_key_set = (env_var_name && ENV[env_var_name] && !ENV[env_var_name].empty?) || 
