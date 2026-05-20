@@ -172,7 +172,19 @@ module Aura
 
       def load_hint(dir)
         hint_file = Dir.glob(File.join(dir, "*.hint")).first
-        hint_file ? File.read(hint_file) : "No specific guidance provided."
+        if hint_file
+          rel_hint_file = hint_file.sub(/^#{Regexp.escape(@project_path)}\//, "")
+          if ignored?(rel_hint_file)
+            return "No specific guidance provided."
+          end
+          content = File.read(hint_file).strip
+          if content.length > 10000
+            content = content[0, 10000] + " ... [truncated]"
+          end
+          content
+        else
+          "No specific guidance provided."
+        end
       end
 
       def usage_from_schema(schema)
@@ -302,6 +314,16 @@ module Aura
           "Usage: #{usage_from_schema(info['input_schema'])}",
           "Hint: Use this tool to get real-time feedback on code changes."
         ].join("\n")
+      end
+
+      def ignored?(rel_path)
+        cfg = load_config
+        ignore_list = cfg.dig("hints", "ignore_list") || []
+        ignore_list.any? do |pattern|
+          File.fnmatch?(pattern, rel_path, File::FNM_PATHNAME | File::FNM_DOTMATCH) || 
+            rel_path == pattern || 
+            rel_path.include?(pattern)
+        end
       end
     end
   end

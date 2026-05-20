@@ -178,4 +178,126 @@ class TestContextEngineering < Minitest::Test
     out2 = provider2.provide
     refute_includes out2, "WORKSPACE_RULE_README_CONTENT"
   end
+
+  def test_readme_and_hint_10000_char_limits
+    # Huge AURA_README.md
+    File.write(File.join(@project, "AURA_README.md"), "R" * 12000)
+
+    # Huge knowledge hint file
+    FileUtils.mkdir_p(File.join(@project, "knowledge"))
+    File.write(File.join(@project, "knowledge", "doc.txt"), "some content")
+    File.write(File.join(@project, "knowledge", "doc.txt.hint"), "K" * 12000)
+
+    # Huge tool hint file
+    FileUtils.mkdir_p(File.join(@project, "tools", "my_tool"))
+    File.write(File.join(@project, "tools", "my_tool", "manifest.json"), { name: "my_tool", auto_load: true }.to_json)
+    File.write(File.join(@project, "tools", "my_tool", "my_tool.hint"), "T" * 12000)
+
+    # Reset config to make sure AURA_README is injected
+    File.write(File.join(@project, "config", "config.yml"), <<~YAML)
+      hints:
+        auto_inject_readme: true
+    YAML
+
+    # Verify EnvironmentProvider truncations
+    ep = Aura::Context::EnvironmentProvider.new(@project)
+    out = ep.provide
+    assert_includes out, "R" * 10000
+    assert_includes out, "... [truncated: exceeds 10000 character limit]"
+    refute_includes out, "R" * 12000
+
+    assert_includes out, "K" * 10000
+    assert_includes out, "... [truncated]"
+    refute_includes out, "K" * 12000
+
+    # Verify ToolProvider truncations
+    tp = Aura::Context::ToolProvider.new(@project)
+    tool_out = tp.provide
+    assert_includes tool_out, "T" * 10000
+    assert_includes tool_out, "... [truncated]"
+    refute_includes tool_out, "T" * 12000
+  end
+
+  def test_ignore_list_skips_files
+    File.write(File.join(@project, "AURA_README.md"), "README_RULE")
+    
+    FileUtils.mkdir_p(File.join(@project, "knowledge"))
+    File.write(File.join(@project, "knowledge", "doc.txt"), "content")
+    File.write(File.join(@project, "knowledge", "doc.txt.hint"), "KNOWLEDGE_HINT")
+
+    FileUtils.mkdir_p(File.join(@project, "tools", "my_tool"))
+    File.write(File.join(@project, "tools", "my_tool", "manifest.json"), { name: "my_tool", auto_load: true }.to_json)
+    File.write(File.join(@project, "tools", "my_tool", "my_tool.hint"), "TOOL_HINT")
+
+    File.write(File.join(@project, "magic.py"), "# @aura-hint: MAGIC_HINT_HERE\npass")
+
+    # Ignore everything in the config
+    File.write(File.join(@project, "config", "config.yml"), <<~YAML)
+      hints:
+        ignore_list:
+          - AURA_README.md
+          - "knowledge/doc.txt.hint"
+          - "tools/my_tool/my_tool.hint"
+          - "magic.py"
+    YAML
+
+    ep = Aura::Context::EnvironmentProvider.new(@project)
+    out = ep.provide
+    refute_includes out, "README_RULE"
+    refute_includes out, "KNOWLEDGE_HINT"
+    refute_includes out, "MAGIC_HINT_HERE"
+
+    tp = Aura::Context::ToolProvider.new(@project)
+    tool_out = tp.provide
+    refute_includes tool_out, "TOOL_HINT"
+  end
+
+  def test_hints_cli_command
+    require "aura/cli/commands/hints_command"
+    
+    # Create .aura directory and write config there
+    FileUtils.mkdir_p(File.join(@project, ".aura", "config"))
+    File.write(File.join(@project, "AURA_README.md"), "README_RULE")
+    File.write(File.join(@project, ".aura", "config", "config.yml"), <<~YAML)
+      hints:
+        auto_inject_readme: true
+    YAML
+    
+    # 1. Capture list command output
+    old_stdout = $stdout
+    $stdout = StringIO.new
+    begin
+      Aura::Commands::HintsCommand.new.list(@project)
+      output = $stdout.string
+    ensure
+      $stdout = old_stdout
+    end
+
+    assert_includes output, "AURA_README.md"
+    assert_includes output, "INJECTED"
+
+    # 2. Toggle and check config
+    old_stdout = $stdout
+    $stdout = StringIO.new
+    begin
+      Aura::Commands::HintsCommand.new.toggle("AURA_README.md", @project)
+    ensure
+      $stdout = old_stdout
+    end
+
+    cfg = YAML.load_file(File.join(@project, ".aura", "config", "config.yml"))
+    assert_equal false, cfg.dig("hints", "auto_inject_readme")
+
+    # 3. Toggle back
+    old_stdout = $stdout
+    $stdout = StringIO.new
+    begin
+      Aura::Commands::HintsCommand.new.toggle("AURA_README.md", @project)
+    ensure
+      $stdout = old_stdout
+    end
+
+    cfg = YAML.load_file(File.join(@project, ".aura", "config", "config.yml"))
+    assert_equal true, cfg.dig("hints", "auto_inject_readme")
+  end
 end

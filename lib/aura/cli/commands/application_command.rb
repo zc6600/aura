@@ -10,6 +10,7 @@ require "aura/cli/commands/tools_command"
 require "aura/cli/commands/kernel_command"
 require "aura/cli/commands/shell_command"
 require "aura/cli/commands/skills_command"
+require "aura/cli/commands/hints_command"
 
 module Aura
   VERSION = "0.1.0"
@@ -184,6 +185,9 @@ module Aura
 
       desc "skill SUBCOMMAND ...", "Manage agent skills in the active workspace"
       subcommand "skill", Aura::Commands::SkillsCommand
+
+      desc "hints SUBCOMMAND ...", "Manage context/magic hint injection configurations"
+      subcommand "hints", Aura::Commands::HintsCommand
 
       desc "chat [PROJECT_PATH]", "Start an interactive Aura chat session"
       method_option :verbose, type: :boolean, aliases: "-v", desc: "Show detailed output"

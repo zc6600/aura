@@ -48,7 +48,7 @@ module Aura
       private
         def build_global_rules
           cfg = load_config
-          if cfg.dig("hints", "auto_inject_readme") == false
+          if cfg.dig("hints", "auto_inject_readme") == false || ignored?("AURA_README.md")
             return nil
           end
 
@@ -56,6 +56,9 @@ module Aura
           return nil unless File.exist?(file)
           content = File.read(file).strip
           return nil if content.empty?
+          if content.length > 10000
+            content = content[0, 10000] + " ... [truncated: exceeds 10000 character limit]"
+          end
           content
         rescue StandardError
           nil
@@ -168,6 +171,9 @@ module Aura
             next if file.include?("/.git/") || file.include?("/.aura/") || file.include?("/state/")
             next if File.size(file) > 102400 # Skip files larger than 100KB
             rel_path = file.sub(/^#{Regexp.escape(@path)}\//, "")
+            if ignored?(rel_path)
+              next
+            end
             begin
               File.open(file, "r") do |f|
                 15.times do
@@ -197,7 +203,15 @@ module Aura
             next if File.directory?(f) || f.end_with?(".hint")
             rel = f.sub(/^#{Regexp.escape(kp)}\//, "")
             hint_path = f + ".hint"
-            hint = File.exist?(hint_path) ? " (Context: #{File.read(hint_path).strip})" : ""
+            rel_hint_path = hint_path.sub(/^#{Regexp.escape(@path)}\//, "")
+            hint = ""
+            if File.exist?(hint_path) && !ignored?(rel_hint_path)
+              hint_content = File.read(hint_path).strip
+              if hint_content.length > 10000
+                hint_content = hint_content[0, 10000] + " ... [truncated]"
+              end
+              hint = " (Context: #{hint_content})"
+            end
             "- #{rel}#{hint}"
           end.compact.join("\n")
         end
@@ -382,6 +396,16 @@ module Aura
           cfg = load_config
           limit = cfg.dig("hints", "max_hint_chars")
           limit ? limit.to_i : 1000
+        end
+
+        def ignored?(rel_path)
+          cfg = load_config
+          ignore_list = cfg.dig("hints", "ignore_list") || []
+          ignore_list.any? do |pattern|
+            File.fnmatch?(pattern, rel_path, File::FNM_PATHNAME | File::FNM_DOTMATCH) || 
+              rel_path == pattern || 
+              rel_path.include?(pattern)
+          end
         end
     end
   end
