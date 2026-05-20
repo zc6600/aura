@@ -8,6 +8,14 @@ module Aura
       def initialize(project_path)
         @project_path = project_path
         @clients = {}
+        at_exit { shutdown }
+      end
+
+      def shutdown
+        @clients.each_value do |client|
+          client.close if client.respond_to?(:close)
+        end
+        @clients.clear
       end
 
       def mcp_tool?(name)

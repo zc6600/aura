@@ -17,7 +17,7 @@ module Aura
         @env_path = Aura.environment_path(@project_path)
         @db = db
         @providers = [
-          DirectiveProvider.new(@project_path),
+          DirectiveProvider.new(@project_path, options),
           MarkdownWorkspaceProvider.new(@project_path), # Added Markdown Workspace support
           EnvironmentProvider.new(@project_path, env_path: @env_path),
           KnowledgeProvider.new(@project_path),

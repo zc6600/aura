@@ -9,6 +9,7 @@ require "shellwords"
 require "aura/cli/commands/tools_command"
 require "aura/cli/commands/kernel_command"
 require "aura/cli/commands/shell_command"
+require "aura/cli/commands/skills_command"
 
 module Aura
   VERSION = "0.1.0"
@@ -180,6 +181,9 @@ module Aura
 
       desc "kernel SUBCOMMAND ...", "Kernel commands"
       subcommand "kernel", Aura::Commands::KernelCommand
+
+      desc "skill SUBCOMMAND ...", "Manage agent skills in the active workspace"
+      subcommand "skill", Aura::Commands::SkillsCommand
 
       desc "chat [PROJECT_PATH]", "Start an interactive Aura chat session"
       method_option :verbose, type: :boolean, aliases: "-v", desc: "Show detailed output"

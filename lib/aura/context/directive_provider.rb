@@ -3,20 +3,42 @@
 module Aura
   module Context
     class DirectiveProvider
-      def initialize(project_path)
+      def initialize(project_path, options = {})
         @project_path = project_path
+        @options = options || {}
       end
 
       def provide
-        file = resolve_system_prompt_path
-        return "" unless File.exist?(file)
+        file = resolve_active_skill_path || resolve_system_prompt_path
+        return "" unless file && File.exist?(file)
         content = File.read(file, encoding: "utf-8")
+
+        # If it has front-matter YAML header, strip it
+        if content.start_with?("---")
+          parts = content.split("---", 3)
+          content = parts[2] || content
+        end
+
         content
           .gsub("{{project_path}}", @project_path)
           .strip + "\n"
       end
 
       private
+        def resolve_active_skill_path
+          active = @options[:active_skill] || ENV["AURA_ACTIVE_SKILL"]
+          return nil if active.nil? || active.to_s.strip.empty?
+
+          candidates = []
+          dir = File.expand_path(@project_path)
+          while dir && dir != File.dirname(dir)
+            candidates << File.join(dir, "skills", active.to_s, "SKILL.md")
+            candidates << File.join(dir, "lib", "aura", "generators", "aura", "app", "templates", "skills", active.to_s, "SKILL.md")
+            dir = File.dirname(dir)
+          end
+          candidates.find { |path| File.exist?(path) }
+        end
+
         def resolve_system_prompt_path
           candidates = []
           dir = File.expand_path(@project_path)

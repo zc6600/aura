@@ -16,20 +16,25 @@ module Aura
         @stderr = nil
         @wait_thr = nil
         @initialized = false
+        @mutex = Mutex.new
       end
 
       def request(method, params = nil)
-        ensure_started
-        ensure_initialized
-        request_raw(method, params)
+        @mutex.synchronize do
+          ensure_started
+          ensure_initialized
+          request_raw(method, params)
+        end
       end
 
       def notify(method, params = nil)
-        ensure_started
-        payload = { "jsonrpc" => "2.0", "method" => method }
-        payload["params"] = params if params
-        write_message(payload)
-        true
+        @mutex.synchronize do
+          ensure_started
+          payload = { "jsonrpc" => "2.0", "method" => method }
+          payload["params"] = params if params
+          write_message(payload)
+          true
+        end
       end
 
       def close
