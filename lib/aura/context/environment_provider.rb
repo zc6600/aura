@@ -48,19 +48,37 @@ module Aura
       private
         def build_global_rules
           cfg = load_config
-          if cfg.dig("hints", "auto_inject_readme") == false || ignored?("AURA_README.md")
-            return nil
+          rules = []
+
+          # 1. Load project-specific AURA_README.md
+          if cfg.dig("hints", "auto_inject_readme") != false && !ignored?("AURA_README.md")
+            file = File.join(@path, "AURA_README.md")
+            if File.exist?(file)
+              content = File.read(file).strip
+              unless content.empty?
+                max_file_chars = fetch_max_file_chars
+                if content.length > max_file_chars
+                  content = content[0, max_file_chars] + " ... [truncated: exceeds #{max_file_chars} character limit]"
+                end
+                rules << "### Project Instructions (AURA_README.md):\n#{content}"
+              end
+            end
           end
 
-          file = File.join(@path, "AURA_README.md")
-          return nil unless File.exist?(file)
-          content = File.read(file).strip
-          return nil if content.empty?
-          max_file_chars = fetch_max_file_chars
-          if content.length > max_file_chars
-            content = content[0, max_file_chars] + " ... [truncated: exceeds #{max_file_chars} character limit]"
+          # 2. Load global operational guidelines from ~/.aura/global_hint.md
+          global_hint_file = File.join(Dir.home, ".aura", "global_hint.md")
+          if File.exist?(global_hint_file)
+            content = File.read(global_hint_file).strip
+            unless content.empty?
+              max_file_chars = fetch_max_file_chars
+              if content.length > max_file_chars
+                content = content[0, max_file_chars] + " ... [truncated: exceeds #{max_file_chars} character limit]"
+              end
+              rules << "### Global User Preferences & Operational Rules:\n#{content}"
+            end
           end
-          content
+
+          rules.empty? ? nil : rules.join("\n\n")
         rescue StandardError
           nil
         end

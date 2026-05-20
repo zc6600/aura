@@ -73,6 +73,81 @@ module Aura
         Aura::Commands::ShellCommand.new.start(resolved_path)
       end
 
+      desc "install URL_OR_PATH [NAME]", "Install a skill from a Git URL or local directory"
+      def install(url_or_path, name = nil)
+        begin
+          resolved_path = Aura.resolve_project_path!(nil)
+        rescue SystemExit
+          exit 1
+        end
+
+        require "securerandom"
+        require "fileutils"
+        require "open3"
+
+        tmp_base = File.join(resolved_path, ".aura", "tmp")
+        FileUtils.mkdir_p(tmp_base)
+        tmp_dir = File.join(tmp_base, "skill_install_#{SecureRandom.hex(8)}")
+
+        is_git = url_or_path.start_with?("http://", "https://", "git@")
+
+        begin
+          if is_git
+            puts "Cloning repository: #{url_or_path}..."
+            out, err, status = Open3.capture3("git", "clone", "--depth", "1", url_or_path, tmp_dir)
+            unless status.success?
+              puts "\e[31m⛔️ Error: Failed to clone repository: #{err}\e[0m"
+              exit 1
+            end
+            src_dir = tmp_dir
+          else
+            src_dir = File.expand_path(url_or_path)
+            unless File.directory?(src_dir)
+              puts "\e[31m⛔️ Error: Local path '#{url_or_path}' is not a directory.\e[0m"
+              exit 1
+            end
+          end
+
+          # Find SKILL.md
+          skill_md = File.join(src_dir, "SKILL.md")
+          unless File.exist?(skill_md)
+            # Try to find a subfolder containing SKILL.md
+            sub_skills = Dir.glob(File.join(src_dir, "**/SKILL.md"))
+            if sub_skills.any?
+              skill_md = sub_skills.first
+              src_dir = File.dirname(skill_md)
+            else
+              puts "\e[31m⛔️ Error: No SKILL.md file found in the source directory.\e[0m"
+              exit 1
+            end
+          end
+
+          # Determine skill name
+          skill_name = name
+          if skill_name.nil? || skill_name.to_s.strip.empty?
+            meta = parse_skill_meta(skill_md)
+            if meta[:name] && meta[:name] != File.basename(File.dirname(skill_md))
+              skill_name = meta[:name].to_s.downcase.gsub(/[^a-z0-9_\-]/, "")
+            end
+            skill_name = File.basename(src_dir).downcase.gsub(/[^a-z0-9_\-]/, "") if skill_name.nil? || skill_name.empty?
+          end
+
+          dest_dir = File.join(resolved_path, "skills", skill_name)
+          if File.exist?(dest_dir)
+            puts "⛔️ Error: Skill '#{skill_name}' already exists at: #{dest_dir}"
+            exit 1
+          end
+
+          FileUtils.mkdir_p(File.dirname(dest_dir))
+          FileUtils.cp_r(src_dir, dest_dir)
+          FileUtils.rm_rf(File.join(dest_dir, ".git"))
+
+          puts "\e[32m✓ Skill '#{skill_name}' successfully installed to: #{dest_dir}\e[0m"
+        ensure
+          FileUtils.rm_rf(tmp_dir) if File.exist?(tmp_dir)
+        end
+      end
+
       private
 
       def parse_skill_meta(path)

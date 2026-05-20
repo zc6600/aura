@@ -146,6 +146,29 @@ module Aura
           puts "Added '#{file_path}' to ignore_list. Injection is now \e[33mIGNORED\e[0m."
         end
       end
+
+      desc "global", "Display the path and contents of the global operational guidance file"
+      def global
+        global_hint_file = File.join(Dir.home, ".aura", "global_hint.md")
+        puts "\n=== Global Operational Guidance & User Preferences ==="
+        puts "File Path: #{global_hint_file.sub(Dir.home, '~')}"
+        puts "-" * 60
+
+        if File.exist?(global_hint_file)
+          content = File.read(global_hint_file).strip
+          if content.empty?
+            puts "(File is empty)"
+          else
+            puts content
+          end
+        else
+          puts "\e[33m(File does not exist yet)\e[0m"
+          puts "\n💡 To create it, run:"
+          puts "   mkdir -p ~/.aura && touch ~/.aura/global_hint.md"
+          puts "   Then edit the file with your preferences, global instructions, or target models/rules."
+        end
+        puts "-" * 60
+      end
     end
   end
 end
