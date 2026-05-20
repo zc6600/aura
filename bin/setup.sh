@@ -135,6 +135,8 @@ if [ ! -f "$DOTENV_PATH" ]; then
 # LLM Providers API Keys
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
+DEEPSEEK_API_KEY=
+GEMINI_API_KEY=
 
 # Custom LLM API Settings (Optional)
 # OPENAI_API_BASE=
@@ -158,7 +160,10 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     echo -e "    1) local (Offline Mock Adapter - Default)"
     echo -e "    2) openai (OpenAI / Compatible Proxy)"
     echo -e "    3) openrouter (OpenRouter Hub)"
-    read -p "  Enter choice (1-3, default: 1): " CHOICE < /dev/tty
+    echo -e "    4) deepseek (DeepSeek API)"
+    echo -e "    5) gemini (Google Gemini API)"
+    echo -e "    6) anthropic (Anthropic Claude API)"
+    read -p "  Enter choice (1-6, default: 1): " CHOICE < /dev/tty
 
     if [ "$CHOICE" == "2" ]; then
         SELECTED_PROVIDER="openai"
@@ -172,7 +177,6 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         read -p "  🌐 Enter Custom API Base URL (optional, press Enter to use default): " API_BASE < /dev/tty
         if [ ! -z "$API_BASE" ]; then
             SELECTED_BASE=$API_BASE
-            # Append to .env
             echo "OPENAI_API_BASE=$API_BASE" >> "$DOTENV_PATH"
         fi
     elif [ "$CHOICE" == "3" ]; then
@@ -184,16 +188,45 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         fi
         read -p "  🤖 Enter OpenRouter Model name (default: google/gemini-2.5-flash): " OR_MODEL < /dev/tty
         SELECTED_MODEL=${OR_MODEL:-"google/gemini-2.5-flash"}
+    elif [ "$CHOICE" == "4" ]; then
+        SELECTED_PROVIDER="deepseek"
+        read -p "  🔑 Enter DeepSeek API Key (or press Enter to skip): " DEEPSEEK_KEY < /dev/tty
+        if [ ! -z "$DEEPSEEK_KEY" ]; then
+            ruby -pi -e "gsub('DEEPSEEK_API_KEY=', 'DEEPSEEK_API_KEY=$DEEPSEEK_KEY')" "$DOTENV_PATH"
+            echo -e "    - DeepSeek API Key saved to .env."
+        fi
+        read -p "  🤖 Enter DeepSeek Model name (default: deepseek-chat): " DS_MODEL < /dev/tty
+        SELECTED_MODEL=${DS_MODEL:-"deepseek-chat"}
+    elif [ "$CHOICE" == "5" ]; then
+        SELECTED_PROVIDER="gemini"
+        read -p "  🔑 Enter Gemini API Key (or press Enter to skip): " GEMINI_KEY < /dev/tty
+        if [ ! -z "$GEMINI_KEY" ]; then
+            ruby -pi -e "gsub('GEMINI_API_KEY=', 'GEMINI_API_KEY=$GEMINI_KEY')" "$DOTENV_PATH"
+            echo -e "    - Gemini API Key saved to .env."
+        fi
+        read -p "  🤖 Enter Gemini Model name (default: gemini-1.5-flash): " GEM_MODEL < /dev/tty
+        SELECTED_MODEL=${GEM_MODEL:-"gemini-1.5-flash"}
+    elif [ "$CHOICE" == "6" ]; then
+        SELECTED_PROVIDER="anthropic"
+        read -p "  🔑 Enter Anthropic API Key (or press Enter to skip): " ANTHROPIC_KEY < /dev/tty
+        if [ ! -z "$ANTHROPIC_KEY" ]; then
+            ruby -pi -e "gsub('ANTHROPIC_API_KEY=', 'ANTHROPIC_API_KEY=$ANTHROPIC_KEY')" "$DOTENV_PATH"
+            echo -e "    - Anthropic API Key saved to .env."
+        fi
+        read -p "  🤖 Enter Anthropic Model name (default: claude-3-5-sonnet-20241022): " ANT_MODEL < /dev/tty
+        SELECTED_MODEL=${ANT_MODEL:-"claude-3-5-sonnet-20241022"}
     else
         SELECTED_PROVIDER="local"
         echo -e "    - Selected Offline Mock Local provider."
     fi
 
-    # Also offer to configure Anthropic key as it's heavily used by agent workflows
-    read -p "  🔑 Enter Anthropic API Key (optional, press Enter to skip): " ANTHROPIC_KEY < /dev/tty
-    if [ ! -z "$ANTHROPIC_KEY" ]; then
-        ruby -pi -e "gsub('ANTHROPIC_API_KEY=', 'ANTHROPIC_API_KEY=$ANTHROPIC_KEY')" "$DOTENV_PATH"
-        echo -e "    - Anthropic API Key saved to .env."
+    # Also offer to configure Anthropic key if not already configured as primary provider
+    if [ "$SELECTED_PROVIDER" != "anthropic" ]; then
+        read -p "  🔑 Enter Anthropic API Key (optional, press Enter to skip): " ANTHROPIC_KEY < /dev/tty
+        if [ ! -z "$ANTHROPIC_KEY" ]; then
+            ruby -pi -e "gsub('ANTHROPIC_API_KEY=', 'ANTHROPIC_API_KEY=$ANTHROPIC_KEY')" "$DOTENV_PATH"
+            echo -e "    - Anthropic API Key saved to .env."
+        fi
     fi
 fi
 echo -e "${GREEN}✓ Credentials configured successfully!${NC}\n"
