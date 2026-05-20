@@ -1,0 +1,24 @@
+PATH
+  remote: .
+  specs:
+    aura (0.1.0)
+      sqlite3 (~> 1.6)
+      thor (~> 1.2)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    mini_portile2 (2.8.9)
+    sqlite3 (1.7.3)
+      mini_portile2 (~> 2.8.0)
+    thor (1.5.0)
+
+PLATFORMS
+  arm64-darwin-24
+  ruby
+
+DEPENDENCIES
+  aura!
+
+BUNDLED WITH
+   2.6.9

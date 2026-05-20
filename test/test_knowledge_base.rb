@@ -9,7 +9,7 @@ class TestKnowledgeBase < Minitest::Test
     @project_path = File.expand_path("tmp_knowledge_test")
     FileUtils.rm_rf(@project_path)
     FileUtils.mkdir_p(File.join(@project_path, "config"))
-    File.write(File.join(@project_path, "config", "config.yml"), {}.to_yaml)
+    File.write(File.join(@project_path, ".aura", "config", "config.yml"), {}.to_yaml)
   end
 
   def teardown

@@ -10,7 +10,7 @@ class TestLlmOpenAIIntegration < Minitest::Test
     system("ruby bin/aura new tmp_openai_real")
     root_env = File.join(Dir.pwd, ".env")
     FileUtils.cp(root_env, File.join(@app, ".env")) if File.exist?(root_env)
-    cfg = File.join(@app, "config", "config.yml")
+    cfg = File.join(@app, ".aura", "config", "config.yml")
     s = File.read(cfg)
     s = s.gsub('provider: "local"', 'provider: "openai"')
     s = s.gsub('model: "gpt-4o"', 'model: "gpt-4o-mini"')
@@ -26,7 +26,7 @@ class TestLlmOpenAIIntegration < Minitest::Test
   def test_plan_returns_text_or_tool_call
     skip "not running real test" unless ENV["RUN_REAL_LLM_TESTS"] == "1"
     require "aura/cli/commands/kernel_command"
-    out = `bin/aura kernel plan #{@app} -g "仅输出JSON工具调用：读取config/config.yml（read_file）。"`
+    out = `bin/aura kernel plan #{@app} -g "仅输出JSON工具调用：读取.aura/config/config.yml（read_file）。"`
     assert out.to_s.length > 0
   end
 end

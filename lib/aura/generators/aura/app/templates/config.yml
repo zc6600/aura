@@ -33,6 +33,9 @@ state_management:
 tool_protocol:
   allow_dependency_install: true
   test_timeout: 30
+  default_timeout_seconds: 300
+  max_timeout_seconds: 1200
+  agent_can_modify_timeout: true
   runtimes:
     python: "python3"
     ruby: "ruby"

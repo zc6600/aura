@@ -54,7 +54,7 @@ class TestKnowledgeRobustness < Minitest::Test
     # Total context without compression will be ~4000
     
     FileUtils.mkdir_p(File.join(@project_path, "config"))
-    File.write(File.join(@project_path, "config", "config.yml"), {
+    File.write(File.join(@project_path, ".aura", "config", "config.yml"), {
       "state_management" => { "max_state_chars" => 2500 }
     }.to_yaml)
 

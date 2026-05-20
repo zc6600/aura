@@ -70,12 +70,12 @@ class TestKernelContextFlow < Minitest::Test
   private
 
   def load_contexts
-    state_file = File.join(@project, "state", "tool_contexts.json")
+    state_file = File.join(@project, ".aura", "state", "tool_contexts.json")
     JSON.parse(File.read(state_file))["contexts"]
   end
 
   def setup_config
-    cfg_path = File.join(@project, "config", "config.yml")
+    cfg_path = File.join(@project, ".aura", "config", "config.yml")
     File.write(cfg_path, <<~YAML)
       tool_protocol:
         required_files:
@@ -85,7 +85,7 @@ class TestKernelContextFlow < Minitest::Test
   end
 
   def setup_browser_tool_group
-    browser_dir = File.join(@project, "tools", "browser")
+    browser_dir = File.join(@project, ".aura", "tools", "browser")
     FileUtils.mkdir_p(browser_dir)
 
     File.write(File.join(browser_dir, "group_manifest.json"), {

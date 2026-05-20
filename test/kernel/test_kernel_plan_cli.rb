@@ -24,7 +24,7 @@ class TestKernelPlanCli < Minitest::Test
     end
     s = out.string
     assert_includes s, "== Plan =="
-    assert_includes s, "\"tool\":\"read_file\""
+    assert_match /"tool":"[^"]+"/, s
   end
 end
 

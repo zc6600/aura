@@ -12,7 +12,7 @@ class TestOpenRouterIntegration < Minitest::Test
       FileUtils.cp(root_env, File.join(@app, ".env"))
     end
     # set provider/model and increase budgets
-    cfg = File.join(@app, "config", "config.yml")
+    cfg = File.join(@app, ".aura", "config", "config.yml")
     s = File.read(cfg)
     s = s.gsub('provider: "local"', 'provider: "openrouter"')
     s = s.gsub('model: "gpt-4o"', 'model: "upstage/solar-pro-3:free"')

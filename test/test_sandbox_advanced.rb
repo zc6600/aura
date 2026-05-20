@@ -8,12 +8,12 @@ class TestSandboxAdvanced < Minitest::Test
   def setup
     @project_path = File.expand_path("tmp_sandbox_advanced")
     FileUtils.rm_rf(@project_path)
-    FileUtils.mkdir_p(File.join(@project_path, "config"))
-    FileUtils.mkdir_p(File.join(@project_path, "tools", "test_tool"))
+    FileUtils.mkdir_p(File.join(@project_path, ".aura", "config"))
+    FileUtils.mkdir_p(File.join(@project_path, ".aura", "tools", "test_tool"))
     
     # Create a simple Python tool
-    File.write(File.join(@project_path, "tools", "test_tool", "logic.py"), "print('ok')")
-    File.write(File.join(@project_path, "tools", "test_tool", "manifest.json"), {
+    File.write(File.join(@project_path, ".aura", "tools", "test_tool", "logic.py"), "print('ok')")
+    File.write(File.join(@project_path, ".aura", "tools", "test_tool", "manifest.json"), {
       name: "test_tool",
       runtime: "python3",
       entry: "logic.py"
@@ -34,7 +34,7 @@ class TestSandboxAdvanced < Minitest::Test
         }
       }
     }
-    File.write(File.join(@project_path, "config", "config.yml"), config.to_yaml)
+    File.write(File.join(@project_path, ".aura", "config", "config.yml"), config.to_yaml)
     
     engine = Aura::Kernel::ExecutionEngine.new(@project_path)
     # We can't easily verify the private apply_sandbox without a mock, 
@@ -43,7 +43,7 @@ class TestSandboxAdvanced < Minitest::Test
   end
 
   def test_sandbox_disabled_by_default
-    File.write(File.join(@project_path, "config", "config.yml"), {}.to_yaml)
+    File.write(File.join(@project_path, ".aura", "config", "config.yml"), {}.to_yaml)
     engine = Aura::Kernel::ExecutionEngine.new(@project_path)
     cfg = engine.send(:load_full_config)
     refute cfg.dig("security", "sandbox", "enabled")

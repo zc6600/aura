@@ -18,7 +18,7 @@ class TestGitStateIntegration < Minitest::Test
     
     # Create config with snapshots enabled
     FileUtils.mkdir_p(File.join(@project_path, "config"))
-    File.write(File.join(@project_path, "config", "config.yml"), {
+    File.write(File.join(@project_path, ".aura", "config", "config.yml"), {
       "security" => {
         "git_snapshots" => true
       }

@@ -106,3 +106,35 @@ Aura uses a strict subset of JSON Schema:
 - **Output**: STDOUT must be a single JSON object.
   - Success: `{"status": "ok", "content": "..."}`
   - Failure: `{"status": "failed", "error": "..."}`
+
+---
+
+## Tool Timeout System
+
+To prevent hanging subprocesses or infinite loops in tool executions from consuming system resources indefinitely, Aura OS enforces a multi-tier tool timeout system.
+
+### 1. Global Configurations (`config.yml`)
+- `default_timeout_seconds` (default: 300 / 5 minutes): The base timeout applied to any tool that does not declare a custom limit in its manifest.
+- `max_timeout_seconds` (default: 1200 / 20 minutes): The hard upper boundary. No tool execution can exceed this limit under any circumstances.
+- `agent_can_modify_timeout` (default: true): A global flag permitting or denying the agent the ability to pass custom overrides during execution.
+
+### 2. Manifest Specifications (`manifest.json`)
+- `timeout` (optional): Overrides the system's `default_timeout_seconds` specifically for this tool.
+- `agent_can_modify_timeout` (optional): Overrides the system's `agent_can_modify_timeout` permission for this specific tool.
+
+### 3. Execution Overrides
+When calling a tool, the agent can optionally specify a custom timeout in the arguments by passing:
+- `timeout_seconds` (integer/float)
+- `timeout` (integer/float)
+
+The final timeout is resolved as:
+1. **Agent Override**: Used if `agent_can_modify_timeout` is true.
+2. **Manifest Timeout**: Used if defined in the manifest.
+3. **Default Timeout**: System default fallback (300).
+
+Finally, the resolved timeout is clamped to be no greater than the system's `max_timeout_seconds`.
+
+### 4. Process Isolation & Resource Cleanup
+- Tools run as subprocesses inside a wrapper (`capture3_with_timeout`).
+- Upon timeout detection, the Kernel terminates the child process by sending a `TERM` signal, falling back to a `KILL` signal if it does not exit within 2 seconds.
+- All background threads used to manage standard input/output pipes are reaped to prevent resource leaks.

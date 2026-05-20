@@ -14,7 +14,7 @@ class TestCliContextCommand < Minitest::Test
       @klass.define_singleton_method(:start) do |argv, config = {}|
         called_args = argv
       end
-      Aura::CLI.start(["context", "/tmp/x"]) 
+      Aura::CLI::EntryPoint.start(["context", "/tmp/x"]) 
       assert_equal "context", called_args.first
       assert_equal "/tmp/x", called_args[1]
     ensure

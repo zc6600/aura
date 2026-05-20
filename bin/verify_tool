@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+import sys
+import os
+import runpy
+
+"""
+Aura OS Tool Verification Runner
+--------------------------------
+Standardizes the execution environment for tool verification tests.
+Ensures that the tool directory is in sys.path so that 'import logic' 
+always works, eliminating import path guessing games.
+
+Usage:
+    bin/verify_tool <tool_directory_path>
+"""
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: bin/verify_tool <tool_directory>")
+        sys.exit(1)
+
+    tool_dir = os.path.abspath(sys.argv[1])
+    test_file = os.path.join(tool_dir, "test.py")
+
+    if not os.path.exists(test_file):
+        print(f"Error: {test_file} not found.")
+        sys.exit(1)
+
+    # 1. Add tool directory to sys.path (Priority 1)
+    # This enables 'import logic' to work from anywhere.
+    sys.path.insert(0, tool_dir)
+
+    # 2. Add workspace root to sys.path (Priority 2)
+    # This enables 'import tools.other_tool.logic' if needed.
+    # We assume bin/verify_tool is at <root>/bin/verify_tool, so root is 2 levels up relative to script,
+    # BUT we should probably trust the tool_dir's relation to root.
+    # Let's verify if tool_dir is inside 'tools/'.
+    
+    # Simple heuristic: If we are running from project root, add it.
+    workspace_root = os.getcwd()
+    if workspace_root not in sys.path:
+        sys.path.insert(1, workspace_root)
+
+    print(f"Aura Verification: Running {test_file}")
+    print(f"context: {tool_dir}")
+    print("-" * 40)
+
+    try:
+        # Run the test.py file as __main__
+        # This executes the unittest.main() block inside it.
+        runpy.run_path(test_file, run_name="__main__")
+    except SystemExit as e:
+        # Propagate the exit code from unittest
+        sys.exit(e.code)
+    except Exception as e:
+        print(f"Execution failed with error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

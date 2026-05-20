@@ -27,15 +27,16 @@ module Aura
         true
       end
 
-      desc "new [PROJECT_NAME]", "Initialize an in-place Aura environment linked to a project name (defaults to aura_YYYY_MM_DD_HHMMSS)"
-      def new(project_name = nil)
+      desc "new [PATH]", "Initialize an Aura environment at the specified path (defaults to current directory)"
+      def new(target_path = ".")
         Aura.ensure_global_repo!
         
-        if project_name.nil? || project_name.to_s.strip.empty?
-          project_name = Time.now.strftime("aura_%Y_%m_%d_%H%M%S")
-        end
+        target_dir = File.expand_path(target_path)
+        FileUtils.mkdir_p(target_dir) unless File.directory?(target_dir)
+        
+        project_name = File.basename(target_dir).gsub(/[^a-zA-Z0-9_\-]/, "")
+        project_name = "aura_#{Time.now.strftime('%Y_%m_%d_%H%M%S')}" if project_name.empty?
 
-        target_dir = Dir.pwd
         hidden = File.join(target_dir, ".aura")
         
         puts "Initializing Aura workspace in-place at: #{target_dir}..."

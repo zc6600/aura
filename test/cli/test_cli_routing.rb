@@ -8,7 +8,7 @@ class TestCliRouting < Minitest::Test
     klass = Aura::Commands::ApplicationCommand
     def klass.start(*); $called = true; end
 
-    Aura::CLI.start(["help"]) # should dispatch to ApplicationCommand.start
+    Aura::CLI::EntryPoint.start(["help"]) # should dispatch to ApplicationCommand.start
     assert $called, "CLI did not dispatch to ApplicationCommand"
   end
 end

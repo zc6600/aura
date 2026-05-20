@@ -8,7 +8,7 @@ class TestKernelPlanOverflowCli < Minitest::Test
     @app = File.join(Dir.pwd, "tmp_kernel_plan_overflow")
     FileUtils.rm_rf(@app)
     system("ruby bin/aura new tmp_kernel_plan_overflow")
-    cfg = File.join(@app, "config", "config.yml")
+    cfg = File.join(@app, ".aura", "config", "config.yml")
     data = YAML.load_file(cfg) || {}
     data["state_management"] ||= {}
     data["state_management"]["max_state_chars"] = 100

@@ -26,7 +26,7 @@ class TestContextBase < Minitest::Test
     File.write(File.join(@project, "knowledge", "k.txt"), "k")
     # minimal config for required_files
     FileUtils.mkdir_p(File.join(@project, "config"))
-    File.write(File.join(@project, "config", "config.yml"), <<~YAML)
+    File.write(File.join(@project, ".aura", "config", "config.yml"), <<~YAML)
       tool_protocol:
         required_files:
           - logic.py

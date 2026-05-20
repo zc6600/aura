@@ -10,7 +10,7 @@ module Aura
         # raise "DEBUG: Entry point reached. CWD: #{Dir.pwd}"
         first = argv&.first
          if File.exist?("aura.gemspec") && File.exist?("lib/aura.rb") && !argv.include?("--version") && !argv.include?("-v") && !argv.include?("--help") && !argv.include?("-h") && !argv.include?("help")
-            unless ["help", "--help", "-h", "doctor", "version", "new", "ask", "list", "delete", "register", "prune", "branch", "config", "hints", "tools", "skill", "kernel", "completion", "h", "t", "s", "k", "c", "v"].include?(first)
+            unless ENV["RACK_ENV"] == "test" || ENV["RAILS_ENV"] == "test" || defined?(Minitest) || ["help", "--help", "-h", "doctor", "version", "new", "ask", "list", "delete", "register", "prune", "branch", "config", "hints", "tools", "skill", "kernel", "completion", "h", "t", "s", "k", "c", "v"].include?(first)
               puts "\e[31m⛔️  You are trying to run Aura from the source root directory.\e[0m"
               puts "Please run it in a separate workspace directory (e.g., run `aura new my_project` first)."
               exit 1

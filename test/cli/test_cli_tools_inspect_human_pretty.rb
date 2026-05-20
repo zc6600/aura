@@ -16,14 +16,28 @@ class TestCliToolsInspectFormats < Minitest::Test
 
   def test_pretty_json_output
     Dir.chdir(@app) do
-      s = `bin/aura tools inspect inspect_tool --pretty`
+      out = StringIO.new
+      begin
+        $stdout = out
+        Aura::CLI::EntryPoint.start(["tools", "inspect", "inspect_tool", "--pretty"])
+      ensure
+        $stdout = STDOUT
+      end
+      s = out.string
       assert_includes s, "\n  \"tool\""
     end
   end
 
   def test_human_output
     Dir.chdir(@app) do
-      s = `bin/aura tools inspect inspect_tool --human`
+      out = StringIO.new
+      begin
+        $stdout = out
+        Aura::CLI::EntryPoint.start(["tools", "inspect", "inspect_tool", "--human"])
+      ensure
+        $stdout = STDOUT
+      end
+      s = out.string
       assert_includes s, "Tool: inspect_tool"
       assert_includes s, "Files:"
     end

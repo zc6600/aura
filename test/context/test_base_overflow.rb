@@ -8,7 +8,7 @@ class TestBaseOverflow < Minitest::Test
     FileUtils.rm_rf(@project)
     FileUtils.mkdir_p(@project)
     FileUtils.mkdir_p(File.join(@project, "config"))
-    File.write(File.join(@project, "config", "config.yml"), <<~YML)
+    File.write(File.join(@project, ".aura", "config", "config.yml"), <<~YML)
     state_management:
       max_state_chars: 300
       keep_last_summary_n_steps: 20

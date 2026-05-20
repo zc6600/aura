@@ -8,7 +8,7 @@ class TestDirectiveProvider < Minitest::Test
     FileUtils.rm_rf(@project)
     FileUtils.mkdir_p(@project)
     FileUtils.mkdir_p(File.join(@project, "config"))
-    File.write(File.join(@project, "config", "config.yml"), "state_management:\n  max_state_chars: 10000\n")
+    File.write(File.join(@project, ".aura", "config", "config.yml"), "state_management:\n  max_state_chars: 10000\n")
   end
 
   def teardown

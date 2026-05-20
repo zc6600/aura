@@ -44,10 +44,13 @@ def build_tree(base, max_entries=1000, max_depth=3):
 
 def inspect_tool(tool_name):
     safe_name = os.path.basename(tool_name)
-    base = os.path.join("tools", safe_name)
+    base = os.path.join(".aura", "tools", safe_name)
+    if not os.path.isdir(base):
+        base = os.path.join("tools", safe_name)
+    
     result = {"tool": safe_name, "status": "unknown"}
     if not os.path.isdir(base):
-        return {"error": f"Tool '{safe_name}' not found in /tools", "status": "failed", "code": "not_found"}
+        return {"error": f"Tool '{safe_name}' not found in /tools or /.aura/tools", "status": "failed", "code": "not_found"}
     manifest_path = os.path.join(base, "manifest.json")
     manifest = {}
     if os.path.exists(manifest_path):

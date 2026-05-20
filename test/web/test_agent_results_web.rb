@@ -11,7 +11,7 @@ class TestAgentResultsWeb < Minitest::Test
     FileUtils.rm_rf(@app)
     system("ruby bin/aura new tmp_agent_web")
     require "aura/cli/commands/kernel_command"
-    payload = { tool: "read_file", args: { file_path: "config/config.yml", context_permissions: ["."] } }.to_json
+    payload = { tool: "read_file", args: { file_path: ".aura/config/config.yml", context_permissions: ["."] } }.to_json
     Aura::Commands::KernelCommand.start(["once", @app, "-c", payload])
   end
 

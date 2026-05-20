@@ -11,7 +11,7 @@ class TestSandbox < Minitest::Test
     FileUtils.mkdir_p(File.join(@project_path, "tools", "hello"))
     
     # Create a dummy config
-    File.write(File.join(@project_path, "config", "config.yml"), <<~YAML)
+    File.write(File.join(@project_path, ".aura", "config", "config.yml"), <<~YAML)
       security:
         sandbox:
           enabled: true

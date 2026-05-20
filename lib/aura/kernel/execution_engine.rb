@@ -16,25 +16,74 @@ module Aura
       end
 
       def execute(tool_name, args)
+        cfg = load_full_config
+        args ||= {}
+
+        # Resolve timeout parameters
+        default_timeout = cfg.dig("tool_protocol", "default_timeout_seconds") || 300
+        max_timeout = cfg.dig("tool_protocol", "max_timeout_seconds") || 1200
+        config_agent_can_modify = cfg.dig("tool_protocol", "agent_can_modify_timeout") != false
+
+        # Fetch manifest if tool exists in registry
+        tool_data = @registry.find(tool_name)
+        manifest = tool_data ? (tool_data[:manifest] || {}) : {}
+
+        # Determine if agent can modify timeout
+        agent_can_modify = manifest.key?("agent_can_modify_timeout") ? manifest["agent_can_modify_timeout"] : config_agent_can_modify
+
+        # Base timeout: manifest timeout or system default
+        base_timeout = manifest["timeout"] || default_timeout
+
+        # Check for agent override
+        args_timeout = args["timeout_seconds"] || args["timeout"]
+        if args_timeout && agent_can_modify
+          resolved_timeout = args_timeout.to_f
+        else
+          resolved_timeout = base_timeout.to_f
+        end
+
+        # Enforce maximum timeout upper bound
+        resolved_timeout = [resolved_timeout, max_timeout.to_f].min
+
+        # Execute dispatching
         if @mcp_manager.mcp_tool?(tool_name)
-          return @mcp_manager.call_tool(tool_name, args)
+          begin
+            require "timeout"
+            return Timeout.timeout(resolved_timeout) do
+              @mcp_manager.call_tool(tool_name, args)
+            end
+          rescue Timeout::Error
+            return { error: "Tool execution timed out after #{resolved_timeout} seconds.", status: "failed" }
+          end
         end
 
         if tool_name.to_s == "lsp_diagnostics"
           require "aura/kernel/tools/lsp_diagnostics"
-          return Aura::Kernel::Tools::LSPDiagnostics.new(@lsp_manager).execute(args)
+          begin
+            require "timeout"
+            return Timeout.timeout(resolved_timeout) do
+              Aura::Kernel::Tools::LSPDiagnostics.new(@lsp_manager).execute(args)
+            end
+          rescue Timeout::Error
+            return { error: "Tool execution timed out after #{resolved_timeout} seconds.", status: "failed" }
+          end
         end
 
         if tool_name.to_s == "remember_fact"
           require "aura/kernel/tools/remember_fact"
-          return Aura::Kernel::Tools::RememberFact.new(@project_path).execute(args)
+          begin
+            require "timeout"
+            return Timeout.timeout(resolved_timeout) do
+              Aura::Kernel::Tools::RememberFact.new(@project_path).execute(args)
+            end
+          rescue Timeout::Error
+            return { error: "Tool execution timed out after #{resolved_timeout} seconds.", status: "failed" }
+          end
         end
 
-        tool_data = @registry.find(tool_name)
         return { error: "tool not found in registry: #{tool_name}", status: "failed" } unless tool_data
 
         dir = tool_data[:path]
-        manifest = tool_data[:manifest]
         runtime_data = manifest["runtime"]
         runtime_key = runtime_data.is_a?(Hash) ? (runtime_data["language"] || runtime_data["runtime"]) : runtime_data
         runtime = resolve_runtime(runtime_key)
@@ -43,8 +92,6 @@ module Aura
         return { error: "entry not found: #{entry}", status: "failed" } unless File.exist?(logic)
 
         # Inject context-aware security permissions if strict isolation is on
-        cfg = load_full_config
-        args ||= {}
         strict = cfg.dig("security", "strict_path_isolation") ? true : false
         args["strict_mode"] = strict unless args.key?("strict_mode")
         if cfg.dig("security", "strict_path_isolation")
@@ -78,11 +125,16 @@ module Aura
         # Apply sandboxing if enabled
         cmd, final_args = apply_sandbox(cfg, runtime, logic, payload)
         
-        if final_args.bytesize > 65536
-          out, err, status = Open3.capture3(*cmd, stdin_data: final_args, chdir: @project_path)
-        else
-          out, err, status = Open3.capture3(*(cmd + [final_args]), stdin_data: final_args, chdir: @project_path)
+        begin
+          if final_args.bytesize > 65536
+            out, err, status = capture3_with_timeout(cmd, final_args, @project_path, resolved_timeout)
+          else
+            out, err, status = capture3_with_timeout(cmd + [final_args], final_args, @project_path, resolved_timeout)
+          end
+        rescue Timeout::Error
+          return { error: "Tool execution timed out after #{resolved_timeout} seconds.", status: "failed" }
         end
+
         body = err.to_s.strip.empty? ? out : err
         if status.success?
           obj = parse_json_safe(body)
@@ -107,6 +159,75 @@ module Aura
       end
 
       private
+        def capture3_with_timeout(cmd, stdin_data, chdir, timeout_val)
+          pid = nil
+          stdout_data = ""
+          stderr_data = ""
+          status = nil
+          
+          begin
+            require "timeout"
+            Timeout.timeout(timeout_val + 2) do
+              Open3.popen3(*cmd, chdir: chdir) do |stdin, stdout, stderr, wait_thr|
+                pid = wait_thr.pid
+                
+                # Write stdin in a separate thread to prevent pipe deadlock
+                write_thread = Thread.new do
+                  begin
+                    stdin.write(stdin_data) if stdin_data
+                    stdin.close
+                  rescue IOError, StandardError
+                  end
+                end
+                
+                # Read stdout and stderr in separate threads
+                stdout_thread = Thread.new do
+                  begin
+                    stdout.read
+                  rescue IOError, StandardError
+                    ""
+                  end
+                end
+                stderr_thread = Thread.new do
+                  begin
+                    stderr.read
+                  rescue IOError, StandardError
+                    ""
+                  end
+                end
+                
+                begin
+                  unless wait_thr.join(timeout_val)
+                    raise Timeout::Error, "Tool execution timed out after #{timeout_val} seconds."
+                  end
+                  stdout_data = stdout_thread.value
+                  stderr_data = stderr_thread.value
+                  status = wait_thr.value
+                ensure
+                  stdout_thread.kill rescue nil
+                  stderr_thread.kill rescue nil
+                  write_thread.kill rescue nil
+                end
+              end
+            end
+            [stdout_data, stderr_data, status]
+          rescue Timeout::Error
+            if pid
+              begin
+                Process.kill("TERM", pid)
+                Timeout.timeout(2) { Process.wait(pid) }
+              rescue StandardError
+                begin
+                  Process.kill("KILL", pid)
+                  Process.wait(pid)
+                rescue StandardError
+                end
+              end
+            end
+            raise
+          end
+        end
+
         def read_manifest(dir)
           path = File.join(dir, "manifest.json")
           begin

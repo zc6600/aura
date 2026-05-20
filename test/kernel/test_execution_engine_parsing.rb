@@ -7,7 +7,7 @@ class TestExecutionEngineParsing < Minitest::Test
     @app = File.join(Dir.pwd, "tmp_exec_engine")
     FileUtils.rm_rf(@app)
     system("ruby bin/aura new tmp_exec_engine")
-    @tools = File.join(@app, "tools")
+    @tools = File.join(@app, ".aura", "tools")
     FileUtils.mkdir_p(@tools)
   end
 

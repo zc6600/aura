@@ -188,6 +188,7 @@ module Aura
           max_chars = fetch_max_hint_chars
           Dir.glob(File.join(@path, "**", "*.{py,rb,sh,md,txt}")) do |file|
             next if file.include?("/.git/") || file.include?("/.aura/") || file.include?("/state/")
+            next unless File.file?(file)
             next if File.size(file) > 102400 # Skip files larger than 100KB
             rel_path = file.sub(/^#{Regexp.escape(@path)}\//, "")
             if ignored?(rel_path)

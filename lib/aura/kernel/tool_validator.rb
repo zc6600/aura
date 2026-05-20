@@ -6,8 +6,8 @@ module Aura
   module Kernel
     class ToolValidator
       def initialize(project_path, registry = nil, state = nil)
-        @project_path = project_path
-        @registry = registry || Aura::Kernel::ToolRegistry.new(project_path)
+        @project_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura.environment_path(project_path) || project_path) : project_path
+        @registry = registry || Aura::Kernel::ToolRegistry.new(@project_path)
         @state = state
       end
 

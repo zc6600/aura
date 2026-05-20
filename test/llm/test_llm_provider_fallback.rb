@@ -5,15 +5,7 @@ class TestLlmProviderFallback < Minitest::Test
   def setup
     @app = File.join(Dir.pwd, "tmp_llm_fallback")
     FileUtils.rm_rf(@app)
-    FileUtils.mkdir_p(@app)
-    
-    orig_pwd = Dir.pwd
-    begin
-      Dir.chdir(@app)
-      system("ruby \"#{File.join(orig_pwd, 'bin', 'aura')}\" new tmp_llm_fallback")
-    ensure
-      Dir.chdir(orig_pwd)
-    end
+    system("ruby bin/aura new tmp_llm_fallback")
     
     cfg = File.join(@app, ".aura", "config", "config.yml")
     s = File.read(cfg)

@@ -1,5 +1,6 @@
 require "minitest/autorun"
 require "fileutils"
+require "aura"
 
 class TestToolValidator < Minitest::Test
   def setup
@@ -7,12 +8,12 @@ class TestToolValidator < Minitest::Test
     FileUtils.rm_rf(@app)
     system("ruby bin/aura new tmp_tool_validator")
     # Ensure required files include manifest.json and test.py
-    cfg = File.join(@app, "config", "config.yml")
+    cfg = File.join(@app, ".aura", "config", "config.yml")
     content = File.read(cfg)
     unless content.include?("required_files:")
       File.open(cfg, "a") { |f| f.puts("tool_protocol:\n  required_files:\n    - logic.py\n    - manifest.json\n    - test.py\n") }
     end
-    @tool_dir = File.join(@app, "tools", "alpha")
+    @tool_dir = File.join(@app, ".aura", "tools", "alpha")
     FileUtils.mkdir_p(@tool_dir)
     File.write(File.join(@tool_dir, "logic.py"), "print(1)")
   end
@@ -69,7 +70,7 @@ class TestToolValidator < Minitest::Test
     require "aura/context/manager"
     
     # 1. Setup subtool that requires 'browser_session'
-    sub_dir = File.join(@app, "tools", "click")
+    sub_dir = File.join(@app, ".aura", "tools", "click")
     FileUtils.mkdir_p(sub_dir)
     File.write(File.join(sub_dir, "manifest.json"), { 
       name: "click", 

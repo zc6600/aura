@@ -6,7 +6,7 @@ class TestCallSummaryPersist < Minitest::Test
     @app = File.join(Dir.pwd, "tmp_summary_persist")
     FileUtils.rm_rf(@app)
     system("ruby bin/aura new tmp_summary_persist")
-    cfg = File.join(@app, "config", "config.yml")
+    cfg = File.join(@app, ".aura", "config", "config.yml")
     content = File.read(cfg)
     if content.include?("call_summary:")
       content = content.gsub(/max_chars:\s*\d+/, "max_chars: 20")
@@ -25,7 +25,7 @@ class TestCallSummaryPersist < Minitest::Test
     require "aura/kernel"
     runner = Aura::Kernel::Runner.new(@app)
     long = "这是一个超过二十字的摘要文本，用于测试截断。"
-    payload = { "tool" => "read_file", "args" => { "file_path" => "config/config.yml", "context_permissions" => ["."] }, "summary" => long }
+    payload = { "tool" => "read_file", "args" => { "file_path" => ".aura/config/config.yml", "context_permissions" => ["."] }, "summary" => long }
     out = runner.run_call(payload)
     assert_includes ["ok", "success"], out["status"].to_s
 

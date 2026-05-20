@@ -41,7 +41,7 @@ class TestHierarchicalLifecycle < Minitest::Test
     PYTHON
 
     FileUtils.mkdir_p(File.join(@project, "config"))
-    File.write(File.join(@project, "config", "config.yml"), "tool_protocol: { core_tools: [] }")
+    File.write(File.join(@project, ".aura", "config", "config.yml"), "tool_protocol: { core_tools: [] }")
   end
 
   def teardown

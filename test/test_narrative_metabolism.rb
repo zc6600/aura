@@ -13,7 +13,7 @@ class TestNarrativeMetabolism < Minitest::Test
     FileUtils.mkdir_p(File.join(@project_path, "state"))
     
     # Configure metabolism to trigger easily
-    File.write(File.join(@project_path, "config", "config.yml"), {
+    File.write(File.join(@project_path, ".aura", "config", "config.yml"), {
       "state_management" => {
         "recent_events_n" => 2,
         "max_state_chars" => 10000

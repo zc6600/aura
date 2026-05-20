@@ -15,7 +15,7 @@ class TestKernelOnceHuman < Minitest::Test
 
   def test_once_human_output_sections
     require "aura/cli/commands/kernel_command"
-    payload = { tool: "read_file", args: { file_path: "config/config.yml", context_permissions: ["."] }, summary: "读取配置" }.to_json
+    payload = { tool: "read_file", args: { file_path: ".aura/config/config.yml", context_permissions: ["."] }, summary: "读取配置" }.to_json
     out = StringIO.new
     begin
       $stdout = out

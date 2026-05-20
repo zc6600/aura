@@ -15,7 +15,7 @@ class TestCliHelpFlags < Minitest::Test
       @klass.define_singleton_method(:start) do |argv, config = {}|
         $called = argv.first == "help"
       end
-      Aura::CLI.start(["-h"]) 
+      Aura::CLI::EntryPoint.start(["-h"]) 
       assert $called, "-h did not route to help"
     ensure
       @klass.define_singleton_method(:start) do |*args|
@@ -31,7 +31,7 @@ class TestCliHelpFlags < Minitest::Test
       @klass.define_singleton_method(:start) do |argv, config = {}|
         $called = argv.first == "help"
       end
-      Aura::CLI.start(["--help"]) 
+      Aura::CLI::EntryPoint.start(["--help"]) 
       assert $called, "--help did not route to help"
     ensure
       @klass.define_singleton_method(:start) do |*args|
@@ -47,7 +47,7 @@ class TestCliHelpFlags < Minitest::Test
       @klass.define_singleton_method(:start) do |argv, config = {}|
         $called = argv.first == "help"
       end
-      Aura::CLI.start([])
+      Aura::CLI::EntryPoint.start([])
       assert $called, "empty args did not route to help"
     ensure
       @klass.define_singleton_method(:start) do |*args|

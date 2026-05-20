@@ -60,6 +60,7 @@ module Aura
         # 3. Magic @aura-hint files
         Dir.glob(File.join(project_path, "**", "*.{py,rb,sh,md,txt}")).each do |file|
           next if file.include?("/.git/") || file.include?("/.aura/") || file.include?("/state/")
+          next unless File.file?(file)
           next if File.size(file) > 102400
           rel = file.sub(/^#{Regexp.escape(project_path)}\//, "")
           

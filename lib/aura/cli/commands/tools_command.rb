@@ -15,9 +15,10 @@ module Aura
 
         def tool_inspect(name)
           py = runtime_python
-          logic = File.join("tools", "inspect_tool", "logic.py")
+          env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura.environment_path(Dir.pwd) || Dir.pwd) : Dir.pwd
+          logic = File.join(env_path, "tools", "inspect_tool", "logic.py")
           unless File.exist?(logic)
-            puts "inspect_tool not found under tools/inspect_tool/logic.py"
+            puts "inspect_tool not found under #{logic}"
             return
           end
           payload = { "tool_name" => name }.to_json
@@ -149,7 +150,8 @@ module Aura
 
       no_commands do
         def runtime_python
-          path = File.join(Dir.pwd, "config", "config.yml")
+          env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura.environment_path(Dir.pwd) || Dir.pwd) : Dir.pwd
+          path = File.join(env_path, "config", "config.yml")
           begin
             data = File.exist?(path) ? YAML.load_file(path) : {}
             data.dig("tool_protocol", "runtimes", "python") || "python3"
@@ -215,7 +217,8 @@ module Aura
         end
 
         def required_files_from_config
-          path = File.join(Dir.pwd, "config", "config.yml")
+          env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura.environment_path(Dir.pwd) || Dir.pwd) : Dir.pwd
+          path = File.join(env_path, "config", "config.yml")
           begin
             data = File.exist?(path) ? YAML.load_file(path) : {}
             req = data.dig("tool_protocol", "required_files") || []

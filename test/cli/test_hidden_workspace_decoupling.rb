@@ -72,7 +72,7 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     # Run aura new inside workspace CWD
     FileUtils.mkdir_p(@test_workspace)
     Dir.chdir(@test_workspace) do
-      cli.new("my_test_project")
+      cli.new
     end
     
     hidden = File.join(@test_workspace, ".aura")
@@ -89,18 +89,18 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
 
     # Verify global projects list registry
     registered = Aura.registered_projects
-    assert_equal File.realdirpath(@test_workspace), File.realdirpath(registered["my_test_project"])
+    assert_equal File.realdirpath(@test_workspace), File.realdirpath(registered["my_project"])
 
     # Verify project name written to config
     local_cfg = YAML.load_file(File.join(hidden, "config", "config.yml"))
-    assert_equal "my_test_project", local_cfg["project_name"]
+    assert_equal "my_project", local_cfg["project_name"]
   end
 
   def test_configuration_management_local_and_global
     cli = Aura::Commands::ApplicationCommand.new
     FileUtils.mkdir_p(@test_workspace)
     Dir.chdir(@test_workspace) do
-      cli.new("test_project")
+      cli.new
     end
     
     # Switch working directory to test workspace
@@ -145,7 +145,7 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     cli = Aura::Commands::ApplicationCommand.new
     FileUtils.mkdir_p(@test_workspace)
     Dir.chdir(@test_workspace) do
-      cli.new("test_project")
+      cli.new
     end
     
     Dir.chdir(@test_workspace) do
@@ -183,21 +183,21 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     cli = Aura::Commands::ApplicationCommand.new
     FileUtils.mkdir_p(@test_workspace)
     Dir.chdir(@test_workspace) do
-      cli.new("test_project")
+      cli.new
     end
 
     # Test list output
     out, err = capture_io do
       cli.list
     end
-    assert_match(/test_project/, out)
+    assert_match(/my_project/, out)
     assert_match(/Active/, out)
 
     # Test delete command unregistration
     # Stub stdin to return 'y'
     $stdin = StringIO.new("y")
     out, err = capture_io do
-      cli.delete("test_project")
+      cli.delete("my_project")
     end
     $stdin = STDIN # restore
     
@@ -206,7 +206,7 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     
     # Verify unregistered in global registry
     registered = Aura.registered_projects
-    assert_nil registered["test_project"]
+    assert_nil registered["my_project"]
     refute File.exist?(File.join(@test_workspace, ".aura"))
   end
 
@@ -249,7 +249,7 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     cli = Aura::Commands::ApplicationCommand.new
     FileUtils.mkdir_p(@test_workspace)
     Dir.chdir(@test_workspace) do
-      cli.new("test_project")
+      cli.new
     end
 
     Dir.chdir(@test_workspace) do
@@ -360,11 +360,12 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
 
   def test_date_based_fallback_name
     cli = Aura::Commands::ApplicationCommand.new
-    FileUtils.mkdir_p(@test_workspace)
-    Dir.chdir(@test_workspace) do
+    special_dir = File.join(@tmp_dir, "!@#")
+    FileUtils.mkdir_p(special_dir)
+    Dir.chdir(special_dir) do
       cli.new
     end
-    hidden = File.join(@test_workspace, ".aura")
+    hidden = File.join(special_dir, ".aura")
     assert File.directory?(hidden)
     local_cfg = YAML.load_file(File.join(hidden, "config", "config.yml"))
     assert_match(/^aura_\d{4}_\d{2}_\d{2}_\d{6}$/, local_cfg["project_name"])
@@ -375,7 +376,7 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     cli = Aura::Commands::ApplicationCommand.new
     FileUtils.mkdir_p(@test_workspace)
     Dir.chdir(@test_workspace) do
-      cli.new("climbing_project")
+      cli.new
     end
 
     # Create a deep subdirectory inside workspace
@@ -395,20 +396,20 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
       assert_equal File.realdirpath(@test_workspace), File.realdirpath(resolved)
     end
 
-    # Test resolve_project_path! aborts/exits when outside a workspace
+    # Test resolve_project_path! defaults to sandbox when outside a workspace
     non_workspace = @tmp_dir
-    assert_raises(SystemExit) do
-      capture_io do
-        k_cli.send(:resolve_project_path!, non_workspace)
-      end
+    resolved_sandbox = nil
+    capture_io do
+      resolved_sandbox = k_cli.send(:resolve_project_path!, non_workspace)
     end
+    assert_equal File.expand_path("~/.aura/sandbox"), resolved_sandbox
   end
 
   def test_chat_command_resolves_workspace_automatically
     cli = Aura::Commands::ApplicationCommand.new
     FileUtils.mkdir_p(@test_workspace)
     Dir.chdir(@test_workspace) do
-      cli.new("chat_climbing_project")
+      cli.new
     end
 
     deep_dir = File.join(@test_workspace, "src", "components")
