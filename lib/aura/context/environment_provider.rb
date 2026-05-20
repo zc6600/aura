@@ -160,6 +160,7 @@ module Aura
           hints = []
           Dir.glob(File.join(@path, "**", "*.{py,rb,sh,md,txt}")) do |file|
             next if file.include?("/.git/") || file.include?("/.aura/") || file.include?("/state/")
+            next if File.size(file) > 102400 # Skip files larger than 100KB
             rel_path = file.sub(/^#{Regexp.escape(@path)}\//, "")
             begin
               File.open(file, "r") do |f|
@@ -167,7 +168,12 @@ module Aura
                   line = f.gets
                   break unless line
                   if line =~ /@aura-hint:\s*(.*)/
-                    hints << "- [From #{rel_path}]: #{$1.strip}"
+                    hint_content = $1.strip
+                    if hint_content.length > 1000
+                      warn "[WARNING] Aura-hint in #{rel_path} was truncated because it exceeds the 1,000 character limit!"
+                      hint_content = hint_content[0, 1000] + " ... [truncated: hint exceeds 1000 character limit]"
+                    end
+                    hints << "- [From #{rel_path}]: #{hint_content}"
                   end
                 end
               end

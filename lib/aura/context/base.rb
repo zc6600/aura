@@ -189,7 +189,7 @@ module Aura
           return sections if total_len <= limit
           return sections if limit.to_i < 1000
 
-          drop_order = [:directive, :task, :env, :lsp, :index, :active, :workspace]
+          drop_order = [:lsp, :workspace, :env, :index, :active, :task, :directive]
           drop_order.each do |key|
             next unless sections[key]
             sections[key] = nil

@@ -76,7 +76,11 @@ module Aura
             if other_vars.any?
               lines << "Variables:"
               other_vars.keys.sort.each do |key|
-                lines << "- #{key}: #{other_vars[key]}"
+                val = other_vars[key].to_s
+                if val.length > 10000
+                  val = val[0, 10000] + " ... [truncated]"
+                end
+                lines << "- #{key}: #{val}"
               end
             end
             section << "### Active Variables:\n#{lines.join("\n")}" unless lines.empty?
