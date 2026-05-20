@@ -47,14 +47,9 @@ my_project/                 <-- Clean User Workspace (Files visible to LLM)
 Aura OS requires **Ruby 3.0+** and **Git** installed on your system.
 
 #### Method A: One-Click Setup (Recommended)
-You can directly download and run the setup script to automate dependencies checks, gem compilation, environment template generation, and global path registration:
+You can run the setup script directly in a single command (bypassing caching via a query timestamp) to check dependencies, compile the gem, generate environment templates, and configure paths:
 ```bash
-# Download the setup script (bypassing cache using date timestamp)
-curl -fsSL "https://raw.githubusercontent.com/zc6600/aura/main/bin/setup.sh?t=$(date +%s)" -o setup.sh
-
-# Run the setup script
-chmod +x setup.sh
-./setup.sh
+curl -fsSL "https://raw.githubusercontent.com/zc6600/aura/main/bin/setup.sh?t=$(date +%s)" | bash
 ```
 
 #### Method B: Manual Gem Installation
