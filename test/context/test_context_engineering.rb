@@ -103,7 +103,7 @@ class TestContextEngineering < Minitest::Test
 
     provider = Aura::Context::EnvironmentProvider.new(@project)
 
-    # Capture stderr to verify warning output
+    # Capture stderr to verify warning output for default 1000 characters limit
     old_stderr = $stderr
     $stderr = StringIO.new
     begin
@@ -113,10 +113,34 @@ class TestContextEngineering < Minitest::Test
       $stderr = old_stderr
     end
 
-    assert_includes warning_output, "[WARNING] Aura-hint in long_hint.py was truncated"
+    assert_includes warning_output, "[WARNING] Aura-hint in long_hint.py was truncated because it exceeds the 1000 character limit"
     assert_includes out, "X" * 1000
     assert_includes out, "... [truncated: hint exceeds 1000 character limit]"
     refute_includes out, "X" * 1200
+
+    # Now verify custom limit (e.g. 50 characters) via config.yml
+    File.write(File.join(@project, "config", "config.yml"), <<~YAML)
+      state_management:
+        max_state_chars: 50000
+      hints:
+        max_hint_chars: 50
+    YAML
+
+    provider2 = Aura::Context::EnvironmentProvider.new(@project)
+
+    old_stderr = $stderr
+    $stderr = StringIO.new
+    begin
+      out2 = provider2.provide
+      warning_output2 = $stderr.string
+    ensure
+      $stderr = old_stderr
+    end
+
+    assert_includes warning_output2, "[WARNING] Aura-hint in long_hint.py was truncated because it exceeds the 50 character limit"
+    assert_includes out2, "X" * 50
+    assert_includes out2, "... [truncated: hint exceeds 50 character limit]"
+    refute_includes out2, "X" * 100
   end
 
   def test_active_variables_truncation

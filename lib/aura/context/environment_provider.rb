@@ -158,6 +158,7 @@ module Aura
         end
         def scan_all_magic_hints
           hints = []
+          max_chars = fetch_max_hint_chars
           Dir.glob(File.join(@path, "**", "*.{py,rb,sh,md,txt}")) do |file|
             next if file.include?("/.git/") || file.include?("/.aura/") || file.include?("/state/")
             next if File.size(file) > 102400 # Skip files larger than 100KB
@@ -169,9 +170,9 @@ module Aura
                   break unless line
                   if line =~ /@aura-hint:\s*(.*)/
                     hint_content = $1.strip
-                    if hint_content.length > 1000
-                      warn "[WARNING] Aura-hint in #{rel_path} was truncated because it exceeds the 1,000 character limit!"
-                      hint_content = hint_content[0, 1000] + " ... [truncated: hint exceeds 1000 character limit]"
+                    if hint_content.length > max_chars
+                      warn "[WARNING] Aura-hint in #{rel_path} was truncated because it exceeds the #{max_chars} character limit!"
+                      hint_content = hint_content[0, max_chars] + " ... [truncated: hint exceeds #{max_chars} character limit]"
                     end
                     hints << "- [From #{rel_path}]: #{hint_content}"
                   end
@@ -359,6 +360,23 @@ module Aura
           lines << "### 任务节点\n#{nodes.join("\n")}" if nodes.any?
           return nil if lines.empty?
           lines.join("\n\n")
+        end
+
+        def load_config
+          cfg_file = File.join(@env_path, "config", "config.yml")
+          return {} unless File.exist?(cfg_file)
+          begin
+            require "yaml"
+            YAML.load_file(cfg_file) || {}
+          rescue StandardError
+            {}
+          end
+        end
+
+        def fetch_max_hint_chars
+          cfg = load_config
+          limit = cfg.dig("hints", "max_hint_chars")
+          limit ? limit.to_i : 1000
         end
     end
   end
