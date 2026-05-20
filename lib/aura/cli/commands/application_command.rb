@@ -231,11 +231,7 @@ module Aura
 
       desc "add PATHS...", "Stage files inside the local Aura environment"
       def add(*paths)
-        aura_dir = find_aura_dir
-        if aura_dir.nil?
-          puts "\e[31m⛔️ Error: Not an Aura workspace: .aura folder not found in this or parent directories.\e[0m"
-          exit 1
-        end
+        aura_dir = ensure_workspace!
         
         require "pathname"
         resolved_paths = paths.map do |p|
@@ -258,11 +254,7 @@ module Aura
       desc "commit", "Commit staged changes inside the local Aura environment"
       method_option :message, type: :string, aliases: "-m", required: true, desc: "Commit message"
       def commit
-        aura_dir = find_aura_dir
-        if aura_dir.nil?
-          puts "\e[31m⛔️ Error: Not an Aura workspace.\e[0m"
-          exit 1
-        end
+        aura_dir = ensure_workspace!
         msg = options[:message] || options["message"]
         res = Aura.git_run(aura_dir, "commit", "-m", msg.to_s)
         if res[:success]
@@ -275,11 +267,7 @@ module Aura
 
       desc "sync", "Push local workspace changes back to the global template repository"
       def sync
-        aura_dir = find_aura_dir
-        if aura_dir.nil?
-          puts "\e[31m⛔️ Error: Not an Aura workspace.\e[0m"
-          exit 1
-        end
+        aura_dir = ensure_workspace!
         puts "Syncing changes back to the global repository (~/.aura/repo)..."
         res = Aura.git_run(aura_dir, "push", "origin", "main")
         if res[:success]
@@ -291,11 +279,7 @@ module Aura
 
       desc "pull", "Pull new templates or updates from the global repository"
       def pull
-        aura_dir = find_aura_dir
-        if aura_dir.nil?
-          puts "\e[31m⛔️ Error: Not an Aura workspace.\e[0m"
-          exit 1
-        end
+        aura_dir = ensure_workspace!
         puts "Pulling updates from the global repository (~/.aura/repo)..."
         res = Aura.git_run(aura_dir, "pull", "origin", "main")
         if res[:success]
@@ -308,11 +292,7 @@ module Aura
 
       desc "status", "Show what files are modified or untracked inside .aura"
       def status
-        aura_dir = find_aura_dir
-        if aura_dir.nil?
-          puts "\e[31m⛔️ Error: Not an Aura workspace.\e[0m"
-          exit 1
-        end
+        aura_dir = ensure_workspace!
         res = Aura.git_run(aura_dir, "status")
         puts res[:stdout]
         puts res[:stderr] unless res[:stderr].empty?
@@ -329,7 +309,10 @@ module Aura
                   else
                     aura_dir = find_aura_dir
                     if aura_dir.nil?
-                      puts "\e[31m⛔️ Error: Not an Aura workspace. Use --global to target global config.\e[0m"
+                      puts "\e[31m⛔️ Error: Not in an Aura workspace.\e[0m"
+                      puts "To configure globally, use the --global flag."
+                      puts "To initialize a workspace in the current directory, run:"
+                      puts "  $ aura new"
                       exit 1
                     end
                     File.join(aura_dir, "config")
@@ -546,11 +529,7 @@ module Aura
 
       desc "register PROJECT_NAME", "Register the current directory as an active Aura project globally"
       def register(project_name)
-        aura_dir = find_aura_dir
-        if aura_dir.nil?
-          puts "\e[31m⛔️ Error: No .aura directory found in this workspace. Run 'aura new <name>' first.\e[0m"
-          exit 1
-        end
+        aura_dir = ensure_workspace!
 
         # Register in projects registry
         Aura.register_project!(project_name, Dir.pwd)
@@ -593,11 +572,7 @@ module Aura
 
       desc "branch [PROFILE_NAME]", "List, switch, or create customized agent profiles in the active workspace"
       def branch(profile_name = nil)
-        aura_dir = find_aura_dir
-        if aura_dir.nil?
-          puts "\e[31m⛔️ Error: Not an Aura workspace: .aura folder not found in this or parent directories.\e[0m"
-          exit 1
-        end
+        aura_dir = ensure_workspace!
 
         if profile_name.nil?
           # List branches
@@ -655,6 +630,17 @@ module Aura
 
       def find_aura_dir
         Aura.find_aura_dir(Dir.pwd)
+      end
+
+      def ensure_workspace!
+        aura_dir = find_aura_dir
+        if aura_dir.nil?
+          puts "\e[31m⛔️ Error: Not in an Aura workspace (no .aura folder found in parent directories).\e[0m"
+          puts "To initialize a workspace in the current directory, run:"
+          puts "  $ aura new"
+          exit 1
+        end
+        aura_dir
       end
 
       def get_hash_value(hash, key)

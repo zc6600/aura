@@ -14,7 +14,7 @@ class TestCliVersionDoctor < Minitest::Test
       @klass.define_singleton_method(:start) do |argv, config = {}|
         called_args = argv
       end
-      Aura::CLI.start(["version"]) 
+      Aura::CLI::EntryPoint.start(["version"]) 
       assert_equal "version", called_args.first
     ensure
       @klass.define_singleton_method(:start) do |*args|
@@ -30,7 +30,7 @@ class TestCliVersionDoctor < Minitest::Test
       @klass.define_singleton_method(:start) do |argv, config = {}|
         called_args = argv
       end
-      Aura::CLI.start(["doctor"]) 
+      Aura::CLI::EntryPoint.start(["doctor"]) 
       assert_equal "doctor", called_args.first
     ensure
       @klass.define_singleton_method(:start) do |*args|
