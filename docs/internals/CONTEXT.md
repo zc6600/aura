@@ -53,6 +53,19 @@ state_management:
 
 ---
 
+## 2.5 Context Assembly Compression (Metabolic Compression)
+
+When assembling the prompt at runtime, if the total length of all segments combined exceeds `max_state_chars`, Aura applies a multi-tiered context compression algorithm (`Aura::Context::Base#compress_content`) to fit within limits:
+
+1. **Event-level Payload Truncation**: Truncates any raw event history payload exceeding `context_compression.event_max_chars` (default `800` chars), appending a notice that the full raw payload is saved in SQLite database.
+2. **Event Count Reduction**: Trims older raw events from the bottom of the history if the prompt still exceeds limits, down to a minimum count `context_compression.event_min_count_threshold` (default `10`).
+3. **Section Discarding**: Drops other less critical sections one by one based on `drop_order` (`[:directive, :task, :env, :lsp, :index, :active, :workspace]`).
+4. **Extreme History Trim**: Drops history events down to a single latest event.
+
+*Note: Persistent Facts (`:knowledge`) and core Agent Memory structures are preserved and never dropped.*
+
+---
+
 ## 3. Database Schema (SQLite)
 
 The `state/aura.db` file contains three tables:
