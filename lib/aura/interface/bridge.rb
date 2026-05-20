@@ -23,14 +23,16 @@ module Aura
       # Main entry point for processing a user turn
       def chat(input, auto_mode: false)
         @runner.record_user_input(input)
-        
+
         # Start a new job for this turn
         @runner.start_job(input: input, auto_mode: auto_mode)
-        
+
         setup_runner_subscriptions
-        
+
         ctx = observe_context
         goal = input
+        format_error_count = 0
+        max_format_errors = 5
 
         loop do
           begin
@@ -99,16 +101,28 @@ module Aura
               # Refresh context for next iteration
               ctx = observe_context
             else
-              # No tool call, just thought/text.
+              format_error_count += 1
+              if format_error_count >= max_format_errors
+                notify(:on_warning, "Agent failed to produce a valid tool call after #{max_format_errors} attempts. Aborting.")
+                @runner.end_job(:failed, StandardError.new("Too many format errors"))
+                break
+              end
+
               handle_thought_response(plan, streamed, elapsed)
-              
+
               begin
                 ctx = @runner.observe
               rescue Aura::Context::ContextOverflowError => e
                 ctx = "[Context overflow] #{e.message}"
               end
-              
-              ctx = "#{ctx}\n\n[System Note] I received your text response. If you have completed the task, please call the 'final' tool. If you need to perform more actions, please continue."
+
+              ctx = <<~RETRY.strip + "\n\n" + ctx
+                [SYSTEM ERROR] Your last response was plain text, not valid JSON.
+                You MUST respond with a JSON object. Examples:
+                  {"tool": "bash_command", "args": {"command": "ls"}, "summary": "List files"}
+                  {"tool": "final", "args": {"content": "Done!"}, "summary": "Task complete"}
+                Do NOT write any text outside the JSON object. Try again now.
+              RETRY
               next
             end
           rescue Interrupt
@@ -196,38 +210,10 @@ module Aura
         end
       end
 
-      def handle_text_response(plan, stream_buf)
-        c = plan[:content] || plan["content"]
-        c = stream_buf if c.to_s.strip.empty? && !stream_buf.to_s.strip.empty?
-        if c.to_s.strip.empty?
-          # If empty, return nil to force replanning? Or just return plan?
-          # Original logic: @runner.plan(goal, ctx)
-          # We return nil to indicate "no valid plan yet", loop will continue?
-          # Wait, if we return nil, the loop continues to "if plan && tool".
-          # We need to be careful. 
-          # Original logic:
-          # @runner.plan(goal, ctx) -> returns a new plan.
-          # We should probably do that here too.
-          # But we need access to goal and ctx.
-          # Let's just return nil and let the loop handle it?
-          # No, the loop expects `plan` to be set.
-          # Let's assume the caller handles empty plans or we retry.
-          # For simplicity, we just return the plan as is, logic downstream handles it?
-          # Original code recursively called plan.
-          nil # This might break. Let's look at original code.
-          # Original: plan = @runner.plan(goal, ctx)
-          # So we can't easily do it here without goal/ctx.
-          # We will refactor this method to take goal/ctx or handle it in the loop.
-          # Let's change the call signature in the loop.
-          plan # Placeholder, handled in loop
-        else
-          { tool: "final", args: { "content" => c.to_s }, summary: "Submit final response" }
-        end
+      def handle_text_response(_plan, _stream_buf)
+        nil
       end
-      
-      # Correction: handle_text_response in Executor called @runner.plan.
-      # We should move that logic into the loop or pass the necessary args.
-      # Let's modify the loop to handle this case.
+
       
       def handle_thought_response(plan, streamed, elapsed)
         thought = plan && (plan[:thought] || plan["thought"] || plan[:content] || plan["content"]) 

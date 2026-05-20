@@ -1,4 +1,5 @@
 require "minitest/autorun"
+require "json"
 
 class TestResponseParserSummary < Minitest::Test
   def test_parse_includes_summary

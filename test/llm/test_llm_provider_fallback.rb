@@ -1,5 +1,6 @@
 require "minitest/autorun"
 require "fileutils"
+require "yaml"
 
 class TestLlmProviderFallback < Minitest::Test
   def setup
@@ -8,10 +9,12 @@ class TestLlmProviderFallback < Minitest::Test
     system("ruby bin/aura new tmp_llm_fallback")
     
     cfg = File.join(@app, ".aura", "config", "config.yml")
-    s = File.read(cfg)
-    s = s.gsub('provider: "local"', 'provider: "unknown_vendor"')
-    s = s.gsub('max_state_chars: 4000', 'max_state_chars: 100000')
-    File.write(cfg, s)
+    data = YAML.load_file(cfg) || {}
+    data["llm"] ||= {}
+    data["llm"]["provider"] = "unknown_vendor"
+    data["state_management"] ||= {}
+    data["state_management"]["max_state_chars"] = 100_000
+    File.write(cfg, YAML.dump(data))
   end
 
   def teardown
@@ -26,4 +29,3 @@ class TestLlmProviderFallback < Minitest::Test
     end
   end
 end
-

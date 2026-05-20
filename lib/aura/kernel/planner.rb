@@ -45,15 +45,19 @@ module Aura
         client = Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
         messages = Aura::LLM::Prompts::Compose.messages(context, goal, { suggested_chars: sum_suggest, max_chars: sum_max })
         buf = ""
+
         client.complete_stream(messages, { temperature: temp, max_tokens: max_tokens }) do |delta|
           yield({ type: "delta", text: delta }) if block_given?
           buf << delta.to_s
+          next unless buf.include?("}")
+
           parsed = Aura::LLM::Parsers::ResponseParser.parse(buf)
           if parsed[:type] == "tool_call"
             yield({ type: "plan", plan: parsed }) if block_given?
             return parsed
           end
         end
+
         parsed = Aura::LLM::Parsers::ResponseParser.parse(buf)
         yield({ type: "plan", plan: parsed }) if block_given?
         parsed
