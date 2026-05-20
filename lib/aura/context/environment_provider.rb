@@ -47,6 +47,11 @@ module Aura
 
       private
         def build_global_rules
+          cfg = load_config
+          if cfg.dig("hints", "auto_inject_readme") == false
+            return nil
+          end
+
           file = File.join(@path, "AURA_README.md")
           return nil unless File.exist?(file)
           content = File.read(file).strip

@@ -156,4 +156,26 @@ class TestContextEngineering < Minitest::Test
     refute_includes out, "Y" * 15000
     assert_includes out, "small_var: short"
   end
+
+  def test_aura_readme_auto_inject_configuration
+    # Create an AURA_README.md
+    File.write(File.join(@project, "AURA_README.md"), "WORKSPACE_RULE_README_CONTENT")
+
+    # 1. Test default behavior (injects by default)
+    provider = Aura::Context::EnvironmentProvider.new(@project)
+    out1 = provider.provide
+    assert_includes out1, "WORKSPACE_RULE_README_CONTENT"
+
+    # 2. Test auto_inject_readme: false disables injection
+    File.write(File.join(@project, "config", "config.yml"), <<~YAML)
+      state_management:
+        max_state_chars: 50000
+      hints:
+        auto_inject_readme: false
+    YAML
+
+    provider2 = Aura::Context::EnvironmentProvider.new(@project)
+    out2 = provider2.provide
+    refute_includes out2, "WORKSPACE_RULE_README_CONTENT"
+  end
 end
