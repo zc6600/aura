@@ -359,10 +359,12 @@ module Aura
         end
       end
 
-      desc "ask QUESTION", "Directly ask the LLM a question without any Aura OS context wrapping"
+      desc "ask QUESTION", "Directly ask the LLM a question without any Aura OS context wrapping (retains conversation memory)"
       method_option :model, type: :string, desc: "Override model name"
       method_option :provider, type: :string, desc: "Override provider name (local, openai, openrouter)"
       method_option :system, type: :string, desc: "System prompt instructions"
+      method_option :session, type: :string, aliases: "-s", default: "default", desc: "Session name for memory"
+      method_option :clear, type: :boolean, aliases: "-c", default: false, desc: "Clear session memory before asking"
       def ask(question)
         require "aura/llm/client"
         require "aura/llm/env"
@@ -393,6 +395,33 @@ module Aura
         Aura::LLM::Env.load_from(File.expand_path("~/.aura"))
         api_key = Aura::LLM::Env.resolve_api_key(provider)
         
+        # Resolve history session file
+        state_dir = if aura_dir
+                      File.join(aura_dir, "state")
+                    else
+                      File.join(Aura.global_repo_path, "state")
+                    end
+        sessions_dir = File.join(state_dir, "ask_sessions")
+        session_name = options[:session] || options["session"] || "default"
+        # Sanitize session name to prevent directory traversal
+        session_name = session_name.to_s.gsub(/[^a-zA-Z0-9_\-]/, "")
+        session_name = "default" if session_name.empty?
+        history_file = File.join(sessions_dir, "#{session_name}.json")
+        
+        if options[:clear] || options["clear"]
+          FileUtils.rm_f(history_file)
+          puts "\e[33mMemory cleared for session '#{session_name}'.\e[0m"
+        end
+        
+        history = []
+        if File.exist?(history_file)
+          begin
+            history = JSON.parse(File.read(history_file))
+          rescue StandardError
+            # If invalid JSON, default to empty history
+          end
+        end
+        
         client = Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
         
         messages = []
@@ -400,18 +429,45 @@ module Aura
         if system_instruction
           messages << { role: "system", content: system_instruction }
         end
+        
+        # Append sliding window of last 10 messages (5 turns)
+        limit = 10
+        recent_history = history.last(limit)
+        recent_history.each do |msg|
+          role = msg["role"] || msg[:role]
+          content = msg["content"] || msg[:content]
+          messages << { role: role.to_s, content: content.to_s }
+        end
+        
         messages << { role: "user", content: question }
         
         puts "\e[34m🤖 Connecting to #{provider} (#{model || 'default model'})...\e[0m"
         puts ""
         
         # Stream response
+        response_text = +""
         begin
           client.complete_stream(messages, { temperature: temp, max_tokens: max_tokens }) do |delta|
             print delta
+            response_text << delta
             $stdout.flush
           end
           puts ""
+          
+          # Save back to history if successfully completed and response is not empty
+          if !response_text.strip.empty?
+            history << { role: "user", content: question }
+            history << { role: "assistant", content: response_text }
+            # Limit history to 100 messages (50 turns) to prevent file bloat
+            history = history.last(100)
+            
+            begin
+              FileUtils.mkdir_p(sessions_dir)
+              File.write(history_file, JSON.pretty_generate(history))
+            rescue StandardError => e
+              puts "\e[33m⚠️ Warning: Failed to save session history: #{e.message}\e[0m"
+            end
+          end
         rescue StandardError => e
           puts "\n\e[31m⛔️ Error calling LLM: #{e.message}\e[0m"
         end
