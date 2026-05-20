@@ -62,15 +62,131 @@ module Aura
     nil
   end
 
-  # Resolve project workspace path by climbing parent directories. Halts with error if not in a workspace.
+  # Resolve project workspace path by climbing parent directories.
+  # If not in a workspace, guides the user to initialize a new workspace or falls back to a global sandbox.
   def self.resolve_project_path!(project_path)
     start_dir = project_path.to_s.strip.empty? ? Dir.pwd : project_path
     aura_dir = find_aura_dir(start_dir)
     if aura_dir
       File.dirname(aura_dir)
     else
-      puts "\e[31m⛔️ Error: Not in an Aura workspace. No .aura folder found in parent directories.\e[0m"
-      exit 1
+      puts "\e[33m⚠️ Warning: Not in an Aura workspace (no .aura folder found in parent directories).\e[0m"
+      
+      use_sandbox = true
+      begin
+        # Prompt only if TTY is available
+        if $stdin.tty? || File.exist?("/dev/tty")
+          tty_in = File.exist?("/dev/tty") ? File.open("/dev/tty", "r") : $stdin
+          tty_out = File.exist?("/dev/tty") ? File.open("/dev/tty", "w") : $stdout
+          
+          tty_out.print "❓ Would you like to initialize a new Aura workspace in the current directory? (y/N): "
+          response = tty_in.gets.to_s.strip.downcase
+          
+          tty_in.close if tty_in != $stdin
+          tty_out.close if tty_out != $stdout
+          
+          if response == "y" || response == "yes"
+            use_sandbox = false
+          end
+        end
+      rescue StandardError
+        # Default to sandbox on any TTY prompt issue
+      end
+      
+      if use_sandbox
+        sandbox_path = File.join(Dir.home, ".aura", "sandbox")
+        sandbox_aura = File.join(sandbox_path, ".aura")
+        
+        puts "\e[34mℹ️ Routing to global sandbox workspace: #{sandbox_path}\e[0m"
+        
+        unless File.directory?(sandbox_aura)
+          FileUtils.mkdir_p(sandbox_path)
+          ensure_global_repo!
+          
+          puts "Initializing global sandbox workspace..."
+          out, err, status = Open3.capture3("git", "clone", global_repo_path, sandbox_aura)
+          if status.success?
+            git_run(sandbox_aura, "config", "user.name", "Aura Sandbox")
+            git_run(sandbox_aura, "config", "user.email", "sandbox@aura-os.ai")
+            
+            # Inject .gitignore rule inside .aura folder to ignore runtime databases
+            inner_ignore_path = File.join(sandbox_aura, ".gitignore")
+            inner_rules = File.exist?(inner_ignore_path) ? File.read(inner_ignore_path) : ""
+            unless inner_rules.include?("state/aura.db*")
+              File.write(inner_ignore_path, inner_rules + "\nstate/aura.db*\n")
+            end
+            
+            # Record sandbox project
+            register_project!("sandbox", sandbox_path)
+            
+            # Record sandbox project name in config
+            cfg_path = File.join(sandbox_aura, "config", "config.yml")
+            if File.exist?(cfg_path)
+              begin
+                require "yaml"
+                cfg = YAML.load_file(cfg_path) || {}
+                cfg["project_name"] = "sandbox"
+                File.write(cfg_path, YAML.dump(cfg))
+              rescue StandardError
+              end
+            end
+            puts "\e[32mGlobal sandbox workspace initialized successfully!\e[0m"
+          else
+            puts "\e[31m⛔️ Error: Failed to clone global templates into sandbox workspace:\n#{err}\e[0m"
+            exit 1
+          end
+        end
+        
+        sandbox_path
+      else
+        target_dir = Dir.pwd
+        project_name = File.basename(target_dir).gsub(/[^a-zA-Z0-9_\-]/, "")
+        project_name = "aura_workspace" if project_name.empty?
+        hidden = File.join(target_dir, ".aura")
+        
+        ensure_global_repo!
+        
+        puts "Initializing Aura workspace in-place at: #{target_dir}..."
+        out, err, status = Open3.capture3("git", "clone", global_repo_path, hidden)
+        if status.success?
+          git_run(hidden, "config", "user.name", "Aura Workspace")
+          git_run(hidden, "config", "user.email", "workspace@aura-os.ai")
+          
+          # Inject .gitignore rule in parent directory
+          git_ignore_path = File.join(target_dir, ".gitignore")
+          existing_rules = File.exist?(git_ignore_path) ? File.read(git_ignore_path) : ""
+          unless existing_rules.include?(".aura/")
+            File.write(git_ignore_path, existing_rules + "\n.aura/\n")
+            puts "\e[32mInjected .gitignore rule for hidden .aura environment.\e[0m"
+          end
+          
+          # Inject .gitignore rule inside .aura folder to ignore runtime databases
+          inner_ignore_path = File.join(hidden, ".gitignore")
+          inner_rules = File.exist?(inner_ignore_path) ? File.read(inner_ignore_path) : ""
+          unless inner_rules.include?("state/aura.db*")
+            File.write(inner_ignore_path, inner_rules + "\nstate/aura.db*\n")
+          end
+          
+          register_project!(project_name, target_dir)
+          
+          cfg_path = File.join(hidden, "config", "config.yml")
+          if File.exist?(cfg_path)
+            begin
+              require "yaml"
+              cfg = YAML.load_file(cfg_path) || {}
+              cfg["project_name"] = project_name.to_s
+              File.write(cfg_path, YAML.dump(cfg))
+            rescue StandardError
+            end
+          end
+          
+          puts "\e[32mWorkspace initialized successfully!\e[0m"
+          target_dir
+        else
+          puts "\e[31m⛔️ Error: Failed to initialize workspace:\n#{err}\e[0m"
+          exit 1
+        end
+      end
     end
   end
 
