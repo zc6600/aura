@@ -46,12 +46,21 @@ my_project/                 <-- Clean User Workspace (Files visible to LLM)
 
 Aura OS requires **Ruby 3.0+** and **Git** installed on your system.
 
+#### Method A: One-Click Setup (Recommended)
+You can directly run the setup script to automate dependencies checks, gem compilation, environment template generation, and global path registration:
 ```bash
 # Clone the repository
 git clone https://github.com/your-repo/aura.git
 cd aura/aura
 
-# Package and install the CLI globally
+# Run the setup script
+./bin/setup.sh
+```
+
+#### Method B: Manual Gem Installation
+Alternatively, you can package and install the CLI globally:
+```bash
+# Build and install locally
 gem build aura.gemspec
 gem install ./aura-0.1.0.gem
 ```
@@ -106,6 +115,28 @@ aura sync
 
 # 5. Pull template updates from the global repository into your active workspace
 aura pull
+```
+
+### 5. Chat & Direct LLM Queries (with Memory)
+
+Aura OS supports interactive chat sessions and direct stateless queries that retain memory via session JSON files:
+
+```bash
+# 1. Start an interactive agent shell session
+aura chat
+
+# 2. Directly ask the LLM a question (using the default session memory)
+aura ask "What is the capital of France?"
+
+# 3. Ask a follow-up question (it will automatically recall the previous question/answer)
+aura ask "What is its population?"
+
+# 4. Use a specific custom session name for isolated memory
+aura ask "Remember my name is Alice" --session user_info
+aura ask "What is my name?" --session user_info
+
+# 5. Clear the session's memory
+aura ask "Start over" --session user_info --clear
 ```
 
 ---

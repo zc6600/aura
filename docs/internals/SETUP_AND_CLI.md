@@ -59,7 +59,10 @@ The following utility commands are **safely whitelisted** and can be run from th
 * **`aura doctor`**: Runs local system diagnostics.
 * **`aura version`**: Prints active framework version.
 * **`aura new <project_name>`**: Initializes a clean in-place environment in the current directory and registers it globally.
-* **`aura ask "question"`**: Directly query the active LLM from any workspace without agent wrappers.
+* **`aura ask "question"`**: Directly query the active LLM from any workspace without agent wrappers. It supports conversation memory. Options:
+  * `--session <name>` (or `-s <name>`): Save/load conversation history to/from a named session. Defaults to `default`.
+  * `--clear` (or `-c`): Clear memory for the specified session.
+  * `--system <text>`: Provide a custom system prompt.
 * **`aura list`**: Lists all globally registered active/missing workspaces.
 * **`aura delete <project_name>`**: Deletes and unregisters a workspace environment.
 * **`aura branch [profile_name]`**: Lists, switches, or creates customized agent profiles (Git branches) inside `.aura/`.
