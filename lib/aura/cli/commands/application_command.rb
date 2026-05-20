@@ -96,7 +96,10 @@ module Aura
         if status.success?
           puts "Git: #{git_ver.strip}"
         else
-          puts "\e[31mGit: Not found! Please install Git for version control features.\e[0m"
+          puts "\e[31mGit: Not found!\e[0m"
+          puts "💡 To install Git:"
+          puts "   - macOS: brew install git"
+          puts "   - Ubuntu/Debian: sudo apt-get install git"
         end
 
         # Check Global Repo
@@ -105,6 +108,55 @@ module Aura
           puts "Global Repository (~/.aura/repo): OK"
         rescue StandardError => e
           puts "\e[31mGlobal Repository: Failed to initialize! (#{e.message})\e[0m"
+        end
+
+        # Check LLM Configurations
+        workspace_path = find_aura_dir
+        cfg_path = if workspace_path
+                     File.join(workspace_path, "config", "config.yml")
+                   else
+                     File.join(Aura.global_repo_path, "config", "config.yml")
+                   end
+
+        provider = nil
+        api_key_set = false
+        env_var_name = nil
+
+        if File.exist?(cfg_path)
+          begin
+            require "yaml"
+            cfg = YAML.load_file(cfg_path) || {}
+            llm_cfg = cfg["llm"] || {}
+            provider = llm_cfg["provider"]
+            if provider && !provider.to_s.strip.empty?
+              env_var_name = case provider.to_s.downcase
+                             when "openai" then "OPENAI_API_KEY"
+                             when "openrouter" then "OPENROUTER_API_KEY"
+                             when "anthropic" then "ANTHROPIC_API_KEY"
+                             when "gemini" then "GEMINI_API_KEY"
+                             else nil
+                             end
+              api_key_set = (env_var_name && ENV[env_var_name] && !ENV[env_var_name].empty?) || 
+                            (llm_cfg["api_key"] && !llm_cfg["api_key"].to_s.strip.empty?)
+            end
+          rescue StandardError
+          end
+        end
+
+        if provider.nil? || provider.to_s.strip.empty?
+          puts "\e[33m⚠️ LLM Provider: Not configured\e[0m"
+          puts "💡 To configure your LLM provider, run:"
+          puts "   $ aura config llm.provider <provider>  (e.g., openai, openrouter, anthropic, gemini)"
+        elsif !api_key_set
+          puts "\e[33m⚠️ LLM API Key: Missing for provider '#{provider}'\e[0m"
+          puts "💡 To set the API key in config, run:"
+          puts "   $ aura config llm.api_key <your_api_key>"
+          if env_var_name
+            puts "💡 Or export the environment variable in your terminal:"
+            puts "   $ export #{env_var_name}=<your_api_key>"
+          end
+        else
+          puts "LLM Config (Provider: #{provider}): OK"
         end
 
         puts "Aura CLI: OK"
@@ -148,6 +200,7 @@ module Aura
         
         cfg = File.join(env_path, "config", "config.yml")
         db_path = File.join(env_path, "state", "aura.db")
+        project_name = File.basename(root)
         if File.exist?(cfg)
           begin
             data = YAML.load_file(cfg)
@@ -155,6 +208,7 @@ module Aura
             if p && !p.to_s.empty?
               db_path = File.expand_path(p, env_path)
             end
+            project_name = data["project_name"] || project_name
           rescue StandardError
           end
         end
@@ -183,6 +237,21 @@ module Aura
                 body = "error: #{e.message}"
               end
               payload = { tail: body }.to_json
+              resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: #{payload.bytesize}\r\n\r\n#{payload}"
+              socket.write(resp)
+            elsif path == "/diff"
+              shadow_path = File.join(env_path, "shadow")
+              diff_body = "No changes recorded in the shadow workspace yet. Aura files will show up here after agent modifications."
+              if File.directory?(File.join(shadow_path, ".git"))
+                out, _err, status = Open3.capture3("git diff HEAD~1 HEAD", chdir: shadow_path)
+                if status.success? && !out.to_s.strip.empty?
+                  diff_body = out
+                else
+                  out_unstaged, _err, status_unstaged = Open3.capture3("git diff", chdir: shadow_path)
+                  diff_body = out_unstaged if status_unstaged.success? && !out_unstaged.to_s.strip.empty?
+                end
+              end
+              payload = { diff: diff_body }.to_json
               resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: #{payload.bytesize}\r\n\r\n#{payload}"
               socket.write(resp)
             elsif path == "/sse"
@@ -216,7 +285,256 @@ module Aura
               socket.write(resp)
               running = false
             else
-              html = "<!doctype html><meta charset=\"utf-8\"><title>Aura Web</title><pre id=log style=\"white-space:pre-wrap;background:#111;color:#eee;padding:12px;border-radius:6px;height:50vh;overflow:auto;margin:20px;\"></pre><script>var s=new EventSource('/sse');s.onmessage=function(e){var l=document.getElementById('log');l.textContent+=e.data+'\n';l.scrollTop=l.scrollHeight;};</script>"
+              html = <<~HTML
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Aura OS - Dashboard</title>
+                  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+                  <style>
+                    :root {
+                      --bg-primary: #0a0a10;
+                      --bg-secondary: rgba(20, 20, 32, 0.7);
+                      --accent: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+                      --border-color: rgba(255, 255, 255, 0.08);
+                      --text-main: #f4f4f7;
+                      --text-muted: #a1a1aa;
+                    }
+                    * { box-sizing: border-box; margin: 0; padding: 0; }
+                    body {
+                      background: radial-gradient(circle at 50% 0%, #16162a 0%, var(--bg-primary) 70%);
+                      color: var(--text-main);
+                      font-family: 'Outfit', sans-serif;
+                      min-height: 100vh;
+                      display: flex;
+                      flex-direction: column;
+                    }
+                    header {
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                      padding: 20px 40px;
+                      background: rgba(10, 10, 16, 0.5);
+                      backdrop-filter: blur(12px);
+                      border-bottom: 1px solid var(--border-color);
+                    }
+                    .logo-section h1 {
+                      font-size: 24px;
+                      font-weight: 700;
+                      background: var(--accent);
+                      -webkit-background-clip: text;
+                      -webkit-text-fill-color: transparent;
+                      letter-spacing: -0.5px;
+                    }
+                    .project-badge {
+                      background: rgba(255, 255, 255, 0.06);
+                      padding: 6px 14px;
+                      border-radius: 99px;
+                      font-size: 14px;
+                      border: 1px solid var(--border-color);
+                      display: flex;
+                      align-items: center;
+                      gap: 8px;
+                    }
+                    .pulse-dot {
+                      width: 8px;
+                      height: 8px;
+                      background: #10b981;
+                      border-radius: 50%;
+                      box-shadow: 0 0 8px #10b981;
+                      animation: pulse 1.5s infinite;
+                    }
+                    @keyframes pulse {
+                      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+                      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+                      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+                    }
+                    .dashboard-container {
+                      display: grid;
+                      grid-template-columns: 1fr 1fr;
+                      gap: 24px;
+                      padding: 30px 40px;
+                      flex: 1;
+                    }
+                    .panel {
+                      background: var(--bg-secondary);
+                      backdrop-filter: blur(16px);
+                      border: 1px solid var(--border-color);
+                      border-radius: 16px;
+                      display: flex;
+                      flex-direction: column;
+                      overflow: hidden;
+                      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+                    }
+                    .panel-header {
+                      padding: 16px 24px;
+                      background: rgba(255, 255, 255, 0.02);
+                      border-bottom: 1px solid var(--border-color);
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                    }
+                    .panel-title {
+                      font-size: 16px;
+                      font-weight: 600;
+                      color: var(--text-main);
+                    }
+                    .panel-actions button {
+                      background: rgba(255, 255, 255, 0.08);
+                      border: 1px solid var(--border-color);
+                      color: var(--text-main);
+                      padding: 6px 12px;
+                      border-radius: 6px;
+                      cursor: pointer;
+                      font-family: inherit;
+                      font-size: 13px;
+                      transition: all 0.2s;
+                    }
+                    .panel-actions button:hover {
+                      background: rgba(255, 255, 255, 0.15);
+                      border-color: rgba(255, 255, 255, 0.2);
+                    }
+                    .panel-body {
+                      flex: 1;
+                      overflow: auto;
+                      padding: 20px;
+                      font-family: 'JetBrains Mono', monospace;
+                      font-size: 14px;
+                      line-height: 1.6;
+                    }
+                    #log-container {
+                      white-space: pre-wrap;
+                      color: #d1d5db;
+                    }
+                    .diff-line {
+                      display: block;
+                      padding: 2px 8px;
+                      border-radius: 3px;
+                    }
+                    .diff-line.add {
+                      background: rgba(16, 185, 129, 0.15);
+                      color: #34d399;
+                      border-left: 3px solid #10b981;
+                    }
+                    .diff-line.del {
+                      background: rgba(239, 68, 68, 0.15);
+                      color: #f87171;
+                      border-left: 3px solid #ef4444;
+                    }
+                    .diff-line.meta {
+                      color: #818cf8;
+                      font-weight: 500;
+                    }
+                    footer {
+                      text-align: center;
+                      padding: 20px;
+                      font-size: 12px;
+                      color: var(--text-muted);
+                      border-top: 1px solid var(--border-color);
+                    }
+                  </style>
+                </head>
+                <body>
+                  <header>
+                    <div class="logo-section">
+                      <h1>Aura OS</h1>
+                    </div>
+                    <div class="project-badge">
+                      <div class="pulse-dot"></div>
+                      <span>Workspace: <strong>#{project_name}</strong></span>
+                    </div>
+                  </header>
+
+                  <main class="dashboard-container">
+                    <!-- Left: Log Stream -->
+                    <div class="panel">
+                      <div class="panel-header">
+                        <div class="panel-title">Live Events & Logs</div>
+                      </div>
+                      <div class="panel-body" id="log-container">Starting log subscription...
+                </div>
+                    </div>
+
+                    <!-- Right: Shadow Workspace Diff -->
+                    <div class="panel">
+                      <div class="panel-header">
+                        <div class="panel-title">Shadow Workspace Diff</div>
+                        <div class="panel-actions">
+                          <button onclick="fetchDiff()">Refresh Diff</button>
+                        </div>
+                      </div>
+                      <div class="panel-body" id="diff-container" style="white-space: pre-wrap;">Loading latest shadow workspace diff...</div>
+                    </div>
+                  </main>
+
+                  <footer>
+                    Aura OS &copy; 2026. All rights reserved.
+                  </footer>
+
+                  <script>
+                    var s = new EventSource('/sse');
+                    var logContainer = document.getElementById('log-container');
+                    
+                    s.onmessage = function(e) {
+                      if (logContainer.textContent.startsWith('Starting log')) {
+                        logContainer.textContent = '';
+                      }
+                      
+                      var data = e.data;
+                      try {
+                        var parsed = JSON.parse(data);
+                        if (parsed.message) {
+                          data = parsed.message;
+                        }
+                      } catch(err) {}
+
+                      logContainer.textContent += data + '\\n';
+                      logContainer.scrollTop = logContainer.scrollHeight;
+                      
+                      // Auto fetch diff on new events
+                      fetchDiff();
+                    };
+
+                    function fetchDiff() {
+                      fetch('/diff')
+                        .then(res => res.json())
+                        .then(data => {
+                          var diffContainer = document.getElementById('diff-container');
+                          diffContainer.innerHTML = '';
+                          
+                          if (!data.diff) {
+                            diffContainer.textContent = 'No diffs found.';
+                            return;
+                          }
+
+                          var lines = data.diff.split('\\n');
+                          lines.forEach(line => {
+                            var div = document.createElement('div');
+                            div.className = 'diff-line';
+                            if (line.startsWith('+') && !line.startsWith('+++')) {
+                              div.className += ' add';
+                            } else if (line.startsWith('-') && !line.startsWith('---')) {
+                              div.className += ' del';
+                            } else if (line.startsWith('@@') || line.startsWith('diff')) {
+                              div.className += ' meta';
+                            }
+                            div.textContent = line;
+                            diffContainer.appendChild(div);
+                          });
+                        })
+                        .catch(err => {
+                          document.getElementById('diff-container').textContent = 'Error loading diff: ' + err.message;
+                        });
+                    }
+
+                    // Initial fetch
+                    fetchDiff();
+                  </script>
+                </body>
+                </html>
+              HTML
               resp = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: #{html.bytesize}\r\n\r\n#{html}"
               socket.write(resp)
             end

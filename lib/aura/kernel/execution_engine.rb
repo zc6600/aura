@@ -84,6 +84,13 @@ module Aura
           obj = parse_json_safe(body)
           obj["status"] = obj["status"] || "ok"
           
+          # Run shadow backup to track changes locally
+          begin
+            require "aura/kernel/shadow_backup"
+            Aura::Kernel::ShadowBackup.new(@project_path).record_changes(tool_name, args)
+          rescue StandardError
+          end
+
           # Git snapshot if enabled
           if cfg.dig("security", "git_snapshots")
             Aura::Kernel::GitState.new(@project_path).snapshot(tool_name, success: true)
