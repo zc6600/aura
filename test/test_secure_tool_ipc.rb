@@ -33,8 +33,8 @@ class TestSecureToolIpc < Minitest::Test
   end
 
   def test_large_payload_succeeds_using_stdin_without_argv_overflow
-    # Create a large payload (>64KB)
-    large_content = "A" * 70000
+    # Create a large payload (>64KB) consisting of multiple lines of 1000 characters each
+    large_content = (1..70).map { |i| "A" * 1000 }.join("\n")
     
     # Invoke write_file with large content.
     # Since it is >64KB, ExecutionEngine will omit it from command line arguments.
@@ -105,5 +105,17 @@ class TestSecureToolIpc < Minitest::Test
     
     expected_content = (1005..1010).map { |i| "Line #{i}" }.join("\n") + "\n"
     assert_equal expected_content, res_range["content"]
+  end
+
+  def test_read_file_single_line_truncation
+    # Create a file with a single line exceeding 10000 characters
+    long_line = "B" * 15000
+    File.write(File.join(@tmp_dir, "long_line.txt"), long_line)
+
+    res = @engine.execute("read_file", { "file_path" => "long_line.txt" })
+    assert_equal "ok", res["status"]
+    # Content length should be 10000 + length of the truncation message
+    assert_equal 10000, res["content"].split(" ... [Line truncated:").first.length
+    assert_match(/Line truncated: showing first 10000 chars/, res["content"])
   end
 end

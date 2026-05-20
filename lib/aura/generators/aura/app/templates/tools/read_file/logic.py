@@ -39,9 +39,13 @@ def read_file(file_path, allowed_paths=None, strict_mode=None, start_line=None, 
         s_line = int(start_line) if start_line is not None else None
         e_line = int(end_line) if end_line is not None else None
 
+        MAX_LINE_CHARS = 10000
+
         with open(target_path, 'r', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 total_lines += 1
+                if len(line) > MAX_LINE_CHARS:
+                    line = line[:MAX_LINE_CHARS] + f" ... [Line truncated: showing first {MAX_LINE_CHARS} chars] ...\n"
                 if s_line is not None or e_line is not None:
                     bound_start = s_line if s_line is not None else 1
                     bound_end = e_line if e_line is not None else float('inf')
