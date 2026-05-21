@@ -21,7 +21,8 @@ module Aura
 
         def start
           setup_environment
-          show_dashboard
+          goal = @options[:goal] || @options["goal"]
+          show_dashboard if goal.nil? || goal.to_s.strip.empty?
           run_loop
         end
 

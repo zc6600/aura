@@ -173,6 +173,8 @@ module Aura
 
       def init_db
         @db = SQLite3::Database.new(@db_path)
+        @db.execute("PRAGMA journal_mode=WAL")
+        @db.execute("PRAGMA synchronous=NORMAL")
         @db.execute <<-SQL
           CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -282,6 +284,10 @@ module Aura
           obj = begin JSON.parse(payload) rescue nil end
           { "id" => id, "timestamp" => ts, "phase" => phase, "tool" => tool, "payload" => obj || payload }
         end
+      end
+
+      def close
+        @db.close if @db && !@db.closed?
       end
     end
   end

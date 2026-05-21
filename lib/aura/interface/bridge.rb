@@ -223,8 +223,10 @@ module Aura
         end
       end
 
-      def handle_text_response(_plan, _stream_buf)
-        nil
+      def handle_text_response(plan, stream_buf)
+        content = stream_buf.empty? ? (plan[:content] || plan["content"] || "").to_s : stream_buf
+        return nil if content.strip.empty?
+        { type: "tool_call", tool: "final", args: { "content" => content }, summary: "Text response" }
       end
 
       

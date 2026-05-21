@@ -7,6 +7,7 @@ require "aura/kernel/registry"
 require "aura/kernel/tool_validator"
 require "aura/kernel/execution_engine"
 require "aura/ext/lsp/manager"
+require "aura/kernel/planner"
 require_relative "event_emitter"
 require_relative "hooks"
 require_relative "job"
@@ -29,6 +30,7 @@ module Aura
         @registry = Aura::Kernel::ToolRegistry.new(@env_path)
         @context_manager = Aura::Context::Manager.new(@env_path)
         @hooks = Aura::Kernel::Hooks.new
+        @planner = Aura::Kernel::Planner.new(@project_path, env_path: @env_path)
         @current_job = nil
         @lock = Mutex.new # Serialize executions
       end
@@ -82,8 +84,7 @@ module Aura
         ctx = payload[:context]
         goal = payload[:goal]
 
-        planner = Aura::Kernel::Planner.new(@project_path, env_path: @env_path)
-        res = planner.plan(ctx, goal)
+        res = @planner.plan(ctx, goal)
         @state.record_event({ phase: "plan", plan: res })
         res
       end
@@ -97,8 +98,7 @@ module Aura
         ctx = payload[:context]
         goal = payload[:goal]
 
-        planner = Aura::Kernel::Planner.new(@project_path, env_path: @env_path)
-        res = planner.plan_stream(ctx, goal) do |ev|
+        res = @planner.plan_stream(ctx, goal) do |ev|
           yield(ev) if block_given?
         end
         @state.record_event({ phase: "plan", plan: res })

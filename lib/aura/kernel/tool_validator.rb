@@ -75,7 +75,7 @@ module Aura
           test_entry = manifest["test"] || manifest.dig("verification", "test_file") || "test.py"
           runtime_key = manifest["runtime"]
           runtime_key = runtime_key["language"] || runtime_key["runtime"] if runtime_key.is_a?(Hash)
-          runtime = runtime_key || "python3"
+          runtime = resolve_runtime(runtime_key)
           test_path = File.join(dir, test_entry)
           return { ok: false, advice: "missing test: #{test_entry}" } unless File.exist?(test_path)
         end
@@ -116,6 +116,14 @@ module Aura
           rescue StandardError
             {}
           end
+        end
+
+        def resolve_runtime(key)
+          key ||= "python"
+          cfg = load_config
+          resolved = cfg.dig("tool_protocol", "runtimes", key.to_s) || key.to_s
+          resolved = "python" if resolved == "python3"
+          resolved
         end
 
         def cache_valid?(name, dir)

@@ -6,19 +6,18 @@ module Aura
         @api_base = api_base
         @api_key = api_key
         @model = model
+        @adapter = build_adapter
       end
 
       def complete(messages, options = {})
-        adapter = build_adapter
-        adapter.complete(messages, options)
+        @adapter.complete(messages, options)
       end
 
       def complete_stream(messages, options = {})
-        adapter = build_adapter
-        if adapter.respond_to?(:complete_stream)
-          adapter.complete_stream(messages, options) { |delta| yield(delta) if block_given? }
+        if @adapter.respond_to?(:complete_stream)
+          @adapter.complete_stream(messages, options) { |delta| yield(delta) if block_given? }
         else
-          out = adapter.complete(messages, options)
+          out = @adapter.complete(messages, options)
           s = out[:content].to_s
           if block_given?
             s.each_char { |ch| yield(ch) }

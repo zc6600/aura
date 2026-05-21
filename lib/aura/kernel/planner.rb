@@ -65,4 +65,3 @@ module Aura
     end
   end
 end
-require "aura/llm/env"
