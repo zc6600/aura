@@ -3,6 +3,7 @@
 require "fileutils"
 require "open3"
 require "shellwords"
+require "aura/errors"
 
 module Aura
   # Find the environment path for a given workspace path.
