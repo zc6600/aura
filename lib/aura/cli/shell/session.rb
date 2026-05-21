@@ -54,6 +54,14 @@ module Aura
         end
 
         def run_loop
+          goal = @options[:goal] || @options["goal"]
+          if goal && !goal.to_s.strip.empty?
+            # Non-interactive autonomous mode
+            summary = @executor.process_goal(goal.to_s.strip)
+            $stdout.puts summary if summary && !summary.strip.empty?
+            return
+          end
+
           puts "Welcome to Aura Shell. Type /help for commands."
           
           # In test environments or when input is not a TTY, we might want to handle it differently.

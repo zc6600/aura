@@ -321,9 +321,11 @@ module Aura
 
       desc "chat [PROJECT_PATH]", "Start an interactive Aura chat session"
       method_option :verbose, type: :boolean, aliases: "-v", desc: "Show detailed output"
+      method_option :goal, type: :string, aliases: "-g", desc: "Autonomous goal to execute without interactive input (exits when complete)"
+      method_option :non_interactive, type: :boolean, aliases: "--ni", default: false, desc: "Run non-interactively (requires --goal); final answer is printed to stdout"
       def chat(project_path = nil)
         resolved_path = Aura.resolve_project_path!(project_path)
-        Aura::Commands::ShellCommand.new.start(resolved_path)
+        Aura::Commands::ShellCommand.new.start(resolved_path, options)
       end
 
       desc "web [PROJECT_PATH]", "Start a lightweight Aura web server (events JSON & SSE)"

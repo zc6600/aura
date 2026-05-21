@@ -33,7 +33,7 @@ module Aura
           # So it's fine to just use the one created by Bridge or pass it.
           # Let's modify Bridge to allow injecting runner.
           
-          @bridge = Aura::Interface::Bridge.new(project_path)
+          @bridge = Aura::Interface::Bridge.new(project_path, runner: runner)
           @config_loader = config_loader
           @renderer = ConsoleRenderer.new(verbose: config["verbose"])
           
@@ -42,6 +42,14 @@ module Aura
 
         def process(input, auto_mode)
           @bridge.chat(input, auto_mode: auto_mode)
+        end
+
+        # Run a single goal non-interactively and return the final answer text
+        def process_goal(goal)
+          result_summary = nil
+          @bridge.on(:on_final_answer) { |content| result_summary = content }
+          @bridge.chat(goal, auto_mode: true)
+          result_summary
         end
 
         private

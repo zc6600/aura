@@ -14,9 +14,10 @@ module Aura
       method_option :verbose, type: :boolean, aliases: "-v", desc: "Show detailed output"
       method_option :session, type: :string, aliases: "-s", desc: "Start chat with a specific session database"
       method_option :new_session, type: :boolean, aliases: "-n", desc: "Start a brand new timestamped chat session"
-      def start(project_path)
-        session_name = options[:session]
-        if options[:new_session]
+      def start(project_path, external_opts = {})
+        merged_opts = options.to_h.merge(external_opts.to_h)
+        session_name = merged_opts[:session] || merged_opts["session"]
+        if merged_opts[:new_session] || merged_opts["new_session"]
           session_name = "session_#{Time.now.strftime('%Y%m%d_%H%M%S')}"
         end
 
@@ -32,7 +33,7 @@ module Aura
           end
         end
 
-        Aura::CLI::Shell::Session.new(project_path, options).start
+        Aura::CLI::Shell::Session.new(project_path, merged_opts).start
       end
     end
   end

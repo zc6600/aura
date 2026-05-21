@@ -10,43 +10,32 @@ module Aura
       def initialize(project_path, options = {})
         @project_path = File.expand_path(project_path)
         @env_path = options[:env_path] || Aura.environment_path(@project_path)
-      end
-
-      def plan(context, goal = nil)
         cfg = load_config
         provider = cfg.dig("llm", "provider") || "local"
         api_base = cfg.dig("llm", "api_base")
         model = cfg.dig("llm", "model")
-        temp = cfg.dig("llm", "temperature")
-        max_tokens = cfg.dig("llm", "max_tokens")
-        sum_suggest = cfg.dig("tool_protocol", "call_summary", "suggested_chars")
-        sum_max = cfg.dig("tool_protocol", "call_summary", "max_chars")
+        @temp = cfg.dig("llm", "temperature")
+        @max_tokens = cfg.dig("llm", "max_tokens")
+        @sum_suggest = cfg.dig("tool_protocol", "call_summary", "suggested_chars")
+        @sum_max = cfg.dig("tool_protocol", "call_summary", "max_chars")
         Aura::LLM::Env.load_from(@project_path)
         api_key = Aura::LLM::Env.resolve_api_key(provider)
-        client = Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
-        messages = Aura::LLM::Prompts::Compose.messages(context, goal, { suggested_chars: sum_suggest, max_chars: sum_max })
-        out = client.complete(messages, { temperature: temp, max_tokens: max_tokens })
+        @client = Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
+      end
+
+      def plan(context, goal = nil)
+        messages = Aura::LLM::Prompts::Compose.messages(context, goal, { suggested_chars: @sum_suggest, max_chars: @sum_max })
+        out = @client.complete(messages, { temperature: @temp, max_tokens: @max_tokens })
         body = out[:content]
         parsed = Aura::LLM::Parsers::ResponseParser.parse(body)
         parsed
       end
 
       def plan_stream(context, goal = nil)
-        cfg = load_config
-        provider = cfg.dig("llm", "provider") || "local"
-        api_base = cfg.dig("llm", "api_base")
-        model = cfg.dig("llm", "model")
-        temp = cfg.dig("llm", "temperature")
-        max_tokens = cfg.dig("llm", "max_tokens")
-        sum_suggest = cfg.dig("tool_protocol", "call_summary", "suggested_chars")
-        sum_max = cfg.dig("tool_protocol", "call_summary", "max_chars")
-        Aura::LLM::Env.load_from(@project_path)
-        api_key = Aura::LLM::Env.resolve_api_key(provider)
-        client = Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
-        messages = Aura::LLM::Prompts::Compose.messages(context, goal, { suggested_chars: sum_suggest, max_chars: sum_max })
+        messages = Aura::LLM::Prompts::Compose.messages(context, goal, { suggested_chars: @sum_suggest, max_chars: @sum_max })
         buf = ""
 
-        client.complete_stream(messages, { temperature: temp, max_tokens: max_tokens }) do |delta|
+        @client.complete_stream(messages, { temperature: @temp, max_tokens: @max_tokens }) do |delta|
           yield({ type: "delta", text: delta }) if block_given?
           buf << delta.to_s
           next unless buf.include?("}")

@@ -7,8 +7,8 @@ module Aura
     class Bridge
       attr_reader :runner
 
-      def initialize(project_path)
-        @runner = Aura::Kernel::Runner.new(project_path)
+      def initialize(project_path, runner: nil)
+        @runner = runner || Aura::Kernel::Runner.new(project_path)
         @callbacks = {}
       end
 
@@ -33,6 +33,8 @@ module Aura
         goal = input
         format_error_count = 0
         max_format_errors = 5
+        tool_error_count = 0
+        max_tool_errors = 3
 
         loop do
           begin
@@ -75,8 +77,10 @@ module Aura
               
               # Check if we should break the loop (e.g. final answer)
               if tool_name.to_s == "final"
-                 @runner.end_job(:completed)
-                 break
+                final_content = (plan[:args] || plan["args"] || {})["content"].to_s
+                notify(:on_final_answer, final_content)
+                @runner.end_job(:completed)
+                break
               end
               
               # Format call for runner
@@ -84,19 +88,28 @@ module Aura
               summary = plan[:summary] || plan["summary"]
               call = { "tool" => tool_name, "args" => args, "summary" => summary }
               
-              # Check for confirmation via hook logic (this is a bit tricky, 
-              # ideally hooks are in runner, but runner doesn't know about UI confirmation.
-              # We can inject a hook that calls back to the bridge.)
-              # For now, we assume the Runner has the hooks, but we need to ensure the hook 
-              # can ask the UI. 
-              # We will register a hook in the Bridge constructor that delegates to the UI.
-              
               result = @runner.run_call(call)
               
-              if result[:status] == "blocked"
-                 @runner.end_job(:failed, StandardError.new("Blocked by hook or validation"))
-                 break
+              # Handle blocked / upgrade_required: feed advice back to LLM instead of aborting
+              if ["blocked", "upgrade_required"].include?(result[:status].to_s)
+                tool_error_count += 1
+                advice = result[:advice].to_s
+                notify(:on_warning, "Tool '#{tool_name}' halted (#{result[:status]}): #{advice}")
+
+                if tool_error_count >= max_tool_errors
+                  notify(:on_warning, "Too many tool errors (#{max_tool_errors}). Aborting.")
+                  @runner.end_job(:failed, StandardError.new("Too many tool errors"))
+                  break
+                end
+
+                # Inject the error reason into context so the LLM can self-correct
+                base_ctx = observe_context.to_s
+                ctx = "[TOOL ERROR] Tool '#{tool_name}' was #{result[:status]}: #{advice}\n" \
+                      "Please choose a different approach or tool.\n\n#{base_ctx}"
+                next
               end
+
+              tool_error_count = 0 # reset on success
               
               # Refresh context for next iteration
               ctx = observe_context
