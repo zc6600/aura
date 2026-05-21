@@ -92,7 +92,7 @@ module Aura
           if res.status == :completed
             @runner.end_job(:completed)
           else
-            @runner.end_job(:failed, StandardError.new("Agent loop aborted: #{res.status}"))
+            @runner.end_job(:failed, StandardError.new(res.failure_reason || "Agent loop aborted"))
           end
         rescue Interrupt
           notify(:on_warning, "Interrupted by user")

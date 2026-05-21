@@ -115,12 +115,14 @@ module Aura
           end
         end
 
-        if manifest["auto_load"] == true || is_core_tool?(name)
+        status = tool_status(name, dir)
+        # Treat previously verified tools as "active" so the agent can reliably discover them.
+        should_auto_load = manifest["auto_load"] == true || is_core_tool?(name) || status.start_with?("[ACTIVE]")
+        if should_auto_load
           desc = build_full_description(name, dir, manifest)
           desc += breadcrumb unless breadcrumb.empty?
           @loaded_tools << desc
         else
-          status = tool_status(name, dir)
           rel = dir.sub(/^#{Regexp.escape(@project_path)}\//, "")
           info = "- #{name}: #{manifest["description"] || ""} #{status} (Path: #{rel})"
           info += " (Unlocks: #{subtools.join(', ')})" if manifest["creates_context"] && subtools&.any?

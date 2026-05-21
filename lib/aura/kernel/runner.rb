@@ -33,13 +33,16 @@ module Aura
         @planner = Aura::Kernel::Planner.new(@project_path, env_path: @env_path)
         @current_job = nil
         @lock = Mutex.new # Serialize executions
+        
+        # Ensure database connection is properly closed on exit
+        at_exit { @state.close rescue nil }
       end
 
       def load_config
         path = File.join(@env_path, "config", "config.yml")
         begin
           require "yaml"
-          File.exist?(path) ? YAML.load_file(path) : {}
+          File.exist?(path) ? Aura.safe_load_yaml(path) : {}
         rescue StandardError
           {}
         end

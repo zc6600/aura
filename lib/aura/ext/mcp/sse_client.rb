@@ -33,15 +33,30 @@ module Aura
       end
 
       def close
-        @thread&.kill
-        @http&.finish if @http&.active?
-      rescue StandardError
-        nil
+        begin
+          # Signal thread to stop
+          @running = false
+          
+          # Wait for thread to finish gracefully
+          if @thread && @thread.alive?
+            @thread.join(2) rescue nil
+            @thread.kill if @thread && @thread.alive?
+          end
+          
+          # Close HTTP connection
+          @http&.finish if @http&.active?
+        rescue StandardError
+          nil
+        ensure
+          @thread = nil
+          @http = nil
+        end
       end
 
       private
         def ensure_started
           return if @thread && @thread.alive?
+          @running = true
           @thread = Thread.new { listen_loop }
           # Wait a bit for the connection to establish
           sleep 0.5 until @http && @http.active? || !@thread.alive?
@@ -108,8 +123,10 @@ module Aura
             http.request(req) do |response|
               buffer = ""
               response.read_body do |chunk|
+                break unless @running  # Check running flag
                 buffer << chunk
                 while (line = buffer.slice!(/.*\n/))
+                  break unless @running  # Check running flag
                   handle_sse_line(line.strip)
                 end
               end

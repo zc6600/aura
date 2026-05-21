@@ -98,7 +98,8 @@ module Aura
         rescue StandardError
         end
         if @db.respond_to?(:get_recent_events_structured, true)
-          items = @db.send(:get_recent_events_structured, phases: ["user", "execution"]) || []
+          # Include "plan" phase to show agent's responses in history
+          items = @db.send(:get_recent_events_structured, phases: ["user", "plan", "execution"]) || []
           if items.any?
             items.each do |e|
               ts = e["timestamp"]
@@ -114,6 +115,27 @@ module Aura
                 else
                   e["id"].to_i
                 end
+                history_entries << { ts: ts.to_i, seq: seq, order: 0, id: e["id"].to_i, body: body }
+              elsif phase == "plan"
+                # Show agent's tool call summary or plan
+                plan_data = pl.is_a?(Hash) ? pl : {}
+                plan_tool = plan_data["tool"] || plan_data[:tool]
+                summary = plan_data["summary"] || plan_data[:summary]
+                if plan_tool.to_s == "final"
+                  # For final answers, show the content
+                  final_content = (plan_data["args"] || plan_data[:args] || {})["content"]
+                  txt = final_content.to_s.gsub(/\s+/, " ").strip
+                  txt = txt[0, 200] + "..." if txt.length > 200
+                  body = "Agent: #{txt.empty? ? 'Task completed' : txt}"
+                else
+                  # For tool calls, show the summary or tool name
+                  body = if summary && !summary.to_s.strip.empty?
+                    "Agent: #{summary.to_s.gsub(/\s+/, " ").strip}"
+                  else
+                    "Agent: Calling #{plan_tool}"
+                  end
+                end
+                seq = e["id"].to_i
                 history_entries << { ts: ts.to_i, seq: seq, order: 0, id: e["id"].to_i, body: body }
               elsif phase == "execution"
                 res = pl.is_a?(Hash) ? pl["result"] : nil
@@ -178,6 +200,7 @@ module Aura
             ts = e[:ts].to_i
             prefix = ""
             if ts > 0
+              # Show timestamp if it's the first event or if gap is significant (threshold seconds)
               show_time = last_ts.nil? || ((ts - last_ts).abs >= threshold)
               tstr = begin Time.at(ts).strftime("%H:%M:%S") rescue ts.to_s end
               prefix = show_time ? "[#{tstr}] " : ""

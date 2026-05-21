@@ -61,6 +61,7 @@ class TestAgentLoop < Minitest::Test
     assert_equal "bash_command", res.steps[0][:tool]
     assert_equal "file1.txt", res.steps[0][:result][:content]
     assert_equal ["Found files"], events
+    assert_nil res.failure_reason
   end
 
   def test_plain_text_wrapping
@@ -102,6 +103,7 @@ class TestAgentLoop < Minitest::Test
     assert_equal :failed, res.status
     assert_equal :format_errors, aborted_event[:reason]
     assert_equal 5, @runner.plan_stream_called
+    assert_equal "Max format errors reached (5)", res.failure_reason
   end
 
   def test_tool_blocked_recovery
@@ -147,6 +149,7 @@ class TestAgentLoop < Minitest::Test
     assert_equal :failed, res.status
     assert_equal :tool_errors, aborted_event[:reason]
     assert_equal 3, res.steps.size
+    assert_equal "Max tool errors reached (3)", res.failure_reason
   end
 
   def test_raw_string_plan_wrapping
@@ -208,6 +211,7 @@ class TestAgentLoop < Minitest::Test
     res = @loop.run("test steps limit")
     assert_equal :failed, res.status
     assert_equal 2, res.steps.size
+    assert_equal "Max execution steps reached (2)", res.failure_reason
 
     # 2. Test custom max_format_errors (limit is 2)
     @runner.mock_plans = [nil, nil, nil]

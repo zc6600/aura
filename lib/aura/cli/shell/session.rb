@@ -65,13 +65,9 @@ module Aura
 
           puts "Welcome to Aura Shell. Type /help for commands."
           
-          # In test environments or when input is not a TTY, we might want to handle it differently.
-          # But for now, let's just use $stdin.gets.
-          
           loop do
             begin
-              print "aura> "
-              line = $stdin.gets
+              line = Readline.readline("aura> ", true)
             rescue Interrupt
               puts "\n(Interrupted by user)"
               next

@@ -28,6 +28,10 @@ module Aura
         out = @client.complete(messages, { temperature: @temp, max_tokens: @max_tokens })
         body = out[:content]
         parsed = Aura::LLM::Parsers::ResponseParser.parse(body)
+        
+        # Validate parsed result
+        validate_parsed_plan(parsed, body)
+        
         parsed
       end
 
@@ -53,11 +57,27 @@ module Aura
       end
 
       private
+        def validate_parsed_plan(parsed, raw_body)
+          if parsed[:type] == "tool_call"
+            if parsed[:tool].to_s.strip.empty?
+              puts "\e[33m⚠️ Warning: Parsed tool call missing tool name\e[0m"
+              puts "   Raw: #{raw_body[0, 200]}..."
+            end
+            if !parsed[:args].is_a?(Hash)
+              puts "\e[33m⚠️ Warning: Tool args is not a Hash: #{parsed[:args].class}\e[0m"
+              puts "   Raw: #{raw_body[0, 200]}..."
+            end
+          elsif parsed[:type] == "text"
+            puts "\e[33m⚠️ Warning: LLM returned text instead of JSON\e[0m"
+            puts "   Raw: #{raw_body[0, 300]}..."
+          end
+        end
+        
         def load_config
           begin
             require "yaml"
             path = File.join(@env_path, "config", "config.yml")
-            File.exist?(path) ? YAML.load_file(path) : {}
+            File.exist?(path) ? Aura.safe_load_yaml(path) : {}
           rescue StandardError
             {}
           end

@@ -27,18 +27,39 @@ module Aura
 
       def start
         return if @stdin
+        @running = true
         @stdin, @stdout, @stderr, @wait_thr = Open3.popen3(@env, @command, *@args)
         @reader_thread = Thread.new { listen_loop }
       end
 
       def stop
-        @stdin&.close
-        @stdout&.close
-        @stderr&.close
-        @wait_thr&.kill
-        @reader_thread&.kill
-      rescue StandardError
-        nil
+        begin
+          # Signal reader thread to stop gracefully
+          @running = false
+          
+          # Close stdin first to signal the server
+          @stdin&.close
+          
+          # Give threads time to cleanup
+          [@reader_thread, @wait_thr].each do |t|
+            if t && t.alive?
+              t.join(2) rescue nil  # Wait up to 2 seconds
+              t.kill if t && t.alive?  # Force kill if still alive
+            end
+          end
+          
+          # Close remaining pipes
+          @stdout&.close
+          @stderr&.close
+        rescue StandardError
+          nil
+        ensure
+          @stdin = nil
+          @stdout = nil
+          @stderr = nil
+          @wait_thr = nil
+          @reader_thread = nil
+        end
       end
 
       def initialize_server(root_path)
@@ -113,7 +134,7 @@ module Aura
 
         def listen_loop
           @stdout.binmode
-          loop do
+          while @running
             begin
               line = @stdout.gets("\r\n")
               break unless line

@@ -345,7 +345,7 @@ class TestHierarchicalToolProvider < Minitest::Test
 
   def setup_config
     FileUtils.mkdir_p(File.join(@project, "config"))
-    File.write(File.join(@project, ".aura", "config", "config.yml"), <<~YAML)
+    File.write(File.join(@project, "config", "config.yml"), <<~YAML)
       tool_protocol:
         required_files:
           - logic.py

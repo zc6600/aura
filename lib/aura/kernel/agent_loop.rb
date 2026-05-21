@@ -7,10 +7,7 @@ module Aura
     # The unified agent loop controller.
     # Decoupled from UI rendering, orchestrates planner, execution, and observation.
     class AgentLoop
-      MAX_FORMAT_ERRORS = 5
-      MAX_TOOL_ERRORS   = 3
-
-      Result = Struct.new(:status, :final_content, :steps, keyword_init: true)
+      Result = Struct.new(:status, :final_content, :steps, :failure_reason, keyword_init: true)
 
       def initialize(runner, event_bus: NullEventBus.new)
         @runner = runner
@@ -33,7 +30,7 @@ module Aura
         loop do
           if step_count >= limit_steps
             @event_bus.emit(:loop_aborted, reason: "Max execution steps reached (#{limit_steps})")
-            return Result.new(status: :failed, steps: steps)
+            return Result.new(status: :failed, steps: steps, failure_reason: "Max execution steps reached (#{limit_steps})")
           end
 
           # Plan step
@@ -58,7 +55,7 @@ module Aura
 
             if format_errors >= max_format_errors
               @event_bus.emit(:loop_aborted, reason: :format_errors)
-              return Result.new(status: :failed, steps: steps)
+              return Result.new(status: :failed, steps: steps, failure_reason: "Max format errors reached (#{max_format_errors})")
             end
             ctx = inject_format_error(ctx)
             next
@@ -71,7 +68,7 @@ module Aura
           if tool_name == "final"
             content = extract_final_content(plan)
             @event_bus.emit(:final_answer, content: content)
-            return Result.new(status: :completed, final_content: content, steps: steps)
+            return Result.new(status: :completed, final_content: content, steps: steps, failure_reason: nil)
           end
 
           # Execute tool
@@ -85,12 +82,12 @@ module Aura
           }
 
           case result[:status].to_s
-          when "blocked", "upgrade_required"
+          when "blocked", "upgrade_required", "failed"
             tool_errors += 1
             @event_bus.emit(:tool_halted, tool: tool_name, status: result[:status], advice: result[:advice])
             if tool_errors >= max_tool_errors
               @event_bus.emit(:loop_aborted, reason: :tool_errors)
-              return Result.new(status: :failed, steps: steps)
+              return Result.new(status: :failed, steps: steps, failure_reason: "Max tool errors reached (#{max_tool_errors})")
             end
             ctx = inject_tool_error(ctx, tool_name, result)
             next
@@ -111,12 +108,12 @@ module Aura
 
       def max_format_errors
         cfg = @runner.respond_to?(:load_config) ? @runner.load_config : {}
-        cfg.dig("system", "max_format_errors") || MAX_FORMAT_ERRORS
+        cfg.dig("system", "max_format_errors") || 5
       end
 
       def max_tool_errors
         cfg = @runner.respond_to?(:load_config) ? @runner.load_config : {}
-        cfg.dig("system", "max_tool_errors") || MAX_TOOL_ERRORS
+        cfg.dig("system", "max_tool_errors") || 3
       end
 
       private

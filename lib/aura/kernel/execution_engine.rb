@@ -126,11 +126,8 @@ module Aura
         cmd, final_args = apply_sandbox(cfg, runtime, logic, payload)
         
         begin
-          if final_args.bytesize > 65536
-            out, err, status = capture3_with_timeout(cmd, final_args, @project_path, resolved_timeout)
-          else
-            out, err, status = capture3_with_timeout(cmd + [final_args], final_args, @project_path, resolved_timeout)
-          end
+          # Always use stdin for payload transfer to avoid dual-channel confusion
+          out, err, status = capture3_with_timeout(cmd, final_args, @project_path, resolved_timeout)
         rescue Timeout::Error
           return { error: "Tool execution timed out after #{resolved_timeout} seconds.", status: "failed" }
         end
@@ -242,7 +239,7 @@ module Aura
           begin
             require "yaml"
             cfg = File.join(@env_path, "config", "config.yml")
-            m = File.exist?(cfg) ? YAML.load_file(cfg) : {}
+            m = File.exist?(cfg) ? Aura.safe_load_yaml(cfg) : {}
             m.dig("tool_protocol", "runtimes", key) || key
           rescue StandardError
             key
@@ -260,7 +257,7 @@ module Aura
         def load_full_config
           require "yaml"
           path = File.join(@env_path, "config", "config.yml")
-          File.exist?(path) ? YAML.load_file(path) : {}
+          File.exist?(path) ? Aura.safe_load_yaml(path) : {}
         rescue StandardError
           {}
         end

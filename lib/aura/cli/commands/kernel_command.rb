@@ -146,7 +146,7 @@ module Aura
         final_res = if res.status == :completed
           res.steps.last ? res.steps.last[:result] : { "status" => "completed", "content" => res.final_content }
         else
-          { "status" => "failed", "reason" => "aborted", "steps" => res.steps.size }
+          { "status" => "failed", "reason" => res.failure_reason || "aborted", "steps" => res.steps.size }
         end
         
         if options[:human]

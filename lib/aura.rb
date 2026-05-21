@@ -63,6 +63,21 @@ module Aura
     nil
   end
 
+  # Safe YAML file loader to prevent arbitrary code execution (CVE-2013-0156)
+  def self.safe_load_yaml(path)
+    return {} unless File.exist?(path)
+    begin
+      # Use safe_load to prevent arbitrary object instantiation
+      if Gem::Version.new(RUBY_VERSION) >= Gem::Version.new("3.1.0")
+        YAML.safe_load_file(path, permitted_classes: [Symbol])
+      else
+        YAML.safe_load(File.read(path), permitted_classes: [Symbol])
+      end || {}
+    rescue StandardError
+      {}
+    end
+  end
+
   # Resolve project workspace path by climbing parent directories.
   # If not in a workspace, guides the user to initialize a new workspace or falls back to a global sandbox.
   def self.resolve_project_path!(project_path)

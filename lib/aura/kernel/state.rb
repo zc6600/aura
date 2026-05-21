@@ -39,13 +39,16 @@ module Aura
         end
         FileUtils.mkdir_p(@state_dir)
         FileUtils.mkdir_p(File.dirname(@db_path))
+        @db_lock = Mutex.new  # Protect database writes from concurrent access
         init_db
       end
 
       def record_event(payload)
-        @db.execute("INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)",
-                    [Time.now.to_i, payload[:phase], payload[:tool], payload.to_json])
-        @db.last_insert_row_id
+        @db_lock.synchronize do
+          @db.execute("INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)",
+                      [Time.now.to_i, payload[:phase], payload[:tool], payload.to_json])
+          @db.last_insert_row_id
+        end
       end
 
       def metabolize_if_needed
@@ -107,7 +110,9 @@ module Aura
       end
 
       def set_variable(key, value)
-        @db.execute("INSERT OR REPLACE INTO variables (key, value) VALUES (?, ?)", [key, value.to_s])
+        @db_lock.synchronize do
+          @db.execute("INSERT OR REPLACE INTO variables (key, value) VALUES (?, ?)", [key, value.to_s])
+        end
       end
 
       def get_recent_events
@@ -224,7 +229,9 @@ module Aura
       end
 
       def record_summary(content, source_event_id = nil)
-        @db.execute("INSERT INTO summaries (timestamp, content, source_event_id) VALUES (?, ?, ?)", [Time.now.to_i, content, source_event_id])
+        @db_lock.synchronize do
+          @db.execute("INSERT INTO summaries (timestamp, content, source_event_id) VALUES (?, ?, ?)", [Time.now.to_i, content, source_event_id])
+        end
       end
 
       def read_config
@@ -236,7 +243,7 @@ module Aura
         else
           begin
             require "yaml"
-            @cached_cfg = YAML.load_file(cfg) || {}
+            @cached_cfg = Aura.safe_load_yaml(cfg) || {}
             @cached_cfg_mtime = m
             @cached_cfg
           rescue StandardError
