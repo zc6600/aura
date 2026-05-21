@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "aura/kernel/runner"
+require "aura/kernel/agent_loop"
 
 module Aura
   module Interface
@@ -29,127 +30,78 @@ module Aura
 
         setup_runner_subscriptions
 
-        ctx = observe_context
-        goal = input
-        format_error_count = 0
-        max_format_errors = 5
-        tool_error_count = 0
-        max_tool_errors = 3
+        # Create EventBus for AgentLoop
+        bus = Aura::Kernel::EventBus.new
+        
+        # Track streaming state for UI waiting indicator
+        streamed = false
+        start_time = nil
 
-        loop do
-          begin
-            start_time = Time.now
-            streamed = false
-            stream_buf = +""
-            
-            # Notify UI to start waiting animation
-            notify(:on_waiting, start_time, -> { streamed })
+        bus.subscribe(:plan_stream_start) do
+          streamed = false
+          start_time = Time.now
+          notify(:on_waiting, start_time, -> { streamed })
+        end
 
-            begin
-              plan = @runner.plan_stream(goal, ctx) do |ev|
-                if ev[:type] == "delta"
-                  unless streamed
-                    streamed = true
-                    notify(:on_clear_waiting)
-                  end
-                  stream_buf << ev[:text].to_s
-                  notify(:on_token, ev[:text].to_s)
-                end
-              end
-            rescue StandardError => e
-              notify(:on_error, "Planning error: #{e.message}")
-              raise e
+        bus.subscribe(:plan_event) do |payload|
+          if payload[:type] == "delta"
+            unless streamed
+              streamed = true
+              notify(:on_clear_waiting)
             end
-            
-            notify(:on_stream_end)
-            
-            # Fallback if streaming failed or returned nothing
-            plan ||= @runner.plan(goal, ctx)
-            elapsed = Time.now - start_time
-
-            # Handle direct text response
-            if plan && plan[:type] == "text"
-              plan = handle_text_response(plan, stream_buf)
-            end
-
-            if plan && (plan[:tool] || plan["tool"])
-              tool_name = plan[:tool] || plan["tool"]
-              
-              # Check if we should break the loop (e.g. final answer)
-              if tool_name.to_s == "final"
-                final_content = (plan[:args] || plan["args"] || {})["content"].to_s
-                notify(:on_final_answer, final_content)
-                @runner.end_job(:completed)
-                break
-              end
-              
-              # Format call for runner
-              args = plan[:args] || plan["args"] || {}
-              summary = plan[:summary] || plan["summary"]
-              call = { "tool" => tool_name, "args" => args, "summary" => summary }
-              
-              result = @runner.run_call(call)
-              
-              # Handle blocked / upgrade_required: feed advice back to LLM instead of aborting
-              if ["blocked", "upgrade_required"].include?(result[:status].to_s)
-                tool_error_count += 1
-                advice = result[:advice].to_s
-                notify(:on_warning, "Tool '#{tool_name}' halted (#{result[:status]}): #{advice}")
-
-                if tool_error_count >= max_tool_errors
-                  notify(:on_warning, "Too many tool errors (#{max_tool_errors}). Aborting.")
-                  @runner.end_job(:failed, StandardError.new("Too many tool errors"))
-                  break
-                end
-
-                # Inject the error reason into context so the LLM can self-correct
-                base_ctx = observe_context.to_s
-                ctx = "[TOOL ERROR] Tool '#{tool_name}' was #{result[:status]}: #{advice}\n" \
-                      "Please choose a different approach or tool.\n\n#{base_ctx}"
-                next
-              end
-
-              tool_error_count = 0 # reset on success
-              
-              # Refresh context for next iteration
-              ctx = observe_context
-            else
-              format_error_count += 1
-              if format_error_count >= max_format_errors
-                notify(:on_warning, "Agent failed to produce a valid tool call after #{max_format_errors} attempts. Aborting.")
-                @runner.end_job(:failed, StandardError.new("Too many format errors"))
-                break
-              end
-
-              handle_thought_response(plan, streamed, elapsed)
-
-              begin
-                ctx = @runner.observe
-              rescue Aura::Context::ContextOverflowError => e
-                ctx = "[Context overflow] #{e.message}"
-              end
-
-              ctx = <<~RETRY.strip + "\n\n" + ctx
-                [SYSTEM ERROR] Your last response was plain text, not valid JSON.
-                You MUST respond with a JSON object. Examples:
-                  {"tool": "bash_command", "args": {"command": "ls"}, "summary": "List files"}
-                  {"tool": "final", "args": {"content": "Done!"}, "summary": "Task complete"}
-                Do NOT write any text outside the JSON object. Try again now.
-              RETRY
-              next
-            end
-          rescue Interrupt
-            notify(:on_warning, "Interrupted by user")
-            @runner.end_job(:failed, StandardError.new("Interrupted by user"))
-            break
+            notify(:on_token, payload[:text].to_s)
           end
         end
-      rescue StandardError => e
-        notify(:on_error, e.message)
-        @runner.end_job(:failed, e)
+
+        bus.subscribe(:plan_stream_end) do
+          notify(:on_stream_end)
+        end
+
+        bus.subscribe(:final_answer) do |payload|
+          notify(:on_final_answer, payload[:content])
+        end
+
+        bus.subscribe(:tool_halted) do |payload|
+          notify(:on_warning, "Tool '#{payload[:tool]}' halted (#{payload[:status]}): #{payload[:advice]}")
+        end
+
+        bus.subscribe(:thought) do |payload|
+          elapsed = start_time ? (Time.now - start_time) : 0
+          notify(:on_thought, payload[:content], elapsed)
+        end
+
+        bus.subscribe(:no_response) do
+          notify(:on_warning, "No response. Check LLM configuration or API key.")
+        end
+
+        bus.subscribe(:loop_aborted) do |payload|
+          if payload[:reason] == :format_errors
+            notify(:on_warning, "Agent failed to produce a valid tool call after 5 attempts. Aborting.")
+          elsif payload[:reason] == :tool_errors
+            notify(:on_warning, "Too many tool errors (3). Aborting.")
+          else
+            notify(:on_warning, "Agent loop aborted: #{payload[:reason]}")
+          end
+        end
+
+        # Instantiate and run AgentLoop
+        agent_loop = Aura::Kernel::AgentLoop.new(@runner, event_bus: bus)
+        
+        begin
+          res = agent_loop.run(input)
+          if res.status == :completed
+            @runner.end_job(:completed)
+          else
+            @runner.end_job(:failed, StandardError.new("Agent loop aborted: #{res.status}"))
+          end
+        rescue StandardError => e
+          notify(:on_error, e.message)
+          @runner.end_job(:failed, e)
+          raise e
+        end
       end
 
-      # Expose hooks to allow external registration (e.g. for dangerous tool checks)
+      # Expose hooks to allow external registration
       def hooks
         @runner.hooks
       end
@@ -157,25 +109,13 @@ module Aura
       # Helper to register the standard dangerous tool confirmation hook
       def register_confirmation_hook(dangerous_tools)
         @runner.hooks.register(:before_tool_execution) do |tool, args|
-          # We need to know if we are in auto_mode. 
-          # The Runner's job has metadata, or we can store it in Bridge.
-          # Let's check the current job metadata.
           is_auto = @runner.current_job&.metadata&.dig(:auto_mode)
-          
           next true if is_auto
           
           if dangerous_tools.include?(tool.to_s)
-             # Ask UI for confirmation
              if @callbacks[:ask_confirmation]
                @callbacks[:ask_confirmation].call("DANGEROUS TOOL: #{tool}. Execute?")
              else
-               true # Default to allow if no UI attached? Or block? Better block for safety.
-               # But for now let's say true to not break tests without UI.
-               # Actually, better to default to false if no confirmation possible for dangerous tools.
-               # But let's stick to existing logic: if no callback, maybe we just proceed or log warning.
-               # For safety:
-               # false 
-               # However, to avoid breaking existing tests that don't register callback:
                true
              end
           else
@@ -191,9 +131,6 @@ module Aura
       end
 
       def setup_runner_subscriptions
-        # Avoid double subscription if chat is called multiple times?
-        # Runner events are global. We should probably only subscribe once.
-        # But Bridge instance is likely long-lived.
         return if @subscribed
         
         @runner.on(:tool_start) do |payload|
@@ -213,30 +150,6 @@ module Aura
         end
         
         @subscribed = true
-      end
-
-      def observe_context
-        begin
-          @runner.observe
-        rescue Aura::Context::ContextOverflowError => e
-          "[Context overflow] #{e.message}"
-        end
-      end
-
-      def handle_text_response(plan, stream_buf)
-        content = stream_buf.empty? ? (plan[:content] || plan["content"] || "").to_s : stream_buf
-        return nil if content.strip.empty?
-        { type: "tool_call", tool: "final", args: { "content" => content }, summary: "Text response" }
-      end
-
-      
-      def handle_thought_response(plan, streamed, elapsed)
-        thought = plan && (plan[:thought] || plan["thought"] || plan[:content] || plan["content"]) 
-        if thought && !thought.to_s.empty? && !streamed
-           notify(:on_thought, thought.to_s, elapsed)
-        elsif !streamed
-           notify(:on_warning, "No response. Check LLM configuration or API key.")
-        end
       end
     end
   end

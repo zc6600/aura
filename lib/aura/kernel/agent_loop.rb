@@ -46,6 +46,13 @@ module Aura
           # Validate response structure
           unless plan && (plan[:tool] || plan["tool"])
             format_errors += 1
+            thought = plan && (plan[:thought] || plan["thought"] || plan[:content] || plan["content"])
+            if thought && !thought.to_s.empty?
+              @event_bus.emit(:thought, content: thought.to_s)
+            else
+              @event_bus.emit(:no_response)
+            end
+
             if format_errors >= MAX_FORMAT_ERRORS
               @event_bus.emit(:loop_aborted, reason: :format_errors)
               return Result.new(status: :failed, steps: steps)
@@ -97,7 +104,10 @@ module Aura
       end
 
       def call_planner(goal, ctx)
+        @event_bus.emit(:plan_stream_start)
         @runner.plan_stream(goal, ctx) { |ev| @event_bus.emit(:plan_event, **ev) }
+      ensure
+        @event_bus.emit(:plan_stream_end)
       end
 
       def execute_tool(plan)
