@@ -130,47 +130,30 @@ module Aura
       method_option :max_steps, type: :numeric, aliases: "-m", desc: "Maximum loop steps"
       def loop(project_path = nil)
         require "aura/kernel"
+        require "aura/kernel/agent_loop"
         resolved_path = resolve_project_path!(project_path)
         runner = Aura::Kernel::Runner.new(File.expand_path(resolved_path))
-        steps = []
-        final_res = nil
-        goal = options[:goal]
-        max_steps = options[:max_steps].to_i
-        step_count = 0
-        ::Kernel.loop do
-          ctx = nil
-          begin
-            ctx = runner.observe
-          rescue Aura::Context::ContextOverflowError => e
-            ctx = "[Context overflow] #{e.message}"
-          end
-          plan = runner.plan(goal, ctx)
-          if plan && plan[:type] == "text"
-            c = plan[:content] || plan["content"]
-            plan = { tool: "final", args: { "content" => c.to_s }, summary: "Submit final response" }
-          end
-          break unless plan && (plan[:tool] || plan["tool"])
-          tool = plan[:tool] || plan["tool"]
-          args = plan[:args] || plan["args"] || {}
-          summary = plan[:summary] || plan["summary"]
-          payload = { "tool" => tool, "args" => args, "summary" => summary }
-          res = runner.run_call(payload)
-          step_count += 1
-          steps << format_loop_step(payload, res)
-          if tool.to_s == "final" || (res.is_a?(Hash) && res["final"])
-            final_res = res
-            break
-          end
-          if max_steps > 0 && step_count >= max_steps
-            final_res = { "status" => "stopped", "reason" => "max_steps_reached", "steps" => step_count }
-            break
-          end
+        
+        agent_loop = Aura::Kernel::AgentLoop.new(runner)
+        max_steps = options[:max_steps] ? options[:max_steps].to_i : 30
+        res = agent_loop.run(options[:goal], max_steps: max_steps)
+        
+        formatted_steps = res.steps.map do |step|
+          payload = { "tool" => step[:tool], "args" => step[:args], "summary" => step[:summary] }
+          format_loop_step(payload, step[:result])
         end
+        
+        final_res = if res.status == :completed
+          res.steps.last ? res.steps.last[:result] : { "status" => "completed", "content" => res.final_content }
+        else
+          { "status" => "failed", "reason" => "aborted", "steps" => res.steps.size }
+        end
+        
         if options[:human]
           verbose = options[:verbose] || ENV["VERBOSE"] == "true"
-          puts steps.map { |s| human_loop_step(s, verbose) }.join("\n")
+          puts formatted_steps.map { |s| human_loop_step(s, verbose) }.join("\n")
         else
-          puts({ steps: steps, final: final_res }.to_json)
+          puts({ steps: formatted_steps, final: final_res }.to_json)
         end
       end
 

@@ -73,7 +73,12 @@ module Aura
           # Execute tool
           step_count += 1
           result = execute_tool(plan)
-          steps << { tool: tool_name, result: result }
+          steps << {
+            tool: tool_name,
+            args: (plan[:args] || plan["args"] || {}),
+            summary: (plan[:summary] || plan["summary"]),
+            result: result
+          }
 
           case result[:status].to_s
           when "blocked", "upgrade_required"
