@@ -148,4 +148,38 @@ class TestAgentLoop < Minitest::Test
     assert_equal :tool_errors, aborted_event[:reason]
     assert_equal 3, res.steps.size
   end
+
+  def test_raw_string_plan_wrapping
+    # Plan returns a raw String instead of a hash
+    @runner.mock_plans = [
+      "Hello this is a direct response string"
+    ]
+
+    res = @loop.run("ask question")
+
+    assert_equal :completed, res.status
+    assert_equal "Hello this is a direct response string", res.final_content
+    assert_equal 0, res.steps.size
+  end
+
+  def test_format_errors_reset_on_success
+    # Plan 1: nil (format error)
+    # Plan 2: bash tool call (success, resets format errors to 0)
+    # Plan 3: nil (format error, format_errors becomes 1, not 2)
+    # Plan 4: final tool call (success)
+    @runner.mock_plans = [
+      nil,
+      { tool: "bash_command", args: { "command" => "ls" } },
+      nil,
+      { tool: "final", args: { "content" => "done" } }
+    ]
+    @runner.mock_tool_results = [
+      { status: "success", content: "file.txt" }
+    ]
+
+    res = @loop.run("test reset")
+
+    assert_equal :completed, res.status
+    assert_equal "done", res.final_content
+  end
 end

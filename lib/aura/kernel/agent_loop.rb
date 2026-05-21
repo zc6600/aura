@@ -39,14 +39,16 @@ module Aura
           plan = call_planner(goal, ctx)
 
           # If planning returns plain text, wrap it as final
-          if plan.nil? || plan[:type] == "text" || (plan.is_a?(Hash) && !plan[:tool] && !plan["tool"] && (plan[:content] || plan["content"]))
+          if plan.is_a?(String)
+            plan = { type: "tool_call", tool: "final", args: { "content" => plan }, summary: "Text response" }
+          elsif plan.nil? || (plan.is_a?(Hash) && plan[:type] == "text") || (plan.is_a?(Hash) && !plan[:tool] && !plan["tool"] && (plan[:content] || plan["content"]))
             plan = wrap_text_as_final(plan)
           end
 
           # Validate response structure
-          unless plan && (plan[:tool] || plan["tool"])
+          unless plan.is_a?(Hash) && (plan[:tool] || plan["tool"])
             format_errors += 1
-            thought = plan && (plan[:thought] || plan["thought"] || plan[:content] || plan["content"])
+            thought = plan.is_a?(Hash) && (plan[:thought] || plan["thought"] || plan[:content] || plan["content"])
             if thought && !thought.to_s.empty?
               @event_bus.emit(:thought, content: thought.to_s)
             else
@@ -62,6 +64,7 @@ module Aura
           end
 
           tool_name = (plan[:tool] || plan["tool"]).to_s
+          format_errors = 0
 
           # Handle final answer
           if tool_name == "final"
@@ -125,13 +128,14 @@ module Aura
       end
 
       def wrap_text_as_final(plan)
-        return nil if plan.nil?
+        return nil unless plan.is_a?(Hash)
         content = (plan[:content] || plan["content"]).to_s
         return nil if content.strip.empty?
         { type: "tool_call", tool: "final", args: { "content" => content }, summary: "Text response" }
       end
 
       def extract_final_content(plan)
+        return "" unless plan.is_a?(Hash)
         (plan[:args] || plan["args"] || {})["content"].to_s
       end
 
