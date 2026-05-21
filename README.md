@@ -112,25 +112,32 @@ aura sync
 aura pull
 ```
 
-### 5. Chat & Direct LLM Queries (with Memory)
+### 5. Interactive Chat & Autonomous Goal Execution
 
-Aura OS supports interactive chat sessions and direct stateless queries that retain memory via session JSON files:
+Aura OS supports interactive chat sessions, direct query helpers, and autonomous goal execution:
 
 ```bash
 # 1. Start an interactive agent shell session
 aura chat
 
-# 2. Directly ask the LLM a question (using the default session memory)
+# 2. Run in autonomous goal execution mode (exits when goal is achieved)
+aura chat --goal "Create a file named hello.txt containing hello world"
+
+# 3. Headless non-interactive execution (suitable for automation / cron)
+# Prints the final summary to stdout, bypassing interactive prompts and dashboard indicators
+aura chat --goal "Find the count of files in the current folder" --non-interactive
+
+# 4. Directly ask the LLM a question (using the default session memory)
 aura ask "What is the capital of France?"
 
-# 3. Ask a follow-up question (it will automatically recall the previous question/answer)
+# 5. Ask a follow-up question (it will automatically recall the previous question/answer)
 aura ask "What is its population?"
 
-# 4. Use a specific custom session name for isolated memory
+# 6. Use a specific custom session name for isolated memory
 aura ask "Remember my name is Alice" --session user_info
 aura ask "What is my name?" --session user_info
 
-# 5. Clear the session's memory
+# 7. Clear the session's memory
 aura ask "Start over" --session user_info --clear
 ```
 

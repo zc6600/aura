@@ -3,25 +3,36 @@
 ## Scope & Paths
 
 This document covers the **Aura Kernel**, the core Ruby runtime that orchestrates execution, enforces security, and manages tool protocols.
-- **Framework Code**: `lib/aura/kernel/` (ExecutionEngine, Runner, ToolValidator).
+- **Framework Code**: `lib/aura/kernel/` (AgentLoop, EventBus, ExecutionEngine, Runner, ToolValidator).
 - **Project Context**: The Kernel runs inside a generated Agent project root.
 
 ## Core Components
 
-### 1. The Runner (`Aura::Kernel::Runner`)
-The entry point for the "Brain". It runs a REPL-like loop:
-1. **Observe**: Calls `Context::Manager` to assemble prompt.
-2. **Plan**: Calls LLM to decide next action.
-3. **Execute**: Calls `ExecutionEngine` to run tools.
-4. **Metabolize**: Triggers state pruning if context is full.
+### 1. The Agent Loop (`Aura::Kernel::AgentLoop`)
+The unified central orchestrator for the agent's goal execution. It handles:
+- **Loop Orchestration**: Runs a state-machine loop to achieve a goal.
+- **Planner Execution**: Calls the LLM planner, and handles plain text or raw string responses, wrapping them as synthesized `final` tool calls.
+- **Robust Error Tolerance**: Retries malformed JSON responses up to 5 times (resetting the format error counter on success) and handles blocked tools (up to 3 times) with feedback injections so the agent can self-correct.
+- **Exception Boundary**: Catches and standardizes execution errors into domain exceptions (`Aura::Errors::*`).
 
-### 2. Execution Engine (`Aura::Kernel::ExecutionEngine`)
+### 2. The Runner (`Aura::Kernel::Runner`)
+Acts as the context adapter and execution coordinator:
+- **Observe**: Assembles prompt context from state/database and registers current environment metadata.
+- **State Recording**: Records state events (user inputs, plans, completions) and manages job states in the database.
+- **Execution Hook Coordinator**: Dispatches pre-execution and post-execution hooks (e.g. dangerous tool checks).
+
+### 3. The Event Bus (`Aura::Kernel::EventBus`)
+An event-driven publisher-subscriber module that decouples core agent execution from user interfaces (CLI, Web client).
+- **Decoupled Monitoring**: Subscribes to events like `:plan_stream_start`, `:plan_event` (tokens), `:thought`, `:tool_start`, `:tool_result`, `:final_answer`, and `:loop_aborted`.
+- **Callback Bridging**: Transparently adapts block-style legacy callbacks to events.
+
+### 4. Execution Engine (`Aura::Kernel::ExecutionEngine`)
 Handles the low-level execution of tools.
 - **Routing**: Dispatches `mcp.*` tools to MCP Manager, `lsp_*` to LSP, and local tools to `Open3`.
 - **Runtime Resolution**: Maps `runtime: python3` in manifest to actual paths via `config.yml`.
 - **Output Parsing**: Captures stdout/stderr. Expects JSON output from tools.
 
-### 3. Tool Validator (`Aura::Kernel::ToolValidator`)
+### 5. Tool Validator (`Aura::Kernel::ToolValidator`)
 Enforces the "Evolution Loop" quality gate.
 - **Checks**: Presence of `manifest.json`, `logic.py`, and `test.py` (unless `skip_test: true`).
 - **Verification**: Runs `test.py` before a tool can be `[ACTIVE]`.
