@@ -28,5 +28,10 @@
     "required": [
       "command"
     ]
+  },
+  "memory": {
+    "retention": "ephemeral",
+    "summarize": true,
+    "description": "Shell command results are ephemeral - summarize quickly"
   }
 }

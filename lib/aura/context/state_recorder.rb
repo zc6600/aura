@@ -90,6 +90,7 @@ module Aura
       end
 
       # Record a learning/reflection event
+      # @deprecated Currently not used - empty learn events provide no value
       # @param content [String, nil] Optional learning content
       # @return [Integer] Event ID
       def record_learn(content = nil)

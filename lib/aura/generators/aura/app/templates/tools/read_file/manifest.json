@@ -35,5 +35,8 @@
             "file_path"
         ]
     },
-    "attach_output_to_summary": false
+    "memory": {
+        "retention": "working",
+        "description": "File read operations are working memory - keep for session"
+    }
 }

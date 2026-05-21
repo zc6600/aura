@@ -3,8 +3,9 @@
 ## Scope & Paths
 
 This document explains how Aura OS assembles the "Agent Mind" (the prompt) and manages long-term memory.
-- **Framework Code**: `lib/aura/context/` (EnvironmentProvider, ToolProvider, StateProvider).
-- **Project Context**: `state/aura.db` (SQLite) and `config/config.yml`.
+- **Framework Code**: `lib/aura/context/` (EnvironmentProvider, ToolProvider, StateProvider, StateRecorder, SessionManager).
+- **Project Context**: `state/sessions/*.db` (SQLite, session-isolated) and `config/config.yml`.
+- **Memory Metabolism**: `lib/aura/kernel/memory_metabolizer.rb`.
 
 ---
 
@@ -26,53 +27,245 @@ Manages the "Tool Box".
 - **MCP Integration**: Merges external tools (`mcp.*`) into the list.
 
 ### C. State Provider (`Aura::Context::StateProvider`)
-Connects to SQLite (`state/aura.db`) to retrieve history.
-- **Recent Events**: The last N raw interactions (Phase, Tool, Payload).
-- **Summaries**: High-level narrative of older history.
+Connects to SQLite (`state/sessions/*.db`) to retrieve history.
+- **Recent Events**: The last N raw interactions in **chronological order** (Phase, Tool, Payload, Thought).
+- **Summaries**: High-level narrative of older history (both Call Summaries and Metabolism Summaries).
 - **Variables**: Persistent Key-Value store (e.g., user preferences).
 
 ---
 
-## 2. Metabolism (Memory Management)
+## 2. Read-Write Separation Pattern
 
-To prevent context overflow, Aura implements a "Metabolism" cycle.
+Aura implements a clean separation between state reading and writing:
 
-### Mechanism
-1. **Trigger**: When event log size > `state_management.max_state_chars` (default 20000).
-2. **Slice**: The Kernel keeps the last `recent_events_n` events (default 20).
-3. **Synthesize**: Older events are summarized into a narrative paragraph via `NarrativeService`.
-4. **Persist**: The summary is saved to the `summaries` table, and old raw events are deleted.
+### StateRecorder (Write Side)
+- **Location**: `lib/aura/context/state_recorder.rb`
+- **Purpose**: Type-safe event recording interface
+- **Methods**:
+  - `record_user(input)` - Record user input
+  - `record_plan(plan_hash)` - Record LLM plan with tool, args, summary, thought
+  - `record_execution(tool, result)` - Record tool execution results
+  - `record_interception(tool, advice)` - Record tool halts
+  - `record_custom(phase, payload)` - Record custom events
 
-### Configuration (`config/config.yml`)
-```yaml
-state_management:
-  db_path: "state/aura.db"
-  max_state_chars: 20000
-  recent_events_n: 20
+### StateProvider (Read Side)
+- **Location**: `lib/aura/context/state_provider.rb`
+- **Purpose**: Format events for LLM context
+- **Features**:
+  - Returns events in **chronological order** (not grouped by layers)
+  - Extracts and prioritizes `thought` field from plan events
+  - Includes both call summaries and metabolism summaries
+  - Applies context compression if needed
+
+---
+
+## 3. Session-Isolated State
+
+Each conversation (session) has its own isolated SQLite database:
+
+### Architecture
+```
+state/
+├── active_session.txt          # Current session name
+├── sessions/
+│   ├── default.db              # Default session
+│   ├── session_001.db          # Research session
+│   └── session_002.db          # Coding session
+└── aura.db                     # (Legacy, auto-migrated)
 ```
 
+### Environment Contract
+- `ENV["AURA_SESSION_NAME"]` - Session identifier
+- `ENV["AURA_STATE_DB_PATH"]` - Direct DB path (overrides session name)
+
+### SessionManager API
+- `create(name)` - Create new session
+- `activate(name)` - Switch to session
+- `delete(name)` - Delete session
+- `duplicate(source, target)` - Copy session
+- `export(name)` - Export session
+- `import(path)` - Import session
+
+See [SESSION_ARCHITECTURE.md](SESSION_ARCHITECTURE.md) for details.
+
 ---
 
-## 2.5 Context Assembly Compression (Metabolic Compression)
+## 4. Memory Metabolism System
 
-When assembling the prompt at runtime, if the total length of all segments combined exceeds `max_state_chars`, Aura applies a multi-tiered context compression algorithm (`Aura::Context::Base#compress_content`) to fit within limits:
+### Tiered Retention Strategy
 
-1. **Event-level Payload Truncation**: Truncates any raw event history payload exceeding `context_compression.event_max_chars` (default `800` chars), appending a notice that the full raw payload is saved in SQLite database.
-2. **Event Count Reduction**: Trims older raw events from the bottom of the history if the prompt still exceeds limits, down to a minimum count `context_compression.event_min_count_threshold` (default `10`).
-3. **Section Discarding**: Drops other less critical sections one by one based on `drop_order` (`[:directive, :task, :env, :lsp, :index, :active, :workspace]`).
-4. **Extreme History Trim**: Drops history events down to a single latest event.
+Aura implements a sophisticated memory metabolism system with 4 retention tiers:
 
-*Note: Persistent Facts (`:knowledge`) and core Agent Memory structures are preserved and never dropped.*
+| Tier | Name | Events | Retention | Summarize |
+|------|------|--------|-----------|-----------|
+| 1 | Ephemeral | execution, observe | 3-5 steps | ✅ Yes |
+| 2 | Working | plan, user | 50 steps | ❌ No |
+| 3 | Insights | learn, interception | 200 steps | ✅ Yes |
+| 4 | Permanent | milestone | Forever | ❌ No |
+
+### Configuration Sources (Priority Order)
+
+1. **Tool Manifest** (highest priority)
+   ```json
+   {
+     "name": "bash_command",
+     "memory": {
+       "retention": "ephemeral",
+       "summarize": true,
+       "max_steps": 5
+     }
+   }
+   ```
+
+2. **Global Config** (`config.yml`)
+   ```yaml
+   state_management:
+     retention:
+       execution: { max_steps: 10, summarize: true }
+   ```
+
+3. **Code Defaults** (`MemoryMetabolizer::DEFAULT_RETENTION`)
+
+### Metabolism Process
+
+```mermaid
+graph LR
+    A[Runner.observe] --> B{Check triggers}
+    B -->|Events > threshold| C[Select old events]
+    B -->|Under limit| Z[Skip]
+    C --> D[Apply retention policy]
+    D -->|summarize=true| E[NarrativeService.synthesize]
+    D -->|summarize=false| F[Mark for deletion]
+    D -->|permanent=true| G[Keep forever]
+    E --> H[commit_summary]
+    H --> F
+    F --> I[Delete old events]
+    I --> J[Emit events to Bridge]
+    
+    style A fill:#e1f5ff
+    style E fill:#ffe1cc
+    style G fill:#ccccff
+    style J fill:#fff3e1
+```
+
+### MemoryMetabolizer Class
+- **Location**: `lib/aura/kernel/memory_metabolizer.rb`
+- **Called from**: `Runner.observe()` before context assembly
+- **Event Bus**: Emits `:metabolism_start`, `:metabolism_summary`, `:metabolism_complete`
+- **Registry Integration**: Reads manifest `memory` field for tool-specific retention
 
 ---
 
-## 3. Database Schema (SQLite)
+## 5. Two Types of Summaries
 
-The `state/aura.db` file contains three tables:
+Aura uses two distinct summary mechanisms:
 
-1. **events**:
-   - `id`, `timestamp`, `phase` (observe/plan/execute), `tool`, `payload` (JSON).
-2. **summaries**:
-   - `id`, `timestamp`, `content` (text).
-3. **variables**:
-   - `key` (primary key), `value` (JSON/Text).
+### Call Summary (工具调用摘要)
+- **Source**: LLM returns `summary` field in tool call response
+- **Timing**: Every tool execution
+- **Config**: `tool_protocol.call_summary.*`
+- **Purpose**: Quick record of "what agent did"
+- **Example**: `"读取配置文件检查数据库设置"`
+
+### Metabolism Summary (代谢总结)
+- **Source**: NarrativeService calls LLM to generate narrative
+- **Timing**: When metabolism is triggered (events exceed threshold)
+- **Config**: `state_management.summarization.*`
+- **Purpose**: Compress old events into concise narrative
+- **Example**: `"Agent read config.yml, attempted to write test.rb but failed due to syntax error, then fixed and verified."`
+
+See [TWO_TYPES_OF_SUMMARIES.md](TWO_TYPES_OF_SUMMARIES.md) for complete comparison.
+
+---
+
+## 6. Context Compression
+
+When assembling the prompt at runtime, if the total length exceeds `max_state_chars`, Aura applies multi-tiered compression:
+
+1. **Event-level Payload Truncation**: Truncates raw event payloads > `event_max_chars` (default 800)
+2. **Event Count Reduction**: Trims older events down to `event_min_count_threshold` (default 10)
+3. **Section Discarding**: Drops less critical sections based on `drop_order`
+4. **Extreme History Trim**: Drops history down to single latest event
+
+*Note: Persistent Facts (`:knowledge`) and core Agent Memory structures are preserved.*
+
+---
+
+## 7. Database Schema (SQLite)
+
+Each session database contains:
+
+### events table
+- `id` - Auto-increment primary key
+- `timestamp` - Unix timestamp
+- `phase` - Event phase (user/plan/execution/observe/learn/interception)
+- `tool` - Tool name (nullable)
+- `payload` - JSON payload with event details
+
+### summaries table
+- `id` - Auto-increment primary key
+- `timestamp` - Unix timestamp
+- `content` - Summary text
+- `source_event_id` - Link to originating event (for Call Summaries)
+
+### variables table
+- `key` - Primary key (string)
+- `value` - JSON/Text value
+
+### undone_events & undone_summaries tables
+- Support undo/redo functionality
+- Mirror structure of events and summaries tables
+
+---
+
+## 8. Configuration Reference
+
+### state_management (config.yml)
+```yaml
+state_management:
+  max_state_chars: 100000           # Trigger metabolism at this char count
+  recent_events_n: 20               # Keep this many recent events
+  keep_last_summary_n_steps: 20     # Keep this many recent summaries
+  
+  summarization:
+    enabled: true
+    max_chars: 500                  # Max length for metabolism summaries
+    model: "gpt-4o"                 # Optional: specific model for summaries
+    focus_on:                       # Summary focus areas
+      - "key_files_modified"
+      - "critical_test_results"
+      - "blockers_encountered"
+      - "cumulative_result"
+  
+  retention:
+    execution: { max_steps: 5, summarize: true }
+    observe: { max_steps: 3, summarize: false }
+    plan: { max_steps: 50, summarize: false }
+    user: { max_steps: 100, summarize: false }
+    learn: { max_steps: 200, summarize: true }
+    interception: { max_steps: 100, summarize: false }
+    milestone: { permanent: true }
+```
+
+### tool_protocol.call_summary (config.yml)
+```yaml
+tool_protocol:
+  call_summary:
+    suggested_chars: 120            # Suggested summary length for LLM
+    max_chars: 256                  # Max summary length (truncate if exceeded)
+    attach_max_chars: 1024          # (Deprecated: removed)
+```
+
+### memory field (manifest.json)
+```json
+{
+  "memory": {
+    "retention": "ephemeral",
+    "summarize": true,
+    "max_steps": 5,
+    "permanent": false,
+    "description": "Optional human-readable description"
+  }
+}
+```
+

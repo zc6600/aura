@@ -84,6 +84,20 @@ module Aura
           end
         end
 
+        # Metabolism events from Runner
+        bus.subscribe(:metabolism_start) do |payload|
+          notify(:on_thought, "🔄 Optimizing memory... (#{payload[:event_count]} events, #{payload[:total_chars]} chars)", 0)
+        end
+
+        bus.subscribe(:metabolism_summary) do |payload|
+          # Optional: Show summary content
+          # notify(:on_thought, "📝 Summary: #{payload[:content]}", 0)
+        end
+
+        bus.subscribe(:metabolism_complete) do |payload|
+          notify(:on_thought, "✅ Memory optimized (removed #{payload[:deleted_count]} old events)", 0)
+        end
+
         # Instantiate and run AgentLoop
         agent_loop = Aura::Kernel::AgentLoop.new(@runner, event_bus: bus)
         

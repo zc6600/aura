@@ -9,6 +9,7 @@ require "aura/kernel/tool_validator"
 require "aura/kernel/execution_engine"
 require "aura/ext/lsp/manager"
 require "aura/kernel/planner"
+require "aura/kernel/memory_metabolizer"
 require_relative "event_emitter"
 require_relative "hooks"
 require_relative "job"
@@ -30,6 +31,12 @@ module Aura
         @lsp_manager = Aura::LSP::Manager.new(@project_path)
         @engine = Aura::Kernel::ExecutionEngine.new(@project_path, env_path: @env_path, lsp_manager: @lsp_manager)
         @registry = Aura::Kernel::ToolRegistry.new(@env_path)
+        @metabolizer = Aura::Kernel::MemoryMetabolizer.new(
+          @state,
+          event_bus: self,  # Runner acts as event_bus (has emit method)
+          config: { project_path: @project_path },
+          registry: @registry  # Pass registry to read manifest memory settings
+        )
         @context_manager = Aura::Context::Manager.new(@env_path)
         @hooks = Aura::Kernel::Hooks.new
         @planner = Aura::Kernel::Planner.new(@project_path, env_path: @env_path)
@@ -83,7 +90,7 @@ module Aura
 
       def observe
         @state.record_event({ phase: "observe" })
-        @state.metabolize_if_needed
+        @metabolizer.metabolize  # Now uses MemoryMetabolizer with event_bus
         auto_verify_core_tools
         Aura::Context.assemble(@project_path, @state, lsp_manager: @lsp_manager)
       end
@@ -172,20 +179,12 @@ module Aura
         handle_context_lifecycle(tool, args, res)
         begin
           maxc = fetch_call_summary_max
-          attachc = fetch_summary_attach_max
           s = summary.to_s if summary
-          attach = manifest_attach_output_to_summary?(tool)
-          if attach
-            body = res["content"] || res["output"] || res.to_json
-            b = body.to_s
-            s = [s, b].join("\n") if attachc && b.length <= attachc.to_i
-          end
           s = s[0, maxc] if maxc && s.length > maxc
           @state.commit_summary(s, call_seq || event_id) if s && !s.empty?
         rescue StandardError
         end
         @state.metabolize_if_needed
-        @recorder.record_learn
         res
       end
 
@@ -224,21 +223,6 @@ module Aura
         end
         def fetch_call_summary_max
           load_config.dig("tool_protocol", "call_summary", "max_chars")
-        end
-
-        def fetch_summary_attach_max
-          v = load_config.dig("tool_protocol", "call_summary", "attach_max_chars")
-          v ? v.to_i : 1024
-        end
-
-        def manifest_attach_output_to_summary?(tool)
-          begin
-            tool_data = @registry.find(tool)
-            return false unless tool_data
-            (tool_data[:manifest] || {}).fetch("attach_output_to_summary", false) == true
-          rescue StandardError
-            false
-          end
         end
 
         def core_tools_from_config

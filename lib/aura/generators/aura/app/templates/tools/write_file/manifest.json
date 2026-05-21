@@ -22,5 +22,9 @@
       "content"
     ]
   },
-  "attach_output_to_summary": false
+  "memory": {
+    "retention": "working",
+    "summarize": false,
+    "description": "File write operations are working memory - track file changes"
+  }
 }

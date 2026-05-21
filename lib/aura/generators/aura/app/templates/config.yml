@@ -23,12 +23,41 @@ state_management:
   keep_last_summary_n_steps: 20
   recent_events_n: 20
   
-  # 总结策略
+  # 代谢总结策略 (Metabolism Summarization)
+  # 当旧事件被清理时，调用 LLM 生成叙事性总结
   summarization:
     enabled: true
-    model: "gpt-4o" # 或你使用的其他总结模型
-    keep_last_n_steps: 5 # 压缩时保留最近的 5 条原始操作记录
-    compression_ratio: 0.2 # 目标压缩比
+    max_chars: 500              # 代谢总结的最大字符数
+    model: "gpt-4o"             # 总结使用的模型（可选，默认用 llm.model）
+    focus_on:                   # 总结时关注的重点
+      - "key_files_modified"
+      - "critical_test_results"
+      - "blockers_encountered"
+      - "cumulative_result"
+    
+  # 记忆分层保留策略 (Retention Tiers)
+  # 不同类型的事件有不同的保留时间
+  retention:
+    execution:                  # Tier 1: 瞬态 - 工具执行结果
+      max_steps: 5              # 保留最近 5 步
+      summarize: true           # 可以被代谢总结替代
+    observe:                    # Tier 1: 瞬态 - 观察事件
+      max_steps: 3
+      summarize: false
+    plan:                       # Tier 2: 工作记忆 - 计划/决策
+      max_steps: 50             # 保留整个会话
+      summarize: false
+    user:                       # Tier 2: 工作记忆 - 用户输入
+      max_steps: 100
+      summarize: false
+    learn:                      # Tier 3: 洞察 - 学习/反思
+      max_steps: 200
+      summarize: true
+    interception:               # Tier 3: 洞察 - 工具拦截/错误
+      max_steps: 100
+      summarize: false
+    milestone:                  # Tier 4: 永久 - 关键里程碑
+      permanent: true           # 永不删除
 
 # ----------------------------------------------------------------
 # 工具进化协议 (Tool Evolution Protocol)

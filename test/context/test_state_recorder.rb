@@ -121,21 +121,6 @@ class TestStateRecorder < Minitest::Test
     refute events[0]["payload"].key?("reason")
   end
 
-  def test_record_learn
-    event_id = @recorder.record_learn("Learned that files exist")
-    assert event_id.is_a?(Integer)
-
-    events = @state.send(:get_recent_events_structured, phases: ["learn"])
-    assert_equal 1, events.size
-    assert_equal "Learned that files exist", events[0]["payload"]["content"]
-  end
-
-  def test_record_learn_without_content
-    @recorder.record_learn
-    events = @state.send(:get_recent_events_structured, phases: ["learn"])
-    refute events[0]["payload"].key?("content")
-  end
-
   def test_record_custom_event
     event_id = @recorder.record_custom("custom_phase", { data: "test", value: 42 })
     assert event_id.is_a?(Integer)
@@ -150,12 +135,11 @@ class TestStateRecorder < Minitest::Test
     events = [
       { type: "user", content: "Hello" },
       { type: "plan", plan: { tool: "read_file", args: {}, thought: "Thinking", summary: "Read" } },
-      { type: "execution", tool: "read_file", result: { status: "ok" }, call_seq: 1 },
-      { type: "learn", content: "Learning" }
+      { type: "execution", tool: "read_file", result: { status: "ok" }, call_seq: 1 }
     ]
 
     event_ids = @recorder.record_batch(events)
-    assert_equal 4, event_ids.size
+    assert_equal 3, event_ids.size
     assert event_ids.all? { |id| id.is_a?(Integer) }
 
     # Verify all events were recorded
@@ -164,7 +148,6 @@ class TestStateRecorder < Minitest::Test
     assert_includes phases, "user"
     assert_includes phases, "plan"
     assert_includes phases, "execution"
-    assert_includes phases, "learn"
   end
 
   def test_complete_workflow
@@ -181,13 +164,11 @@ class TestStateRecorder < Minitest::Test
     
     result = { status: "ok", output: "file1.rb\nfile2.rb" }
     exec_id = @recorder.record_execution("bash_command", result, call_seq: user_id)
-    
-    @recorder.record_learn("User is interested in Ruby files")
 
     # Verify all events are in order
     all_events = @state.send(:get_recent_events_structured)
-    assert_equal 4, all_events.size
-    assert_equal ["user", "plan", "execution", "learn"], all_events.map { |e| e["phase"] }
+    assert_equal 3, all_events.size
+    assert_equal ["user", "plan", "execution"], all_events.map { |e| e["phase"] }
     
     # Verify plan has thought
     plan_payload = all_events[1]["payload"]
