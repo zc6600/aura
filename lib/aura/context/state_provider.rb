@@ -121,6 +121,7 @@ module Aura
                 plan_data = pl.is_a?(Hash) ? pl : {}
                 plan_tool = plan_data["tool"] || plan_data[:tool]
                 summary = plan_data["summary"] || plan_data[:summary]
+                thought = plan_data["thought"] || plan_data[:thought]
                 if plan_tool.to_s == "final"
                   # For final answers, show the content
                   final_content = (plan_data["args"] || plan_data[:args] || {})["content"]
@@ -128,8 +129,10 @@ module Aura
                   txt = txt[0, 200] + "..." if txt.length > 200
                   body = "Agent: #{txt.empty? ? 'Task completed' : txt}"
                 else
-                  # For tool calls, show the summary or tool name
-                  body = if summary && !summary.to_s.strip.empty?
+                  # For tool calls, show thought (reasoning) if present, otherwise summary or tool name
+                  body = if thought && !thought.to_s.strip.empty?
+                    "Agent: #{thought.to_s.gsub(/\s+/, " ").strip}"
+                  elsif summary && !summary.to_s.strip.empty?
                     "Agent: #{summary.to_s.gsub(/\s+/, " ").strip}"
                   else
                     "Agent: Calling #{plan_tool}"

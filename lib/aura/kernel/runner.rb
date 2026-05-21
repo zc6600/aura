@@ -3,6 +3,7 @@ require "open3"
 require "aura"
 require "aura/context"
 require "aura/kernel/state"
+require "aura/context/state_recorder"
 require "aura/kernel/registry"
 require "aura/kernel/tool_validator"
 require "aura/kernel/execution_engine"
@@ -24,6 +25,7 @@ module Aura
         @env_path = Aura.environment_path(@project_path)
         
         @state = Aura::Kernel::State.new(@env_path)
+        @recorder = Aura::Context::StateRecorder.new(@state)
         @validator = Aura::Kernel::ToolValidator.new(@env_path, nil, @state)
         @lsp_manager = Aura::LSP::Manager.new(@project_path)
         @engine = Aura::Kernel::ExecutionEngine.new(@project_path, env_path: @env_path, lsp_manager: @lsp_manager)
@@ -98,7 +100,7 @@ module Aura
         goal = payload[:goal]
 
         res = @planner.plan(ctx, goal)
-        @state.record_event({ phase: "plan", plan: res })
+        @recorder.record_plan(res)
         res
       end
 
@@ -114,12 +116,12 @@ module Aura
         res = @planner.plan_stream(ctx, goal) do |ev|
           yield(ev) if block_given?
         end
-        @state.record_event({ phase: "plan", plan: res })
+        @recorder.record_plan(res)
         res
       end
 
       def record_user_input(input)
-        @last_user_event_id = @state.record_event({ phase: "user", content: input })
+        @last_user_event_id = @recorder.record_user(input)
         @current_job.add_event(@last_user_event_id) if @current_job
         @last_user_event_id
       end
@@ -140,13 +142,13 @@ module Aura
         st = @validator.status_for(tool)
         unless st[:state] == "ready"
           advice = st[:reason]
-          @state.record_event({ phase: "interception", tool: tool, advice: advice })
+          @recorder.record_interception(tool, advice)
           emit(:tool_blocked, { tool: tool, reason: advice })
           return { status: "blocked", advice: advice }
         end
         act = @validator.ensure_active(tool)
         unless act[:ok]
-          @state.record_event({ phase: "interception", tool: tool, advice: act[:advice] })
+          @recorder.record_interception(tool, act[:advice])
           emit(:tool_blocked, { tool: tool, reason: act[:advice] })
           return { status: "upgrade_required", advice: act[:advice] }
         end
@@ -164,7 +166,7 @@ module Aura
 
         res["final"] = true if ["final", "final_answer"].include?(tool.to_s) && res.is_a?(Hash)
         call_seq = @last_user_event_id
-        event_id = @state.record_event({ phase: "execution", tool: tool, result: res, call_seq: call_seq })
+        event_id = @recorder.record_execution(tool, res, call_seq: call_seq)
         @current_job.add_event(event_id) if @current_job
         
         handle_context_lifecycle(tool, args, res)
@@ -183,7 +185,7 @@ module Aura
         rescue StandardError
         end
         @state.metabolize_if_needed
-        @state.record_event({ phase: "learn" })
+        @recorder.record_learn
         res
       end
 

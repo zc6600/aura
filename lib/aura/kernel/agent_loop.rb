@@ -61,6 +61,12 @@ module Aura
             next
           end
 
+          # Emit thought if present (mixed response: tool + reasoning)
+          thought = plan[:thought] || plan["thought"]
+          if thought && !thought.to_s.empty?
+            @event_bus.emit(:thought, content: thought.to_s)
+          end
+
           tool_name = (plan[:tool] || plan["tool"]).to_s
           format_errors = 0
 

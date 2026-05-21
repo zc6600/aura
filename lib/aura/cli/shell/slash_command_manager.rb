@@ -2,6 +2,7 @@
 
 require "yaml"
 require "fileutils"
+require "aura/context/session_manager"
 
 module Aura
   module CLI
@@ -41,23 +42,26 @@ module Aura
         private
 
         def handle_session(args)
-          env_path = Aura.environment_path(@project_path)
-          sessions_dir = File.join(env_path, "state", "sessions")
-          active_txt = File.join(env_path, "state", "active_session.txt")
-          current = File.exist?(active_txt) ? File.read(active_txt).strip : "default"
+          session_mgr = Aura::Context::SessionManager.new(@project_path)
 
           if args.nil? || args.empty? || args.strip.downcase == "list"
+            sessions = session_mgr.list
+            current = session_mgr.current_name
+
             puts "Aura Conversation Sessions:"
             puts "-" * 60
-            if File.directory?(sessions_dir)
-              Dir.glob(File.join(sessions_dir, "*.db")).each do |db_file|
-                name = File.basename(db_file, ".db")
-                active_star = (name == current) ? "* " : "  "
-                puts "#{active_star}#{name}"
-              end
+            
+            if sessions.empty?
+              puts "  No sessions found."
+              puts "  Create one: aura session create <name>"
             else
-              puts "  * default"
+              sessions.each do |s|
+                active_star = (s[:name] == current) ? "* " : "  "
+                events = s[:event_count] || 0
+                puts "#{active_star}#{s[:name].to_s.ljust(30)} (#{events} events)"
+              end
             end
+            
             puts "-" * 60
             puts "Usage: /session <session_name>  - Switch session"
             puts "       /session new             - Start a new timestamped session"
@@ -65,12 +69,20 @@ module Aura
             name = args.strip
             if name.downcase == "new"
               name = "session_#{Time.now.strftime('%Y%m%d_%H%M%S')}"
+              
+              # Create the session if it doesn't exist
+              unless session_mgr.exists?(name)
+                session_mgr.create(name)
+              end
             end
 
-            FileUtils.mkdir_p(File.dirname(active_txt))
-            File.write(active_txt, name)
-            ENV["AURA_SESSION_NAME"] = name
+            unless session_mgr.exists?(name)
+              puts "\e[31m⛔️ Session '#{name}' does not exist\e[0m"
+              puts "Create it first: /session new"
+              return
+            end
 
+            session_mgr.activate(name)
             puts "🔄 Switching conversation session to '#{name}'..."
             
             if @on_reload

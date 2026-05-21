@@ -8,6 +8,7 @@ require "aura/llm/client"
 require "aura/cli/commands/dashboard"
 require "aura/cli/shell/executor"
 require "aura/cli/shell/slash_command_manager"
+require "aura/context/session_manager"
 
 module Aura
   module CLI
@@ -31,6 +32,13 @@ module Aura
         def setup_environment
           @runner = Aura::Kernel::Runner.new(@project_path)
           @config = load_config
+          
+          # Initialize session management
+          @session_mgr = Aura::Context::SessionManager.new(@project_path)
+          current_session = @session_mgr.current_name
+          if current_session
+            puts "\e[33m📝 Session: #{current_session}\e[0m" if @options[:verbose]
+          end
           
           if @options[:verbose]
             @config["verbose"] = true 
