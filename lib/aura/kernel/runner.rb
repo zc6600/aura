@@ -35,6 +35,16 @@ module Aura
         @lock = Mutex.new # Serialize executions
       end
 
+      def load_config
+        path = File.join(@env_path, "config", "config.yml")
+        begin
+          require "yaml"
+          File.exist?(path) ? YAML.load_file(path) : {}
+        rescue StandardError
+          {}
+        end
+      end
+
       def start_job(metadata = {})
         @lock.synchronize do
           if @current_job && @current_job.status == :running
@@ -208,27 +218,12 @@ module Aura
           end
         end
         def fetch_call_summary_max
-          path = File.join(@env_path, "config", "config.yml")
-          return nil unless File.exist?(path)
-          begin
-            require "yaml"
-            data = YAML.load_file(path)
-            data.dig("tool_protocol", "call_summary", "max_chars")
-          rescue StandardError
-            nil
-          end
+          load_config.dig("tool_protocol", "call_summary", "max_chars")
         end
 
         def fetch_summary_attach_max
-          path = File.join(@env_path, "config", "config.yml")
-          begin
-            require "yaml"
-            data = File.exist?(path) ? YAML.load_file(path) : {}
-            v = data.dig("tool_protocol", "call_summary", "attach_max_chars")
-            v ? v.to_i : 1024
-          rescue StandardError
-            1024
-          end
+          v = load_config.dig("tool_protocol", "call_summary", "attach_max_chars")
+          v ? v.to_i : 1024
         end
 
         def manifest_attach_output_to_summary?(tool)
@@ -242,27 +237,13 @@ module Aura
         end
 
         def core_tools_from_config
-          path = File.join(@env_path, "config", "config.yml")
-          begin
-            require "yaml"
-            data = File.exist?(path) ? YAML.load_file(path) : {}
-            list = data.dig("tool_protocol", "core_tools") || []
-            list.is_a?(Array) ? list.compact.map(&:to_s) : []
-          rescue StandardError
-            []
-          end
+          list = load_config.dig("tool_protocol", "core_tools") || []
+          list.is_a?(Array) ? list.compact.map(&:to_s) : []
         end
 
         def auto_verify_from_config
-          path = File.join(@env_path, "config", "config.yml")
-          begin
-            require "yaml"
-            data = File.exist?(path) ? YAML.load_file(path) : {}
-            list = data.dig("tool_protocol", "auto_verify") || []
-            list.is_a?(Array) ? list.compact.map(&:to_s) : []
-          rescue StandardError
-            []
-          end
+          list = load_config.dig("tool_protocol", "auto_verify") || []
+          list.is_a?(Array) ? list.compact.map(&:to_s) : []
         end
 
         def auto_verify_core_tools

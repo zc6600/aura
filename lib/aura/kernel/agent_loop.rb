@@ -20,9 +20,10 @@ module Aura
       # Run the agent loop to achieve a goal.
       # @param goal [String]
       # @param ctx [String, nil] Starting context. If nil, runner.observe is used.
-      # @param max_steps [Integer] Maximum execution steps to prevent infinite loop.
+      # @param max_steps [Integer, nil] Maximum execution steps to prevent infinite loop. If nil, read from config.
       # @return [Result]
-      def run(goal, ctx: nil, max_steps: 30)
+      def run(goal, ctx: nil, max_steps: nil)
+        limit_steps   = max_steps || max_steps_from_config
         ctx           = ctx || observe
         format_errors = 0
         tool_errors   = 0
@@ -30,8 +31,8 @@ module Aura
         step_count    = 0
 
         loop do
-          if step_count >= max_steps
-            @event_bus.emit(:loop_aborted, reason: "Max execution steps reached (#{max_steps})")
+          if step_count >= limit_steps
+            @event_bus.emit(:loop_aborted, reason: "Max execution steps reached (#{limit_steps})")
             return Result.new(status: :failed, steps: steps)
           end
 
@@ -55,7 +56,7 @@ module Aura
               @event_bus.emit(:no_response)
             end
 
-            if format_errors >= MAX_FORMAT_ERRORS
+            if format_errors >= max_format_errors
               @event_bus.emit(:loop_aborted, reason: :format_errors)
               return Result.new(status: :failed, steps: steps)
             end
@@ -87,7 +88,7 @@ module Aura
           when "blocked", "upgrade_required"
             tool_errors += 1
             @event_bus.emit(:tool_halted, tool: tool_name, status: result[:status], advice: result[:advice])
-            if tool_errors >= MAX_TOOL_ERRORS
+            if tool_errors >= max_tool_errors
               @event_bus.emit(:loop_aborted, reason: :tool_errors)
               return Result.new(status: :failed, steps: steps)
             end
@@ -101,6 +102,21 @@ module Aura
           # Update context with new observations
           ctx = observe
         end
+      end
+
+      def max_steps_from_config
+        cfg = @runner.respond_to?(:load_config) ? @runner.load_config : {}
+        cfg.dig("system", "max_steps") || 30
+      end
+
+      def max_format_errors
+        cfg = @runner.respond_to?(:load_config) ? @runner.load_config : {}
+        cfg.dig("system", "max_format_errors") || MAX_FORMAT_ERRORS
+      end
+
+      def max_tool_errors
+        cfg = @runner.respond_to?(:load_config) ? @runner.load_config : {}
+        cfg.dig("system", "max_tool_errors") || MAX_TOOL_ERRORS
       end
 
       private

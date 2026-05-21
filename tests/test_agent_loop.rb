@@ -182,4 +182,50 @@ class TestAgentLoop < Minitest::Test
     assert_equal :completed, res.status
     assert_equal "done", res.final_content
   end
+
+  def test_custom_config_limits
+    # Set custom config limits in runner
+    def @runner.load_config
+      {
+        "system" => {
+          "max_steps" => 2,
+          "max_format_errors" => 2,
+          "max_tool_errors" => 2
+        }
+      }
+    end
+
+    # 1. Test custom max_steps (limit is 2)
+    @runner.mock_plans = [
+      { tool: "bash_command", args: { "command" => "ls" } },
+      { tool: "bash_command", args: { "command" => "ls" } },
+      { tool: "final", args: { "content" => "done" } }
+    ]
+    @runner.mock_tool_results = [
+      { status: "success", content: "file.txt" },
+      { status: "success", content: "file.txt" }
+    ]
+    res = @loop.run("test steps limit")
+    assert_equal :failed, res.status
+    assert_equal 2, res.steps.size
+
+    # 2. Test custom max_format_errors (limit is 2)
+    @runner.mock_plans = [nil, nil, nil]
+    res2 = @loop.run("test format error limit")
+    assert_equal :failed, res2.status
+    assert_equal 4, @runner.plan_stream_called
+
+    # 3. Test custom max_tool_errors (limit is 2)
+    @runner.mock_plans = [
+      { tool: "bash_command", args: { "command" => "rm" } },
+      { tool: "bash_command", args: { "command" => "rm" } }
+    ]
+    @runner.mock_tool_results = [
+      { status: "blocked", advice: "fail" },
+      { status: "blocked", advice: "fail" }
+    ]
+    res3 = @loop.run("test tool error limit")
+    assert_equal :failed, res3.status
+    assert_equal 2, res3.steps.size
+  end
 end

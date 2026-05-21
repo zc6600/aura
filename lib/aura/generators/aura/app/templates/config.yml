@@ -7,6 +7,9 @@ system:
   workspace_root: "./projects" # 所有 Agent 项目的根目录
   default_language: "python3"
   log_level: "INFO"
+  max_steps: 30                # 智能体单轮运行的最大步数限制，防死循环
+  max_format_errors: 5         # 智能体单轮运行可容忍的最大 JSON 格式错误重试次数
+  max_tool_errors: 3           # 智能体单轮运行可容忍的最大工具执行阻断错误次数
 
 # ----------------------------------------------------------------
 # 记忆与代谢系统 (State Metabolism)
