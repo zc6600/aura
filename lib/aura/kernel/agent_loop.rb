@@ -125,7 +125,8 @@ module Aura
       end
 
       def wrap_text_as_final(plan)
-        content = plan && (plan[:content] || plan["content"]).to_s
+        return nil if plan.nil?
+        content = (plan[:content] || plan["content"]).to_s
         return nil if content.strip.empty?
         { type: "tool_call", tool: "final", args: { "content" => content }, summary: "Text response" }
       end
