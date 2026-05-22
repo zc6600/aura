@@ -1,17 +1,13 @@
-# Aura Framework Architecture
+# System Architecture
 
-## Scope & Paths
+This document describes the internal architecture of the **Aura Framework** (the Ruby gem code).
 
-This documentation describes the internal architecture of the **Aura Framework** (the Ruby gem code in this repository).
-- **Framework Root**: The root of this repository (`/Users/frank/Desktop/Towards AGI/aura/aura`).
-- **Generated Project**: The directory created by `aura new <project_name>`.
-- **Docs Location**: All internal implementation docs are located in `docs/internals/`.
+**Framework Root**: `/Users/frank/Desktop/Towards AGI/aura/aura`  
+**Generated Project**: Directory created by `aura new <project_name>`
 
 ---
 
-## 🏗️ Complete Architecture Overview
-
-### High-Level System Architecture
+## High-Level System Architecture
 
 ```mermaid
 graph TB
@@ -98,7 +94,7 @@ graph TB
 
 ---
 
-### Agent Loop - Plan-Execute Cycle
+## Agent Loop - Plan-Execute Cycle
 
 ```mermaid
 sequenceDiagram
@@ -158,7 +154,7 @@ sequenceDiagram
 
 ---
 
-### Memory Metabolism System
+## Memory Metabolism System
 
 ```mermaid
 graph LR
@@ -210,58 +206,7 @@ graph LR
 
 ---
 
-### Two Types of Summaries
-
-```mermaid
-graph TB
-    subgraph "Call Summary"
-        LLM1[LLM returns plan]
-        Extract[Extract summary field]
-        Commit1[commit_summary<br/>with call_seq]
-        Store1[(summaries table)]
-        
-        LLM1 --> Extract
-        Extract --> Commit1
-        Commit1 --> Store1
-    end
-    
-    subgraph "Metabolism Summary"
-        Trigger[Metabolism triggered]
-        Select[Select old events]
-        Narrative[NarrativeService.synthesize]
-        LLM2[LLM generates narrative]
-        Commit2[commit_summary<br/>Metabolism: ...]
-        Store2[(summaries table)]
-        
-        Trigger --> Select
-        Select --> Narrative
-        Narrative --> LLM2
-        LLM2 --> Commit2
-        Commit2 --> Store2
-    end
-    
-    subgraph "StateProvider Reads"
-        ReadEvents[Read recent events<br/>chronological order]
-        ReadSummaries[Read recent summaries]
-        Assemble[Assemble context<br/>for LLM]
-        
-        ReadEvents --> Assemble
-        ReadSummaries --> Assemble
-    end
-    
-    Store1 -.-> ReadSummaries
-    Store2 -.-> ReadSummaries
-    
-    style LLM1 fill:#e1f5ff
-    style LLM2 fill:#e1f5ff
-    style Store1 fill:#e1ffe1
-    style Store2 fill:#e1ffe1
-    style Assemble fill:#fff3e1
-```
-
----
-
-### Session Isolation Architecture
+## Session Isolation Architecture
 
 ```mermaid
 graph TB
@@ -305,7 +250,7 @@ graph TB
 
 ---
 
-### Tool Execution Pipeline
+## Tool Execution Pipeline
 
 ```mermaid
 flowchart TD
@@ -355,51 +300,52 @@ flowchart TD
 
 ## Module Map
 
-The framework documentation is organized by functional modules rather than implementation languages.
-
-### 1. [Kernel & Execution](KERNEL.md)
+### 1. [Kernel & Execution](kernel.md)
 The core runtime engine that orchestrates the agent's lifecycle.
-- **Execution Engine**: `Aura::Kernel::Runner` lifecycle (Observe -> Plan -> Execute -> Learn).
-- **Tool Protocol**: The "Evolution Loop", tool structure (`logic.py`, `manifest.json`), and validation gates.
-- **Memory Retention**: Tool-level memory configuration in manifest.json.
-- **Security**: Sandboxing, path isolation, and permission enforcement.
-- **Code Reference**: `lib/aura/kernel/`, `lib/aura/cli.rb`.
+- **Execution Engine**: `Aura::Kernel::Runner` lifecycle (Observe -> Plan -> Execute -> Learn)
+- **Tool Protocol**: The "Evolution Loop", tool structure (`logic.py`, `manifest.json`), and validation gates
+- **Memory Retention**: Tool-level memory configuration in manifest.json
+- **Security**: Sandboxing, path isolation, and permission enforcement
+- **Code Reference**: `lib/aura/kernel/`, `lib/aura/cli.rb`
 
-### 2. [Context & State](CONTEXT.md)
+### 2. [Context & State](context-and-state.md)
 How the agent maintains continuity and memory.
-- **State Management**: SQLite schema (`state/sessions/*.db`), event logging, and key-value storage.
-- **Read-Write Separation**: StateRecorder (write) vs StateProvider (read).
-- **Memory Metabolism**: Tiered retention strategy with manifest-based configuration.
-- **Two Summary Types**: Call Summary (from LLM) vs Metabolism Summary (from NarrativeService).
-- **Context Assembly**: Building the prompt context from state and environment.
-- **Code Reference**: `lib/aura/context/`, `lib/aura/kernel/state.rb`.
+- **State Management**: SQLite schema (`state/sessions/*.db`), event logging, and key-value storage
+- **Read-Write Separation**: StateRecorder (write) vs StateProvider (read)
+- **Memory Metabolism**: Tiered retention strategy with manifest-based configuration
+- **Two Summary Types**: Call Summary (from LLM) vs Metabolism Summary (from NarrativeService)
+- **Context Assembly**: Building the prompt context from state and environment
+- **Code Reference**: `lib/aura/context/`, `lib/aura/kernel/state.rb`
 
-### 3. [Session Architecture](SESSION_ARCHITECTURE.md)
+### 3. [Session Architecture](session-architecture.md)
 Session isolation and management.
-- **One Session, One DB**: Each conversation has an isolated SQLite database.
-- **Environment Contract**: `ENV["AURA_SESSION_NAME"]` decouples layers.
-- **Session Lifecycle**: Create, switch, delete, duplicate, export, import.
-- **CLI Integration**: `aura session` commands and `/session` slash command.
-- **Code Reference**: `lib/aura/context/session_manager.rb`.
+- **One Session, One DB**: Each conversation has an isolated SQLite database
+- **Environment Contract**: `ENV["AURA_SESSION_NAME"]` decouples layers
+- **Session Lifecycle**: Create, switch, delete, duplicate, export, import
+- **CLI Integration**: `aura session` commands and `/session` slash command
+- **Code Reference**: `lib/aura/context/session_manager.rb`
 
-### 4. [Integrations & Protocols](INTEGRATIONS.md)
+### 4. [Integrations & Protocols](integrations.md)
 Interfaces with the external world.
-- **Model Context Protocol (MCP)**: Client/Server architecture for connecting to external data sources.
-- **Hint System (LSP-lite)**: `.hint` files and `@aura-hint` tags for efficient code sensing.
-- **LSP Manager**: Language Server Protocol for code intelligence.
-- **Code Reference**: `lib/aura/mcp/`, `lib/aura/extension/`, `lib/aura/ext/lsp/`.
+- **Model Context Protocol (MCP)**: Client/Server architecture for connecting to external data sources
+- **Hint System (LSP-lite)**: `.hint` files and `@aura-hint` tags for efficient code sensing
+- **LSP Manager**: Language Server Protocol for code intelligence
+- **Code Reference**: `lib/aura/mcp/`, `lib/aura/extension/`, `lib/aura/ext/lsp/`
 
-### 5. [Framework Development](TESTING.md)
+### 5. [Memory Management](memory-management.md)
+Memory metabolism and retention strategies.
+- **Tiered Retention**: 4 tiers with different lifespans
+- **Configuration Sources**: Manifest → Config → Defaults
+- **Two Summary Types**: Call summaries vs metabolism summaries
+- **Narrative Service**: LLM-based event compression
+- **Code Reference**: `lib/aura/kernel/memory_metabolizer.rb`
+
+### 6. [Testing & Development](testing.md)
 Guide for contributors to the Aura framework itself.
-- **TDD Strategy**: How to run framework tests.
-- **Test Matrix**: Coverage of CLI, Generators, Runtime logic, and Memory Retention.
-- **Code Reference**: `test/`.
-
-### 6. [Global CLI Setup & PATH Integration](SETUP_AND_CLI.md)
-Details on packaging, one-click installation, and global binary resolution.
-- **Setup Script**: `bin/setup.sh` automated lifecycle.
-- **PATH Resolution**: Gem binaries and version manager shims (`Gem.bindir`).
-- **Source Root Check**: Framework pollution protection rules in `entry.rb`.
+- **TDD Strategy**: How to run framework tests
+- **Test Matrix**: Coverage of CLI, Generators, Runtime logic, and Memory Retention
+- **CI/CD Pipeline**: GitHub Actions workflow
+- **Code Reference**: `test/`
 
 ---
 
@@ -413,4 +359,10 @@ Details on packaging, one-click installation, and global binary resolution.
 6. **Configuration-Driven**: Behavior controlled by config.yml and manifest.json, not hardcoded
 7. **Tool Evolution**: Tools can be created, validated, tested, and improved by the agent itself
 
+---
 
+## See Also
+
+- [User Guide](../user-guide/getting-started.md) - For end users
+- [Kernel Documentation](kernel.md) - Execution engine details
+- [Context & State](context-and-state.md) - State management
