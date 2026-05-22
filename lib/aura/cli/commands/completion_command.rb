@@ -100,6 +100,7 @@ module Aura
                       "all[Update all sub-projects with latest templates]" \
                       "framework[Update Aura framework from source or remote]" \
                       "merge[Merge template updates with conflict resolution]" \
+                      "project[Update a single project by path or name]" \
                       "status[Check template update status for current project]"
                     ;;
                   template)
@@ -152,6 +153,10 @@ module Aura
                       ;;
                   update)
                       COMPREPLY=( $(compgen -W "all framework merge status" -- ${cur}) )
+                      return 0
+                      ;;
+                  framework)
+                      COMPREPLY=( $(compgen -W "--force --from-git" -- ${cur}) )
                       return 0
                       ;;
                   template)

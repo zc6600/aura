@@ -7,30 +7,64 @@ require "open3"
 module Aura
   module Commands
     class UpdateCommand < Thor
+      map "." => "current"
+      
       def self.exit_on_failure?
         true
       end
 
       desc "framework", "Update Aura framework from source or remote"
+      method_option :force, type: :boolean, aliases: "-f", desc: "Force rebuild and bypass all caches"
+      method_option :from_git, type: :string, aliases: "-g", desc: "Install directly from Git repository URL"
       def framework
         puts "🔄 Updating Aura Framework..."
         
-        # Detect if in source directory
+        # Priority 1: Install from Git URL (bypasses all caches)
+        if options[:from_git]
+          puts "📦 Installing from Git repository: #{options[:from_git]}"
+          system("gem build aura.gemspec") || exit(1)
+          
+          gem_name = Dir.glob("aura-*.gem").first
+          if gem_name
+            # Install from local gem (already built, no CDN)
+            puts "📦 Installing from local gem file..."
+            system("gem install #{gem_name.shellescape}")
+            puts "\e[32m✓ Framework updated from Git source!\e[0m"
+          else
+            puts "\e[31m⛔️ Failed to build gem!\e[0m"
+            exit 1
+          end
+          return
+        end
+        
+        # Priority 2: Detect if in source directory (developer workflow)
         if File.exist?("aura.gemspec")
-          puts "📦 Building from source..."
+          puts "📦 Building from local source..."
+          
+          if options[:force]
+            puts "⚡ Force mode: clearing gem cache..."
+            system("gem clean")
+          end
+          
           system("gem build aura.gemspec")
           gem_files = Dir.glob("aura-*.gem")
           if gem_files.any?
             system("gem install #{gem_files.last}")
             puts "\e[32m✓ Framework updated from source!\e[0m"
+            puts "💡 Tip: Use 'aura update framework --from-git <url>' to install from Git" if options[:force]
           else
             puts "\e[31m⛔️ Failed to build gem!\e[0m"
             exit 1
           end
         else
-          # Update from remote
+          # Priority 3: Update from RubyGems (with cache bypass if --force)
           puts "📦 Updating from RubyGems..."
-          system("gem update aura")
+          if options[:force]
+            puts "⚡ Force mode: bypassing CDN cache..."
+            system("gem update aura --clear-sources --source https://rubygems.org")
+          else
+            system("gem update aura")
+          end
           puts "\e[32m✓ Framework updated!\e[0m"
         end
       end
@@ -131,6 +165,98 @@ module Aura
         puts "Summary:"
         puts "  \e[32m✓ Success: #{success_count}\e[0m"
         puts "  \e[31m✗ Failed: #{fail_count}\e[0m"
+      end
+
+      desc "project PATH_OR_NAME", "Update a single project by path or name"
+      method_option :merge, type: :boolean, aliases: "-m", desc: "Use merge instead of pull"
+      def project(path_or_name)
+        projects = Aura.registered_projects
+        
+        # Try to find project by name first
+        aura_dir = nil
+        project_name = nil
+        project_path = nil
+        
+        if projects[path_or_name]
+          # Found by name
+          project_name = path_or_name
+          project_path = projects[path_or_name]
+          aura_dir = File.join(project_path, ".aura")
+        else
+          # Try to find by path (normalize path)
+          normalized_path = File.expand_path(path_or_name)
+          projects.each do |name, path|
+            if File.expand_path(path) == normalized_path
+              project_name = name
+              project_path = path
+              aura_dir = File.join(path, ".aura")
+              break
+            end
+          end
+          
+          # If not found in registry, check if it's a direct path to a workspace
+          if aura_dir.nil? && File.directory?(normalized_path)
+            potential_aura = File.join(normalized_path, ".aura")
+            if File.directory?(potential_aura)
+              project_name = File.basename(normalized_path)
+              project_path = normalized_path
+              aura_dir = potential_aura
+            end
+          end
+        end
+        
+        if aura_dir.nil? || !File.directory?(aura_dir)
+          puts "\e[31m⛔️ Error: Project '#{path_or_name}' not found or has no .aura directory\e[0m"
+          exit 1
+        end
+        
+        puts "\e[1m[#{project_name}]\e[0m #{project_path}\n"
+        
+        begin
+          if options[:merge]
+            puts "  Merging updates..."
+            merge_project(project_name, aura_dir)
+          else
+            puts "  Pulling updates..."
+            res = Aura::GlobalConfig.git_run(aura_dir, "pull", "--no-edit", "origin", "main")
+            if res[:success]
+              puts "  \e[32m✓ Updated\e[0m"
+            else
+              first_line = res[:stderr].lines.first&.strip || "Unknown error"
+              puts "  \e[31m✗ Failed: #{first_line}\e[0m"
+            end
+          end
+        rescue => e
+          puts "  \e[31m✗ Error: #{e.message}\e[0m"
+        end
+      end
+
+      desc "current", "Update current workspace templates (alias: aura update .)"
+      method_option :merge, type: :boolean, aliases: "-m", desc: "Use merge instead of pull"
+      def current
+        aura_dir = ensure_workspace!
+        project_path = File.dirname(aura_dir)
+        project_name = File.basename(project_path)
+        
+        puts "\e[1m[#{project_name}]\e[0m #{project_path}\n"
+        
+        begin
+          if options[:merge]
+            puts "  Merging updates..."
+            merge_project(project_name, aura_dir)
+          else
+            puts "  Pulling updates..."
+            res = Aura::GlobalConfig.git_run(aura_dir, "pull", "--no-edit", "origin", "main")
+            if res[:success]
+              puts "  \e[32m✓ Updated\e[0m"
+            else
+              first_line = res[:stderr].lines.first&.strip || "Unknown error"
+              puts "  \e[31m✗ Failed: #{first_line}\e[0m"
+            end
+          end
+        rescue => e
+          puts "  \e[31m✗ Error: #{e.message}\e[0m"
+        end
       end
 
       desc "merge", "Merge template updates from global repo with conflict resolution"

@@ -1,8 +1,20 @@
 # frozen_string_literal: true
 
+# Auto-generate version with timestamp for development builds
+# Format: 0.1.0.YYYYMMDDHHMMSS (e.g., 0.1.0.20260522143022)
+base_version = "0.1.0"
+
+# Check if building for release (AURA_RELEASE=1) or development
+if ENV["AURA_RELEASE"] == "1"
+  version = base_version
+else
+  # Development build: append timestamp to bypass CDN cache
+  version = "#{base_version}.#{Time.now.strftime('%Y%m%d%H%M%S')}"
+end
+
 Gem::Specification.new do |spec|
   spec.name          = "aura"
-  spec.version       = "0.1.0"
+  spec.version       = version
   spec.authors       = ["Aura Team"]
   spec.email         = ["support@aura-os.ai"]
   spec.summary       = "AI-native operating system for folder-as-workspace agents."
@@ -10,7 +22,8 @@ Gem::Specification.new do |spec|
   spec.license       = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
 
-  spec.files         = Dir["lib/**/*.rb", "bin/*", "README.md", "docs/**/*"]
+  spec.files         = Dir["lib/**/*", "bin/*", "README.md", "docs/**/*"] +
+                       ["lib/aura/generators/aura/app/templates/.gitignore"]
   spec.bindir        = "bin"
   spec.executables   = ["aura"]
   spec.require_paths = ["lib"]
