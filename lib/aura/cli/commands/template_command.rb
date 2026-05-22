@@ -16,8 +16,17 @@ module Aura
         puts "📦 Syncing templates from framework to global repo (~/.aura/repo)..."
         puts "=" * 60
         
-        gem_templates = File.expand_path("aura/generators/aura/app/templates", 
-                                         File.join(__dir__, "../../../../"))
+        # Find template path from gem installation directory
+        # __dir__ is .../lib/aura/cli/commands, so ../.. = .../lib/aura
+        lib_aura_path = File.expand_path("../..", __dir__)
+        gem_templates = File.join(lib_aura_path, "generators/aura/app/templates")
+        
+        # Fallback to source path if running from source
+        unless File.directory?(gem_templates)
+          gem_templates = File.expand_path("aura/generators/aura/app/templates", 
+                                           File.join(__dir__, "../../../../"))
+        end
+        
         global_repo = Aura::GlobalConfig.repo_path
         
         unless File.directory?(gem_templates)
@@ -71,8 +80,16 @@ module Aura
 
       desc "status", "Check template version and sync status"
       def status
-        gem_templates = File.expand_path("aura/generators/aura/app/templates", 
-                                         File.join(__dir__, "../../../../"))
+        # Find template path from gem installation directory
+        lib_aura_path = File.expand_path("../..", __dir__)
+        gem_templates = File.join(lib_aura_path, "generators/aura/app/templates")
+        
+        # Fallback to source path
+        unless File.directory?(gem_templates)
+          gem_templates = File.expand_path("aura/generators/aura/app/templates", 
+                                           File.join(__dir__, "../../../../"))
+        end
+        
         global_repo = Aura::GlobalConfig.repo_path
         
         puts "📊 Template Sync Status\n"
@@ -119,8 +136,16 @@ module Aura
 
       desc "diff", "Show differences between framework templates and global repo"
       def diff
-        gem_templates = File.expand_path("aura/generators/aura/app/templates", 
-                                         File.join(__dir__, "../../../../"))
+        # Find template path from gem installation directory
+        lib_aura_path = File.expand_path("../..", __dir__)
+        gem_templates = File.join(lib_aura_path, "generators/aura/app/templates")
+        
+        # Fallback to source path
+        unless File.directory?(gem_templates)
+          gem_templates = File.expand_path("aura/generators/aura/app/templates", 
+                                           File.join(__dir__, "../../../../"))
+        end
+        
         global_repo = Aura::GlobalConfig.repo_path
         
         unless File.directory?(gem_templates)
