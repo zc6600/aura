@@ -64,10 +64,6 @@ module Aura
         payload = options[:call] ? JSON.parse(options[:call]) : nil
         if payload.nil? && !input.empty?
           plan = runner.plan(input, ctx)
-          if plan && plan[:type] == "text"
-            c = plan[:content] || plan["content"]
-            plan = { tool: "final", args: { "content" => c.to_s }, summary: "Submit final response" }
-          end
           if plan && (plan[:tool] || plan["tool"])
             tool = plan[:tool] || plan["tool"]
             args = plan[:args] || plan["args"] || {}

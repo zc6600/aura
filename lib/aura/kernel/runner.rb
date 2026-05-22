@@ -171,7 +171,6 @@ module Aura
 
         emit(:tool_result, { tool: tool, result: res })
 
-        res["final"] = true if ["final", "final_answer"].include?(tool.to_s) && res.is_a?(Hash)
         call_seq = @last_user_event_id
         event_id = @recorder.record_execution(tool, res, call_seq: call_seq)
         @current_job.add_event(event_id) if @current_job
