@@ -16,10 +16,51 @@ To run the setup:
 ### Setup Lifecycle
 1. **Dependency Diagnostics**: Checks for system requirements (`Ruby 3.0+`, `Git`, `SQLite3`, and `Bundler`).
 2. **Gem Installation**: Runs `bundle install` to compile and install native sqlite3 and framework dependencies.
-3. **LLM Credentials**: Creates a workspace `.env` template and prompts for OpenAI / Anthropic API keys.
+3. **LLM Credentials**: Creates a workspace `.env` template and prompts for API keys (OpenRouter, OpenAI, Anthropic, etc.).
 4. **Global Gem Packaging**: Dynamically executes `gem build aura.gemspec` and installs it locally (`gem install ./aura-*.gem`).
 5. **Shell $PATH Integration**: Inspects the Ruby bin folder (`Gem.bindir`) and appends paths automatically to the active shell configuration (`~/.zshrc` or `~/.bash_profile`) if not already present.
 6. **Diagnostics Verification**: Instantly runs `aura doctor` globally to confirm the installation is active.
+
+---
+
+## 🔑 Automatic LLM Configuration
+
+Aura OS features **zero-config LLM setup** for chat sessions. When you run `aura chat`:
+
+### Auto-Detection Process
+1. **Load `.env` files**: Automatically loads from project directory and `~/.aura/.env`
+2. **Detect API keys**: Scans for `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.
+3. **Configure provider**: Auto-selects provider based on available keys (priority order)
+4. **Apply defaults**: Sets sensible model defaults if not configured in `config.yml`
+
+### Auto-Detection Priority
+```
+OPENROUTER_API_KEY → openrouter provider (default model: openai/gpt-4o)
+OPENAI_API_KEY     → openai provider (default model: gpt-4o)
+ANTHROPIC_API_KEY  → anthropic provider (default model: claude-sonnet-4-20250514)
+No keys found      → local provider (offline mock)
+```
+
+### Example Usage
+```bash
+# Just add your API key to .env
+echo "OPENROUTER_API_KEY=sk-or-v1-your-key" > .env
+
+# Run chat - no manual configuration needed!
+aura chat
+# Output: ℹ️ Auto-configured LLM provider: openrouter (from OPENROUTER_API_KEY)
+```
+
+### Manual Override
+You can still manually configure LLM settings in `.aura/config/config.yml`:
+```yaml
+llm:
+  provider: "openrouter"
+  model: "anthropic/claude-sonnet-4-20250514"
+  api_base: ""
+```
+
+Manual configuration takes precedence over auto-detection.
 
 ---
 

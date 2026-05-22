@@ -33,6 +33,10 @@ module Aura
           @runner = Aura::Kernel::Runner.new(@project_path)
           @config = load_config
           
+          # Load environment variables from .env file
+          require "aura/llm/env"
+          Aura::LLM::Env.load_from(@project_path)
+          
           # Initialize session management
           @session_mgr = Aura::Context::SessionManager.new(@project_path)
           current_session = @session_mgr.current_name
@@ -45,13 +49,52 @@ module Aura
             puts "Verbose mode: ON" if @config["verbose"] || ENV["VERBOSE"] == "true"
           end
 
-          # Initialize LLM client
+          # Initialize LLM client with automatic defaults
           llm_config = @config["llm"] || {}
+          
+          # Apply default provider if not configured
+          provider = llm_config["provider"]
+          if provider.nil? || provider.to_s.strip.empty? || provider == "local"
+            # Auto-detect from available API keys
+            if ENV["OPENROUTER_API_KEY"] && !ENV["OPENROUTER_API_KEY"].empty?
+              provider = "openrouter"
+              puts "\e[32mℹ️ Auto-configured LLM provider: openrouter (from OPENROUTER_API_KEY)\e[0m"
+            elsif ENV["OPENAI_API_KEY"] && !ENV["OPENAI_API_KEY"].empty?
+              provider = "openai"
+              puts "\e[32mℹ️ Auto-configured LLM provider: openai (from OPENAI_API_KEY)\e[0m"
+            elsif ENV["ANTHROPIC_API_KEY"] && !ENV["ANTHROPIC_API_KEY"].empty?
+              provider = "anthropic"
+              puts "\e[32mℹ️ Auto-configured LLM provider: anthropic (from ANTHROPIC_API_KEY)\e[0m"
+            else
+              provider = "local"
+            end
+          end
+          
+          # Apply default model if not configured
+          model = llm_config["model"]
+          if model.nil? || model.to_s.strip.empty?
+            case provider
+            when "openrouter"
+              model = "openai/gpt-4o"
+            when "openai"
+              model = "gpt-4o"
+            when "anthropic"
+              model = "claude-sonnet-4-20250514"
+            else
+              model = nil
+            end
+            puts "\e[32mℹ️ Using default model: #{model}\e[0m" if model && @options[:verbose]
+          end
+          
+          # Update config with resolved values
+          llm_config["provider"] = provider
+          llm_config["model"] = model if model
+          
           @client = Aura::LLM::Client.new(
-            provider: llm_config["provider"],
+            provider: provider,
             api_base: llm_config["api_base"],
             api_key: resolve_api_key(llm_config),
-            model: llm_config["model"]
+            model: model
           )
 
           @slash_manager = SlashCommandManager.new(@project_path, -> { load_config }, @runner, on_reload: -> { setup_environment })
@@ -148,14 +191,20 @@ module Aura
             return ENV[env_var] if ENV[env_var]
           end
 
-          # 2. Dynamic key from provider: {PROVIDER}_API_KEY
+          # 2. Use Aura::LLM::Env.resolve_api_key which handles .env loading
           provider = config["provider"].to_s
+          unless provider.empty?
+            key = Aura::LLM::Env.resolve_api_key(provider)
+            return key if key && !key.empty?
+          end
+
+          # 3. Dynamic key from provider: {PROVIDER}_API_KEY
           unless provider.empty?
             key_name = "#{provider.upcase}_API_KEY"
             return ENV[key_name] if ENV[key_name]
           end
 
-          # 3. Fallback for backward compatibility
+          # 4. Fallback for backward compatibility
           ENV["OPENROUTER_API_KEY"] || ENV["OPENAI_API_KEY"]
         end
       end

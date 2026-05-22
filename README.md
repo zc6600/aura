@@ -114,10 +114,11 @@ aura pull
 
 ### 5. Interactive Chat & Autonomous Goal Execution
 
-Aura OS supports interactive chat sessions, direct query helpers, and autonomous goal execution:
+Aura OS supports interactive chat sessions with **automatic LLM configuration**, direct query helpers, and autonomous goal execution:
 
 ```bash
 # 1. Start an interactive agent shell session
+# LLM provider is automatically detected from .env file (OPENROUTER_API_KEY, OPENAI_API_KEY, etc.)
 aura chat
 
 # 2. Run in autonomous goal execution mode (exits when goal is achieved)
@@ -140,6 +141,29 @@ aura ask "What is my name?" --session user_info
 # 7. Clear the session's memory
 aura ask "Start over" --session user_info --clear
 ```
+
+#### Automatic LLM Configuration
+
+When you run `aura chat`, Aura automatically:
+- ✅ Loads API keys from `.env` file in your project directory
+- ✅ Detects available providers (OpenRouter, OpenAI, Anthropic, etc.)
+- ✅ Configures the LLM provider and applies sensible model defaults
+- ✅ Shows auto-configuration status on startup
+
+**Example `.env` file:**
+```bash
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+# or
+OPENAI_API_KEY=sk-your-key-here
+```
+
+**Auto-detection priority:**
+1. `OPENROUTER_API_KEY` → uses `openrouter` provider
+2. `OPENAI_API_KEY` → uses `openai` provider  
+3. `ANTHROPIC_API_KEY` → uses `anthropic` provider
+4. Falls back to `local` (offline mock) if no keys found
+
+No manual configuration required! Just add your API key to `.env` and run `aura chat`.
 
 ---
 

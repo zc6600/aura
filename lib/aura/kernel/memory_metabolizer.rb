@@ -63,8 +63,9 @@ module Aura
           recent_n = fetch_config("state_management.recent_events_n") || 20
           
           # Step 2: Check if metabolism is needed
-          total_chars = @state.send(:get_first_value, "SELECT COALESCE(SUM(LENGTH(payload)), 0) FROM events").to_i
-          event_count = @state.send(:get_first_value, "SELECT COUNT(*) FROM events").to_i
+          db = @state.instance_variable_get(:@db)
+          total_chars = db.get_first_value("SELECT COALESCE(SUM(LENGTH(payload)), 0) FROM events").to_i
+          event_count = db.get_first_value("SELECT COUNT(*) FROM events").to_i
           
           stats[:total_events] = event_count
           
@@ -135,12 +136,6 @@ module Aura
       end
 
       def select_old_events(keep_recent_n)
-        rows = @state.send(:get_first_value, 
-          "SELECT id, timestamp, phase, tool, payload FROM events " \
-          "WHERE id < (SELECT id FROM events ORDER BY id DESC LIMIT 1 OFFSET ?) " \
-          "ORDER BY id ASC", [keep_recent_n])
-        
-        # Actually execute the query
         db = @state.instance_variable_get(:@db)
         rows = db.execute(
           "SELECT id, timestamp, phase, tool, payload FROM events " \
