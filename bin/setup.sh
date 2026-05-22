@@ -150,84 +150,84 @@ else
 fi
 
 # Ask if user wants to set up keys now
-SELECTED_PROVIDER="local"
+SELECTED_PROVIDER=""
 SELECTED_MODEL=""
 SELECTED_BASE=""
 
 read -p "❓ Would you like to configure your default LLM Provider and API Keys now? (y/N): " -r RESPONSE < /dev/tty
 if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     echo -e "  Select your preferred LLM Provider:"
-    echo -e "    1) local (Offline Mock Adapter - Default)"
-    echo -e "    2) openai (OpenAI / Compatible Proxy)"
-    echo -e "    3) openrouter (OpenRouter Hub)"
-    echo -e "    4) deepseek (DeepSeek API)"
-    echo -e "    5) gemini (Google Gemini API)"
-    echo -e "    6) anthropic (Anthropic Claude API)"
-    read -p "  Enter choice (1-6, default: 1): " CHOICE < /dev/tty
+    echo -e "    1) openai (OpenAI / Compatible Proxy)"
+    echo -e "    2) openrouter (OpenRouter Hub)"
+    echo -e "    3) deepseek (DeepSeek API)"
+    echo -e "    4) gemini (Google Gemini API)"
+    echo -e "    5) anthropic (Anthropic Claude API)"
+    read -p "  Enter choice (1-5 or provider name, default: 1): " CHOICE < /dev/tty
 
-    if [ "$CHOICE" == "2" ]; then
-        SELECTED_PROVIDER="openai"
-        read -p "  🔑 Enter OpenAI API Key (or press Enter to skip): " OPENAI_KEY < /dev/tty
-        if [ ! -z "$OPENAI_KEY" ]; then
-            ruby -pi -e "gsub('OPENAI_API_KEY=', 'OPENAI_API_KEY=$OPENAI_KEY')" "$DOTENV_PATH"
-            echo -e "    - OpenAI API Key saved to .env."
-        fi
-        read -p "  🤖 Enter OpenAI Model name (default: gpt-4o): " OPENAI_MODEL < /dev/tty
-        SELECTED_MODEL=${OPENAI_MODEL:-"gpt-4o"}
-        read -p "  🌐 Enter Custom API Base URL (optional, press Enter to use default): " API_BASE < /dev/tty
-        if [ ! -z "$API_BASE" ]; then
-            SELECTED_BASE=$API_BASE
-            echo "OPENAI_API_BASE=$API_BASE" >> "$DOTENV_PATH"
-        fi
-    elif [ "$CHOICE" == "3" ]; then
-        SELECTED_PROVIDER="openrouter"
-        read -p "  🔑 Enter OpenRouter API Key (or press Enter to skip): " OPENROUTER_KEY < /dev/tty
-        if [ ! -z "$OPENROUTER_KEY" ]; then
-            echo "OPENROUTER_API_KEY=$OPENROUTER_KEY" >> "$DOTENV_PATH"
-            echo -e "    - OpenRouter API Key saved to .env."
-        fi
-        read -p "  🤖 Enter OpenRouter Model name (default: google/gemini-2.5-flash): " OR_MODEL < /dev/tty
-        SELECTED_MODEL=${OR_MODEL:-"google/gemini-2.5-flash"}
-    elif [ "$CHOICE" == "4" ]; then
-        SELECTED_PROVIDER="deepseek"
-        read -p "  🔑 Enter DeepSeek API Key (or press Enter to skip): " DEEPSEEK_KEY < /dev/tty
-        if [ ! -z "$DEEPSEEK_KEY" ]; then
-            ruby -pi -e "gsub('DEEPSEEK_API_KEY=', 'DEEPSEEK_API_KEY=$DEEPSEEK_KEY')" "$DOTENV_PATH"
-            echo -e "    - DeepSeek API Key saved to .env."
-        fi
-        read -p "  🤖 Enter DeepSeek Model name (default: deepseek-chat): " DS_MODEL < /dev/tty
-        SELECTED_MODEL=${DS_MODEL:-"deepseek-chat"}
-    elif [ "$CHOICE" == "5" ]; then
-        SELECTED_PROVIDER="gemini"
-        read -p "  🔑 Enter Gemini API Key (or press Enter to skip): " GEMINI_KEY < /dev/tty
-        if [ ! -z "$GEMINI_KEY" ]; then
-            ruby -pi -e "gsub('GEMINI_API_KEY=', 'GEMINI_API_KEY=$GEMINI_KEY')" "$DOTENV_PATH"
-            echo -e "    - Gemini API Key saved to .env."
-        fi
-        read -p "  🤖 Enter Gemini Model name (default: gemini-1.5-flash): " GEM_MODEL < /dev/tty
-        SELECTED_MODEL=${GEM_MODEL:-"gemini-1.5-flash"}
-    elif [ "$CHOICE" == "6" ]; then
-        SELECTED_PROVIDER="anthropic"
-        read -p "  🔑 Enter Anthropic API Key (or press Enter to skip): " ANTHROPIC_KEY < /dev/tty
-        if [ ! -z "$ANTHROPIC_KEY" ]; then
-            ruby -pi -e "gsub('ANTHROPIC_API_KEY=', 'ANTHROPIC_API_KEY=$ANTHROPIC_KEY')" "$DOTENV_PATH"
-            echo -e "    - Anthropic API Key saved to .env."
-        fi
-        read -p "  🤖 Enter Anthropic Model name (default: claude-3-5-sonnet-20241022): " ANT_MODEL < /dev/tty
-        SELECTED_MODEL=${ANT_MODEL:-"claude-3-5-sonnet-20241022"}
-    else
-        SELECTED_PROVIDER="local"
-        echo -e "    - Selected Offline Mock Local provider."
-    fi
+    # Convert numeric choice to provider name
+    case "$CHOICE" in
+        1) SELECTED_PROVIDER="openai" ;;
+        2) SELECTED_PROVIDER="openrouter" ;;
+        3) SELECTED_PROVIDER="deepseek" ;;
+        4) SELECTED_PROVIDER="gemini" ;;
+        5) SELECTED_PROVIDER="anthropic" ;;
+        openai|openrouter|deepseek|gemini|anthropic) SELECTED_PROVIDER="$CHOICE" ;;
+        *) SELECTED_PROVIDER="openai" ;;  # Default to openai if invalid
+    esac
 
-    # Also offer to configure Anthropic key if not already configured as primary provider
-    if [ "$SELECTED_PROVIDER" != "anthropic" ]; then
-        read -p "  🔑 Enter Anthropic API Key (optional, press Enter to skip): " ANTHROPIC_KEY < /dev/tty
-        if [ ! -z "$ANTHROPIC_KEY" ]; then
-            ruby -pi -e "gsub('ANTHROPIC_API_KEY=', 'ANTHROPIC_API_KEY=$ANTHROPIC_KEY')" "$DOTENV_PATH"
-            echo -e "    - Anthropic API Key saved to .env."
-        fi
-    fi
+    # Ask for API key based on selected provider
+    case "$SELECTED_PROVIDER" in
+        openai)
+            read -p "  🔑 Enter OpenAI API Key (or press Enter to skip): " API_KEY < /dev/tty
+            if [ ! -z "$API_KEY" ]; then
+                ruby -pi -e "gsub('OPENAI_API_KEY=', 'OPENAI_API_KEY=$API_KEY')" "$DOTENV_PATH"
+                echo -e "    - OpenAI API Key saved to .env."
+            fi
+            read -p "  🤖 Enter OpenAI Model name (default: gpt-4o): " OPENAI_MODEL < /dev/tty
+            SELECTED_MODEL=${OPENAI_MODEL:-"gpt-4o"}
+            read -p "  🌐 Enter Custom API Base URL (optional, press Enter to use default): " API_BASE < /dev/tty
+            if [ ! -z "$API_BASE" ]; then
+                SELECTED_BASE=$API_BASE
+                echo "OPENAI_API_BASE=$API_BASE" >> "$DOTENV_PATH"
+            fi
+            ;;
+        openrouter)
+            read -p "  🔑 Enter OpenRouter API Key (or press Enter to skip): " API_KEY < /dev/tty
+            if [ ! -z "$API_KEY" ]; then
+                echo "OPENROUTER_API_KEY=$API_KEY" >> "$DOTENV_PATH"
+                echo -e "    - OpenRouter API Key saved to .env."
+            fi
+            read -p "  🤖 Enter OpenRouter Model name (default: google/gemini-2.5-flash): " OR_MODEL < /dev/tty
+            SELECTED_MODEL=${OR_MODEL:-"google/gemini-2.5-flash"}
+            ;;
+        deepseek)
+            read -p "  🔑 Enter DeepSeek API Key (or press Enter to skip): " API_KEY < /dev/tty
+            if [ ! -z "$API_KEY" ]; then
+                ruby -pi -e "gsub('DEEPSEEK_API_KEY=', 'DEEPSEEK_API_KEY=$API_KEY')" "$DOTENV_PATH"
+                echo -e "    - DeepSeek API Key saved to .env."
+            fi
+            read -p "  🤖 Enter DeepSeek Model name (default: deepseek-chat): " DS_MODEL < /dev/tty
+            SELECTED_MODEL=${DS_MODEL:-"deepseek-chat"}
+            ;;
+        gemini)
+            read -p "  🔑 Enter Gemini API Key (or press Enter to skip): " API_KEY < /dev/tty
+            if [ ! -z "$API_KEY" ]; then
+                ruby -pi -e "gsub('GEMINI_API_KEY=', 'GEMINI_API_KEY=$API_KEY')" "$DOTENV_PATH"
+                echo -e "    - Gemini API Key saved to .env."
+            fi
+            read -p "  🤖 Enter Gemini Model name (default: gemini-1.5-flash): " GEM_MODEL < /dev/tty
+            SELECTED_MODEL=${GEM_MODEL:-"gemini-1.5-flash"}
+            ;;
+        anthropic)
+            read -p "  🔑 Enter Anthropic API Key (or press Enter to skip): " API_KEY < /dev/tty
+            if [ ! -z "$API_KEY" ]; then
+                ruby -pi -e "gsub('ANTHROPIC_API_KEY=', 'ANTHROPIC_API_KEY=$API_KEY')" "$DOTENV_PATH"
+                echo -e "    - Anthropic API Key saved to .env."
+            fi
+            read -p "  🤖 Enter Anthropic Model name (default: claude-3-5-sonnet-20241022): " ANT_MODEL < /dev/tty
+            SELECTED_MODEL=${ANT_MODEL:-"claude-3-5-sonnet-20241022"}
+            ;;
+    esac
 fi
 echo -e "${GREEN}✓ Credentials configured successfully!${NC}\n"
 
