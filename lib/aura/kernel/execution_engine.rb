@@ -96,6 +96,8 @@ module Aura
         args["strict_mode"] = strict unless args.key?("strict_mode")
         if cfg.dig("security", "strict_path_isolation")
           args["context_permissions"] ||= []
+          # Default: allow access to entire workspace (.) plus specific directories
+          args["context_permissions"] = ["."] + args["context_permissions"]
           args["context_permissions"] += ["./knowledge", "./tools", "AURA_README.md"]
           args["context_permissions"] = args["context_permissions"].compact.uniq
           args["forbidden_extensions"] ||= cfg.dig("security", "forbidden_extensions") || []

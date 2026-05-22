@@ -12,19 +12,23 @@ This document covers the **Aura Kernel**, the core Ruby runtime that orchestrate
 The unified central orchestrator for the agent's goal execution. It handles:
 - **Loop Orchestration**: Runs a state-machine loop to achieve a goal.
 - **Planner Execution**: Calls the LLM planner, and handles plain text or raw string responses, wrapping them as synthesized `final` tool calls.
-- **Robust Error Tolerance**: Retries malformed JSON responses up to 5 times (resetting the format error counter on success) and handles blocked tools (up to 3 times) with feedback injections so the agent can self-correct.
+- **Robust Error Tolerance**: Retries malformed JSON responses up to 5 times (configurable via `system.max_format_errors`) and handles blocked tools (up to 3 times, configurable via `system.max_tool_errors`) with feedback injections so the agent can self-correct.
 - **Exception Boundary**: Catches and standardizes execution errors into domain exceptions (`Aura::Errors::*`).
+- **Usage**: AgentLoop wraps Runner for complex goal-based execution. For simpler interactions, Runner can be used directly.
 
 ### 2. The Runner (`Aura::Kernel::Runner`)
 Acts as the context adapter and execution coordinator:
 - **Observe**: Assembles prompt context from state/database and registers current environment metadata.
 - **State Recording**: Records state events (user inputs, plans, completions) and manages job states in the database.
 - **Execution Hook Coordinator**: Dispatches pre-execution and post-execution hooks (e.g. dangerous tool checks).
+- **Event Emission**: Includes EventEmitter module for broadcasting tool execution events.
 
-### 3. The Event Bus (`Aura::Kernel::EventBus`)
+### 3. The Event Bus (`Aura::Kernel::EventEmitter`)
 An event-driven publisher-subscriber module that decouples core agent execution from user interfaces (CLI, Web client).
+- **Implementation**: `Runner` includes `EventEmitter` module (from `lib/aura/kernel/event_emitter.rb`)
 - **Decoupled Monitoring**: Subscribes to events like `:plan_stream_start`, `:plan_event` (tokens), `:thought`, `:tool_start`, `:tool_result`, `:final_answer`, and `:loop_aborted`.
 - **Callback Bridging**: Transparently adapts block-style legacy callbacks to events.
+- **Note**: A separate `event_bus.rb` file exists but is not currently used by Runner; Runner uses the EventEmitter mixin pattern instead.
 
 ### 4. Execution Engine (`Aura::Kernel::ExecutionEngine`)
 Handles the low-level execution of tools.
@@ -36,7 +40,7 @@ Handles the low-level execution of tools.
 Enforces the "Evolution Loop" quality gate.
 - **Checks**: Presence of `manifest.json`, `logic.py`, and `test.py` (unless `skip_test: true`).
 - **Verification**: Runs `test.py` before a tool can be `[ACTIVE]`.
-- **Caching**: Results are cached in `state/aura.db` to avoid re-running tests.
+- **Caching**: Results are cached in the session database (`state/sessions/{session}.db`) to avoid re-running tests.
 
 ---
 
@@ -50,7 +54,7 @@ Aura OS is designed for root-level isolation. Tools should not access files outs
 **Mechanism**:
 1. **Kernel Injection**: When `security.strict_path_isolation: true` (in `config.yml`), the Kernel injects:
    - `strict_mode: true`
-   - `context_permissions`: List of allowed path prefixes (default: `["./knowledge", "./tools", "AURA_README.md"]`).
+   - `context_permissions`: List of allowed path prefixes (default: `[".", "./knowledge", "./tools", "AURA_README.md"]`). The `"."` grants access to the entire workspace and all subdirectories.
    - `forbidden_extensions`: e.g. `[".env", ".key"]`.
    - `read_only_directories`: e.g. `["system_tools"]`.
 2. **Tool Enforcement**: Built-in tools (`read_file`, `write_file`) check these args and reject unauthorized paths.
