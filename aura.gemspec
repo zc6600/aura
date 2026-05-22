@@ -23,8 +23,7 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.0.0"
 
   spec.files         = Dir["lib/**/*", "bin/*", "README.md", "docs/**/*"] +
-                       Dir["lib/aura/generators/**/*"] +
-                       ["lib/aura/generators/aura/app/templates/.gitignore"]
+                       Dir["lib/aura/generators/**/*"]
   spec.bindir        = "bin"
   spec.executables   = ["aura"]
   spec.require_paths = ["lib"]
