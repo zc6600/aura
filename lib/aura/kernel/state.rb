@@ -6,8 +6,10 @@ require_relative "narrative_service"
 module Aura
   module Kernel
     class State
+      attr_reader :db_path
+
       def initialize(project_path)
-        @project_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura.environment_path(project_path) || project_path) : project_path
+        @project_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
         @state_dir = File.join(@project_path, "state")
         env_db = ENV["AURA_STATE_DB_PATH"]
         @db_path = if env_db && !env_db.to_s.strip.empty?

@@ -13,7 +13,7 @@ module Aura
     class EnvironmentProvider
       def initialize(path, options = {})
         @path = path
-        @env_path = options[:env_path] || Aura.environment_path(path)
+        @env_path = options[:env_path] || Aura::PathResolver.environment_path(path)
         @knowledge_path = File.join(@path, "knowledge")
         @skills_path = File.join(@env_path, "skills")
       end
@@ -38,9 +38,6 @@ module Aura
 
         user_task = build_user_task_view
         section << "## 用户任务视图\n#{user_task}" if user_task
-
-        active_tools = active_tool_context
-        section << "## Active Development Context\n#{active_tools}" if active_tools
 
         section.join("\n\n")
       end
@@ -83,63 +80,7 @@ module Aura
           nil
         end
 
-        def active_tool_context
-          tp = File.join(@env_path, "tools")
-          return nil unless Dir.exist?(tp)
-          
-          active_tools = []
-          Dir.glob(File.join(tp, "*")).each do |tool_dir|
-            next unless File.directory?(tool_dir)
-            if File.basename(tool_dir) == "anchor_submit" && !anchors_has_files?
-              next
-            end
-            
-            # Check for recent modification (last 15 mins)
-            # We scan top-level files in the tool dir to check for activity
-            recent = false
-            ([tool_dir] + Dir.glob(File.join(tool_dir, "*"))).each do |f|
-              if Time.now - File.mtime(f) < 900
-                recent = true
-                break
-              end
-            end
-            
-            active_tools << tool_dir if recent
-          end
-          
-          return nil if active_tools.empty?
-          
-          out = []
-          active_tools.each do |dir|
-            name = File.basename(dir)
-            
-            # Use absolute path for reading content
-            abs_manifest = File.join(dir, "manifest.json")
-            
-            # Use relative paths for display
-            rel_dir = dir.sub(/^#{Regexp.escape(@env_path)}\//, "")
-            manifest = File.join(rel_dir, "manifest.json")
-            logic = File.join(rel_dir, "logic.py")
-            test = File.join(rel_dir, "test.py")
-            
-            desc = "n/a"
-            if File.exist?(abs_manifest)
-              begin
-                desc = JSON.parse(File.read(abs_manifest))["description"] || "n/a"
-              rescue
-              end
-            end
-            
-            out << "### Tool: #{name}"
-            out << "Description: #{desc}"
-            out << "Paths:"
-            out << "- Manifest: #{manifest}"
-            out << "- Logic: #{logic}"
-            out << "- Test: #{test}"
-          end
-          
-          out.join("\n")
-        end
+
 
         def build_workspace_overview
           items = Dir.glob(File.join(@path, "*")).map do |f|

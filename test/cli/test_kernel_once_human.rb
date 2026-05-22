@@ -1,6 +1,7 @@
 require "minitest/autorun"
 require "stringio"
 require "fileutils"
+require "json"
 
 class TestKernelOnceHuman < Minitest::Test
   def setup

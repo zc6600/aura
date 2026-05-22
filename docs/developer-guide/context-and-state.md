@@ -2,7 +2,7 @@
 
 How Aura OS assembles the "Agent Mind" (the prompt) and manages long-term memory.
 
-**Framework Code**: `lib/aura/context/` (EnvironmentProvider, ToolProvider, StateProvider, StateRecorder, SessionManager, LLMContext)  
+**Framework Code**: `lib/aura/context/` (EnvironmentProvider, ToolProvider, StateProvider, StateRecorder, SessionManager, Payload)  
 **Project Context**: `state/sessions/*.db` (SQLite, session-isolated) and `config/config.yml`  
 **Memory Metabolism**: `lib/aura/kernel/memory_metabolizer.rb`
 
@@ -39,6 +39,80 @@ Connects to SQLite (`state/sessions/*.db`) to retrieve history.
 - **Recent Events**: The last N raw interactions in **chronological order** (Phase, Tool, Payload, Thought)
 - **Summaries**: High-level narrative of older history (both Call Summaries and Metabolism Summaries)
 - **Variables**: Persistent Key-Value store (e.g., user preferences)
+
+---
+
+## LLM Context & Prompt Composition
+
+### Payload LLM Methods
+
+The `Payload` class provides built-in methods for LLM consumption, eliminating the need for a separate context abstraction.
+
+**Location**: `lib/aura/context/payload.rb`
+
+**Responsibilities:**
+- Convert context sections to LLM message format
+- Provide structured tool schemas for native tool calling
+- Exclude tool descriptions from prompt text (passed separately as JSON Schema)
+
+**Usage:**
+```ruby
+payload = Aura::Context.assemble(project_path, state)
+messages = payload.to_messages(goal: "Fix the bug")
+tools = payload.to_tool_schemas
+```
+
+**Key Methods:**
+- `to_messages(goal:)` - Convert to LLM message array format (excludes tool sections)
+- `to_tool_schemas` - Extract tool definitions as JSON Schema for native calling
+- `to_markdown` - Get full context as markdown (backward compatibility)
+- `to_markdown_excluding(keys)` - Exclude specific sections
+
+### Native Tool Calling (JSON Schema Injection)
+
+Aura OS uses **native tool calling** exclusively - tools are injected as JSON Schema objects, not as text descriptions in the prompt.
+
+**How it Works:**
+1. `ToolProvider` collects tool schemas (name, description, input_schema)
+2. `Payload.to_tool_schemas` converts them to OpenAI-compatible format:
+   ```json
+   {
+     "type": "function",
+     "function": {
+       "name": "read_file",
+       "description": "Read a file from the filesystem",
+       "parameters": {
+         "type": "object",
+         "properties": {
+           "file_path": { "type": "string" }
+         },
+         "required": ["file_path"]
+       }
+     }
+   }
+   ```
+3. Schemas are passed to LLM API via the `tools` parameter (not in prompt text)
+4. The prompt text **excludes** tool descriptions to avoid duplication
+
+**Benefits:**
+- **Reliability**: Native tool calling is more structured and less error-prone
+- **Token Efficiency**: No redundant tool text in prompts
+- **Standard Format**: Follows OpenAI/Anthropic function calling standards
+- **Better Parsing**: LLMs return structured tool calls, not text
+
+**Prompt Composition Flow:**
+```ruby
+# In Planner
+messages, tools = Aura::LLM::Prompts::Compose.messages_and_tools(context, goal)
+# messages = [{ role: "user", content: "..." }]  # Context WITHOUT tool text (from Payload.to_messages)
+# tools = [{ type: "function", function: {...} }]  # Tool schemas as JSON (from Payload.to_tool_schemas)
+
+client.complete(messages, { tools: tools })
+```
+
+### Legacy: Text Injection (Removed)
+
+**Note**: Earlier versions of Aura supported text-based tool injection where tool descriptions were embedded directly in the prompt text. This approach has been **completely removed** in favor of native JSON Schema tool calling, which is more reliable and follows modern LLM API standards.
 
 ---
 

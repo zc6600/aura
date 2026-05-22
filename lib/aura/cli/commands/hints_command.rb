@@ -16,7 +16,7 @@ module Aura
         end
 
         # Find .aura configuration
-        aura_dir = Aura.find_aura_dir(project_path)
+        aura_dir = Aura::PathResolver.find_aura_dir(project_path)
         cfg_path = aura_dir ? File.join(aura_dir, "config", "config.yml") : nil
         cfg = (cfg_path && File.exist?(cfg_path)) ? (YAML.load_file(cfg_path) || {}) : {}
 
@@ -113,7 +113,7 @@ module Aura
       def toggle(file_path, project_path = ".")
         project_path = File.expand_path(project_path)
         # Find .aura configuration
-        aura_dir = Aura.find_aura_dir(project_path)
+        aura_dir = Aura::PathResolver.find_aura_dir(project_path)
         unless aura_dir
           puts "\e[31m⛔️ Error: Not in an Aura workspace.\e[0m"
           exit 1

@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Test (Ruby ${{ matrix.ruby-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby-version: ['3.0', '3.1', '3.2', '3.3']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Ruby ${{ matrix.ruby-version }}
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ matrix.ruby-version }}
+        bundler-cache: true  # Runs bundle install and caches
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y sqlite3 libsqlite3-dev
+
+    - name: Run tests
+      run: bundle exec rake test
+      env:
+        # Mock LLM API calls to avoid real API usage
+        OPENAI_API_KEY: "sk-test-mock-key"
+        OPENROUTER_API_KEY: "sk-or-test-mock-key"
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-ruby-${{ matrix.ruby-version }}
+        path: test/reports/
+        retention-days: 30
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Ruby 3.3
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.3'
+        bundler-cache: true
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y sqlite3 libsqlite3-dev
+
+    - name: Run tests with coverage
+      run: bundle exec rake coverage
+      env:
+        COVERAGE: "true"
+        OPENAI_API_KEY: "sk-test-mock-key"
+        OPENROUTER_API_KEY: "sk-or-test-mock-key"
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage/
+        retention-days: 30
+
+    - name: Check minimum coverage
+      run: |
+        echo "Coverage report generated. Check artifacts for HTML report."
+        echo "Current minimum_coverage is set to 0 in test_helper.rb"
+        echo "Increase to 80+ when ready to enforce coverage requirements"
+
+  build-gem:
+    name: Build Gem
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Ruby 3.3
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.3'
+
+    - name: Build gem
+      run: gem build aura.gemspec
+
+    - name: Upload gem artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: aura-gem
+        path: "*.gem"
+        retention-days: 30
+
+    - name: Verify gem contents
+      run: |
+        echo "=== Gem Contents ==="
+        tar -tzf $(ls *.gem | head -1) | head -50
+        echo "..."
+        echo "Total files: $(tar -tzf $(ls *.gem | head -1) | wc -l)"
+
+  lint:
+    name: RuboCop (Non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Non-blocking: won't fail the workflow
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Ruby 3.3
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.3'
+        bundler-cache: true
+
+    - name: Run RuboCop
+      run: bundle exec rubocop --format progress --format github
+      continue-on-error: true
+
+    - name: Upload RuboCop report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: rubocop-report
+        path: rubocop-output.json
+        retention-days: 30

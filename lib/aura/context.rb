@@ -2,6 +2,7 @@
 
 require "aura/context/errors"
 require "aura/context/base"
+require "aura/context/payload"
 require "aura/context/directive_provider"
 require "aura/context/environment_provider"
 require "aura/context/tool_provider"

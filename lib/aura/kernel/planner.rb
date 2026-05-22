@@ -9,7 +9,7 @@ module Aura
     class Planner
       def initialize(project_path, options = {})
         @project_path = File.expand_path(project_path)
-        @env_path = options[:env_path] || Aura.environment_path(@project_path)
+        @env_path = options[:env_path] || Aura::PathResolver.environment_path(@project_path)
         cfg = load_config
         provider = cfg.dig("llm", "provider") || "local"
         api_base = cfg.dig("llm", "api_base")
@@ -24,22 +24,30 @@ module Aura
       end
 
       def plan(context, goal = nil)
-        messages = Aura::LLM::Prompts::Compose.messages(context, goal, { suggested_chars: @sum_suggest, max_chars: @sum_max })
-        out = @client.complete(messages, { temperature: @temp, max_tokens: @max_tokens })
-        body = out[:content]
-        parsed = Aura::LLM::Parsers::ResponseParser.parse(body)
-        
+        messages, tools = Aura::LLM::Prompts::Compose.messages_and_tools(context, goal)
+
+        options = { temperature: @temp, max_tokens: @max_tokens }
+        options[:tools] = tools if tools && !tools.empty?
+
+        out = @client.complete(messages, options)
+        parsed = Aura::LLM::Parsers::ResponseParser.parse(out[:raw] || out[:content])
+
         # Validate parsed result
-        validate_parsed_plan(parsed, body)
-        
+        validate_parsed_plan(parsed, out[:content])
+
+        parsed[:finish_reason] = out[:finish_reason] if parsed.is_a?(Hash)
+
         parsed
       end
 
       def plan_stream(context, goal = nil)
-        messages = Aura::LLM::Prompts::Compose.messages(context, goal, { suggested_chars: @sum_suggest, max_chars: @sum_max })
-        buf = ""
+        messages, tools = Aura::LLM::Prompts::Compose.messages_and_tools(context, goal)
 
-        @client.complete_stream(messages, { temperature: @temp, max_tokens: @max_tokens }) do |delta|
+        options = { temperature: @temp, max_tokens: @max_tokens }
+        options[:tools] = tools if tools && !tools.empty?
+
+        buf = ""
+        res = @client.complete_stream(messages, options) do |delta|
           yield({ type: "delta", text: delta }) if block_given?
           buf << delta.to_s
           next unless buf.include?("}")
@@ -51,7 +59,8 @@ module Aura
           end
         end
 
-        parsed = Aura::LLM::Parsers::ResponseParser.parse(buf)
+        parsed = Aura::LLM::Parsers::ResponseParser.parse(res[:raw] || res[:content] || buf)
+        parsed[:finish_reason] = res[:finish_reason] if parsed.is_a?(Hash)
         yield({ type: "plan", plan: parsed }) if block_given?
         parsed
       end

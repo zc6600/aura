@@ -1,5 +1,6 @@
 require "minitest/autorun"
 require "fileutils"
+require "aura"
 
 class TestMcpToolProvider < Minitest::Test
   def setup
@@ -7,7 +8,9 @@ class TestMcpToolProvider < Minitest::Test
     @app = File.join(@root, "tmp_mcp_tool_provider")
     FileUtils.rm_rf(@app)
     system("ruby bin/aura new tmp_mcp_tool_provider")
-    FileUtils.mkdir_p(File.join(@app, "tools", "mcp"))
+    
+    env_path = Aura.environment_path(@app) || @app
+    FileUtils.mkdir_p(File.join(env_path, "tools", "mcp"))
     server_code = <<~RUBY
       require "json"
       STDOUT.sync = true
@@ -42,7 +45,7 @@ class TestMcpToolProvider < Minitest::Test
           timeout: 5
           auto_load: true
     YAML
-    File.write(File.join(@app, "tools", "mcp", "config.yml"), config)
+    File.write(File.join(env_path, "tools", "mcp", "config.yml"), config)
   end
 
   def teardown

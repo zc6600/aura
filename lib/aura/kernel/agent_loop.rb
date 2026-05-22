@@ -36,14 +36,25 @@ module Aura
           # Plan step
           plan = call_planner(goal, ctx)
 
-          # If planning returns plain text, wrap it as final
-          if plan.is_a?(String)
-            plan = { type: "tool_call", tool: "final", args: { "content" => plan }, summary: "Text response" }
-          elsif plan.nil? || (plan.is_a?(Hash) && plan[:type] == "text") || (plan.is_a?(Hash) && !plan[:tool] && !plan["tool"] && (plan[:content] || plan["content"]))
-            plan = wrap_text_as_final(plan)
+          # Extract finish_reason from the LLM response (OpenRouter normalizes to:
+          # "stop", "tool_calls", "length", "content_filter", "error")
+          finish_reason = plan.is_a?(Hash) ? (plan[:finish_reason] || plan["finish_reason"]).to_s : ""
+
+          # Normal completion: LLM stopped naturally with a final answer
+          if finish_reason == "stop"
+            content = extract_stop_content(plan)
+            @event_bus.emit(:final_answer, content: content)
+            return Result.new(status: :completed, final_content: content, steps: steps, failure_reason: nil)
           end
 
-          # Validate response structure
+          # Abnormal termination: truncation, safety filter, or provider error
+          if ["length", "content_filter", "error"].include?(finish_reason)
+            reason = "Loop terminated due to finish_reason: #{finish_reason}"
+            @event_bus.emit(:loop_aborted, reason: reason)
+            return Result.new(status: :failed, steps: steps, failure_reason: reason)
+          end
+
+          # Validate that a tool call is present (expected when finish_reason == "tool_calls")
           unless plan.is_a?(Hash) && (plan[:tool] || plan["tool"])
             format_errors += 1
             thought = plan.is_a?(Hash) && (plan[:thought] || plan["thought"] || plan[:content] || plan["content"])
@@ -69,13 +80,6 @@ module Aura
 
           tool_name = (plan[:tool] || plan["tool"]).to_s
           format_errors = 0
-
-          # Handle final answer
-          if tool_name == "final"
-            content = extract_final_content(plan)
-            @event_bus.emit(:final_answer, content: content)
-            return Result.new(status: :completed, final_content: content, steps: steps, failure_reason: nil)
-          end
 
           # Execute tool
           step_count += 1
@@ -146,25 +150,23 @@ module Aura
         @runner.run_call(call)
       end
 
-      def wrap_text_as_final(plan)
-        return nil unless plan.is_a?(Hash)
-        content = (plan[:content] || plan["content"]).to_s
-        return nil if content.strip.empty?
-        { type: "tool_call", tool: "final", args: { "content" => content }, summary: "Text response" }
-      end
-
-      def extract_final_content(plan)
+      # Extract content from a plan that arrived with finish_reason "stop".
+      # Handles both plain-text responses and structured hashes.
+      def extract_stop_content(plan)
         return "" unless plan.is_a?(Hash)
-        (plan[:args] || plan["args"] || {})["content"].to_s
+        # Prefer explicit content field, fall back to args["content"] for legacy compatibility
+        (plan[:content] || plan["content"] ||
+          (plan[:args] || plan["args"] || {})["content"]).to_s
       end
 
       def inject_format_error(ctx)
         <<~MSG.strip + "\n\n" + ctx.to_s
-          [SYSTEM ERROR] Your last response was plain text, not valid JSON.
-          You MUST respond with a JSON object. Examples:
+          [SYSTEM ERROR] Your last response did not contain a valid tool call.
+          You MUST respond with a JSON object specifying a tool. Example:
             {"tool": "bash_command", "args": {"command": "ls"}, "summary": "List files"}
-            {"tool": "final", "args": {"content": "Done!"}, "summary": "Task complete"}
-          Do NOT write any text outside the JSON object. Try again now.
+          To finish the task, simply provide your final answer as plain text — the system
+          will detect the natural stop and complete automatically.
+          Do NOT write any text outside the JSON object when calling a tool. Try again now.
         MSG
       end
 

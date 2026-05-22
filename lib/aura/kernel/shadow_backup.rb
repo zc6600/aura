@@ -10,7 +10,7 @@ module Aura
 
       def initialize(project_path)
         @project_path = File.expand_path(project_path)
-        @env_path = Aura.environment_path(@project_path)
+        @env_path = Aura::PathResolver.environment_path(@project_path)
         @shadow_path = File.join(@env_path, "shadow")
         @shadow_git = File.join(@shadow_path, ".git")
       end

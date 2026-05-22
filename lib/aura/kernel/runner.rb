@@ -23,7 +23,7 @@ module Aura
 
       def initialize(project_path)
         @project_path = File.expand_path(project_path)
-        @env_path = Aura.environment_path(@project_path)
+        @env_path = Aura::PathResolver.environment_path(@project_path)
         
         @state = Aura::Kernel::State.new(@env_path)
         @recorder = Aura::Context::StateRecorder.new(@state)

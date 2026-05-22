@@ -29,11 +29,7 @@ module Aura
 
       def notify(method, params = nil)
         @mutex.synchronize do
-          ensure_started
-          payload = { "jsonrpc" => "2.0", "method" => method }
-          payload["params"] = params if params
-          write_message(payload)
-          true
+          notify_raw(method, params)
         end
       end
 
@@ -47,6 +43,14 @@ module Aura
       end
 
       private
+        def notify_raw(method, params = nil)
+          ensure_started
+          payload = { "jsonrpc" => "2.0", "method" => method }
+          payload["params"] = params if params
+          write_message(payload)
+          true
+        end
+
         def ensure_started
           return if @stdin
           @stdin, @stdout, @stderr, @wait_thr = Open3.popen3(@env, @command, *@args)
@@ -60,7 +64,7 @@ module Aura
             "capabilities" => {},
             "clientInfo" => { "name" => "aura", "version" => version }
           })
-          notify("notifications/initialized", {}) if resp && resp["result"]
+          notify_raw("notifications/initialized", {}) if resp && resp["result"]
           @initialized = true
         end
 

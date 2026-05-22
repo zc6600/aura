@@ -12,6 +12,11 @@
 /.bundle/
 /vendor/bundle/
 
+# CI/CD artifacts
+/coverage/
+/test/reports/
+/rubocop-output.json
+
 /external/
 
 /paper/

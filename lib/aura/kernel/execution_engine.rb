@@ -9,7 +9,7 @@ module Aura
     class ExecutionEngine
       def initialize(project_path, options = {})
         @project_path = File.expand_path(project_path)
-        @env_path = options[:env_path] || Aura.environment_path(@project_path)
+        @env_path = options[:env_path] || Aura::PathResolver.environment_path(@project_path)
         @registry = Aura::Kernel::ToolRegistry.new(@env_path)
         @mcp_manager = Aura::MCP::Manager.new(@env_path)
         @lsp_manager = options[:lsp_manager]

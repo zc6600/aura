@@ -14,7 +14,7 @@ module Aura
     class Base
       def initialize(project_path, db, options = {})
         @project_path = File.expand_path(project_path)
-        @env_path = Aura.environment_path(@project_path)
+        @env_path = Aura::PathResolver.environment_path(@project_path)
         @db = db
         @providers = [
           DirectiveProvider.new(@project_path, options),
@@ -31,14 +31,22 @@ module Aura
       def assemble
         content = @providers.map { |p| p.provide }.compact.join("\n\n")
         limit = fetch_max_chars(@project_path)
-        return content unless limit && limit.to_i > 0
-        return content if content.length <= limit
-        compress_content(content, limit)
+        final_content = if limit && limit.to_i > 0 && content.length > limit
+                          compress_content(content, limit)
+                        else
+                          content
+                        end
+
+        tool_provider = @providers.find { |p| p.is_a?(ToolProvider) }
+        tools = tool_provider ? tool_provider.provide_structured : []
+
+        sections = split_sections(final_content)
+        Aura::Context::Payload.new(sections, tools)
       end
 
       private
         def fetch_max_chars(path)
-          cfg = File.join(Aura.environment_path(path), "config", "config.yml")
+          cfg = File.join(Aura::PathResolver.environment_path(path), "config", "config.yml")
           return nil unless File.exist?(cfg)
           begin
             require "yaml"

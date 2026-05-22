@@ -24,7 +24,7 @@ module Aura
         if session_name && !session_name.to_s.strip.empty?
           ENV["AURA_SESSION_NAME"] = session_name.to_s
           require "fileutils"
-          env_path = Aura.environment_path(File.expand_path(project_path))
+          env_path = Aura::PathResolver.environment_path(File.expand_path(project_path))
           active_txt = File.join(env_path, "state", "active_session.txt")
           begin
             FileUtils.mkdir_p(File.dirname(active_txt))

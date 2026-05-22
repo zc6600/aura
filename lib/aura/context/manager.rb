@@ -11,7 +11,7 @@ module Aura
       attr_reader :project_path
 
       def initialize(project_path)
-        @project_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura.environment_path(project_path) || project_path) : project_path
+        @project_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
         env_path = ENV["AURA_TOOL_CONTEXTS_PATH"]
         @state_file = if env_path && !env_path.to_s.strip.empty?
           File.expand_path(env_path, @project_path)

@@ -9,6 +9,7 @@ require "aura/cli/commands/application_command"
 
 class TestHiddenWorkspaceDecoupling < Minitest::Test
   def setup
+    ENV["AURA_SESSION_NAME"] = nil
     @tmp_dir = Dir.mktmpdir("aura-test-sandbox")
     
     # Decouple test environment from actual developer configurations
@@ -46,6 +47,7 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
   end
 
   def teardown
+    ENV["AURA_SESSION_NAME"] = nil
     FileUtils.remove_entry(@tmp_dir) if File.exist?(@tmp_dir)
     FileUtils.remove_entry(@global_path) if File.exist?(@global_path)
     proj_path = Aura.global_projects_config_path
@@ -343,17 +345,17 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     
     # Switch session
     out, err = capture_io do
-      slash.handle("/session scientist")
+      slash.handle("/session data_scientist_run")
     end
-    assert_match(/Switching conversation session to 'scientist'/, out)
-    assert_match(/Successfully switched and hot-loaded session 'scientist'/, out)
+    assert_match(/Switching conversation session to 'data_scientist_run'/, out)
+    assert_match(/Successfully switched and hot-loaded session 'data_scientist_run'/, out)
     assert reload_called, "on_reload callback should have been triggered on session switch"
-    assert_equal "scientist", ENV["AURA_SESSION_NAME"]
+    assert_equal "data_scientist_run", ENV["AURA_SESSION_NAME"]
     
     # Verify active_session.txt is updated
     active_txt = File.join(state_dir, "active_session.txt")
     assert File.exist?(active_txt)
-    assert_equal "scientist", File.read(active_txt).strip
+    assert_equal "data_scientist_run", File.read(active_txt).strip
   ensure
     ENV["AURA_SESSION_NAME"] = nil
   end
@@ -419,7 +421,7 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
       alias_method :original_new, :new
       define_method(:new) do
         mock_shell = Object.new
-        mock_shell.define_singleton_method(:start) do |project_path|
+        mock_shell.define_singleton_method(:start) do |project_path, *args|
           Aura::Commands::ShellCommand.instance_variable_set(:@called_path, project_path)
         end
         mock_shell

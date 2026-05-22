@@ -1,4 +1,5 @@
 require "minitest/autorun"
+require "aura"
 require "aura/kernel/execution_engine"
 require "fileutils"
 require "json"
@@ -17,7 +18,7 @@ class TestGitStateIntegration < Minitest::Test
     Open3.capture3("git config user.name 'Test User'", chdir: @project_path)
     
     # Create config with snapshots enabled
-    FileUtils.mkdir_p(File.join(@project_path, "config"))
+    FileUtils.mkdir_p(File.join(@project_path, ".aura", "config"))
     File.write(File.join(@project_path, ".aura", "config", "config.yml"), {
       "security" => {
         "git_snapshots" => true
@@ -25,13 +26,13 @@ class TestGitStateIntegration < Minitest::Test
     }.to_yaml)
     
     # Create a dummy tool for the engine to find
-    FileUtils.mkdir_p(File.join(@project_path, "tools", "dummy"))
-    File.write(File.join(@project_path, "tools", "dummy", "manifest.json"), {
+    FileUtils.mkdir_p(File.join(@project_path, ".aura", "tools", "dummy"))
+    File.write(File.join(@project_path, ".aura", "tools", "dummy", "manifest.json"), {
       name: "dummy",
       runtime: "python3",
       entry: "logic.py"
     }.to_json)
-    File.write(File.join(@project_path, "tools", "dummy", "logic.py"), "import json; print(json.dumps({'output': 'hello'}))")
+    File.write(File.join(@project_path, ".aura", "tools", "dummy", "logic.py"), "import json; print(json.dumps({'output': 'hello'}))")
     
     # Initial commit to have a base
     File.write(File.join(@project_path, "initial.txt"), "hello")

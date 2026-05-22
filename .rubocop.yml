@@ -1,0 +1,72 @@
+# RuboCop configuration for Aura project
+# Relaxed settings for initial CI integration
+
+AllCops:
+  TargetRubyVersion: 3.0
+  NewCops: disable  # Don't enable new cops automatically
+  SuggestExtensions: false
+  Exclude:
+    - 'vendor/**/*'
+    - '.aura/**/*'
+    - 'test/**/*'
+    - 'tests/**/*'
+    - 'external/**/*'
+    - 'tmp/**/*'
+
+# Layout Rules
+Layout/LineLength:
+  Max: 150  # Relaxed from default 120
+  AllowedPatterns: ['^\s*#', '^\s*description']
+
+Layout/IndentationWidth:
+  Width: 2
+
+Layout/IndentationStyle:
+  EnforcedStyle: spaces
+
+# Metrics - Relaxed for existing codebase
+Metrics/AbcSize:
+  Max: 50  # Very relaxed
+
+Metrics/BlockLength:
+  Max: 100
+  ExcludedMethods: ['describe', 'context', 'it']
+
+Metrics/ClassLength:
+  Max: 300
+
+Metrics/CyclomaticComplexity:
+  Max: 20
+
+Metrics/MethodLength:
+  Max: 50
+
+Metrics/ModuleLength:
+  Max: 300
+
+Metrics/ParameterLists:
+  Max: 8
+
+# Style Rules
+Style/Documentation:
+  Enabled: false  # Don't require documentation comments
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/FrozenStringLiteralComment:
+  Enabled: true
+
+Style/AsciiComments:
+  Enabled: false  # Allow Chinese comments
+
+# Naming
+Naming/MethodParameterName:
+  MinLength: 1
+
+Naming/VariableNumber:
+  Enabled: false
+
+# Gemspec
+Gemspec/RequiredRubyVersion:
+  Enabled: true

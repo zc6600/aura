@@ -11,21 +11,21 @@ class TestHierarchicalLifecycle < Minitest::Test
     
     # 1. Create a tool group using CLI/Generator simulation
     require "aura/generators/tool_group_generator"
-    gen = Aura::Generators::ToolGroupGenerator.new(["browser", ["click"]], {}, { destination_root: @project })
+    gen = Aura::Generators::ToolGroupGenerator.new(["browser", ["click"]], {}, { destination_root: File.join(@project, ".aura") })
     gen.invoke_all
     
     # 2. Modify browser/open/logic.py to return a context_id
-    open_logic = File.join(@project, "tools/browser/open/logic.py")
+    open_logic = File.join(@project, ".aura", "tools/browser/open/logic.py")
     File.write(open_logic, <<~PYTHON)
       import sys, json
       print(json.dumps({"success": True, "context_id": "session_123", "data": {"url": "http://example.com"}}))
     PYTHON
     
     # 3. Modify browser/click/logic.py to confirm it received context_id
-    click_logic = File.join(@project, "tools/browser/click/logic.py")
+    click_logic = File.join(@project, ".aura", "tools/browser/click/logic.py")
     File.write(click_logic, <<~PYTHON)
       import sys, json
-      args = json.loads(sys.argv[1])
+      args = json.loads(sys.stdin.read())
       if args.get("context_id") == "session_123":
         print(json.dumps({"success": True, "message": "Clicked with session_123"}))
       else:
@@ -33,14 +33,14 @@ class TestHierarchicalLifecycle < Minitest::Test
     PYTHON
 
     # 4. Modify browser/close/logic.py to signal destruction
-    close_logic = File.join(@project, "tools/browser/close/logic.py")
+    close_logic = File.join(@project, ".aura", "tools/browser/close/logic.py")
     File.write(close_logic, <<~PYTHON)
       import sys, json
-      args = json.loads(sys.argv[1])
+      args = json.loads(sys.stdin.read())
       print(json.dumps({"success": True, "context_destroyed": args.get("context_id")}))
     PYTHON
 
-    FileUtils.mkdir_p(File.join(@project, "config"))
+    FileUtils.mkdir_p(File.join(@project, ".aura", "config"))
     File.write(File.join(@project, ".aura", "config", "config.yml"), "tool_protocol: { core_tools: [] }")
   end
 

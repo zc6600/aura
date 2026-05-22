@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Aura
   module LLM
     module Prompts
@@ -18,8 +20,9 @@ module Aura
         ```
 
         ## Loop Protocol
-        - Each turn you receive the current context (tools, state, history) and the user task.
-        - You call ONE tool per turn. You will receive the result, then decide the next action.
+        - Each turn you receive the current context (state, history) and the user task.
+        - You can call any of the provided native tools. Select the appropriate tool and supply its arguments.
+        - Call ONE tool per turn. You will receive the result, then decide the next action.
         - Keep calling tools until the task is fully accomplished, then call "final".
         - Never call "final" prematurely. Always verify your work before finishing.
         - If a tool fails, diagnose the error and try an alternative approach.
@@ -27,25 +30,24 @@ module Aura
         ## Rules
         - ALWAYS output valid JSON. Any plain text response is an error.
         - Use "summary" to briefly explain your reasoning (max 120 chars).
-        - Read tool descriptions carefully before using them.
+        - Read tool definitions carefully before using them.
         - Prefer reading before writing. Verify changes after writing.
       SYSTEM
 
       class Compose
-        def self.messages(context, goal = nil, summary_limits = nil)
-          user_part = []
-          user_part << context
-          if goal && !goal.strip.empty?
-            user_part << ""
-            user_part << "## CURRENT USER TASK"
-            user_part << goal
+
+        def self.messages_and_tools(context, goal = nil, options = {})
+          # Use Payload directly
+          if context.respond_to?(:to_messages) && context.respond_to?(:to_tool_schemas)
+            messages = context.to_messages(goal: goal)
+            native_tools = context.to_tool_schemas
+          else
+            # Fallback: treat as string context for backward compatibility
+            messages = [{ role: "user", content: context.to_s }]
+            native_tools = []
           end
 
-          usr = user_part.compact.join("\n")
-          [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user",   content: usr }
-          ]
+          [messages, native_tools]
         end
       end
     end

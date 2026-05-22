@@ -26,9 +26,12 @@ class TestOpenRouterIntegration < Minitest::Test
   end
 
   def test_planner_with_real_llm_returns_useful_plan
+    skip "set RUN_REAL_LLM_TESTS=1 to run" unless ENV["RUN_REAL_LLM_TESTS"] == "1"
+    skip "missing OPENROUTER_API_KEY" if (ENV["OPENROUTER_API_KEY"].to_s.empty? && !(File.exist?(File.join(Dir.pwd, ".env"))))
+    
     require "aura/kernel"
     runner = Aura::Kernel::Runner.new(@app)
-    plan = runner.plan("仅输出JSON工具调用：读取config/config.yml（read_file）。")
+    plan = runner.plan("请直接使用 read_file 工具读取 config/config.yml，不要使用其他工具。")
     if plan[:type] == "tool_call"
       assert_equal "read_file", plan[:tool]
       assert_equal "config/config.yml", plan[:args]["file_path"]

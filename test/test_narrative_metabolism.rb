@@ -1,4 +1,5 @@
 require "minitest/autorun"
+require "aura"
 require "aura/kernel/state"
 require "aura/kernel/narrative_service"
 require "fileutils"
@@ -9,8 +10,8 @@ class TestNarrativeMetabolism < Minitest::Test
   def setup
     @project_path = File.expand_path("tmp_narrative_test")
     FileUtils.rm_rf(@project_path)
-    FileUtils.mkdir_p(File.join(@project_path, "config"))
-    FileUtils.mkdir_p(File.join(@project_path, "state"))
+    FileUtils.mkdir_p(File.join(@project_path, ".aura", "config"))
+    FileUtils.mkdir_p(File.join(@project_path, ".aura", "state"))
     
     # Configure metabolism to trigger easily
     File.write(File.join(@project_path, ".aura", "config", "config.yml"), {

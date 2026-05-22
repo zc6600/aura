@@ -26,6 +26,10 @@ module Aura
         end
       end
 
+      def supports_native_tools?
+        @adapter.respond_to?(:supports_native_tools?) && @adapter.supports_native_tools?
+      end
+
       private
         def build_adapter
           case @provider

@@ -37,7 +37,8 @@ module Aura
           res = Net::HTTP.start(uri.host, uri.port, http_opts) { |http| http.request(req) }
           json = JSON.parse(res.body) rescue {}
           content = json.dig("content", 0, "text") || ""
-          { content: content, raw: json }
+          stop_reason = json["stop_reason"]
+          { content: content, raw: json, finish_reason: stop_reason }
         rescue => e
           { content: "", error: e.message }
         end
@@ -66,6 +67,7 @@ module Aura
           http_opts = { use_ssl: uri.scheme == "https" }
           total = +""
           buffer = +""
+          stop_reason = nil
           Net::HTTP.start(uri.host, uri.port, http_opts) do |http|
             http.request(req) do |res|
               res.read_body do |chunk|
@@ -77,11 +79,17 @@ module Aura
                   next if data.empty?
                   begin
                     json = JSON.parse(data)
-                    next unless json["type"] == "content_block_delta"
-                    delta = json.dig("delta", "text")
-                    if delta && !delta.empty?
-                      yield(delta) if block_given?
-                      total << delta
+                    if json["type"] == "content_block_delta"
+                      delta = json.dig("delta", "text")
+                      if delta && !delta.empty?
+                        yield(delta) if block_given?
+                        total << delta
+                      end
+                    elsif json["type"] == "message_delta"
+                      sr = json.dig("delta", "stop_reason")
+                      if sr
+                        stop_reason = sr
+                      end
                     end
                   rescue
                   end
@@ -89,7 +97,7 @@ module Aura
               end
             end
           end
-          { content: total }
+          { content: total, finish_reason: stop_reason }
         rescue => e
           { content: "", error: e.message }
         end

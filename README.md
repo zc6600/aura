@@ -63,7 +63,8 @@ gem install ./aura-0.1.0.gem
 Verify that Aura is installed globally:
 ```bash
 aura version
-aura doctor
+aura doctor    # Run comprehensive environment checks (Ruby, Git, Docker, LLM, etc.)
+aura info      # Display two-tier system and workspace information
 ```
 
 ### 2. Initialize a Project

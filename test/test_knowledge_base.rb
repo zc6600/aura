@@ -1,4 +1,5 @@
 require "minitest/autorun"
+require "aura"
 require "aura/kernel/execution_engine"
 require "aura/context"
 require "fileutils"
@@ -8,7 +9,7 @@ class TestKnowledgeBase < Minitest::Test
   def setup
     @project_path = File.expand_path("tmp_knowledge_test")
     FileUtils.rm_rf(@project_path)
-    FileUtils.mkdir_p(File.join(@project_path, "config"))
+    FileUtils.mkdir_p(File.join(@project_path, ".aura", "config"))
     File.write(File.join(@project_path, ".aura", "config", "config.yml"), {}.to_yaml)
   end
 

@@ -40,11 +40,14 @@ class TestAgentLoop < Minitest::Test
     @loop = Aura::Kernel::AgentLoop.new(@runner, event_bus: @bus)
   end
 
+  # ---------------------------------------------------------------------------
+  # Happy path: tool call then natural stop
+  # ---------------------------------------------------------------------------
   def test_successful_flow
-    # Step 1: run bash tool. Step 2: run final tool.
+    # Step 1: run bash tool. Step 2: LLM stops naturally with finish_reason "stop".
     @runner.mock_plans = [
       { tool: "bash_command", args: { "command" => "ls" }, summary: "List" },
-      { tool: "final", args: { "content" => "Found files" }, summary: "Submit" }
+      { type: "text", content: "Found files", finish_reason: "stop" }
     ]
     @runner.mock_tool_results = [
       { status: "success", content: "file1.txt" }
@@ -64,24 +67,29 @@ class TestAgentLoop < Minitest::Test
     assert_nil res.failure_reason
   end
 
-  def test_plain_text_wrapping
-    # Plan returns text content instead of a tool call
+  # ---------------------------------------------------------------------------
+  # finish_reason "stop" without prior tool calls → immediate success
+  # ---------------------------------------------------------------------------
+  def test_stop_without_tool_calls
     @runner.mock_plans = [
-      { type: "text", content: "Plain text answer" }
+      { type: "text", content: "Direct answer", finish_reason: "stop" }
     ]
 
     res = @loop.run("ask question")
 
     assert_equal :completed, res.status
-    assert_equal "Plain text answer", res.final_content
+    assert_equal "Direct answer", res.final_content
     assert_equal 0, res.steps.size
   end
 
+  # ---------------------------------------------------------------------------
+  # Format error recovery: malformed plan, then natural stop
+  # ---------------------------------------------------------------------------
   def test_format_error_tolerance
-    # Plan 1 is malformed/nil. Plan 2 is final tool call.
+    # Plan 1 is nil (format error). Plan 2 is a natural stop.
     @runner.mock_plans = [
       nil,
-      { tool: "final", args: { "content" => "recovered" } }
+      { type: "text", content: "recovered", finish_reason: "stop" }
     ]
 
     res = @loop.run("recover format error")
@@ -91,8 +99,10 @@ class TestAgentLoop < Minitest::Test
     assert_equal 2, @runner.plan_stream_called
   end
 
+  # ---------------------------------------------------------------------------
+  # Abort: too many consecutive format errors
+  # ---------------------------------------------------------------------------
   def test_format_error_abort
-    # Plan is consistently invalid
     @runner.mock_plans = [nil, nil, nil, nil, nil, nil]
 
     aborted_event = nil
@@ -106,11 +116,13 @@ class TestAgentLoop < Minitest::Test
     assert_equal "Max format errors reached (5)", res.failure_reason
   end
 
+  # ---------------------------------------------------------------------------
+  # Tool blocked once, then natural stop
+  # ---------------------------------------------------------------------------
   def test_tool_blocked_recovery
-    # Step 1: blocked command. Step 2: final command.
     @runner.mock_plans = [
       { tool: "bash_command", args: { "command" => "rm -rf /" } },
-      { tool: "final", args: { "content" => "safe answer" } }
+      { type: "text", content: "safe answer", finish_reason: "stop" }
     ]
     @runner.mock_tool_results = [
       { status: "blocked", advice: "safety violation" }
@@ -128,8 +140,10 @@ class TestAgentLoop < Minitest::Test
     assert_equal "safety violation", halted_events[0][:advice]
   end
 
+  # ---------------------------------------------------------------------------
+  # Abort: too many consecutive tool blocks
+  # ---------------------------------------------------------------------------
   def test_tool_blocked_abort
-    # Step 1, 2, 3: consistently blocked
     @runner.mock_plans = [
       { tool: "bash_command", args: { "command" => "rm" } },
       { tool: "bash_command", args: { "command" => "rm" } },
@@ -152,29 +166,16 @@ class TestAgentLoop < Minitest::Test
     assert_equal "Max tool errors reached (3)", res.failure_reason
   end
 
-  def test_raw_string_plan_wrapping
-    # Plan returns a raw String instead of a hash
-    @runner.mock_plans = [
-      "Hello this is a direct response string"
-    ]
-
-    res = @loop.run("ask question")
-
-    assert_equal :completed, res.status
-    assert_equal "Hello this is a direct response string", res.final_content
-    assert_equal 0, res.steps.size
-  end
-
+  # ---------------------------------------------------------------------------
+  # format_errors counter resets after a successful tool call
+  # ---------------------------------------------------------------------------
   def test_format_errors_reset_on_success
-    # Plan 1: nil (format error)
-    # Plan 2: bash tool call (success, resets format errors to 0)
-    # Plan 3: nil (format error, format_errors becomes 1, not 2)
-    # Plan 4: final tool call (success)
+    # nil (format error) → bash tool (success, resets) → nil (format error again, count=1) → stop
     @runner.mock_plans = [
       nil,
       { tool: "bash_command", args: { "command" => "ls" } },
       nil,
-      { tool: "final", args: { "content" => "done" } }
+      { type: "text", content: "done", finish_reason: "stop" }
     ]
     @runner.mock_tool_results = [
       { status: "success", content: "file.txt" }
@@ -186,8 +187,10 @@ class TestAgentLoop < Minitest::Test
     assert_equal "done", res.final_content
   end
 
+  # ---------------------------------------------------------------------------
+  # Custom config limits
+  # ---------------------------------------------------------------------------
   def test_custom_config_limits
-    # Set custom config limits in runner
     def @runner.load_config
       {
         "system" => {
@@ -202,7 +205,7 @@ class TestAgentLoop < Minitest::Test
     @runner.mock_plans = [
       { tool: "bash_command", args: { "command" => "ls" } },
       { tool: "bash_command", args: { "command" => "ls" } },
-      { tool: "final", args: { "content" => "done" } }
+      { type: "text", content: "done", finish_reason: "stop" }
     ]
     @runner.mock_tool_results = [
       { status: "success", content: "file.txt" },
@@ -231,5 +234,72 @@ class TestAgentLoop < Minitest::Test
     res3 = @loop.run("test tool error limit")
     assert_equal :failed, res3.status
     assert_equal 2, res3.steps.size
+  end
+
+  # ---------------------------------------------------------------------------
+  # finish_reason "length" → truncation abort
+  # ---------------------------------------------------------------------------
+  def test_finish_reason_cutoff_abort
+    @runner.mock_plans = [
+      { type: "text", content: "Incomplete text...", finish_reason: "length" }
+    ]
+
+    aborted_event = nil
+    @bus.subscribe(:loop_aborted) { |p| aborted_event = p }
+
+    res = @loop.run("generate large code")
+
+    assert_equal :failed, res.status
+    assert_equal "Loop terminated due to finish_reason: length", aborted_event[:reason]
+    assert_equal "Loop terminated due to finish_reason: length", res.failure_reason
+    assert_equal 0, res.steps.size
+  end
+
+  # ---------------------------------------------------------------------------
+  # finish_reason "content_filter" → safety abort
+  # ---------------------------------------------------------------------------
+  def test_finish_reason_safety_abort
+    @runner.mock_plans = [
+      { type: "text", content: "Filtered content", finish_reason: "content_filter" }
+    ]
+
+    aborted_event = nil
+    @bus.subscribe(:loop_aborted) { |p| aborted_event = p }
+
+    res = @loop.run("trigger filter")
+
+    assert_equal :failed, res.status
+    assert_equal "Loop terminated due to finish_reason: content_filter", aborted_event[:reason]
+  end
+
+  # ---------------------------------------------------------------------------
+  # finish_reason "error" → provider error abort
+  # ---------------------------------------------------------------------------
+  def test_finish_reason_provider_error_abort
+    @runner.mock_plans = [
+      { type: "text", content: "", finish_reason: "error" }
+    ]
+
+    aborted_event = nil
+    @bus.subscribe(:loop_aborted) { |p| aborted_event = p }
+
+    res = @loop.run("trigger provider error")
+
+    assert_equal :failed, res.status
+    assert_equal "Loop terminated due to finish_reason: error", aborted_event[:reason]
+  end
+
+  # ---------------------------------------------------------------------------
+  # finish_reason "stop" with content in args["content"] (legacy shape)
+  # ---------------------------------------------------------------------------
+  def test_stop_with_args_content
+    @runner.mock_plans = [
+      { type: "tool_call", args: { "content" => "legacy content" }, finish_reason: "stop" }
+    ]
+
+    res = @loop.run("test legacy content extraction")
+
+    assert_equal :completed, res.status
+    assert_equal "legacy content", res.final_content
   end
 end

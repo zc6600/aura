@@ -89,7 +89,7 @@ module Aura
         }.merge(manifest_overrides)
 
         create_file "#{dir}/manifest.json", JSON.pretty_generate(manifest)
-        create_file "#{dir}/logic.py", "#!/usr/bin/env python3\nimport sys, json\n\nargs = json.loads(sys.argv[1])\nprint(json.dumps({'success': True}))\n"
+        create_file "#{dir}/logic.py", "#!/usr/bin/env python3\nimport sys, json\n\nargs = json.loads(sys.stdin.read())\nprint(json.dumps({'success': True}))\n"
         create_file "#{dir}/test.py", "#!/usr/bin/env python3\nprint('Test passed')\n"
         chmod "#{dir}/logic.py", 0755
         chmod "#{dir}/test.py", 0755

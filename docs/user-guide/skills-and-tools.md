@@ -95,6 +95,44 @@ aura kernel observe .
 aura kernel run_call . read_file '{"file_path": "README.md"}'
 ```
 
+### How Tools are Exposed to the LLM
+
+Aura uses **native tool calling** to expose tools to the LLM:
+
+1. **Tool Discovery**: The system scans `tools/` directory and reads `manifest.json` files
+2. **Schema Conversion**: Tool definitions are converted to JSON Schema format
+3. **Native Injection**: Schemas are passed to the LLM API via the `tools` parameter (not in prompt text)
+4. **Structured Calls**: The LLM returns structured tool calls, which Aura executes
+
+**Benefits:**
+- More reliable than text-based tool descriptions
+- Follows OpenAI/Anthropic function calling standards
+- Better token efficiency (no redundant tool text in prompts)
+- Cleaner separation between context and tool definitions
+
+**Example Tool Schema (what the LLM sees):**
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "read_file",
+    "description": "Read a file from the filesystem",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "file_path": { 
+          "type": "string",
+          "description": "Path to the file to read"
+        }
+      },
+      "required": ["file_path"]
+    }
+  }
+}
+```
+
+**Note**: Earlier versions of Aura supported text-based tool injection where tool descriptions were embedded directly in the prompt. This has been completely removed in favor of native JSON Schema tool calling.
+
 ---
 
 ## Skills

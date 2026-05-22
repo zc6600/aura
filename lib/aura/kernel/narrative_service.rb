@@ -25,9 +25,13 @@ module Aura
         client = Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
 
         prompt = compose_prompt(events)
+        merged_prompt = <<~MSG.strip
+          System Instructions: You are an expert technical summarizer. Your goal is to condense a series of tool execution events into a concise progress narrative for an AI agent.
+
+          #{prompt}
+        MSG
         messages = [
-          { role: "system", content: "You are an expert technical summarizer. Your goal is to condense a series of tool execution events into a concise progress narrative for an AI agent." },
-          { role: "user", content: prompt }
+          { role: "user", content: merged_prompt }
         ]
 
         begin

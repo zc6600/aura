@@ -1,5 +1,6 @@
 require "minitest/autorun"
 require "fileutils"
+require "aura"
 require "aura/context"
 
 class TestToolProviderEnhancements < Minitest::Test
@@ -7,8 +8,8 @@ class TestToolProviderEnhancements < Minitest::Test
     @project = File.join(Dir.pwd, "tmp_tool_project")
     FileUtils.rm_rf(@project)
     FileUtils.mkdir_p(@project)
-    FileUtils.mkdir_p(File.join(@project, "tools", "t1"))
-    File.write(File.join(@project, "tools", "t1", "manifest.json"), {
+    FileUtils.mkdir_p(File.join(@project, ".aura", "tools", "t1"))
+    File.write(File.join(@project, ".aura", "tools", "t1", "manifest.json"), {
       name: "t1",
       description: "demo",
       permissions: { fs: "ro" },
@@ -19,9 +20,9 @@ class TestToolProviderEnhancements < Minitest::Test
         required: ["file_path"]
       }
     }.to_json)
-    File.write(File.join(@project, "tools", "t1", "logic.py"), "# @aura-hint: keep simple\nprint('x')")
+    File.write(File.join(@project, ".aura", "tools", "t1", "logic.py"), "# @aura-hint: keep simple\nprint('x')")
     # Missing test.py to trigger [DISABLED]
-    FileUtils.mkdir_p(File.join(@project, "config"))
+    FileUtils.mkdir_p(File.join(@project, ".aura", "config"))
     File.write(File.join(@project, ".aura", "config", "config.yml"), <<~YAML)
       tool_protocol:
         required_files:
@@ -37,10 +38,11 @@ class TestToolProviderEnhancements < Minitest::Test
     FileUtils.rm_rf(@project)
   end
 
-  def test_usage_magic_comments_and_status
+  def test_usage_magic_comments
     out = Aura::Context.assemble(@project, nil)
     assert_includes out, "Usage:"
     assert_includes out, "\"file_path\":\"string\""
-    assert_includes out, "Status: [DISABLED]"
+    # Status field removed - tool descriptions no longer include status
+    refute_includes out, "Status:"
   end
 end

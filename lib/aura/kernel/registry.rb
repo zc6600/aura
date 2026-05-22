@@ -6,7 +6,7 @@ module Aura
   module Kernel
     class ToolRegistry
       def initialize(project_path)
-        @project_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura.environment_path(project_path) || project_path) : project_path
+        @project_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
         @tools_path = File.join(@project_path, "tools")
         @registry = {}
         @groups = {}

@@ -29,6 +29,7 @@ class TestLSPClient < Minitest::Test
     @client.instance_variable_set(:@stdout, @mock.stdout)
     @client.instance_variable_set(:@stderr, @mock.stderr)
     @client.instance_variable_set(:@wait_thr, @mock)
+    @client.instance_variable_set(:@running, true)
     
     @client.instance_variable_set(:@reader_thread, Thread.new { @client.send(:listen_loop) })
   end

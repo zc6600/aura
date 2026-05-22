@@ -8,14 +8,15 @@ require "open3"
 module Aura
   module Commands
     class ToolsCommand < Thor
+      map "inspect" => :tool_inspect
+
       desc "inspect NAME", "Inspect a tool by name and print structured metadata"
       method_option :pretty, type: :boolean, aliases: "-p", default: false, desc: "Pretty-print JSON output"
       method_option :human,  type: :boolean, aliases: "-H", default: false, desc: "Human-readable summary"
-      map "inspect" => :tool_inspect
 
         def tool_inspect(name)
           py = runtime_python
-          env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura.environment_path(Dir.pwd) || Dir.pwd) : Dir.pwd
+          env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(Dir.pwd) || Dir.pwd) : Dir.pwd
           logic = File.join(env_path, "tools", "inspect_tool", "logic.py")
           unless File.exist?(logic)
             puts "inspect_tool not found under #{logic}"
@@ -150,13 +151,16 @@ module Aura
 
       no_commands do
         def runtime_python
-          env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura.environment_path(Dir.pwd) || Dir.pwd) : Dir.pwd
+          env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(Dir.pwd) || Dir.pwd) : Dir.pwd
           path = File.join(env_path, "config", "config.yml")
           begin
             data = File.exist?(path) ? YAML.load_file(path) : {}
-            data.dig("tool_protocol", "runtimes", "python") || "python3"
+            resolved = data.dig("tool_protocol", "runtimes", "python") || "python"
+            # Normalize python3 -> python (consistent with tool_validator.rb)
+            resolved = "python" if resolved == "python3"
+            resolved
           rescue StandardError
-            "python3"
+            "python"
           end
         end
 
@@ -217,7 +221,7 @@ module Aura
         end
 
         def required_files_from_config
-          env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura.environment_path(Dir.pwd) || Dir.pwd) : Dir.pwd
+          env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(Dir.pwd) || Dir.pwd) : Dir.pwd
           path = File.join(env_path, "config", "config.yml")
           begin
             data = File.exist?(path) ? YAML.load_file(path) : {}

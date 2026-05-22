@@ -36,6 +36,13 @@ class TestCliAskCommand < Minitest::Test
         MockLLMClient.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
       end
     end
+
+    class << Aura
+      alias_method :original_find_aura_dir, :find_aura_dir
+      def find_aura_dir(*args)
+        nil
+      end
+    end
   end
 
   def teardown
@@ -43,6 +50,10 @@ class TestCliAskCommand < Minitest::Test
     class << Aura::LLM::Client
       alias_method :new, :original_new
       remove_method :original_new
+    end
+    class << Aura
+      alias_method :find_aura_dir, :original_find_aura_dir
+      remove_method :original_find_aura_dir
     end
     FileUtils.rm_rf(@sessions_dir)
     Thread.current[:mock_llm_messages] = nil

@@ -65,7 +65,7 @@ Enforces the "Evolution Loop" quality gate.
 
 **Checks:**
 - Presence of `manifest.json`, `logic.py`, and `test.py` (unless `skip_test: true`)
-- Runs `test.py` before a tool can be `[ACTIVE]`
+- Runs `test.py` before a tool can be used
 - Results are cached in the session database (`state/sessions/{session}.db`) to avoid re-running tests
 
 ---

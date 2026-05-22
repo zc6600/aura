@@ -1,5 +1,6 @@
 require "minitest/autorun"
 require "fileutils"
+require "aura"
 require "aura/context"
 
 class TestBaseOverflow < Minitest::Test
@@ -7,7 +8,7 @@ class TestBaseOverflow < Minitest::Test
     @project = File.join(Dir.pwd, "tmp_overflow_project")
     FileUtils.rm_rf(@project)
     FileUtils.mkdir_p(@project)
-    FileUtils.mkdir_p(File.join(@project, "config"))
+    FileUtils.mkdir_p(File.join(@project, ".aura", "config"))
     File.write(File.join(@project, ".aura", "config", "config.yml"), <<~YML)
     state_management:
       max_state_chars: 300

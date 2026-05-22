@@ -10,6 +10,7 @@ class TestLlmLocalDefault < Minitest::Test
     cfg = File.join(@app, ".aura", "config", "config.yml")
     s = File.read(cfg)
     s = s.gsub('max_state_chars: 4000', 'max_state_chars: 100000')
+    s = s.gsub('provider: openrouter', 'provider: local')
     File.write(cfg, s)
   end
 

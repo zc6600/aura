@@ -9,14 +9,18 @@ require "aura/ext/mcp/manager"
 module Aura
   module Context
     class ToolProvider
+      attr_reader :active_tools
+
       def initialize(path, options = {})
-        @project_path = path
+        env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(path) || path) : path
+        @project_path = env_path
         @options = options
         @state = options[:state]
         @current_turn = options[:current_turn] || 0
-        @registry = Aura::Kernel::ToolRegistry.new(path)
-        @manager = Aura::Context::Manager.new(path)
-        @mcp_manager = Aura::MCP::Manager.new(path)
+        @registry = Aura::Kernel::ToolRegistry.new(env_path)
+        @manager = Aura::Context::Manager.new(env_path)
+        @mcp_manager = Aura::MCP::Manager.new(env_path)
+        @active_tools = []
       end
 
       def provide
@@ -35,6 +39,7 @@ module Aura
 
         @loaded_tools = []
         @indexed_only = []
+        @active_tools = []
         
         @registry.all_tools.each do |name|
           tool_data = @registry.find(name)
@@ -57,6 +62,11 @@ module Aura
           "# TOOL INDEX (Use 'inspect_tool' to see details)",
           @indexed_only.join("\n")
         ].join("\n\n")
+      end
+
+      def provide_structured
+        provide if @active_tools.empty?
+        @active_tools
       end
 
       private
@@ -95,6 +105,14 @@ module Aura
           instance_ids = active_instances.keys.join(", ")
           desc = desc.gsub(/Requires: #{req_context}/, "Requires: #{req_context} (Active instances: #{instance_ids})")
           @loaded_tools << desc
+
+          @active_tools << {
+            name: name,
+            description: manifest["description"] || "",
+            input_schema: manifest["input_schema"] || manifest["input"] || {},
+            permissions: manifest["permissions"] || {},
+            hint: load_hint(dir)
+          }
         else
           # Even if context is not active, the LLM should know the tool exists
           rel = dir.sub(/^#{Regexp.escape(@project_path)}\//, "")
@@ -115,16 +133,23 @@ module Aura
           end
         end
 
-        status = tool_status(name, dir)
         # Treat previously verified tools as "active" so the agent can reliably discover them.
-        should_auto_load = manifest["auto_load"] == true || is_core_tool?(name) || status.start_with?("[ACTIVE]")
+        should_auto_load = manifest["auto_load"] == true || is_core_tool?(name)
         if should_auto_load
           desc = build_full_description(name, dir, manifest)
           desc += breadcrumb unless breadcrumb.empty?
           @loaded_tools << desc
+
+          @active_tools << {
+            name: name,
+            description: manifest["description"] || "",
+            input_schema: manifest["input_schema"] || manifest["input"] || {},
+            permissions: manifest["permissions"] || {},
+            hint: load_hint(dir)
+          }
         else
           rel = dir.sub(/^#{Regexp.escape(@project_path)}\//, "")
-          info = "- #{name}: #{manifest["description"] || ""} #{status} (Path: #{rel})"
+          info = "- #{name}: #{manifest["description"] || ""} (Path: #{rel})"
           info += " (Unlocks: #{subtools.join(', ')})" if manifest["creates_context"] && subtools&.any?
           @indexed_only << info
         end
@@ -141,7 +166,6 @@ module Aura
         hint = load_hint(dir)
         desc = manifest["description"] || ""
         perms = manifest["permissions"] || {}
-        status = tool_status(name, dir)
         schema = manifest["input_schema"] || manifest["input"]
         usage  = usage_from_schema(schema) || "n/a"
         
@@ -153,7 +177,6 @@ module Aura
           "Description: #{desc}",
           req_line,
           "Permissions: #{perms.to_json}",
-          "Status: #{status}",
           "Usage: #{usage}",
           "Hint: #{hint}"
         ].compact
@@ -208,34 +231,6 @@ module Aura
         { input: sample, required: required }.to_json
       end
 
-      def tool_status(name, dir)
-        cfg = load_config
-        manifest = load_json(File.join(dir, "manifest.json")) || {}
-        required = (cfg.dig("tool_protocol", "required_files") || [])
-        test_file = manifest["test"] || "test.py"
-        skip_test = manifest["skip_test"] == true || (manifest.dig("verification", "require_test") == false)
-        req = required.reject { |f| skip_test && (f == test_file || f == "test.py") }
-        present = req.select { |f| File.exist?(File.join(dir, f)) }
-        missing = req - present
-        
-        if missing.any?
-          status_msg = "[DISABLED] missing: #{missing.join(', ')}"
-          status_msg += " (Found: #{present.join(', ')})" if present.any?
-          return status_msg
-        end
-        
-        if @state
-          vars = @state.get_active_variables
-          status = vars["tool_status:#{name}"]
-          if status == "ready"
-            return skip_test ? "[ACTIVE] (developer_no_test)" : "[ACTIVE]"
-          elsif status == "failed"
-            error = vars["tool_error:#{name}"]
-            return "[FAILED] #{error}"
-          end
-        end
-        skip_test ? "[DEVELOPER] no-test" : "[UNVERIFIED]"
-      end
 
       def load_config
         @config ||= begin
@@ -271,6 +266,13 @@ module Aura
         tools.each do |tool|
           if tool["auto_load"]
             @loaded_tools << build_mcp_description(tool)
+            @active_tools << {
+              name: tool["name"],
+              description: tool["description"] || "",
+              input_schema: tool["input_schema"] || {},
+              permissions: {},
+              hint: tool["hint"] || "No specific guidance provided."
+            }
           else
             @indexed_only << build_mcp_index(tool)
           end
@@ -291,7 +293,6 @@ module Aura
           "## #{name}",
           "Description: #{desc}",
           "Permissions: {}",
-          "Status: [ACTIVE]",
           "Usage: #{usage}",
           "Hint: #{hint}"
         ].join("\n")
@@ -301,8 +302,9 @@ module Aura
         name = tool["name"]
         desc = tool["description"] || ""
         server = tool["server"] || "mcp"
-        "- #{name}: #{desc} [ACTIVE] (Path: mcp://#{server})"
+        "- #{name}: #{desc} (Path: mcp://#{server})"
       end
+
       def append_lsp_tools
         require "aura/kernel/tools/lsp_diagnostics"
         # We don't have the manager here yet, so we just build the generic description
@@ -313,10 +315,17 @@ module Aura
           "## #{info['name']}",
           "Description: #{info['description']}",
           "Permissions: {}",
-          "Status: [ACTIVE]",
           "Usage: #{usage_from_schema(info['input_schema'])}",
           "Hint: Use this tool to get real-time feedback on code changes."
         ].join("\n")
+
+        @active_tools << {
+          name: info['name'],
+          description: info['description'] || "",
+          input_schema: info['input_schema'] || {},
+          permissions: {},
+          hint: "Use this tool to get real-time feedback on code changes."
+        }
       end
 
       def fetch_max_file_chars

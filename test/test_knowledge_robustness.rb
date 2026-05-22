@@ -1,4 +1,5 @@
 require "minitest/autorun"
+require "aura"
 require "aura/context/knowledge_provider"
 require "aura/context/base"
 require "fileutils"
@@ -52,8 +53,7 @@ class TestKnowledgeRobustness < Minitest::Test
   def test_compression_logic_respects_knowledge
     # Create a small limit (2500 chars)
     # Total context without compression will be ~4000
-    
-    FileUtils.mkdir_p(File.join(@project_path, "config"))
+    FileUtils.mkdir_p(File.join(@project_path, ".aura", "config"))
     File.write(File.join(@project_path, ".aura", "config", "config.yml"), {
       "state_management" => { "max_state_chars" => 2500 }
     }.to_yaml)

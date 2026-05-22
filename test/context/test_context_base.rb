@@ -1,5 +1,6 @@
 require "minitest/autorun"
 require "fileutils"
+require "aura"
 require "aura/context"
 
 class DummyDb
@@ -19,13 +20,13 @@ class TestContextBase < Minitest::Test
     @project = File.join(Dir.pwd, "tmp_ctx_project")
     FileUtils.rm_rf(@project)
     FileUtils.mkdir_p(@project)
-    FileUtils.mkdir_p(File.join(@project, "tools", "t1"))
+    FileUtils.mkdir_p(File.join(@project, ".aura", "tools", "t1"))
     FileUtils.mkdir_p(File.join(@project, "knowledge"))
-    File.write(File.join(@project, "tools", "t1", "manifest.json"), { name: "t1", description: "d", permissions: { fs: "ro" }, auto_load: true }.to_json)
-    File.write(File.join(@project, "tools", "t1", "logic.py.hint"), "hint text")
+    File.write(File.join(@project, ".aura", "tools", "t1", "manifest.json"), { name: "t1", description: "d", permissions: { fs: "ro" }, auto_load: true }.to_json)
+    File.write(File.join(@project, ".aura", "tools", "t1", "logic.py.hint"), "hint text")
     File.write(File.join(@project, "knowledge", "k.txt"), "k")
     # minimal config for required_files
-    FileUtils.mkdir_p(File.join(@project, "config"))
+    FileUtils.mkdir_p(File.join(@project, ".aura", "config"))
     File.write(File.join(@project, ".aura", "config", "config.yml"), <<~YAML)
       tool_protocol:
         required_files:

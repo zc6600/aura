@@ -12,7 +12,6 @@ module Aura
     # - plan: LLM's planning/decision (tool calls with thought/summary)
     # - execution: Tool execution results
     # - interception: Tool validation/interception events
-    # - learn: Learning/reflection events
     #
     # Usage:
     #   recorder = StateRecorder.new(state)
@@ -89,15 +88,7 @@ module Aura
         @state.record_event(payload)
       end
 
-      # Record a learning/reflection event
-      # @deprecated Currently not used - empty learn events provide no value
-      # @param content [String, nil] Optional learning content
-      # @return [Integer] Event ID
-      def record_learn(content = nil)
-        payload = { phase: "learn" }
-        payload[:content] = content if content
-        @state.record_event(payload)
-      end
+
 
       # Record a custom event with arbitrary phase and payload
       # @param phase [String] The event phase
@@ -131,8 +122,6 @@ module Aura
               event[:advice],
               reason: event[:reason]
             )
-          when "learn"
-            event_ids << record_learn(event[:content])
           else
             event_ids << record_custom(type, event.reject { |k, _| [:type].include?(k) })
           end

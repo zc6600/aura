@@ -30,7 +30,8 @@ module Aura
       attr_reader :project_path, :state_dir
 
       def initialize(project_path)
-        @project_path = File.expand_path(project_path)
+        env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
+        @project_path = File.expand_path(env_path)
         @state_dir = File.join(@project_path, "state")
         @sessions_dir = File.join(@state_dir, "sessions")
         @metadata_file = File.join(@state_dir, "sessions.json")
@@ -138,7 +139,30 @@ module Aura
       # @param include_missing [Boolean] Include sessions whose db files are missing
       # @return [Array<Hash>] Session info list
       def list(include_missing: false)
-        sessions = load_metadata.values
+        sessions_hash = load_metadata
+        
+        # Auto-discover any session databases present in the directory
+        if Dir.exist?(@sessions_dir)
+          Dir.glob(File.join(@sessions_dir, "*.db")).each do |db_path|
+            name = File.basename(db_path, ".db")
+            name_sym = name.to_sym
+            unless sessions_hash.key?(name_sym)
+              sessions_hash[name_sym] = {
+                name: name,
+                db_path: db_path,
+                created_at: (File.birthtime(db_path).iso8601 rescue File.mtime(db_path).iso8601),
+                last_active_at: File.mtime(db_path).iso8601,
+                description: name == "default" ? "Default session" : "Auto-discovered session",
+                tags: [],
+                turn_count: 0,
+                event_count: 0
+              }
+            end
+          end
+          save_metadata(sessions_hash)
+        end
+
+        sessions = sessions_hash.values
         
         # Enrich with current stats
         sessions.map! do |info|

@@ -1,5 +1,6 @@
 require "minitest/autorun"
 require "fileutils"
+require "aura"
 require "aura/context"
 
 class TestEnvironmentProvider < Minitest::Test
@@ -12,7 +13,7 @@ class TestEnvironmentProvider < Minitest::Test
     File.write(File.join(@project, "knowledge", "API_Spec.pdf"), "PDF")
     File.write(File.join(@project, "knowledge", "API_Spec.pdf.hint"), "Use v2 endpoints")
     # config to avoid overflow
-    FileUtils.mkdir_p(File.join(@project, "config"))
+    FileUtils.mkdir_p(File.join(@project, ".aura", "config"))
     File.write(File.join(@project, ".aura", "config", "config.yml"), "state_management:\n  max_state_chars: 10000\n")
   end
 

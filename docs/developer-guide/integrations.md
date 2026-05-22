@@ -14,8 +14,9 @@ Aura integrates the [Model Context Protocol](https://modelcontextprotocol.io/) t
 ### Integration Points
 
 1. **Config Loading**: `Aura::MCP::Manager` loads `tools/mcp/config.yml` (relative to project root)
-2. **Discovery**: `Aura::Context::ToolProvider` injects MCP tools into the prompt as `mcp.<server>.<tool>`
-3. **Execution**: `Aura::Kernel::ExecutionEngine` routes `mcp.*` calls to `Aura::MCP::Manager`
+2. **Discovery**: `Aura::Context::ToolProvider` collects MCP tool schemas and converts them to JSON Schema format
+3. **Native Tool Calling**: MCP tools are passed to LLM as structured tool definitions (not text descriptions in prompt)
+4. **Execution**: `Aura::Kernel::ExecutionEngine` routes `mcp.*` calls to `Aura::MCP::Manager`
 
 ### Configuration (`tools/mcp/config.yml`)
 

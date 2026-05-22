@@ -19,7 +19,7 @@ module Aura
     # Retention Tiers (configured in state_management.retention):
     # - Tier 1 (Ephemeral): execution, observe - quickly summarized
     # - Tier 2 (Working): plan, user - kept for session
-    # - Tier 3 (Insights): learn, interception - kept longer
+    # - Tier 3 (Insights): interception - kept longer
     # - Tier 4 (Permanent): milestone - never deleted
     #
     # Usage:
@@ -32,7 +32,6 @@ module Aura
         "observe" => { max_steps: 3, summarize: false },
         "plan" => { max_steps: 50, summarize: false },
         "user" => { max_steps: 100, summarize: false },
-        "learn" => { max_steps: 200, summarize: true },
         "interception" => { max_steps: 100, summarize: false },
         "milestone" => { permanent: true }
       }.freeze

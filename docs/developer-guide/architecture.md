@@ -312,6 +312,8 @@ The core runtime engine that orchestrates the agent's lifecycle.
 How the agent maintains continuity and memory.
 - **State Management**: SQLite schema (`state/sessions/*.db`), event logging, and key-value storage
 - **Read-Write Separation**: StateRecorder (write) vs StateProvider (read)
+- **Payload LLM Methods**: Built-in `to_messages` and `to_tool_schemas` for LLM integration
+- **Native Tool Calling**: JSON Schema-based tool injection (no text-based tool descriptions)
 - **Memory Metabolism**: Tiered retention strategy with manifest-based configuration
 - **Two Summary Types**: Call Summary (from LLM) vs Metabolism Summary (from NarrativeService)
 - **Context Assembly**: Building the prompt context from state and environment

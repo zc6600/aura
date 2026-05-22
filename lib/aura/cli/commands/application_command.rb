@@ -6,12 +6,24 @@ require "open3"
 require "json"
 require "yaml"
 require "shellwords"
+
+# Load extracted command classes
+require "aura/cli/commands/new_command"
+require "aura/cli/commands/config_command"
+require "aura/cli/commands/doctor_command"
+require "aura/cli/commands/info_command"
+require "aura/cli/commands/project_command"
+require "aura/cli/commands/version_command"
+require "aura/cli/commands/completion_command"
+require "aura/cli/commands/branch_command"
 require "aura/cli/commands/tools_command"
 require "aura/cli/commands/kernel_command"
 require "aura/cli/commands/shell_command"
 require "aura/cli/commands/skills_command"
 require "aura/cli/commands/hints_command"
 require "aura/cli/commands/session_command"
+require "aura/cli/commands/update_command"
+require "aura/cli/commands/template_command"
 
 module Aura
   VERSION = "0.1.0"
@@ -28,281 +40,71 @@ module Aura
         true
       end
 
-      desc "new [PATH]", "Initialize an Aura environment at the specified path (defaults to current directory)"
+      # Delegate to extracted commands
+      desc "new [PATH]", "Initialize an Aura environment at the specified path"
       def new(target_path = ".")
-        Aura.ensure_global_repo!
-        
-        target_dir = File.expand_path(target_path)
-        FileUtils.mkdir_p(target_dir) unless File.directory?(target_dir)
-        
-        project_name = File.basename(target_dir).gsub(/[^a-zA-Z0-9_\-]/, "")
-        project_name = "aura_#{Time.now.strftime('%Y_%m_%d_%H%M%S')}" if project_name.empty?
-
-        hidden = File.join(target_dir, ".aura")
-        
-        puts "Initializing Aura workspace in-place at: #{target_dir}..."
-        
-        if File.exist?(hidden)
-          puts "\e[31m⛔️ Error: .aura environment already exists in this folder!\e[0m"
-          exit 1
-        end
-
-        # Clone global repository into hidden .aura environment
-        out, err, status = Open3.capture3("git", "clone", Aura.global_repo_path, hidden)
-        if status.success?
-          puts "\e[32mSuccessfully cloned template repository into hidden .aura environment.\e[0m"
-          
-          # Configure local workspace git context
-          Aura.git_run(hidden, "config", "user.name", "Aura Workspace")
-          Aura.git_run(hidden, "config", "user.email", "workspace@aura-os.ai")
-          
-          # Inject .gitignore rule in parent directory
-          git_ignore_path = File.join(target_dir, ".gitignore")
-          existing_rules = File.exist?(git_ignore_path) ? File.read(git_ignore_path) : ""
-          unless existing_rules.include?(".aura/")
-            File.write(git_ignore_path, existing_rules + "\n.aura/\n")
-            puts "\e[32mInjected .gitignore rule for hidden .aura environment.\e[0m"
-          end
-          
-          # Inject .gitignore rule inside .aura folder to ignore runtime databases
-          inner_ignore_path = File.join(hidden, ".gitignore")
-          inner_rules = File.exist?(inner_ignore_path) ? File.read(inner_ignore_path) : ""
-          unless inner_rules.include?("state/aura.db*")
-            File.write(inner_ignore_path, inner_rules + "\nstate/aura.db*\n")
-          end
-
-          # Record project name in global projects registry
-          Aura.register_project!(project_name, target_dir)
-
-          # Record project name inside the local workspace configuration
-          cfg_path = File.join(hidden, "config", "config.yml")
-          if File.exist?(cfg_path)
-            begin
-              cfg = YAML.load_file(cfg_path) || {}
-              cfg["project_name"] = project_name.to_s
-              File.write(cfg_path, YAML.dump(cfg))
-            rescue StandardError
-            end
-          end
-
-          puts "\e[32mProject '#{project_name}' registered successfully!\e[0m"
-        else
-          puts "\e[31mFailed to clone global repository:\n#{err}\e[0m"
-          exit 1
-        end
+        NewCommand.new.invoke(:new, [target_path], {})
       end
 
       desc "version", "Show Aura version"
       def version
-        puts "Aura #{Aura::VERSION}"
+        VersionCommand.new.invoke(:version, [], {})
       end
 
       desc "completion [SHELL]", "Generate shell autocompletion script (bash or zsh)"
       def completion(shell = nil)
-        shell ||= ENV["SHELL"]&.include?("zsh") ? "zsh" : "bash"
-        case shell.to_s.downcase
-        when "zsh"
-          puts <<~'ZSH'
-            #compdef aura
-
-            _aura() {
-              local line state
-
-              _arguments -C \
-                "1: :->cmds" \
-                "*: :->args"
-
-              case "$state" in
-                cmds)
-                  _values "aura command" \
-                    "add[Stage files inside the local Aura environment]" \
-                    "ask[Directly ask the LLM a question without launching interactive chat]" \
-                    "branch[List, switch, or create customized agent profiles]" \
-                    "chat[Start an interactive Aura chat session]" \
-                    "commit[Commit staged changes inside the local Aura environment]" \
-                    "config[Read or write configuration settings]" \
-                    "context[Compile and print project context]" \
-                    "delete[Unregister an Aura project and cleanly wipe local workspace]" \
-                    "doctor[Run environment checks]" \
-                    "hints[Manage context/magic hint injection configurations]" \
-                    "kernel[Kernel commands]" \
-                    "list[List all globally registered Aura projects]" \
-                    "new[Initialize an in-place Aura environment linked to a project name]" \
-                    "prune[Remove all registered projects whose paths do not exist]" \
-                    "pull[Pull new templates or updates from the global repository]" \
-                    "register[Register the current directory as an active Aura workspace]" \
-                    "skill[Manage agent skills in the active workspace]" \
-                    "status[Show what files are modified or untracked]" \
-                    "sync[Push local workspace changes back to the global repository]" \
-                    "tools[Tools management commands]" \
-                    "tree[Print a tree of all available commands]" \
-                    "version[Show Aura version]" \
-                    "web[Start a lightweight Aura web server]" \
-                    "completion[Generate shell autocompletion script (bash or zsh)]"
-                  ;;
-                args)
-                  case "$words[1]" in
-                    hints|h)
-                      _values "hints subcommand" \
-                        "list[List all files parsed for hint injection and their status]" \
-                        "toggle[Toggle hint injection status for a file]"
-                      ;;
-                    kernel|k)
-                      _values "kernel subcommand" \
-                        "start[Start the background kernel]" \
-                        "stop[Stop the background kernel]" \
-                        "status[Show status of background kernel]" \
-                        "logs[Tail background kernel logs]" \
-                        "shell[Open interactive console inside sandbox kernel]"
-                      ;;
-                    skill|s)
-                      _values "skill subcommand" \
-                        "list[List all available agent skills]" \
-                        "add[Add a new skill path]" \
-                        "remove[Remove a skill path]" \
-                        "enable[Enable a specific skill]" \
-                        "disable[Disable a specific skill]"
-                      ;;
-                    tools|t)
-                      _values "tools subcommand" \
-                        "list[List all available workspace tools]" \
-                        "add[Add a new tool config]" \
-                        "remove[Remove a tool config]" \
-                        "enable[Enable a specific tool]" \
-                        "disable[Disable a specific tool]"
-                      ;;
-                  esac
-                  ;;
-              esac
-            }
-
-            # Setup completion for both 'aura' command and 'ruby -Ilib bin/aura'
-            compdef _aura aura
-          ZSH
-        else
-          puts <<~'BASH'
-            _aura() {
-                local cur prev opts
-                COMPREPLY=()
-                cur="${COMP_WORDS[COMP_CWORD]}"
-                prev="${COMP_WORDS[COMP_CWORD-1]}"
-
-                commands="add ask branch chat commit config context delete doctor hints kernel list new prune pull register skill status sync tools tree version web completion h t s k c v"
-
-                if [ $COMP_CWORD -eq 1 ]; then
-                    COMPREPLY=( $(compgen -W "${commands}" -- ${cur}) )
-                    return 0
-                fi
-
-                case "${prev}" in
-                    hints|h)
-                        COMPREPLY=( $(compgen -W "list toggle" -- ${cur}) )
-                        return 0
-                        ;;
-                    kernel|k)
-                        COMPREPLY=( $(compgen -W "start stop status logs shell" -- ${cur}) )
-                        return 0
-                        ;;
-                    skill|s)
-                        COMPREPLY=( $(compgen -W "list add remove enable disable" -- ${cur}) )
-                        return 0
-                        ;;
-                    tools|t)
-                        COMPREPLY=( $(compgen -W "list add remove enable disable" -- ${cur}) )
-                        return 0
-                        ;;
-                esac
-            }
-            complete -F _aura aura
-          BASH
-        end
+        CompletionCommand.new.invoke(:completion, [shell], {})
       end
 
       desc "doctor", "Run environment checks"
       def doctor
-        ruby_ver = RUBY_VERSION
-        puts "Ruby: #{ruby_ver}"
-        
-        # Check Git
-        git_ver, _err, status = Open3.capture3("git", "--version")
-        if status.success?
-          puts "Git: #{git_ver.strip}"
-        else
-          puts "\e[31mGit: Not found!\e[0m"
-          puts "💡 To install Git:"
-          puts "   - macOS: brew install git"
-          puts "   - Ubuntu/Debian: sudo apt-get install git"
-        end
+        DoctorCommand.new.invoke(:doctor, [], {})
+      end
 
-        # Check Global Repo
-        begin
-          Aura.ensure_global_repo!
-          puts "Global Repository (~/.aura/repo): OK"
-        rescue StandardError => e
-          puts "\e[31mGlobal Repository: Failed to initialize! (#{e.message})\e[0m"
-        end
+      desc "info", "Display comprehensive system and workspace information"
+      def info
+        InfoCommand.new.invoke(:info, [], {})
+      end
 
-        # Check LLM Configurations
-        workspace_path = find_aura_dir
-        cfg_path = if workspace_path
-                     File.join(workspace_path, "config", "config.yml")
-                   else
-                     File.join(Aura.global_repo_path, "config", "config.yml")
-                   end
+      desc "config [KEY] [VALUE]", "Read or write configuration settings"
+      method_option :global, type: :boolean, aliases: "-g", desc: "Target the global template repository config"
+      def config(key = nil, value = nil)
+        ConfigCommand.new.invoke(:config, [key, value], options)
+      end
 
-        provider = nil
-        api_key_set = false
-        env_var_name = nil
+      desc "list", "List all globally registered Aura projects"
+      def list
+        ProjectCommand.new.invoke(:list, [], {})
+      end
 
-        if File.exist?(cfg_path)
-          begin
-            require "yaml"
-            cfg = YAML.load_file(cfg_path) || {}
-            llm_cfg = cfg["llm"] || {}
-            provider = llm_cfg["provider"]
-            if provider && !provider.to_s.strip.empty?
-              env_var_name = case provider.to_s.downcase
-                             when "openai" then "OPENAI_API_KEY"
-                             when "openrouter" then "OPENROUTER_API_KEY"
-                             when "anthropic" then "ANTHROPIC_API_KEY"
-                             when "gemini" then "GEMINI_API_KEY"
-                             when "deepseek" then "DEEPSEEK_API_KEY"
-                             else nil
-                             end
-              api_key_set = (env_var_name && ENV[env_var_name] && !ENV[env_var_name].empty?) || 
-                            (llm_cfg["api_key"] && !llm_cfg["api_key"].to_s.strip.empty?)
-            end
-          rescue StandardError
-          end
-        end
+      desc "delete PROJECT_NAME", "Unregister an Aura project and delete its .aura sandbox"
+      def delete(project_name)
+        ProjectCommand.new.invoke(:delete, [project_name], {})
+      end
 
-        if provider.nil? || provider.to_s.strip.empty?
-          puts "\e[33m⚠️ LLM Provider: Not configured\e[0m"
-          puts "💡 To configure your LLM provider, run:"
-          puts "   $ aura config llm.provider <provider>  (e.g., openai, openrouter, anthropic, gemini)"
-        elsif !api_key_set
-          puts "\e[33m⚠️ LLM API Key: Missing for provider '#{provider}'\e[0m"
-          puts "💡 To set the API key in config, run:"
-          puts "   $ aura config llm.api_key <your_api_key>"
-          if env_var_name
-            puts "💡 Or export the environment variable in your terminal:"
-            puts "   $ export #{env_var_name}=<your_api_key>"
-          end
-        else
-          puts "LLM Config (Provider: #{provider}): OK"
-        end
+      desc "register PROJECT_NAME", "Register the current directory as an Aura project"
+      def register(project_name)
+        ProjectCommand.new.invoke(:register, [project_name], {})
+      end
 
-        puts "Aura CLI: OK"
+      desc "prune", "Remove all registered projects whose directories no longer exist"
+      def prune
+        ProjectCommand.new.invoke(:prune, [], {})
+      end
+
+      desc "branch [PROFILE_NAME]", "List, switch, or create customized agent profiles"
+      def branch(profile_name = nil)
+        BranchCommand.new.invoke(:branch, [profile_name], {})
       end
 
       desc "context [PROJECT_PATH]", "Compile and print project context"
       def context(project_path = nil)
         require "aura/context"
         require "aura/kernel/state"
-        resolved_path = Aura.resolve_project_path!(project_path)
+        resolved_path = Aura::WorkspaceInitializer.resolve_project_path!(project_path)
         root = File.expand_path(resolved_path)
         # Decouple workspace path from environment path
-        env_path = Aura.environment_path(root)
+        env_path = Aura::PathResolver.environment_path(root)
         db = Aura::Kernel::State.new(env_path)
         out = Aura::Context.assemble(root, db)
         puts out
@@ -323,12 +125,18 @@ module Aura
       desc "session SUBCOMMAND ...", "Manage conversation sessions"
       subcommand "session", Aura::Commands::SessionCommand
 
+      desc "update SUBCOMMAND ...", "Update framework, templates, and sub-projects"
+      subcommand "update", Aura::Commands::UpdateCommand
+
+      desc "template SUBCOMMAND ...", "Template management and sync"
+      subcommand "template", Aura::Commands::TemplateCommand
+
       desc "chat [PROJECT_PATH]", "Start an interactive Aura chat session"
       method_option :verbose, type: :boolean, aliases: "-v", desc: "Show detailed output"
       method_option :goal, type: :string, aliases: "-g", desc: "Autonomous goal to execute without interactive input (exits when complete)"
       method_option :non_interactive, type: :boolean, aliases: "--ni", default: false, desc: "Run non-interactively (requires --goal); final answer is printed to stdout"
       def chat(project_path = nil)
-        resolved_path = Aura.resolve_project_path!(project_path)
+        resolved_path = Aura::WorkspaceInitializer.resolve_project_path!(project_path)
         Aura::Commands::ShellCommand.new.start(resolved_path, options)
       end
 
@@ -338,20 +146,20 @@ module Aura
       def web(project_path = nil)
         require "socket"
         require "sqlite3"
-        resolved_path = Aura.resolve_project_path!(project_path)
+        resolved_path = Aura::WorkspaceInitializer.resolve_project_path!(project_path)
         root = File.expand_path(resolved_path)
-        env_path = Aura.environment_path(root)
+        env_path = Aura::PathResolver.environment_path(root)
         
+        require "aura/kernel/state"
+        state = Aura::Kernel::State.new(root)
+        db_path = state.db_path
+        state.close rescue nil
+
         cfg = File.join(env_path, "config", "config.yml")
-        db_path = File.join(env_path, "state", "aura.db")
         project_name = File.basename(root)
         if File.exist?(cfg)
           begin
             data = YAML.load_file(cfg)
-            p = data.dig("state_management", "db_path")
-            if p && !p.to_s.empty?
-              db_path = File.expand_path(p, env_path)
-            end
             project_name = data["project_name"] || project_name
           rescue StandardError
           end
@@ -689,7 +497,7 @@ module Aura
         server.close
       end
 
-      # --- Git-based Version Control Subcommands ---
+      # --- Git-based Version Control Commands ---
 
       desc "add PATHS...", "Stage files inside the local Aura environment"
       def add(*paths)
@@ -705,7 +513,7 @@ module Aura
           end
         end
 
-        res = Aura.git_run(aura_dir, "add", *resolved_paths)
+        res = Aura::GlobalConfig.git_run(aura_dir, "add", *resolved_paths)
         if res[:success]
           puts "\e[32mSuccessfully staged changes inside .aura.\e[0m"
         else
@@ -718,7 +526,7 @@ module Aura
       def commit
         aura_dir = ensure_workspace!
         msg = options[:message] || options["message"]
-        res = Aura.git_run(aura_dir, "commit", "-m", msg.to_s)
+        res = Aura::GlobalConfig.git_run(aura_dir, "commit", "-m", msg.to_s)
         if res[:success]
           puts "\e[32mSuccessfully committed changes inside .aura:\e[0m"
           puts res[:stdout]
@@ -731,7 +539,7 @@ module Aura
       def sync
         aura_dir = ensure_workspace!
         puts "Syncing changes back to the global repository (~/.aura/repo)..."
-        res = Aura.git_run(aura_dir, "push", "origin", "main")
+        res = Aura::GlobalConfig.git_run(aura_dir, "push", "origin", "main")
         if res[:success]
           puts "\e[32mSuccessfully synced local changes to global repo!\e[0m"
         else
@@ -743,7 +551,7 @@ module Aura
       def pull
         aura_dir = ensure_workspace!
         puts "Pulling updates from the global repository (~/.aura/repo)..."
-        res = Aura.git_run(aura_dir, "pull", "origin", "main")
+        res = Aura::GlobalConfig.git_run(aura_dir, "pull", "origin", "main")
         if res[:success]
           puts "\e[32mSuccessfully pulled updates from global repo!\e[0m"
           puts res[:stdout]
@@ -755,53 +563,9 @@ module Aura
       desc "status", "Show what files are modified or untracked inside .aura"
       def status
         aura_dir = ensure_workspace!
-        res = Aura.git_run(aura_dir, "status")
+        res = Aura::GlobalConfig.git_run(aura_dir, "status")
         puts res[:stdout]
         puts res[:stderr] unless res[:stderr].empty?
-      end
-
-      # --- Configuration Management Command ---
-
-      desc "config [KEY] [VALUE]", "Read or write configuration settings"
-      method_option :global, type: :boolean, aliases: "-g", desc: "Target the global template repository config"
-      def config(key = nil, value = nil)
-        is_global = options[:global] || options["global"]
-        cfg_dir = if is_global
-                    File.join(Aura.global_repo_path, "config")
-                  else
-                    aura_dir = find_aura_dir
-                    if aura_dir.nil?
-                      puts "\e[31m⛔️ Error: Not in an Aura workspace.\e[0m"
-                      puts "To configure globally, use the --global flag."
-                      puts "To initialize a workspace in the current directory, run:"
-                      puts "  $ aura new"
-                      exit 1
-                    end
-                    File.join(aura_dir, "config")
-                  end
-        
-        cfg_path = File.join(cfg_dir, "config.yml")
-        FileUtils.mkdir_p(cfg_dir) unless File.directory?(cfg_dir)
-        
-        hash = File.exist?(cfg_path) ? (YAML.load_file(cfg_path) || {}) : {}
-        
-        if key.nil?
-          # List all config
-          puts YAML.dump(hash)
-        elsif value.nil?
-          # Read a single key
-          val = get_hash_value(hash, key)
-          if val.nil?
-            puts "\e[33m(nil)\e[0m"
-          else
-            puts val
-          end
-        else
-          set_hash_value(hash, key, value)
-          File.write(cfg_path, YAML.dump(hash))
-          is_global = options[:global] || options["global"]
-          puts "\e[32mSuccessfully updated #{key} to #{value} in #{is_global ? 'global' : 'local'} config.\e[0m"
-        end
       end
 
       desc "ask QUESTION", "Directly ask the LLM a question without any Aura OS context wrapping (retains conversation memory)"
@@ -819,7 +583,7 @@ module Aura
         cfg_path = if aura_dir
                      File.join(aura_dir, "config", "config.yml")
                    else
-                     File.join(Aura.global_repo_path, "config", "config.yml")
+                     File.join(Aura::GlobalConfig.repo_path, "config", "config.yml")
                    end
         
         cfg = File.exist?(cfg_path) ? (YAML.load_file(cfg_path) || {}) : {}
@@ -844,7 +608,7 @@ module Aura
         state_dir = if aura_dir
                       File.join(aura_dir, "state")
                     else
-                      File.join(Aura.global_repo_path, "state")
+                      File.join(Aura::GlobalConfig.repo_path, "state")
                     end
         sessions_dir = File.join(state_dir, "ask_sessions")
         session_name = options[:session] || options["session"] || "default"
@@ -871,9 +635,6 @@ module Aura
         
         messages = []
         system_instruction = options[:system] || options["system"]
-        if system_instruction
-          messages << { role: "system", content: system_instruction }
-        end
         
         # Append sliding window of last 10 messages (5 turns)
         limit = 10
@@ -884,7 +645,12 @@ module Aura
           messages << { role: role.to_s, content: content.to_s }
         end
         
-        messages << { role: "user", content: question }
+        q_content = if system_instruction
+          "System Instruction: #{system_instruction}\n\n#{question}"
+        else
+          question
+        end
+        messages << { role: "user", content: q_content }
         
         puts "\e[34m🤖 Connecting to #{provider} (#{model || 'default model'})...\e[0m"
         puts ""
@@ -920,7 +686,7 @@ module Aura
 
       desc "list", "List all globally registered Aura projects and their status"
       def list
-        projects = Aura.registered_projects
+        projects = Aura::ProjectRegistry.registered_projects
         if projects.empty?
           puts "No Aura projects registered yet. Run 'aura new <project_name>' to register a workspace."
           return
@@ -940,7 +706,7 @@ module Aura
 
       desc "delete PROJECT_NAME", "Unregister an Aura project and cleanly delete its local .aura sandbox"
       def delete(project_name)
-        projects = Aura.registered_projects
+        projects = Aura::ProjectRegistry.registered_projects
         path = projects[project_name.to_s]
         
         if path.nil?
@@ -979,7 +745,7 @@ module Aura
             end
           end
           
-          if Aura.unregister_project!(project_name)
+          if Aura::ProjectRegistry.unregister!(project_name)
             puts "\e[32mProject '#{project_name}' has been successfully unregistered globally.\e[0m"
           else
             puts "\e[31mFailed to unregister project '#{project_name}' from global projects registry.\e[0m"
@@ -994,7 +760,7 @@ module Aura
         aura_dir = ensure_workspace!
 
         # Register in projects registry
-        Aura.register_project!(project_name, Dir.pwd)
+        Aura::ProjectRegistry.register!(project_name, Dir.pwd)
 
         # Write project name to local config
         cfg_path = File.join(aura_dir, "config", "config.yml")
@@ -1010,7 +776,7 @@ module Aura
 
       desc "prune", "Remove all registered projects whose physical directories no longer exist"
       def prune
-        projects = Aura.registered_projects
+        projects = Aura::ProjectRegistry.registered_projects
         if projects.empty?
           puts "No projects registered."
           return
@@ -1019,7 +785,7 @@ module Aura
         pruned_count = 0
         projects.each do |name, path|
           unless File.directory?(File.join(path, ".aura"))
-            Aura.unregister_project!(name)
+            Aura::ProjectRegistry.unregister!(name)
             puts "\e[33mPruned missing project '#{name}' (path: #{path})\e[0m"
             pruned_count += 1
           end
@@ -1038,7 +804,7 @@ module Aura
 
         if profile_name.nil?
           # List branches
-          res = Aura.git_run(aura_dir, "branch")
+          res = Aura::GlobalConfig.git_run(aura_dir, "branch")
           if res[:success]
             puts "Customized Agent Profiles (Branches):"
             puts "-" * 60
@@ -1049,12 +815,12 @@ module Aura
           end
         else
           # Check if branch exists
-          res = Aura.git_run(aura_dir, "branch", "--list", profile_name.to_s)
+          res = Aura::GlobalConfig.git_run(aura_dir, "branch", "--list", profile_name.to_s)
           exists = res[:success] && !res[:stdout].strip.empty?
 
           if exists
             # Switch branch
-            checkout_res = Aura.git_run(aura_dir, "checkout", profile_name.to_s)
+            checkout_res = Aura::GlobalConfig.git_run(aura_dir, "checkout", profile_name.to_s)
             if checkout_res[:success]
               puts "\e[32mSuccessfully switched active agent profile to '#{profile_name}'!\e[0m"
             else
@@ -1075,7 +841,7 @@ module Aura
 
             if confirm =~ /\A(y|yes)\z/i
               # Create and checkout branch
-              create_res = Aura.git_run(aura_dir, "checkout", "-b", profile_name.to_s)
+              create_res = Aura::GlobalConfig.git_run(aura_dir, "checkout", "-b", profile_name.to_s)
               if create_res[:success]
                 puts "\e[32mSuccessfully created and switched to new agent profile '#{profile_name}'!\e[0m"
               else
@@ -1103,39 +869,6 @@ module Aura
           exit 1
         end
         aura_dir
-      end
-
-      def get_hash_value(hash, key)
-        parts = key.split(".")
-        curr = hash
-        parts.each do |p|
-          return nil unless curr.is_a?(Hash)
-          curr = curr[p] || curr[p.to_s]
-        end
-        curr
-      end
-
-      def set_hash_value(hash, key, value)
-        parts = key.split(".")
-        curr = hash
-        parts[0...-1].each do |p|
-          curr[p] = {} unless curr[p].is_a?(Hash)
-          curr = curr[p]
-        end
-        
-        # Parse value type
-        parsed_val = if value == "true"
-                       true
-                     elsif value == "false"
-                       false
-                     elsif value =~ /\A\d+\z/
-                       value.to_i
-                     elsif value =~ /\A\d*\.\d+\z/
-                       value.to_f
-                     else
-                       value
-                     end
-        curr[parts.last] = parsed_val
       end
     end
   end
