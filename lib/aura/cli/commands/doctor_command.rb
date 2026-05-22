@@ -81,6 +81,9 @@ module Aura
         end
 
         # Check LLM Configurations
+        # Load .env files so keys saved there are recognized without requiring a shell export
+        load_dotenv_files
+
         workspace_path = find_aura_dir
         cfg_path = if workspace_path
                      File.join(workspace_path, "config", "config.yml")
@@ -107,7 +110,7 @@ module Aura
                              when "deepseek" then "DEEPSEEK_API_KEY"
                              else nil
                              end
-              api_key_set = (env_var_name && ENV[env_var_name] && !ENV[env_var_name].empty?) || 
+              api_key_set = (env_var_name && ENV[env_var_name] && !ENV[env_var_name].empty?) ||
                             (llm_cfg["api_key"] && !llm_cfg["api_key"].to_s.strip.empty?)
             end
           rescue StandardError
@@ -137,6 +140,41 @@ module Aura
 
       def find_aura_dir
         Aura::PathResolver.find_aura_dir(Dir.pwd)
+      end
+
+      # Manually parse and load .env files into ENV so that keys stored there
+      # are visible to the doctor check even without a shell-level export.
+      # Priority order (later values win): global ~/.aura/.env, then workspace .env
+      def load_dotenv_files
+        candidates = [
+          File.join(Dir.home, ".aura", ".env"),
+          File.join(Dir.pwd, ".env")
+        ]
+
+        # Also try the workspace root (two levels up from .aura if inside one)
+        aura_dir = find_aura_dir
+        if aura_dir
+          workspace_root = File.dirname(aura_dir)
+          candidates << File.join(workspace_root, ".env")
+        end
+
+        candidates.uniq.each do |env_file|
+          next unless File.exist?(env_file)
+
+          File.foreach(env_file) do |line|
+            line = line.strip
+            next if line.empty? || line.start_with?("#")
+
+            key, value = line.split("=", 2)
+            next unless key && value
+
+            key   = key.strip
+            value = value.strip.gsub(/\A["']|["']\z/, "") # strip surrounding quotes
+            ENV[key] ||= value # don't overwrite already-set vars
+          end
+        rescue StandardError
+          # silently skip unreadable .env files
+        end
       end
     end
   end

@@ -602,13 +602,13 @@ module Aura
         temp = cfg.dig("llm", "temperature") || 0.7
         max_tokens = cfg.dig("llm", "max_tokens")
         
-        # Load API keys from active workspace environment or shell environment
+        # Load API keys: workspace .env first, then global sources (~/.aura/repo/.env, ~/.aura/.env)
         if aura_dir
           Aura::LLM::Env.load_from(File.dirname(aura_dir))
         else
+          # Not inside a workspace: load cwd .env then global fallbacks
           Aura::LLM::Env.load_from(Dir.pwd)
         end
-        Aura::LLM::Env.load_from(File.expand_path("~/.aura"))
         api_key = Aura::LLM::Env.resolve_api_key(provider)
         
         # Resolve history session file

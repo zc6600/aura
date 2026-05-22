@@ -1,14 +1,27 @@
 module Aura
   module LLM
     class Env
+      # Load .env from a specific project directory, then fall back to global sources.
       def self.load_from(project_path)
-        # 1. Load local workspace .env first (precedes global fallback)
+        # 1. Load local workspace / given path .env first
         local_env = File.join(project_path, ".env")
         load_file(local_env) if File.exist?(local_env)
 
-        # 2. Load global fallback ~/.aura/.env second (only sets unset keys)
-        global_env = File.join(Dir.home, ".aura", ".env")
-        load_file(global_env) if File.exist?(global_env)
+        # 2. Always load global sources as fallback
+        load_global
+      end
+
+      # Load from all global .env locations in priority order.
+      # Called by load_from but can also be invoked standalone.
+      # Priority (last writer wins due to ||=): global repo -> ~/.aura
+      def self.load_global
+        # Global template repository where setup.sh may have written provider keys
+        global_repo_env = File.join(Dir.home, ".aura", "repo", ".env")
+        load_file(global_repo_env) if File.exist?(global_repo_env)
+
+        # ~/.aura/.env — legacy / manually written global key store
+        home_aura_env = File.join(Dir.home, ".aura", ".env")
+        load_file(home_aura_env) if File.exist?(home_aura_env)
       end
 
       def self.load_file(path)
