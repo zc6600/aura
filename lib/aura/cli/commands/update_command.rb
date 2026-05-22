@@ -241,6 +241,16 @@ module Aura
         puts "\e[1m[#{project_name}]\e[0m #{project_path}\n"
         
         begin
+          # Backup user config before update
+          config_path = File.join(aura_dir, "config", "config.yml")
+          config_backup = nil
+          if File.exist?(config_path)
+            require "tmpdir"
+            config_backup = File.join(Dir.tmpdir, "aura_config_backup_#{Process.pid}.yml")
+            FileUtils.cp(config_path, config_backup)
+            puts "  \e[33m⚠️  Backed up user config.yml\e[0m"
+          end
+          
           if options[:merge]
             puts "  Merging updates..."
             merge_project(project_name, aura_dir)
@@ -254,8 +264,17 @@ module Aura
               puts "  \e[31m✗ Failed: #{first_line}\e[0m"
             end
           end
+          
+          # Restore user config after update
+          if config_backup && File.exist?(config_backup)
+            FileUtils.cp(config_backup, config_path)
+            FileUtils.rm(config_backup)
+            puts "  \e[32m✓ Restored user config.yml\e[0m"
+          end
         rescue => e
           puts "  \e[31m✗ Error: #{e.message}\e[0m"
+          # Clean up backup if exists
+          FileUtils.rm(config_backup) if config_backup && File.exist?(config_backup)
         end
       end
 

@@ -48,11 +48,14 @@ module Aura
             puts "\e[32mInjected .gitignore rule for hidden .aura environment.\e[0m"
           end
           
-          # Inject .gitignore rule inside .aura folder to ignore runtime databases
+          # Inject .gitignore rule inside .aura folder to ignore runtime databases and user config
           inner_ignore_path = File.join(hidden, ".gitignore")
           inner_rules = File.exist?(inner_ignore_path) ? File.read(inner_ignore_path) : ""
-          unless inner_rules.include?("state/aura.db*")
-            File.write(inner_ignore_path, inner_rules + "\nstate/aura.db*\n")
+          updates = []
+          updates << "state/aura.db*" unless inner_rules.include?("state/aura.db*")
+          updates << "config.yml" unless inner_rules.include?("config.yml")
+          if updates.any?
+            File.write(inner_ignore_path, inner_rules + "\n" + updates.join("\n") + "\n")
           end
 
           # Record project name in global projects registry

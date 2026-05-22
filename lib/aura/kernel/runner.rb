@@ -161,13 +161,23 @@ module Aura
         end
         
         emit(:tool_executing, { tool: tool })
-        res = @engine.execute(tool, args)
+        
+        # Track file modifications
+        modified_files = track_file_modifications do
+          res = @engine.execute(tool, args)
+        end
         
         # Hook: after_tool_execution (allows transforming result)
         # Payload wrapper to allow modification
         res_payload = { result: res, tool: tool }
         @hooks.run(:after_tool_execution, res_payload)
         res = res_payload[:result]
+        
+        # Add modified files to result if any
+        if modified_files && !modified_files.empty?
+          res = res.is_a?(Hash) ? res : { status: "ok" }
+          res["modified_files"] = modified_files
+        end
 
         emit(:tool_result, { tool: tool, result: res })
 
@@ -242,6 +252,53 @@ module Aura
             next unless st[:state] == "ready"
             @validator.ensure_active(name)
           end
+        end
+        
+        # Track file modifications during tool execution
+        def track_file_modifications
+          # Get file state before execution
+          before_state = get_file_state
+          
+          # Execute the tool
+          yield
+          
+          # Get file state after execution
+          after_state = get_file_state
+          
+          # Compare and return modified files
+          modified = after_state.keys - before_state.keys  # New files
+          
+          # Check for modified existing files (different mtime or size)
+          after_state.each do |path, info|
+            if before_state[path]
+              if before_state[path][:mtime] != info[:mtime] || before_state[path][:size] != info[:size]
+                modified << path unless modified.include?(path)
+              end
+            end
+          end
+          
+          # Filter to only include files in project directory
+          modified.select! { |f| f.start_with?(@project_path) }
+          
+          # Convert to relative paths
+          modified.map! { |f| f.sub(@project_path + "/", "") }
+          
+          modified
+        end
+        
+        # Get current file state (path -> {mtime, size})
+        def get_file_state
+          state = {}
+          Dir.glob("#{@project_path}/**/*").each do |path|
+            next unless File.file?(path)
+            next if path.include?("/.git/")
+            next if path.include?("/.aura/")
+            stat = File.stat(path)
+            state[path] = { mtime: stat.mtime.to_i, size: stat.size }
+          end
+          state
+        rescue StandardError
+          {}
         end
     end
   end

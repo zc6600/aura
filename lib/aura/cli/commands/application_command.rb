@@ -26,7 +26,14 @@ require "aura/cli/commands/update_command"
 require "aura/cli/commands/template_command"
 
 module Aura
-  VERSION = "0.1.0"
+  # Dynamically read version from gemspec if available, otherwise use fallback
+  VERSION = begin
+    gem_spec = Gem::Specification.find_by_name("aura")
+    gem_spec.version.to_s
+  rescue Gem::MissingSpecError
+    "0.1.0"  # Fallback for development from source
+  end
+  
   module Commands
     class ApplicationCommand < Thor
       map "h" => "hints"

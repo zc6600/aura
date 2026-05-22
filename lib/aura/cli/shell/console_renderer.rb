@@ -45,8 +45,45 @@ module Aura
         end
 
         def on_tool_result(result)
-          # Optional: print result summary? 
-          # For now, we rely on the next turn's observation or specific tool output.
+          status = result.is_a?(Hash) ? (result["status"] || result[:status]) : nil
+          status_color = case status.to_s
+          when "ok", "success" then "\e[32m"  # Green
+          when "failed", "blocked" then "\e[31m"  # Red
+          else "\e[33m"  # Yellow
+          end
+          
+          puts "   #{status_color}✓ Status: #{status}\e[0m"
+          
+          # Extract and display output
+          output = nil
+          if result.is_a?(Hash)
+            output = result["output"] || result[:output] ||
+                     result["content"] || result[:content] ||
+                     result["stdout"] || result[:stdout] ||
+                     result["message"] || result[:message]
+          end
+          
+          if output && !output.to_s.strip.empty?
+            output_str = output.to_s.strip
+            # Truncate long outputs
+            if output_str.length > 200
+              output_str = output_str[0..197] + "..."
+            end
+            # Show first line or truncated output
+            first_line = output_str.lines.first&.strip || output_str
+            puts "   📄 #{first_line}" if first_line && !first_line.empty?
+          end
+          
+          # Display modified files if present
+          if result.is_a?(Hash)
+            modified = result["modified_files"] || result[:modified_files]
+            if modified && !modified.empty?
+              puts "   📝 Modified files:"
+              modified.each do |file|
+                puts "      • #{file}"
+              end
+            end
+          end
         end
 
         def on_thought(thought, elapsed = nil)

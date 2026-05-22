@@ -1,0 +1,2 @@
+# Ignore runtime databases
+state/aura.db*
