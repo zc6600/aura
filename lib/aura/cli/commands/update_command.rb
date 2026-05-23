@@ -15,29 +15,10 @@ module Aura
 
       desc "framework", "Update Aura framework from source or remote"
       method_option :force, type: :boolean, aliases: "-f", desc: "Force rebuild and bypass all caches"
-      method_option :from_git, type: :string, aliases: "-g", desc: "Install directly from Git repository URL"
       def framework
         puts "🔄 Updating Aura Framework..."
         
-        # Priority 1: Install from Git URL (bypasses all caches)
-        if options[:from_git]
-          puts "📦 Installing from Git repository: #{options[:from_git]}"
-          system("gem build aura.gemspec") || exit(1)
-          
-          gem_name = Dir.glob("aura-*.gem").first
-          if gem_name
-            # Install from local gem (already built, no CDN)
-            puts "📦 Installing from local gem file..."
-            system("gem install #{gem_name.shellescape}")
-            puts "\e[32m✓ Framework updated from Git source!\e[0m"
-          else
-            puts "\e[31m⛔️ Failed to build gem!\e[0m"
-            exit 1
-          end
-          return
-        end
-        
-        # Priority 2: Detect if in source directory (developer workflow)
+        # Priority 1: Detect if in source directory (developer workflow)
         if File.exist?("aura.gemspec")
           puts "📦 Building from local source..."
           
@@ -51,7 +32,6 @@ module Aura
           if gem_files.any?
             system("gem install #{gem_files.last}")
             puts "\e[32m✓ Framework updated from source!\e[0m"
-            puts "💡 Tip: Use 'aura update framework --from-git <url>' to install from Git" if options[:force]
           else
             puts "\e[31m⛔️ Failed to build gem!\e[0m"
             exit 1
@@ -214,7 +194,7 @@ module Aura
         
         begin
           # Backup user config before update
-          config_path = File.join(aura_dir, "config", "config.yml")
+          config_path = Aura::PathResolver.resolve_config_path(aura_dir)
           config_backup = nil
           if File.exist?(config_path)
             require "tmpdir"
@@ -260,7 +240,7 @@ module Aura
         
         begin
           # Backup user config before update
-          config_path = File.join(aura_dir, "config", "config.yml")
+          config_path = Aura::PathResolver.resolve_config_path(aura_dir)
           config_backup = nil
           if File.exist?(config_path)
             require "tmpdir"
