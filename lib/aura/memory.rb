@@ -3,7 +3,6 @@
 require "aura/memory/base"
 require "aura/memory/config"
 require "aura/memory/store"
-require "aura/memory/path_resolver"
 require "aura/memory/stores/sqlite_store"
 require "aura/memory/recorder"
 require "aura/memory/provider"

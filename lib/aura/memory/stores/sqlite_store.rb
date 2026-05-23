@@ -4,7 +4,6 @@ require "sqlite3"
 require "fileutils"
 require "aura/path_resolver"
 require_relative "../store"
-require_relative "../path_resolver"
 
 module Aura
   module Memory
@@ -14,7 +13,7 @@ module Aura
           @db_path = if config[:db_path]
                        File.expand_path(config[:db_path])
                      elsif config[:project_path]
-                       PathResolver.resolve(config)
+                       Aura::PathResolver.session_db_path(config[:project_path])
                      else
                        raise ArgumentError, "Either :db_path or :project_path must be provided"
                      end
