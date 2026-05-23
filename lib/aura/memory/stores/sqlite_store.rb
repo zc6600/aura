@@ -2,6 +2,7 @@
 
 require "sqlite3"
 require "fileutils"
+require "monitor"
 require "aura/path_resolver"
 require_relative "../store"
 
@@ -17,25 +18,17 @@ module Aura
                      else
                        raise ArgumentError, "Either :db_path or :project_path must be provided"
                      end
-          @db_lock = Mutex.new
+          @db_lock = Monitor.new
           init_db
         end
 
         def insert_event(timestamp:, phase:, tool:, payload:)
-          if @in_transaction
+          @db_lock.synchronize do
             @db.execute(
               "INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)",
               [timestamp, phase, tool, serialize_payload(payload)]
             )
             @db.last_insert_row_id
-          else
-            @db_lock.synchronize do
-              @db.execute(
-                "INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)",
-                [timestamp, phase, tool, serialize_payload(payload)]
-              )
-              @db.last_insert_row_id
-            end
           end
         end
 
@@ -128,18 +121,11 @@ module Aura
         end
 
         def set_variable(key:, value:)
-          if @in_transaction
+          @db_lock.synchronize do
             @db.execute(
               "INSERT OR REPLACE INTO variables (key, value) VALUES (?, ?)",
               [key.to_s, value.to_s]
             )
-          else
-            @db_lock.synchronize do
-              @db.execute(
-                "INSERT OR REPLACE INTO variables (key, value) VALUES (?, ?)",
-                [key.to_s, value.to_s]
-              )
-            end
           end
         end
 
@@ -157,12 +143,7 @@ module Aura
 
         def transaction
           @db_lock.synchronize do
-            begin
-              @in_transaction = true
-              @db.transaction { yield }
-            ensure
-              @in_transaction = false
-            end
+            @db.transaction { yield }
           end
         end
 

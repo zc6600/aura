@@ -86,23 +86,11 @@ module Aura
           @store.close
         end
 
-        def send(method_name, *args, &block)
-          if respond_to?(method_name, true)
-            public_send(method_name, *args, &block)
-          else
-            super
-          end
-        end
-
-        def respond_to_missing?(method_name, include_private = false)
-          super
-        end
-
-        private
-
         def read_config
           {}
         end
+
+        private
 
         def fetch_recent_events_n
           20
