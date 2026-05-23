@@ -9,6 +9,7 @@ require "aura/cli/commands/dashboard"
 require "aura/cli/shell/executor"
 require "aura/cli/shell/slash_command_manager"
 require "aura/context/session_manager"
+require "aura/config_loader"
 
 module Aura
   module CLI
@@ -176,10 +177,7 @@ module Aura
         end
 
         def load_config
-          path = Aura::PathResolver.resolve_config_path(@project_path)
-          File.exist?(path) ? YAML.load_file(path) : {}
-        rescue StandardError
-          {}
+          Aura::ConfigLoader.load(@project_path)
         end
 
         def resolve_api_key(config)

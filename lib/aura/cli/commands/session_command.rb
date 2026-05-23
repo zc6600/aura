@@ -8,7 +8,7 @@ module Aura
     class SessionCommand < Thor
       desc "list", "List all sessions"
       def list
-        session_mgr = Aura::Context::SessionManager.new(Dir.pwd)
+        session_mgr = resolve_session_mgr
         sessions = session_mgr.list
         current = session_mgr.current_name
 
@@ -30,7 +30,7 @@ module Aura
 
       desc "create NAME", "Create a new session"
       def create(name)
-        session_mgr = Aura::Context::SessionManager.new(Dir.pwd)
+        session_mgr = resolve_session_mgr
         
         if session_mgr.exists?(name)
           puts "\e[31m⛔️ Error: Session '#{name}' already exists\e[0m"
@@ -49,7 +49,7 @@ module Aura
 
       desc "switch NAME", "Switch to a session"
       def switch(name)
-        session_mgr = Aura::Context::SessionManager.new(Dir.pwd)
+        session_mgr = resolve_session_mgr
         
         unless session_mgr.exists?(name)
           puts "\e[31m⛔️ Error: Session '#{name}' does not exist\e[0m"
@@ -65,7 +65,7 @@ module Aura
 
       desc "delete NAME", "Delete a session"
       def delete(name)
-        session_mgr = Aura::Context::SessionManager.new(Dir.pwd)
+        session_mgr = resolve_session_mgr
         current = session_mgr.current_name
 
         unless session_mgr.exists?(name)
@@ -94,7 +94,7 @@ module Aura
 
       desc "duplicate SOURCE NEW_NAME", "Duplicate a session (for branching experiments)"
       def duplicate(source, new_name)
-        session_mgr = Aura::Context::SessionManager.new(Dir.pwd)
+        session_mgr = resolve_session_mgr
         
         unless session_mgr.exists?(source)
           puts "\e[31m⛔️ Error: Source session '#{source}' does not exist\e[0m"
@@ -112,7 +112,7 @@ module Aura
 
       desc "export NAME PATH", "Export a session to a backup file"
       def export(name, dest_path)
-        session_mgr = Aura::Context::SessionManager.new(Dir.pwd)
+        session_mgr = resolve_session_mgr
         
         unless session_mgr.exists?(name)
           puts "\e[31m⛔️ Error: Session '#{name}' does not exist\e[0m"
@@ -125,7 +125,7 @@ module Aura
 
       desc "import PATH NAME", "Import a session from a backup file"
       def import(source_path, name)
-        session_mgr = Aura::Context::SessionManager.new(Dir.pwd)
+        session_mgr = resolve_session_mgr
         
         unless File.exist?(source_path)
           puts "\e[31m⛔️ Error: Source file '#{source_path}' does not exist\e[0m"
@@ -143,7 +143,7 @@ module Aura
 
       desc "rename OLD_NAME NEW_NAME", "Rename a session"
       def rename(old_name, new_name)
-        session_mgr = Aura::Context::SessionManager.new(Dir.pwd)
+        session_mgr = resolve_session_mgr
         
         unless session_mgr.exists?(old_name)
           puts "\e[31m⛔️ Error: Session '#{old_name}' does not exist\e[0m"
@@ -156,7 +156,7 @@ module Aura
 
       desc "current", "Show the current active session"
       def current
-        session_mgr = Aura::Context::SessionManager.new(Dir.pwd)
+        session_mgr = resolve_session_mgr
         current_name = session_mgr.current_name
         
         if current_name
@@ -169,6 +169,17 @@ module Aura
 
       # Make session command available as just "aura session"
       default_task :list
+
+      private
+
+      def resolve_session_mgr
+        begin
+          resolved_path = Aura.resolve_project_path!(nil)
+          Aura::Context::SessionManager.new(resolved_path)
+        rescue SystemExit
+          exit 1
+        end
+      end
     end
   end
 end

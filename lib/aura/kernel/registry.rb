@@ -6,8 +6,14 @@ module Aura
   module Kernel
     class ToolRegistry
       def initialize(project_path)
-        @project_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
-        @tools_path = File.join(@project_path, "tools")
+        @project_path = project_path
+        @env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
+        @workspace_path = (defined?(Aura) && Aura.respond_to?(:workspace_path)) ? (Aura::PathResolver.workspace_path(project_path) || project_path) : project_path
+
+        @tools_paths = [
+          File.join(@workspace_path, "tools"),
+          File.join(@env_path, "tools")
+        ].uniq
         @registry = {}
         @groups = {}
         @last_scan_mtime = nil
@@ -32,17 +38,19 @@ module Aura
       end
 
       def scan!
-        return unless Dir.exist?(@tools_path)
         @registry = {}
         @groups = {}
 
-        Dir.glob(File.join(@tools_path, "*")) do |dir|
-          next unless File.directory?(dir)
-          
-          if File.exist?(File.join(dir, "group_manifest.json"))
-            process_group(dir)
-          else
-            process_standalone_tool(dir)
+        @tools_paths.each do |tools_path|
+          next unless Dir.exist?(tools_path)
+          Dir.glob(File.join(tools_path, "*")) do |dir|
+            next unless File.directory?(dir)
+            
+            if File.exist?(File.join(dir, "group_manifest.json"))
+              process_group(dir)
+            else
+              process_standalone_tool(dir)
+            end
           end
         end
         @last_scan_mtime = latest_tools_mtime
@@ -51,18 +59,22 @@ module Aura
       private
       
       def maybe_refresh!
-        return unless Dir.exist?(@tools_path)
         current = latest_tools_mtime
         return if @last_scan_mtime && current <= @last_scan_mtime
         scan!
       end
 
       def latest_tools_mtime
-        paths = [@tools_path]
-        paths.concat(Dir.glob(File.join(@tools_path, "*", "manifest.json")))
-        paths.concat(Dir.glob(File.join(@tools_path, "*", "group_manifest.json")))
-        paths.concat(Dir.glob(File.join(@tools_path, "*", "*", "manifest.json")))
-        paths.map { |p| File.exist?(p) ? File.mtime(p).to_i : 0 }.max || 0
+        mtimes = [0]
+        @tools_paths.each do |tools_path|
+          next unless Dir.exist?(tools_path)
+          paths = [tools_path]
+          paths.concat(Dir.glob(File.join(tools_path, "*", "manifest.json")))
+          paths.concat(Dir.glob(File.join(tools_path, "*", "group_manifest.json")))
+          paths.concat(Dir.glob(File.join(tools_path, "*", "*", "manifest.json")))
+          mtimes.concat(paths.map { |p| File.exist?(p) ? File.mtime(p).to_i : 0 })
+        end
+        mtimes.max
       end
 
       def process_group(dir)

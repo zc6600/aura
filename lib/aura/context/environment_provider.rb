@@ -7,6 +7,7 @@ begin
 rescue LoadError
 end
 require "yaml"
+require "aura/config_loader"
 
 module Aura
   module Context
@@ -76,7 +77,7 @@ module Aura
           end
 
           rules.empty? ? nil : rules.join("\n\n")
-        rescue StandardError
+        rescue Errno::ENOENT, Errno::EACCES, IOError
           nil
         end
 
@@ -93,28 +94,35 @@ module Aura
         end
 
         def build_tool_index
-          tp = File.join(@env_path, "tools")
-          return nil unless Dir.exist?(tp)
-          Dir.glob(File.join(tp, "*")).map do |f|
-            next unless File.directory?(f)
-            rel = f.sub(/^#{Regexp.escape(tp)}\//, "")
-            if rel == "anchor_submit" && !anchors_has_files?
-              next
-            end
-            
-            manifest_path = File.join(f, "manifest.json")
-            status = if File.exist?(manifest_path)
-                       begin
-                         JSON.parse(File.read(manifest_path))["name"]
-                       rescue StandardError
-                         "invalid-manifest"
+          tps = [
+            File.join(@path, "tools"),
+            File.join(@env_path, "tools")
+          ].uniq
+
+          items = []
+          tps.each do |tp|
+            next unless Dir.exist?(tp)
+            Dir.glob(File.join(tp, "*")).each do |f|
+              next unless File.directory?(f)
+              rel = f.sub(/^#{Regexp.escape(tp)}\//, "")
+              if rel == "anchor_submit" && !anchors_has_files?
+                next
+              end
+              
+              manifest_path = File.join(f, "manifest.json")
+              status = if File.exist?(manifest_path)
+                         begin
+                           JSON.parse(File.read(manifest_path))["name"]
+                         rescue JSON::ParserError, Errno::ENOENT, Errno::EACCES
+                           "invalid-manifest"
+                         end
+                       else
+                         "incomplete"
                        end
-                     else
-                       "incomplete"
-                     end
-            
-            "- [Dir: #{rel}] -> Tool: #{status}"
-          end.compact.join("\n")
+              items << "- [Dir: #{rel}] -> Tool: #{status}"
+            end
+          end
+          items.uniq.any? ? items.uniq.join("\n") : nil
         end
 
         def anchors_has_files?
@@ -150,7 +158,7 @@ module Aura
                   end
                 end
               end
-            rescue StandardError
+            rescue Errno::ENOENT, Errno::EACCES, IOError
               next
             end
           end
@@ -181,29 +189,41 @@ module Aura
         def build_skills_knowledge
           available_tools = collect_available_tool_names
 
-          file = File.join(@skills_path, "skills.md")
           content = ""
-          if File.exist?(file)
-             c = File.read(file).strip
-             content += c unless c.empty?
+          
+          # Read skills.md from both locations
+          skills_md_files = [
+            File.join(@path, "skills", "skills.md"),
+            File.join(@skills_path, "skills.md")
+          ].uniq
+
+          skills_md_files.each do |file|
+            if File.exist?(file)
+              begin
+                c = File.read(file).strip
+                content += c + "\n\n" unless c.empty?
+              rescue Errno::ENOENT, Errno::EACCES, IOError
+                next
+              end
+            end
           end
 
-          # Scan for individual SKILL.md files
-          Dir.glob(File.join(@skills_path, "*", "SKILL.md")).each do |skill_file|
+          # Scan for individual SKILL.md files in both locations
+          skill_files = []
+          [File.join(@path, "skills"), @skills_path].uniq.each do |base_dir|
+            next unless Dir.exist?(base_dir)
+            Dir.glob(File.join(base_dir, "*", "SKILL.md")).each do |skill_file|
+              skill_files << skill_file
+            end
+          end
+
+          skill_files.uniq.each do |skill_file|
             begin
               raw = File.read(skill_file)
               # Simple frontmatter parser
               if raw =~ /\A---\s+(.+?)\s+---/m
                 frontmatter = $1
-                meta = begin
-                  YAML.safe_load(frontmatter, permitted_classes: [], permitted_symbols: [], aliases: true) || {}
-                rescue StandardError
-                  begin
-                    YAML.load(frontmatter) || {}
-                  rescue StandardError
-                    {}
-                  end
-                end
+                meta = YAML.safe_load(frontmatter, permitted_classes: [], permitted_symbols: [], aliases: true) || {}
 
                 name = meta["name"]&.to_s&.strip
                 desc = meta["description"]&.to_s&.strip
@@ -246,35 +266,40 @@ module Aura
                   end
                 end
               end
-            rescue
+            rescue Errno::ENOENT, Errno::EACCES, IOError, Psych::SyntaxError, Psych::DisallowedClass, ArgumentError, TypeError
               next
             end
           end
           
-          return nil if content.empty?
-          content
+          return nil if content.strip.empty?
+          content.strip
         end
 
         def collect_available_tool_names
-          tp = File.join(@env_path, "tools")
-          return [] unless Dir.exist?(tp)
+          tps = [
+            File.join(@path, "tools"),
+            File.join(@env_path, "tools")
+          ].uniq
 
           names = []
-          Dir.glob(File.join(tp, "*")).each do |tool_dir|
-            next unless File.directory?(tool_dir)
+          tps.each do |tp|
+            next unless Dir.exist?(tp)
+            Dir.glob(File.join(tp, "*")).each do |tool_dir|
+              next unless File.directory?(tool_dir)
 
-            dir_name = File.basename(tool_dir).to_s
-            names << dir_name unless dir_name.empty?
+              dir_name = File.basename(tool_dir).to_s
+              names << dir_name unless dir_name.empty?
 
-            manifest_path = File.join(tool_dir, "manifest.json")
-            next unless File.exist?(manifest_path)
+              manifest_path = File.join(tool_dir, "manifest.json")
+              next unless File.exist?(manifest_path)
 
-            begin
-              man = JSON.parse(File.read(manifest_path))
-              man_name = man["name"].to_s.strip
-              names << man_name unless man_name.empty?
-            rescue StandardError
-              next
+              begin
+                man = JSON.parse(File.read(manifest_path))
+                man_name = man["name"].to_s.strip
+                names << man_name unless man_name.empty?
+              rescue JSON::ParserError, Errno::ENOENT, Errno::EACCES
+                next
+              end
             end
           end
 
@@ -284,29 +309,26 @@ module Aura
         def build_user_task_view
           plan_text = nil
           db_path = begin
-            cfg = File.join(@env_path, "config", "config.yml")
-            if File.exist?(cfg)
-              require "yaml"
-              data = YAML.load_file(cfg) || {}
-              p = data.dig("state_management", "db_path")
-              if p && !p.to_s.empty?
-                File.expand_path(p, @env_path)
-              else
-                File.join(@env_path, "state", "aura.db")
-              end
+            data = Aura::ConfigLoader.load(@env_path, safe: true)
+            p = data.dig("state_management", "db_path")
+            if p && !p.to_s.empty?
+              File.expand_path(p, @env_path)
             else
               File.join(@env_path, "state", "aura.db")
             end
-          rescue StandardError
+          rescue Aura::ConfigLoader::ConfigError, ArgumentError, TypeError
             File.join(@env_path, "state", "aura.db")
           end
           if defined?(SQLite3) && File.exist?(db_path)
             begin
               db = SQLite3::Database.new(db_path)
               plan_text = db.get_first_value("SELECT value FROM variables WHERE key = 'plan' LIMIT 1")
-            rescue StandardError
+            rescue SQLite3::Exception, Errno::ENOENT, Errno::EACCES, IOError
             ensure
-              begin; db&.close; rescue StandardError; end
+              begin
+                db&.close
+              rescue SQLite3::Exception, IOError
+              end
             end
           end
 
@@ -330,7 +352,7 @@ module Aura
                 brief = call_when.is_a?(Array) ? call_when.first.to_s.strip : call_when.to_s.strip
                 label = brief.empty? ? "" : "：#{brief}"
                 nodes << "- #{id}#{label}"
-              rescue StandardError
+              rescue JSON::ParserError, Psych::SyntaxError, Errno::ENOENT, Errno::EACCES, IOError
                 next
               end
             end
@@ -344,14 +366,9 @@ module Aura
         end
 
         def load_config
-          cfg_file = File.join(@env_path, "config", "config.yml")
-          return {} unless File.exist?(cfg_file)
-          begin
-            require "yaml"
-            YAML.load_file(cfg_file) || {}
-          rescue StandardError
-            {}
-          end
+          Aura::ConfigLoader.load(@env_path, safe: true)
+        rescue Aura::ConfigLoader::ConfigError, ArgumentError, TypeError
+          {}
         end
 
         def fetch_max_hint_chars

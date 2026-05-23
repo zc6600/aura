@@ -16,7 +16,12 @@ module Aura
 
         def tool_inspect(name)
           py = runtime_python
-          env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(Dir.pwd) || Dir.pwd) : Dir.pwd
+          begin
+            resolved_path = Aura.resolve_project_path!(nil)
+          rescue SystemExit
+            exit 1
+          end
+          env_path = Aura::PathResolver.environment_path(resolved_path)
           logic = File.join(env_path, "tools", "inspect_tool", "logic.py")
           unless File.exist?(logic)
             puts "inspect_tool not found under #{logic}"
@@ -41,10 +46,15 @@ module Aura
 
       desc "list [PROJECT_PATH]", "List all tools and their status"
       method_option :human,  type: :boolean, aliases: "-H", default: false, desc: "Human-readable output"
-      def list(project_path = ".")
+      def list(project_path = nil)
         require "aura/kernel/tool_validator"
         require "aura/kernel/registry"
-        project = File.expand_path(project_path)
+        begin
+          resolved_path = Aura.resolve_project_path!(project_path)
+        rescue SystemExit
+          exit 1
+        end
+        project = File.expand_path(resolved_path)
         registry = Aura::Kernel::ToolRegistry.new(project)
         validator = Aura::Kernel::ToolValidator.new(project, registry, nil)
         items = registry.all_tools.map do |name|
@@ -152,7 +162,12 @@ module Aura
 
       no_commands do
         def runtime_python
-          env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(Dir.pwd) || Dir.pwd) : Dir.pwd
+          begin
+            resolved_path = Aura.resolve_project_path!(nil)
+          rescue SystemExit
+            return "python"
+          end
+          env_path = Aura::PathResolver.environment_path(resolved_path)
           path = File.join(env_path, "config", "config.yml")
           begin
             data = File.exist?(path) ? YAML.load_file(path) : {}
@@ -222,7 +237,12 @@ module Aura
         end
 
         def required_files_from_config
-          env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(Dir.pwd) || Dir.pwd) : Dir.pwd
+          begin
+            resolved_path = Aura.resolve_project_path!(nil)
+          rescue SystemExit
+            return []
+          end
+          env_path = Aura::PathResolver.environment_path(resolved_path)
           path = File.join(env_path, "config", "config.yml")
           begin
             data = File.exist?(path) ? YAML.load_file(path) : {}

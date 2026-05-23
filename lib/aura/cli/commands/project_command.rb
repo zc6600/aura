@@ -84,9 +84,10 @@ module Aura
       desc "register PROJECT_NAME", "Register the current directory as an active Aura project globally"
       def register(project_name)
         aura_dir = ensure_workspace!
+        workspace_root = File.dirname(aura_dir)
 
         # Register in projects registry
-        Aura.register_project!(project_name, Dir.pwd)
+        Aura.register_project!(project_name, workspace_root)
 
         # Write project name to local config
         cfg_path = Aura::PathResolver.resolve_config_path(aura_dir)
@@ -97,7 +98,7 @@ module Aura
         rescue StandardError
         end
 
-        puts "\e[32mSuccessfully registered workspace at #{Dir.pwd} as '#{project_name}'!\e[0m"
+        puts "\e[32mSuccessfully registered workspace at #{workspace_root} as '#{project_name}'!\e[0m"
       end
 
       desc "prune", "Remove all registered projects whose physical directories no longer exist"

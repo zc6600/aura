@@ -33,6 +33,9 @@ module Aura
           dir = File.expand_path(@project_path)
           while dir && dir != File.dirname(dir)
             candidates << File.join(dir, "skills", active.to_s, "SKILL.md")
+            if File.directory?(File.join(dir, ".aura"))
+              candidates << File.join(dir, ".aura", "skills", active.to_s, "SKILL.md")
+            end
             candidates << File.join(dir, "lib", "aura", "generators", "aura", "app", "templates", "skills", active.to_s, "SKILL.md")
             dir = File.dirname(dir)
           end
@@ -44,6 +47,9 @@ module Aura
           dir = File.expand_path(@project_path)
           while dir && dir != File.dirname(dir)
             candidates << File.join(dir, "skills", "system.md")
+            if File.directory?(File.join(dir, ".aura"))
+              candidates << File.join(dir, ".aura", "skills", "system.md")
+            end
             candidates << File.join(dir, "lib", "aura", "generators", "aura", "app", "templates", "skills", "system.md")
             dir = File.dirname(dir)
           end

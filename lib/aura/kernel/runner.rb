@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "json"
 require "open3"
 require "aura"
@@ -8,6 +10,7 @@ require "aura/kernel/tool_validator"
 require "aura/kernel/execution_engine"
 require "aura/ext/lsp/manager"
 require "aura/kernel/planner"
+require "aura/config_loader"
 require_relative "event_emitter"
 require_relative "hooks"
 require_relative "job"
@@ -23,11 +26,11 @@ module Aura
         @project_path = File.expand_path(project_path)
         @env_path = Aura::PathResolver.environment_path(@project_path)
 
+        @registry = Aura::Kernel::ToolRegistry.new(@env_path)
         @memory = memory || default_memory
-        @validator = Aura::Kernel::ToolValidator.new(@env_path, nil, @memory)
+        @validator = Aura::Kernel::ToolValidator.new(@env_path, @registry, @memory)
         @lsp_manager = Aura::LSP::Manager.new(@project_path)
         @engine = Aura::Kernel::ExecutionEngine.new(@project_path, env_path: @env_path, lsp_manager: @lsp_manager)
-        @registry = Aura::Kernel::ToolRegistry.new(@env_path)
         @context_manager = Aura::Context::Manager.new(@env_path)
         @hooks = Aura::Kernel::Hooks.new
         @planner = Aura::Kernel::Planner.new(@project_path, env_path: @env_path)
@@ -38,13 +41,7 @@ module Aura
       end
 
       def load_config
-        path = Aura::PathResolver.resolve_config_path(@env_path)
-        begin
-          require "yaml"
-          File.exist?(path) ? Aura.safe_load_yaml(path) : {}
-        rescue StandardError
-          {}
-        end
+        Aura::ConfigLoader.load(@env_path, safe: true)
       end
 
       def start_job(metadata = {})
@@ -194,7 +191,8 @@ module Aura
         )
         Aura::Memory::Base.new(
           config: config,
-          event_bus: self
+          event_bus: self,
+          registry: @registry
         )
       end
 

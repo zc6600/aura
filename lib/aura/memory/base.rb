@@ -5,19 +5,27 @@ module Aura
     class Base
       attr_reader :recorder, :provider, :metabolizer, :store, :config
 
-      def initialize(config:, store: nil, event_bus: nil)
+      def initialize(config:, store: nil, event_bus: nil, registry: nil)
         @config = config.is_a?(Config) ? config : Config.new(config)
         @store = store || default_store
         @event_bus = event_bus
+        @registry = registry
 
         @recorder = Recorder.new(@store)
         @provider = Provider.new(@store)
+        
+        policy = @config.retention_policy
+        if @registry && policy.respond_to?(:instance_variable_set)
+          policy.instance_variable_set(:@registry, @registry)
+        end
+
         @metabolizer = Metabolizer.new(
           store: @store,
-          policy: @config.retention_policy,
+          policy: policy,
           summarizer: @config.summarizer,
           metabolism_config: @config.metabolism,
-          event_bus: @event_bus
+          event_bus: @event_bus,
+          registry: @registry
         )
       end
 

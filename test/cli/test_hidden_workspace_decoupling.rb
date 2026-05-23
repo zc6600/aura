@@ -478,4 +478,120 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     ENV.delete("GLOBAL_SECRET")
     ENV.delete("SHARED_SECRET")
   end
+
+  def test_register_from_subdirectory
+    cli = Aura::Commands::ApplicationCommand.new
+    FileUtils.mkdir_p(@test_workspace)
+    Dir.chdir(@test_workspace) do
+      cli.new
+    end
+    
+    deep_dir = File.join(@test_workspace, "src", "components")
+    FileUtils.mkdir_p(deep_dir)
+    
+    Dir.chdir(deep_dir) do
+      cli.register("subdirectory_project")
+    end
+    
+    registered = Aura.registered_projects
+    assert_equal File.realdirpath(@test_workspace), File.realdirpath(registered["subdirectory_project"])
+  end
+
+  def test_info_command_displays_registered_projects
+    cli = Aura::Commands::ApplicationCommand.new
+    FileUtils.mkdir_p(@test_workspace)
+    Dir.chdir(@test_workspace) do
+      cli.new
+      
+      out, err = capture_io do
+        cli.info
+      end
+      
+      assert_match(/Registered Projects:/, out)
+      assert_match(/my_project .*Active/, out)
+      assert_match(/Path: .*#{Regexp.escape(File.basename(@test_workspace))}/, out)
+    end
+  end
+
+  def test_custom_skills_and_tools_path_resolution_with_hidden_aura
+    cli = Aura::Commands::ApplicationCommand.new
+    FileUtils.mkdir_p(@test_workspace)
+    Dir.chdir(@test_workspace) do
+      cli.new
+    end
+
+    hidden = File.join(@test_workspace, ".aura")
+
+    # 1. Create workspace-root tools and skills
+    FileUtils.mkdir_p(File.join(@test_workspace, "tools", "workspace_tool"))
+    File.write(File.join(@test_workspace, "tools", "workspace_tool", "manifest.json"), JSON.dump({
+      name: "workspace_tool",
+      description: "workspace tool description"
+    }))
+
+    FileUtils.mkdir_p(File.join(@test_workspace, "skills", "workspace_skill"))
+    File.write(File.join(@test_workspace, "skills", "workspace_skill", "SKILL.md"), <<~YAML)
+      ---
+      name: workspace_skill
+      description: workspace skill description
+      requires: [workspace_tool]
+      ---
+      Workspace Skill Body
+    YAML
+
+    # 2. Create env-specific (.aura) tools and skills
+    FileUtils.mkdir_p(File.join(hidden, "tools", "env_tool"))
+    File.write(File.join(hidden, "tools", "env_tool", "manifest.json"), JSON.dump({
+      name: "env_tool",
+      description: "env tool description"
+    }))
+
+    FileUtils.mkdir_p(File.join(hidden, "skills", "env_skill"))
+    File.write(File.join(hidden, "skills", "env_skill", "SKILL.md"), <<~YAML)
+      ---
+      name: env_skill
+      description: env skill description
+      requires: [env_tool]
+      ---
+      Env Skill Body
+    YAML
+
+    # 3. Create system.md inside .aura/skills/
+    FileUtils.mkdir_p(File.join(hidden, "skills"))
+    File.write(File.join(hidden, "skills", "system.md"), "System Prompt Content")
+
+    # 4. Verify ToolRegistry indexes both tools
+    registry = Aura::Kernel::ToolRegistry.new(hidden)
+    assert_includes registry.all_tools, "workspace_tool"
+    assert_includes registry.all_tools, "env_tool"
+
+    # 5. Verify EnvironmentProvider compiles context including both tools and skills
+    provider = Aura::Context::EnvironmentProvider.new(@test_workspace)
+    output = provider.provide
+    assert_includes output, "Skill: workspace_skill"
+    assert_includes output, "Skill: env_skill"
+    # Ensure dependencies are resolved (no "Missing Requires" warnings)
+    refute_includes output, "Missing Requires"
+
+    # 6. Verify DirectiveProvider resolves system prompt and active skill from inside .aura/
+    deep_dir = File.join(@test_workspace, "src", "components")
+    FileUtils.mkdir_p(deep_dir)
+
+    dp_sys = Aura::Context::DirectiveProvider.new(deep_dir)
+    assert_equal "System Prompt Content", dp_sys.provide.strip
+
+    dp_skill = Aura::Context::DirectiveProvider.new(deep_dir, active_skill: "env_skill")
+    assert_equal "Env Skill Body", dp_skill.provide.strip
+
+    # 7. Verify InfoCommand reports all workspace skills/tools
+    out, err = capture_io do
+      Dir.chdir(@test_workspace) do
+        cli.info
+      end
+    end
+
+    assert_match(/2 skills installed/, out)
+    assert_match(/Skills: env_skill, workspace_skill|Skills: workspace_skill, env_skill/, out)
+    assert_match(/2 tools configured/, out)
+  end
 end

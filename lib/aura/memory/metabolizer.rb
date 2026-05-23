@@ -81,8 +81,7 @@ module Aura
 
       def select_old_events
         keep_recent = recent_events_n
-        offset = [keep_recent - 1, 0].max
-        @store.fetch_events(offset: offset)
+        @store.fetch_events(offset: keep_recent)
       end
 
       def generate_metabolism_summary(events)

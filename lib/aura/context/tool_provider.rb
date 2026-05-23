@@ -5,6 +5,7 @@ require "time"
 require "date"
 require "aura/kernel"
 require "aura/ext/mcp/manager"
+require "aura/config_loader"
 
 module Aura
   module Context
@@ -14,6 +15,7 @@ module Aura
       def initialize(path, options = {})
         env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(path) || path) : path
         @project_path = env_path
+        @workspace_root = path
         @options = options
         @state = options[:state]
         @current_turn = options[:current_turn] || 0
@@ -78,15 +80,22 @@ module Aura
       def scan_ttl_configs
         configs = {}
         # We can use registry to find groups
-        tools_dir = File.join(@project_path, "tools")
-        Dir.glob(File.join(tools_dir, "*", "group_manifest.json")) do |manifest_path|
-          begin
-            manifest = JSON.parse(File.read(manifest_path))
-            if manifest["context"] && manifest["context"]["name"]
-              configs[manifest["context"]["name"]] = manifest["context"]["lifecycle"]["ttl"]
+        tps = [
+          File.join(@workspace_root, "tools"),
+          File.join(@project_path, "tools")
+        ].uniq
+        
+        tps.each do |tools_dir|
+          next unless Dir.exist?(tools_dir)
+          Dir.glob(File.join(tools_dir, "*", "group_manifest.json")) do |manifest_path|
+            begin
+              manifest = JSON.parse(File.read(manifest_path))
+              if manifest["context"] && manifest["context"]["name"]
+                configs[manifest["context"]["name"]] = manifest["context"]["lifecycle"]["ttl"]
+              end
+            rescue JSON::ParserError, Errno::ENOENT, Errno::EACCES
+              next
             end
-          rescue StandardError
-            next
           end
         end
         configs
@@ -191,7 +200,7 @@ module Aura
       def load_json(path)
         return nil unless File.exist?(path)
         JSON.parse(File.read(path))
-      rescue StandardError
+      rescue JSON::ParserError, Errno::ENOENT, Errno::EACCES
         nil
       end
 
@@ -211,6 +220,8 @@ module Aura
         else
           "No specific guidance provided."
         end
+      rescue Errno::ENOENT, Errno::EACCES, IOError
+        "No specific guidance provided."
       end
 
       def usage_from_schema(schema)
@@ -233,17 +244,9 @@ module Aura
 
 
       def load_config
-        @config ||= begin
-          path = File.join(@project_path, "config", "config.yml")
-          if File.exist?(path)
-            require "yaml"
-            YAML.load_file(path)
-          else
-            {}
-          end
-        rescue StandardError
-          {}
-        end
+        @config ||= Aura::ConfigLoader.load(@project_path, safe: true)
+      rescue Aura::ConfigLoader::ConfigError, ArgumentError, TypeError
+        {}
       end
 
       def is_core_tool?(name)
@@ -277,7 +280,7 @@ module Aura
             @indexed_only << build_mcp_index(tool)
           end
         end
-      rescue StandardError
+      rescue Timeout::Error, IOError, SystemCallError
         nil
       end
 

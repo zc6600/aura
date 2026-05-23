@@ -102,18 +102,15 @@ module Aura
 
       def display_registered_projects
         puts "\n\e[1m📋 Registered Projects:\e[0m"
-        projects_path = File.join(Aura::GlobalConfig.repo_path, "projects")
-        if File.directory?(projects_path)
-          projects = Dir.entries(projects_path).reject { |e| e.start_with?(".") }
-          if projects.any?
-            projects.each do |project|
-              project_path = File.join(projects_path, project)
-              puts "  - #{project}"
-              puts "    Path: #{project_path}" if File.directory?(project_path)
-            end
-          else
-            puts "  No projects registered"
+        projects = Aura.registered_projects
+        if projects.any?
+          projects.each do |name, path|
+            status = File.directory?(File.join(path, ".aura")) ? "\e[32mActive\e[0m" : "\e[31mMissing\e[0m"
+            puts "  - #{name} (#{status})"
+            puts "    Path: #{path}"
           end
+        else
+          puts "  No projects registered"
         end
       end
 
@@ -186,20 +183,44 @@ module Aura
       end
 
       def display_workspace_skills(workspace_path)
-        workspace_skills_path = File.join(workspace_path, "skills")
-        return unless File.directory?(workspace_skills_path)
-        
-        workspace_skills = Dir.entries(workspace_skills_path).reject { |e| e.start_with?(".") }
+        workspace_root = File.dirname(workspace_path)
+        skill_paths = [
+          File.join(workspace_root, "skills"),
+          File.join(workspace_path, "skills")
+        ].uniq
+
+        workspace_skills = []
+        skill_paths.each do |dir|
+          next unless File.directory?(dir)
+          entries = Dir.entries(dir).reject { |e| e.start_with?(".") || !File.directory?(File.join(dir, e)) }
+          workspace_skills.concat(entries)
+        end
+        workspace_skills.uniq!
+
+        return if workspace_skills.empty?
+
         puts "\n\e[1m🎨 Workspace Skills:\e[0m"
         puts "  #{workspace_skills.size} skills installed"
         puts "  Skills: #{workspace_skills.join(', ')}" if workspace_skills.any?
       end
 
       def display_workspace_tools(workspace_path)
-        workspace_tools_path = File.join(workspace_path, "tools")
-        return unless File.directory?(workspace_tools_path)
-        
-        workspace_tools = Dir.entries(workspace_tools_path).reject { |e| e.start_with?(".") }
+        workspace_root = File.dirname(workspace_path)
+        tool_paths = [
+          File.join(workspace_root, "tools"),
+          File.join(workspace_path, "tools")
+        ].uniq
+
+        workspace_tools = []
+        tool_paths.each do |dir|
+          next unless File.directory?(dir)
+          entries = Dir.entries(dir).reject { |e| e.start_with?(".") || !File.directory?(File.join(dir, e)) }
+          workspace_tools.concat(entries)
+        end
+        workspace_tools.uniq!
+
+        return if workspace_tools.empty?
+
         puts "\n\e[1m🔧 Workspace Tools:\e[0m"
         puts "  #{workspace_tools.size} tools configured"
       end

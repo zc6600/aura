@@ -1,7 +1,10 @@
+# frozen_string_literal: true
+
 require "open3"
 require "aura"
 require "aura/ext/mcp/manager"
 require "aura/kernel/registry"
+require "aura/config_loader"
 require_relative "git_state"
 
 module Aura
@@ -238,14 +241,10 @@ module Aura
 
         def resolve_runtime(key)
           key ||= "python"
-          begin
-            require "yaml"
-            cfg = Aura::PathResolver.resolve_config_path(@env_path)
-            m = File.exist?(cfg) ? Aura.safe_load_yaml(cfg) : {}
-            m.dig("tool_protocol", "runtimes", key) || key
-          rescue StandardError
-            key
-          end
+          cfg = load_full_config
+          resolved = cfg.dig("tool_protocol", "runtimes", key.to_s) || key.to_s
+          resolved = "python" if resolved == "python3"
+          resolved
         end
 
         def parse_json_safe(s)
@@ -257,11 +256,7 @@ module Aura
         end
 
         def load_full_config
-          require "yaml"
-          path = Aura::PathResolver.resolve_config_path(@env_path)
-          File.exist?(path) ? Aura.safe_load_yaml(path) : {}
-        rescue StandardError
-          {}
+          Aura::ConfigLoader.load(@env_path, safe: true)
         end
 
         def apply_sandbox(cfg, runtime, logic, payload)

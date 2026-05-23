@@ -1,6 +1,9 @@
+# frozen_string_literal: true
+
 require "open3"
 require "aura/kernel/registry"
 require "aura/context/manager"
+require "aura/config_loader"
 
 module Aura
   module Kernel
@@ -114,13 +117,7 @@ module Aura
 
       private
         def load_config
-          begin
-            require "yaml"
-            path = Aura::PathResolver.resolve_config_path(@project_path)
-            File.exist?(path) ? YAML.load_file(path) : {}
-          rescue StandardError
-            {}
-          end
+          Aura::ConfigLoader.load(@project_path)
         end
 
         def resolve_runtime(key)

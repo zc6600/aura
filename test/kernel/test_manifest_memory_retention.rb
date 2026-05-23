@@ -323,4 +323,38 @@ class TestManifestMemoryRetention < Minitest::Test
     assert_equal false, policy_data[:summarize]
     assert_equal 50, policy_data[:max_steps]
   end
+
+  # Test 11: Runner propagates registry to Memory Base and Policy
+  def test_runner_propagates_registry_to_memory_base_and_policy
+    require "aura/kernel/runner"
+    # Create a tool in Runner's environment to test propagation
+    tool_dir = File.join(@tools_dir, "runner_test_tool")
+    FileUtils.mkdir_p(tool_dir)
+    manifest = {
+      "name" => "runner_test_tool",
+      "memory" => {
+        "retention" => "ephemeral",
+        "summarize" => true
+      }
+    }
+    File.write(File.join(tool_dir, "manifest.json"), JSON.pretty_generate(manifest))
+    File.write(File.join(tool_dir, "logic.py"), "print('ok')")
+
+    runner = Aura::Kernel::Runner.new(@app)
+    
+    # 1. Check registry is propagated to Memory Base
+    assert_equal runner.instance_variable_get(:@registry), runner.memory.instance_variable_get(:@registry)
+    
+    # 2. Check registry is propagated to Metabolizer
+    assert_equal runner.instance_variable_get(:@registry), runner.memory.metabolizer.instance_variable_get(:@registry)
+    
+    # 3. Check registry is propagated to Policy
+    policy = runner.memory.metabolizer.instance_variable_get(:@policy)
+    assert_equal runner.instance_variable_get(:@registry), policy.instance_variable_get(:@registry)
+
+    # 4. Check policy retrieves custom setting correctly
+    policy_data = policy.send(:get_retention_policy, "execution", "runner_test_tool")
+    assert_equal true, policy_data[:summarize]
+    assert_equal "ephemeral", policy_data[:retention]
+  end
 end

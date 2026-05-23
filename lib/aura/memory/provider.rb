@@ -15,8 +15,7 @@ module Aura
         total = @store.count_events
         return [] if total <= keep_recent
 
-        offset = [keep_recent - 1, 0].max
-        @store.fetch_events(offset: offset)
+        @store.fetch_events(offset: keep_recent)
       end
 
       def recent_summaries(limit: nil)

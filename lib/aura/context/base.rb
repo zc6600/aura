@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "aura"
+require "aura/config_loader"
 require_relative "directive_provider" # includes TaskProvider
 require_relative "environment_provider"
 require_relative "knowledge_provider"
@@ -46,15 +47,11 @@ module Aura
 
       private
         def fetch_max_chars(path)
-          cfg = File.join(Aura::PathResolver.environment_path(path), "config", "config.yml")
-          return nil unless File.exist?(cfg)
-          begin
-            require "yaml"
-            data = YAML.load_file(cfg)
-            data.dig("state_management", "max_state_chars")
-          rescue StandardError
-            nil
-          end
+          env_path = Aura::PathResolver.environment_path(path)
+          cfg = Aura::ConfigLoader.load(env_path, safe: true)
+          cfg.dig("state_management", "max_state_chars")
+        rescue Aura::ConfigLoader::ConfigError, ArgumentError, TypeError
+          nil
         end
 
         def compress_content(content, limit)
@@ -244,14 +241,9 @@ module Aura
         end
 
         def load_full_config
-          path = File.join(@env_path, "config", "config.yml")
-          return {} unless File.exist?(path)
-          begin
-            require "yaml"
-            YAML.load_file(path) || {}
-          rescue StandardError
-            {}
-          end
+          Aura::ConfigLoader.load(@env_path, safe: true)
+        rescue Aura::ConfigLoader::ConfigError, ArgumentError, TypeError
+          {}
         end
     end
   end

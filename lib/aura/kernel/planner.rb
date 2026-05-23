@@ -1,8 +1,11 @@
+# frozen_string_literal: true
+
 require "aura"
 require "aura/llm/client"
 require "aura/llm/prompts/compose"
 require "aura/llm/parsers/response_parser"
 require "aura/llm/env"
+require "aura/config_loader"
 
 module Aura
   module Kernel
@@ -83,13 +86,7 @@ module Aura
         end
         
         def load_config
-          begin
-            require "yaml"
-            path = Aura::PathResolver.resolve_config_path(@env_path)
-            File.exist?(path) ? Aura.safe_load_yaml(path) : {}
-          rescue StandardError
-            {}
-          end
+          Aura::ConfigLoader.load(@env_path, safe: true)
         end
     end
   end

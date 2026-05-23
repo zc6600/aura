@@ -24,6 +24,10 @@ module Aura
 
         def insert_event(timestamp:, phase:, tool:, payload:)
           @db_lock.synchronize do
+            if phase.to_s == "user"
+              @db.execute("DELETE FROM undone_events")
+              @db.execute("DELETE FROM undone_summaries")
+            end
             @db.execute(
               "INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)",
               [timestamp, phase, tool, serialize_payload(payload)]
@@ -55,7 +59,7 @@ module Aura
           end
 
           query << " WHERE #{conditions.join(" AND ")}" unless conditions.empty?
-          query << " ORDER BY id ASC"
+          query << " ORDER BY id DESC"
           if offset
             query << " LIMIT ? OFFSET ?"
             args << (limit || -1)
@@ -66,7 +70,7 @@ module Aura
           end
 
           rows = @db.execute(query, args)
-          rows.map do |id, ts, phase, tool, payload|
+          events = rows.map do |id, ts, phase, tool, payload|
             {
               "id" => id,
               "timestamp" => ts,
@@ -75,6 +79,7 @@ module Aura
               "payload" => deserialize_payload(payload)
             }
           end
+          events.sort_by! { |e| e["id"] }
         end
 
         def delete_events(event_ids)
@@ -105,12 +110,12 @@ module Aura
         end
 
         def fetch_summaries(limit: nil)
-          query = +"SELECT id, timestamp, content, source_event_id FROM summaries ORDER BY id ASC"
+          query = +"SELECT id, timestamp, content, source_event_id FROM summaries ORDER BY id DESC"
           query << " LIMIT ?" if limit
           args = limit ? [limit] : []
 
           rows = @db.execute(query, args)
-          rows.map do |id, ts, content, source_event_id|
+          summaries = rows.map do |id, ts, content, source_event_id|
             {
               "id" => id,
               "timestamp" => ts,
@@ -118,6 +123,7 @@ module Aura
               "source_event_id" => source_event_id
             }
           end
+          summaries.sort_by! { |s| s["id"] }
         end
 
         def set_variable(key:, value:)

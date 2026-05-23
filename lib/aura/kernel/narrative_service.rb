@@ -3,6 +3,7 @@
 require "aura/llm/client"
 require "aura/llm/env"
 require "json"
+require "aura/config_loader"
 
 module Aura
   module Kernel
@@ -45,12 +46,7 @@ module Aura
       private
 
       def load_config
-        path = Aura::PathResolver.resolve_config_path(@project_path)
-        return {} unless File.exist?(path)
-        require "yaml"
-        YAML.load_file(path) || {}
-      rescue StandardError
-        {}
+        Aura::ConfigLoader.load(@project_path)
       end
 
       def compose_prompt(events)
