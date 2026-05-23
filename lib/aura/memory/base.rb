@@ -29,6 +29,14 @@ module Aura
         @metabolizer.run
       end
 
+      def undo
+        @store.respond_to?(:undo_last_turn) ? @store.undo_last_turn : false
+      end
+
+      def redo
+        @store.respond_to?(:redo_last_turn) ? @store.redo_last_turn : false
+      end
+
       private
 
       def default_store

@@ -6,7 +6,12 @@ module Aura
   module Context
     class StateProvider
       def initialize(db, options = {})
-        @db = db
+        if db.is_a?(Aura::Memory::Base)
+          require "aura/memory/adapters/compatibility_adapter"
+          @db = Aura::Memory::Adapters::CompatibilityAdapter.new(db)
+        else
+          @db = db
+        end
         @options = options
       end
 

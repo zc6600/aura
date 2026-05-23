@@ -24,7 +24,7 @@ module Aura
         @env_path = Aura::PathResolver.environment_path(@project_path)
 
         @memory = memory || default_memory
-        @validator = Aura::Kernel::ToolValidator.new(@env_path, nil, memory_adapter)
+        @validator = Aura::Kernel::ToolValidator.new(@env_path, nil, @memory)
         @lsp_manager = Aura::LSP::Manager.new(@project_path)
         @engine = Aura::Kernel::ExecutionEngine.new(@project_path, env_path: @env_path, lsp_manager: @lsp_manager)
         @registry = Aura::Kernel::ToolRegistry.new(@env_path)
@@ -81,7 +81,7 @@ module Aura
         @memory.recorder.record_custom("observe", {})
         @memory.metabolize_if_needed
         auto_verify_core_tools
-        Aura::Context.assemble(@project_path, memory_adapter, lsp_manager: @lsp_manager)
+        Aura::Context.assemble(@project_path, @memory, lsp_manager: @lsp_manager)
       end
 
       def plan(goal = nil, context = nil)
@@ -178,15 +178,11 @@ module Aura
       end
 
       def undo
-        if memory_adapter.respond_to?(:undo_last_turn)
-          memory_adapter.undo_last_turn
-        end
+        @memory.undo
       end
 
       def redo
-        if memory_adapter.respond_to?(:redo_last_turn)
-          memory_adapter.redo_last_turn
-        end
+        @memory.redo
       end
 
       private
@@ -202,9 +198,7 @@ module Aura
         )
       end
 
-      def memory_adapter
-        @memory_adapter ||= Aura::Memory::Adapters::CompatibilityAdapter.new(@memory)
-      end
+
 
       def handle_context_lifecycle(tool, args, res)
         tool_data = @registry.find(tool)

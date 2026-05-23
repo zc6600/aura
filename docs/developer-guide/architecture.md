@@ -26,15 +26,20 @@ graph TB
     subgraph "Kernel Layer"
         Runner[Runner<br/>Orchestrator]
         Planner[Planner<br/>LLM Integration]
-        Metabolizer[Memory::Metabolizer<br/>Event Lifecycle]
         Engine[ExecutionEngine<br/>Tool Runtime]
         Registry[ToolRegistry<br/>Tool Discovery]
     end
     
-    subgraph "Context & State Layer"
-        StateRecorder[StateRecorder<br/>Write Events]
-        StateProvider[StateProvider<br/>Read Events]
+    subgraph "Memory Layer"
+        MemoryHub[Memory::Base<br/>Core Hub]
+        MemoryRec[Memory::Recorder<br/>Write Events]
+        MemoryProv[Memory::Provider<br/>Read Events]
+        Metabolizer[Memory::Metabolizer<br/>Event Lifecycle]
         State[(SQLite State DB<br/>sessions/*.db)]
+    end
+    
+    subgraph "Context Layer"
+        StateProvider[StateProvider<br/>Compatibility Adapter]
         ContextMgr[ContextManager<br/>Context Assembly]
     end
     
@@ -62,20 +67,24 @@ graph TB
     SessionMgr --> State
     
     Runner --> Planner
-    Runner --> Metabolizer
+    Runner --> MemoryHub
     Runner --> Engine
-    Runner --> StateRecorder
+    
+    MemoryHub --> MemoryRec
+    MemoryHub --> MemoryProv
+    MemoryHub --> Metabolizer
+    
+    MemoryRec --> State
+    MemoryProv --> State
+    Metabolizer --> State
     
     Engine --> Registry
     Engine --> Validator
     Engine --> LSP
     Engine --> MCP
     
-    Metabolizer --> StateProvider
-    Metabolizer --> State
-    
-    StateRecorder --> State
-    StateProvider --> State
+    StateProvider --> MemoryProv
+    ContextMgr --> StateProvider
     
     Runner --> ContextMgr
     ContextMgr --> Hints

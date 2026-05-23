@@ -250,23 +250,25 @@ Each session database contains:
 ```ruby
 class Runner
   def initialize(project_path)
-    @state = State.new(project_path)
-    @recorder = StateRecorder.new(@state)
+    # Expose and configure the native memory module
+    @memory = Aura::Memory::Base.new(
+      config: Aura::Memory::Config.new(store: { project_path: project_path })
+    )
   end
 
   def record_user_input(input)
-    @last_user_event_id = @recorder.record_user(input)
+    @last_user_event_id = @memory.recorder.record_user(input)
   end
 
   def plan(goal, context)
     res = @planner.plan(context, goal)
-    @recorder.record_plan(res)
+    @memory.recorder.record_plan(res)
     res
   end
 
   def run_call(call)
     res = @engine.execute(call["tool"], call["args"])
-    @recorder.record_execution(call["tool"], res, call_seq: @last_user_event_id)
+    @memory.recorder.record_execution(call["tool"], res, call_seq: @last_user_event_id)
     res
   end
 end

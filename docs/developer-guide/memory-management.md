@@ -68,17 +68,40 @@ graph LR
     style J fill:#fff3e1
 ```
 
-### Memory::Metabolizer Class
+## Memory Architecture
 
-**Location**: `lib/aura/memory/metabolizer.rb`  
-**Called from**: `Runner.observe()` before context assembly
+The memory module is decoupled from the Kernel layer and is divided into modular classes managed under the `Aura::Memory` namespace:
 
-**Event Bus Emits:**
-- `:metabolism_start` - Metabolism begins
-- `:metabolism_summary` - Summary generated
-- `:metabolism_complete` - Metabolism finishes
+### 1. Aura::Memory::Base (Core Hub)
+- **Location**: `lib/aura/memory/base.rb`
+- Orchestrates and holds references to all memory components: `recorder`, `provider`, `metabolizer`, and `store`.
+- Exposes direct delegate methods like `undo` and `redo` to simplify Kernel access.
 
-**Registry Integration**: Reads manifest `memory` field for tool-specific retention
+### 2. Aura::Memory::Recorder (Write Side)
+- **Location**: `lib/aura/memory/recorder.rb`
+- Provides structured methods to record events for various phases (`record_user`, `record_plan`, `record_execution`, `record_interception`, `record_custom`) and summaries (`record_summary`).
+- Support atomic transaction recording of batch events (`record_batch`).
+
+### 3. Aura::Memory::Provider (Read Side)
+- **Location**: `lib/aura/memory/provider.rb`
+- Reads recent events, summaries, and variables from the memory store.
+- Formats active variables and converts chronological histories into markdown prompts for LLM consumption (`to_markdown`).
+
+### 4. Memory::Metabolizer Class (Event Lifecycle)
+- **Location**: `lib/aura/memory/metabolizer.rb`  
+- **Called from**: `Runner#observe` before context assembly.
+- Triggers periodically when event threshold is reached, applying the retention policy, calling the summarizer, and deleting expired events.
+- **Event Bus Emits:**
+  - `:metabolism_start` - Metabolism begins
+  - `:metabolism_summary` - Summary generated
+  - `:metabolism_complete` - Metabolism finishes
+
+### 5. Aura::Memory::Stores::SQLiteStore (Persistence)
+- **Location**: `lib/aura/memory/stores/sqlite_store.rb`
+- Implements thread-safe, transaction-supported persistence using SQLite3 database connections with WAL enabled.
+- Manages `events`, `summaries`, `variables`, and `undone_` tables for rollback control.
+
+---
 
 ---
 
