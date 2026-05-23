@@ -8,12 +8,12 @@ module Aura
         @policy = policy
         @summarizer = summarizer
         @metabolism_config = metabolism_config
-        @event_bus = event_bus
+        @event_bus = wrap_event_bus(event_bus)
         @registry = registry
       end
 
       def run_if_needed
-        return stats = {
+        stats = {
           total_events: 0,
           candidates_for_summary: 0,
           summarized: 0,
@@ -37,7 +37,7 @@ module Aura
           if retention_result[:to_summarize].any?
             summary = generate_metabolism_summary(retention_result[:to_summarize])
             if summary && !summary.empty?
-              @store.insert_summary(content: "Metabolism: #{summary}")
+              @store.insert_summary(content: "Metabolism: Narrative Summary - #{summary}")
               stats[:summarized] = retention_result[:to_summarize].size
               emit(:metabolism_summary, content: summary)
             end
@@ -60,6 +60,11 @@ module Aura
       alias run run_if_needed
 
       private
+
+      def wrap_event_bus(bus)
+        return bus if bus.nil? || bus.is_a?(EventBus)
+        EventBus.new(bus)
+      end
 
       def should_metabolize?
         total_chars = @store.total_events_chars
@@ -93,7 +98,8 @@ module Aura
       end
 
       def summarization_enabled?
-        @metabolism_config.dig(:summarization, :enabled) == true
+        val = @metabolism_config.dig(:summarization, :enabled)
+        val.nil? ? true : (val == true)
       end
 
       def emit(event, data = {})

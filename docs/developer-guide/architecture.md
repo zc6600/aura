@@ -26,7 +26,7 @@ graph TB
     subgraph "Kernel Layer"
         Runner[Runner<br/>Orchestrator]
         Planner[Planner<br/>LLM Integration]
-        Metabolizer[MemoryMetabolizer<br/>Event Lifecycle]
+        Metabolizer[Memory::Metabolizer<br/>Event Lifecycle]
         Engine[ExecutionEngine<br/>Tool Runtime]
         Registry[ToolRegistry<br/>Tool Discovery]
     end
@@ -306,7 +306,7 @@ The core runtime engine that orchestrates the agent's lifecycle.
 - **Tool Protocol**: The "Evolution Loop", tool structure (`logic.py`, `manifest.json`), and validation gates
 - **Memory Retention**: Tool-level memory configuration in manifest.json
 - **Security**: Sandboxing, path isolation, and permission enforcement
-- **Code Reference**: `lib/aura/kernel/`, `lib/aura/cli.rb`
+- **Code Reference**: `lib/aura/kernel/`, `lib/aura/cli.rb`, `lib/aura/memory/`
 
 ### 2. [Context & State](context-and-state.md)
 How the agent maintains continuity and memory.
@@ -340,7 +340,7 @@ Memory metabolism and retention strategies.
 - **Configuration Sources**: Manifest → Config → Defaults
 - **Two Summary Types**: Call summaries vs metabolism summaries
 - **Narrative Service**: LLM-based event compression
-- **Code Reference**: `lib/aura/kernel/memory_metabolizer.rb`
+- **Code Reference**: `lib/aura/memory/metabolizer.rb`
 
 ### 6. [Testing & Development](testing.md)
 Guide for contributors to the Aura framework itself.

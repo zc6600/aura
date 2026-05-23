@@ -4,7 +4,7 @@ How Aura OS assembles the "Agent Mind" (the prompt) and manages long-term memory
 
 **Framework Code**: `lib/aura/context/` (EnvironmentProvider, ToolProvider, StateProvider, StateRecorder, SessionManager, Payload)  
 **Project Context**: `state/sessions/*.db` (SQLite, session-isolated) and `config/config.yml`  
-**Memory Metabolism**: `lib/aura/kernel/memory_metabolizer.rb`
+**Memory Metabolism**: `lib/aura/memory/metabolizer.rb`
 
 ---
 

@@ -3,14 +3,7 @@ require "fileutils"
 require "json"
 require "aura"
 require "aura/kernel/registry"
-require "aura/kernel/memory_metabolizer"
-
-# Simple mock for state
-class MockState
-  def method_missing(*args)
-    nil
-  end
-end
+require "aura/memory"
 
 class TestManifestMemoryRetention < Minitest::Test
   def setup
@@ -71,7 +64,7 @@ class TestManifestMemoryRetention < Minitest::Test
     assert_equal 5, memory_config["max_steps"]
   end
 
-  # Test 2: Metabolizer reads manifest retention policy
+  # Test 2: Policy reads manifest retention policy
   def test_metabolizer_reads_manifest_retention
     tool_dir = File.join(@tools_dir, "bash_command")
     FileUtils.mkdir_p(tool_dir)
@@ -90,17 +83,12 @@ class TestManifestMemoryRetention < Minitest::Test
     registry = Aura::Kernel::ToolRegistry.new(@app)
     registry.scan!
     
-    metabolizer = Aura::Kernel::MemoryMetabolizer.new(
-      MockState.new,
-      registry: registry,
-      config: { project_path: @app }
-    )
-    
-    policy = metabolizer.send(:get_manifest_retention, "bash_command")
-    refute_nil policy
-    assert_equal 3, policy[:max_steps]
-    assert_equal true, policy[:summarize]
-    assert_equal "ephemeral", policy[:retention]
+    policy = Aura::Memory::Policy.new(registry: registry)
+    policy_data = policy.send(:get_manifest_retention, "bash_command")
+    refute_nil policy_data
+    assert_equal 3, policy_data[:max_steps]
+    assert_equal true, policy_data[:summarize]
+    assert_equal "ephemeral", policy_data[:retention]
   end
 
   # Test 3: Manifest policy overrides global config
@@ -121,15 +109,10 @@ class TestManifestMemoryRetention < Minitest::Test
     registry = Aura::Kernel::ToolRegistry.new(@app)
     registry.scan!
     
-    metabolizer = Aura::Kernel::MemoryMetabolizer.new(
-      MockState.new,
-      registry: registry,
-      config: { project_path: @app }
-    )
-    
-    policy = metabolizer.send(:get_retention_policy, "execution", "custom_tool")
-    assert_equal false, policy[:summarize]
-    assert_equal 50, policy[:max_steps]
+    policy = Aura::Memory::Policy.new(registry: registry)
+    policy_data = policy.send(:get_retention_policy, "execution", "custom_tool")
+    assert_equal false, policy_data[:summarize]
+    assert_equal 50, policy_data[:max_steps]
   end
 
   # Test 4: Fallback to global config when manifest has no memory
@@ -148,32 +131,25 @@ class TestManifestMemoryRetention < Minitest::Test
     registry.scan!
     
     config_path = File.join(@app, "config", "config.yml")
-    metabolizer = Aura::Kernel::MemoryMetabolizer.new(
-      MockState.new,
+    require "yaml"
+    cfg = YAML.load_file(config_path) || {}
+    policy = Aura::Memory::Policy.new(
       registry: registry,
-      config: { project_path: @app, config_path: config_path }
+      retention: cfg.dig("state_management", "retention")
     )
     
-    policy = metabolizer.send(:get_retention_policy, "execution", "simple_tool")
-    # When manifest has no memory config, should fallback to global config
-    # But global config may not be loaded if state doesn't have read_config
-    # So it will use defaults
-    refute_nil policy
+    policy_data = policy.send(:get_retention_policy, "execution", "simple_tool")
+    refute_nil policy_data
   end
 
   # Test 5: Fallback to defaults when no config at all
   def test_fallback_to_defaults
     registry = Aura::Kernel::ToolRegistry.new(@app)
+    policy = Aura::Memory::Policy.new(registry: registry)
     
-    metabolizer = Aura::Kernel::MemoryMetabolizer.new(
-      MockState.new,
-      registry: registry,
-      config: { project_path: @app }
-    )
-    
-    policy = metabolizer.send(:get_retention_policy, "unknown_phase", "nonexistent_tool")
-    assert_equal 50, policy[:max_steps]
-    assert_equal false, policy[:summarize]
+    policy_data = policy.send(:get_retention_policy, "unknown_phase", "nonexistent_tool")
+    assert_equal 50, policy_data[:max_steps]
+    assert_equal false, policy_data[:summarize]
   end
 
   # Test 6: Apply retention policy with manifest config
@@ -195,11 +171,7 @@ class TestManifestMemoryRetention < Minitest::Test
     registry = Aura::Kernel::ToolRegistry.new(@app)
     registry.scan!
     
-    metabolizer = Aura::Kernel::MemoryMetabolizer.new(
-      MockState.new,
-      registry: registry,
-      config: { project_path: @app }
-    )
+    policy = Aura::Memory::Policy.new(registry: registry)
     
     events = [
       { "id" => 1, "phase" => "execution", "tool" => "temp_tool", "timestamp" => 1000 },
@@ -207,7 +179,7 @@ class TestManifestMemoryRetention < Minitest::Test
       { "id" => 3, "phase" => "plan", "tool" => nil, "timestamp" => 3000 }
     ]
     
-    result = metabolizer.send(:apply_retention_policy, events, 10)
+    result = policy.apply(events)
     
     temp_tool_events = result[:to_summarize].select { |e| e["tool"] == "temp_tool" }
     assert_equal 2, temp_tool_events.size
@@ -226,7 +198,7 @@ class TestManifestMemoryRetention < Minitest::Test
       "memory" => {
         "retention" => "permanent",
         "summarize" => false,
-        "permanent" => true  # Must explicitly set permanent flag
+        "permanent" => true
       }
     }
     File.write(File.join(tool_dir, "manifest.json"), JSON.pretty_generate(manifest))
@@ -235,18 +207,14 @@ class TestManifestMemoryRetention < Minitest::Test
     registry = Aura::Kernel::ToolRegistry.new(@app)
     registry.scan!
     
-    metabolizer = Aura::Kernel::MemoryMetabolizer.new(
-      MockState.new,
-      registry: registry,
-      config: { project_path: @app }
-    )
+    policy = Aura::Memory::Policy.new(registry: registry)
     
     events = [
       { "id" => 1, "phase" => "execution", "tool" => "milestone_tool", "timestamp" => 1000 },
       { "id" => 2, "phase" => "execution", "tool" => "other_tool", "timestamp" => 2000 }
     ]
     
-    result = metabolizer.send(:apply_retention_policy, events, 10)
+    result = policy.apply(events)
     
     kept_events = result[:to_keep]
     assert_equal 1, kept_events.size
@@ -286,11 +254,7 @@ class TestManifestMemoryRetention < Minitest::Test
     registry = Aura::Kernel::ToolRegistry.new(@app)
     registry.scan!
     
-    metabolizer = Aura::Kernel::MemoryMetabolizer.new(
-      MockState.new,
-      registry: registry,
-      config: { project_path: @app }
-    )
+    policy = Aura::Memory::Policy.new(registry: registry)
     
     events = [
       { "id" => 1, "phase" => "execution", "tool" => "ephemeral_tool", "timestamp" => 1000 },
@@ -298,7 +262,7 @@ class TestManifestMemoryRetention < Minitest::Test
       { "id" => 3, "phase" => "execution", "tool" => "permanent_tool", "timestamp" => 3000 }
     ]
     
-    result = metabolizer.send(:apply_retention_policy, events, 10)
+    result = policy.apply(events)
     
     assert_equal 1, result[:to_summarize].size
     assert_equal "ephemeral_tool", result[:to_summarize][0]["tool"]
@@ -325,16 +289,12 @@ class TestManifestMemoryRetention < Minitest::Test
     registry = Aura::Kernel::ToolRegistry.new(@app)
     registry.scan!
     
-    metabolizer = Aura::Kernel::MemoryMetabolizer.new(
-      MockState.new,
-      registry: registry,
-      config: { project_path: @app }
-    )
+    policy = Aura::Memory::Policy.new(registry: registry)
     
-    policy = metabolizer.send(:get_manifest_retention, "no_memory_tool")
-    assert_nil policy
+    policy_data = policy.send(:get_manifest_retention, "no_memory_tool")
+    assert_nil policy_data
     
-    fallback_policy = metabolizer.send(:get_retention_policy, "execution", "no_memory_tool")
+    fallback_policy = policy.send(:get_retention_policy, "execution", "no_memory_tool")
     refute_nil fallback_policy
   end
 
@@ -355,16 +315,12 @@ class TestManifestMemoryRetention < Minitest::Test
     registry = Aura::Kernel::ToolRegistry.new(@app)
     registry.scan!
     
-    metabolizer = Aura::Kernel::MemoryMetabolizer.new(
-      MockState.new,
-      registry: registry,
-      config: { project_path: @app }
-    )
+    policy = Aura::Memory::Policy.new(registry: registry)
     
-    policy = metabolizer.send(:get_manifest_retention, "partial_tool")
-    refute_nil policy
-    assert_equal "working", policy[:retention]
-    assert_equal false, policy[:summarize]
-    assert_equal 50, policy[:max_steps]
+    policy_data = policy.send(:get_manifest_retention, "partial_tool")
+    refute_nil policy_data
+    assert_equal "working", policy_data[:retention]
+    assert_equal false, policy_data[:summarize]
+    assert_equal 50, policy_data[:max_steps]
   end
 end

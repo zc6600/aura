@@ -51,15 +51,9 @@ module Aura
 
         db_path = db_path_for(name)
         
-        # Create an empty database file by initializing State
-        # This ensures the database schema is properly set up
         begin
-          require "aura/kernel/state"
-          # Temporarily set env to force State to use our db_path
-          ENV["AURA_STATE_DB_PATH"] = db_path
-          temp_state = Aura::Kernel::State.new(@project_path)
-          temp_state.send(:close)  # close is private
-          ENV["AURA_STATE_DB_PATH"] = nil  # Clear it
+          require "aura/memory"
+          Aura::Memory::Stores::SQLiteStore.new(db_path: db_path).close
         rescue StandardError => e
           $stderr.puts "[SessionManager] Failed to initialize session DB: #{e.message}"
           # Fallback: create empty file

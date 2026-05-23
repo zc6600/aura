@@ -58,5 +58,43 @@ module Aura
         File.exist?(root_cfg) ? root_cfg : subfolder_cfg
       end
     end
+
+    # Resolves the database file path for a given session.
+    # Handles session directories, active session tracking, and migration of legacy files.
+    def self.session_db_path(project_path, session_name = nil)
+      env_path = environment_path(project_path || ".")
+      state_dir = File.join(env_path, "state")
+      
+      env_db = ENV["AURA_STATE_DB_PATH"]
+      return File.expand_path(env_db, env_path) if env_db && !env_db.to_s.strip.empty?
+
+      resolved_session = session_name || ENV["AURA_SESSION_NAME"]
+      if resolved_session.nil? || resolved_session.to_s.strip.empty?
+        active_txt = File.join(state_dir, "active_session.txt")
+        resolved_session = if File.exist?(active_txt)
+          File.read(active_txt).strip rescue "default"
+        else
+          FileUtils.mkdir_p(state_dir)
+          File.write(active_txt, "default") rescue nil
+          "default"
+        end
+      end
+      resolved_session = "default" if resolved_session.to_s.strip.empty?
+
+      # Backward compatibility: migrate legacy state/aura.db to sessions/default.db
+      legacy_db = File.join(state_dir, "aura.db")
+      default_db = File.join(state_dir, "sessions", "default.db")
+      if File.exist?(legacy_db) && !File.exist?(default_db)
+        FileUtils.mkdir_p(File.dirname(default_db))
+        begin
+          FileUtils.mv(legacy_db, default_db)
+        rescue => e
+          $stderr.puts "[PathResolver] Migration failed: #{e.class}: #{e.message}"
+        end
+      end
+
+      FileUtils.mkdir_p(File.join(state_dir, "sessions"))
+      File.join(state_dir, "sessions", "#{resolved_session}.db")
+    end
   end
 end

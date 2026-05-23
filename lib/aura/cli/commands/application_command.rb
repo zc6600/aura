@@ -106,13 +106,13 @@ module Aura
 
       desc "context [PROJECT_PATH]", "Compile and print project context"
       def context(project_path = nil)
-        require "aura/context"
-        require "aura/kernel/state"
+        require "aura/memory"
         resolved_path = Aura::WorkspaceInitializer.resolve_project_path!(project_path)
         root = File.expand_path(resolved_path)
-        # Decouple workspace path from environment path
         env_path = Aura::PathResolver.environment_path(root)
-        db = Aura::Kernel::State.new(env_path)
+        config = Aura::Memory::Config.new(store: { project_path: env_path })
+        memory = Aura::Memory::Base.new(config: config)
+        db = Aura::Memory::Adapters::CompatibilityAdapter.new(memory)
         out = Aura::Context.assemble(root, db)
         puts out
       end
@@ -157,10 +157,8 @@ module Aura
         root = File.expand_path(resolved_path)
         env_path = Aura::PathResolver.environment_path(root)
         
-        require "aura/kernel/state"
-        state = Aura::Kernel::State.new(root)
-        db_path = state.db_path
-        state.close rescue nil
+        require "aura/path_resolver"
+        db_path = Aura::PathResolver.session_db_path(root)
 
         cfg = File.join(env_path, "config", "config.yml")
         project_name = File.basename(root)

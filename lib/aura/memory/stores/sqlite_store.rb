@@ -2,14 +2,22 @@
 
 require "sqlite3"
 require "fileutils"
+require "aura/path_resolver"
 require_relative "../store"
+require_relative "../path_resolver"
 
 module Aura
   module Memory
     module Stores
       class SQLiteStore < Store
         def initialize(config = {})
-          @db_path = resolve_db_path(config)
+          @db_path = if config[:db_path]
+                       File.expand_path(config[:db_path])
+                     elsif config[:project_path]
+                       PathResolver.resolve(config)
+                     else
+                       raise ArgumentError, "Either :db_path or :project_path must be provided"
+                     end
           @db_lock = Mutex.new
           init_db
         end
@@ -56,12 +64,13 @@ module Aura
 
           query << " WHERE #{conditions.join(" AND ")}" unless conditions.empty?
           query << " ORDER BY id ASC"
-          query << " LIMIT ?" if limit
-          args << limit if limit
-
           if offset
-            query << " OFFSET ?"
+            query << " LIMIT ? OFFSET ?"
+            args << (limit || -1)
             args << offset
+          elsif limit
+            query << " LIMIT ?"
+            args << limit
           end
 
           rows = @db.execute(query, args)
@@ -169,32 +178,7 @@ module Aura
             File.expand_path(config[:db_path])
           else
             project_path = config[:project_path] || "."
-            resolve_session_db_path(project_path)
-          end
-        end
-
-        def resolve_session_db_path(project_path)
-          state_dir = File.join(project_path, "state")
-          env_db = ENV["AURA_STATE_DB_PATH"]
-
-          return File.expand_path(env_db, project_path) if env_db && !env_db.to_s.strip.empty?
-
-          session_name = resolve_session_name(state_dir)
-          FileUtils.mkdir_p(File.join(state_dir, "sessions"))
-          File.join(state_dir, "sessions", "#{session_name}.db")
-        end
-
-        def resolve_session_name(state_dir)
-          session_name = ENV["AURA_SESSION_NAME"]
-          return session_name if session_name && !session_name.to_s.strip.empty?
-
-          active_txt = File.join(state_dir, "active_session.txt")
-          if File.exist?(active_txt)
-            File.read(active_txt).strip rescue "default"
-          else
-            FileUtils.mkdir_p(state_dir)
-            File.write(active_txt, "default") rescue nil
-            "default"
+            Aura::PathResolver.session_db_path(project_path)
           end
         end
 

@@ -32,7 +32,13 @@ module Aura
       end
 
       def metabolism
-        @hash[:metabolism] || DEFAULT_METABOLISM
+        meta = @hash[:metabolism] || {}
+        {
+          max_chars: meta[:max_chars] || @hash[:max_state_chars] || @hash[:max_chars] || DEFAULT_METABOLISM[:max_chars],
+          recent_events_n: meta[:recent_events_n] || @hash[:recent_events_n] || DEFAULT_METABOLISM[:recent_events_n],
+          keep_last_summary_n_steps: meta[:keep_last_summary_n_steps] || @hash[:keep_last_summary_n_steps] || DEFAULT_METABOLISM[:keep_last_summary_n_steps],
+          summarization: meta[:summarization] || @hash[:summarization]
+        }
       end
 
       def self.from_file(path)

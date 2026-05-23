@@ -8,11 +8,12 @@ module Aura
       end
 
       def record_user(content, call_seq: nil)
+        payload = { content: content.to_s, call_seq: call_seq }
         @store.insert_event(
           timestamp: Time.now.to_i,
           phase: "user",
           tool: nil,
-          payload: { content: content.to_s, call_seq: call_seq }
+          payload: payload.merge(phase: "user")
         )
       end
 
@@ -37,17 +38,18 @@ module Aura
           timestamp: Time.now.to_i,
           phase: "plan",
           tool: plan_data[:tool],
-          payload: plan_data
+          payload: plan_data.merge(phase: "plan", tool: plan_data[:tool])
         )
       end
 
       def record_execution(tool_name, result, call_seq: nil)
         result_payload = result.is_a?(Hash) ? result : { output: result.to_s }
+        payload = { result: result_payload, call_seq: call_seq }
         @store.insert_event(
           timestamp: Time.now.to_i,
           phase: "execution",
           tool: tool_name.to_s,
-          payload: { result: result_payload, call_seq: call_seq }
+          payload: payload.merge(phase: "execution", tool: tool_name.to_s)
         )
       end
 
@@ -59,20 +61,21 @@ module Aura
           timestamp: Time.now.to_i,
           phase: "interception",
           tool: tool_name.to_s,
-          payload: payload
+          payload: payload.merge(phase: "interception", tool: tool_name.to_s)
         )
       end
 
       def record_custom(phase, payload = {})
+        tool = payload[:tool] || payload["tool"]
         @store.insert_event(
           timestamp: Time.now.to_i,
           phase: phase.to_s,
-          tool: payload[:tool] || payload["tool"],
-          payload: payload
+          tool: tool,
+          payload: payload.merge(phase: phase.to_s, tool: tool)
         )
       end
 
-      def record_summary(content, source_event_id: nil)
+      def record_summary(content, source_event_id = nil)
         @store.insert_summary(
           content: content,
           source_event_id: source_event_id

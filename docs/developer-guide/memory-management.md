@@ -42,7 +42,7 @@ state_management:
     execution: { max_steps: 10, summarize: true }
 ```
 
-### 3. Code Defaults (`MemoryMetabolizer::DEFAULT_RETENTION`)
+### 3. Code Defaults (`Memory::Policy::DEFAULT_RETENTION`)
 
 ---
 
@@ -68,9 +68,9 @@ graph LR
     style J fill:#fff3e1
 ```
 
-### MemoryMetabolizer Class
+### Memory::Metabolizer Class
 
-**Location**: `lib/aura/kernel/memory_metabolizer.rb`  
+**Location**: `lib/aura/memory/metabolizer.rb`  
 **Called from**: `Runner.observe()` before context assembly
 
 **Event Bus Emits:**
@@ -289,8 +289,8 @@ Level 3: One-line summary (50 chars)  - Permanent retention
 
 ## Code References
 
-- **MemoryMetabolizer**: `lib/aura/kernel/memory_metabolizer.rb`
-- **NarrativeService**: `lib/aura/context/narrative_service.rb`
+- **Memory::Metabolizer**: `lib/aura/memory/metabolizer.rb`
+- **NarrativeService**: `lib/aura/kernel/narrative_service.rb`
 - **StateProvider**: `lib/aura/context/state_provider.rb`
 - **Tests**: `test/kernel/test_call_summary_persist.rb`
 
