@@ -19,6 +19,11 @@ class TestSkillsToolsInstall < Minitest::Test
 
     @orig_resolve = Aura.method(:resolve_project_path!)
     @orig_dir_home = Dir.method(:home)
+
+    proj = @project
+    Aura.define_singleton_method(:resolve_project_path!) do |*args|
+      proj
+    end
   end
 
   def teardown
@@ -48,12 +53,6 @@ class TestSkillsToolsInstall < Minitest::Test
       ---
       # Custom Skill Content
     MD
-
-    # Mock Aura.resolve_project_path!
-    proj = @project
-    Aura.define_singleton_method(:resolve_project_path!) do |*args|
-      proj
-    end
 
     # Redirect stdout to suppress print logs
     original_stdout = $stdout

@@ -61,7 +61,8 @@ module Aura
       desc "generate_group NAME [SUBTOOLS...]", "Generate a hierarchical tool group"
       def generate_group(name, *subtools)
         require "aura/generators/tool_group_generator"
-        gen = Aura::Generators::ToolGroupGenerator.new([name, subtools], {}, {})
+        resolved_path = Aura.resolve_project_path!(nil)
+        gen = Aura::Generators::ToolGroupGenerator.new([name, subtools], {}, { destination_root: resolved_path })
         gen.invoke_all
       end
 
@@ -71,14 +72,14 @@ module Aura
           install(tool_name_or_url)
         else
           require "aura/generators/tools_generator"
-          Aura::Generators::ToolsGenerator.start([tool_name_or_url])
+          resolved_path = Aura.resolve_project_path!(nil)
+          Aura::Generators::ToolsGenerator.start([tool_name_or_url], destination_root: resolved_path)
         end
       end
 
       desc "install URL_OR_PATH [NAME]", "Install a tool from a Git URL or local directory"
       def install(url_or_path, name = nil)
-        project_path = "."
-        resolved_path = File.expand_path(project_path)
+        resolved_path = Aura.resolve_project_path!(nil)
 
         require "securerandom"
         require "fileutils"

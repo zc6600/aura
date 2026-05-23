@@ -9,9 +9,9 @@ module Aura
     class HintsCommand < Thor
       desc "list [PROJECT_PATH]", "List all files parsed for hint injection and their status"
       def list(project_path = ".")
-        project_path = File.expand_path(project_path)
-        unless File.directory?(project_path)
-          puts "\e[31m⛔️ Error: Directory not found: #{project_path}\e[0m"
+        begin
+          project_path = Aura.resolve_project_path!(project_path)
+        rescue SystemExit
           exit 1
         end
 
@@ -111,7 +111,11 @@ module Aura
 
       desc "toggle FILE_PATH [PROJECT_PATH]", "Toggle hint injection status for a specific file"
       def toggle(file_path, project_path = ".")
-        project_path = File.expand_path(project_path)
+        begin
+          project_path = Aura.resolve_project_path!(project_path)
+        rescue SystemExit
+          exit 1
+        end
         # Find .aura configuration
         aura_dir = Aura::PathResolver.find_aura_dir(project_path)
         unless aura_dir
