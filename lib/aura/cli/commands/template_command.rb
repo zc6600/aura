@@ -23,7 +23,7 @@ module Aura
         
         # Fallback to source path if running from source
         unless File.directory?(gem_templates)
-          gem_templates = File.expand_path("aura/generators/aura/app/templates", 
+          gem_templates = File.expand_path("lib/aura/generators/aura/app/templates", 
                                            File.join(__dir__, "../../../../"))
         end
         
@@ -86,7 +86,7 @@ module Aura
         
         # Fallback to source path
         unless File.directory?(gem_templates)
-          gem_templates = File.expand_path("aura/generators/aura/app/templates", 
+          gem_templates = File.expand_path("lib/aura/generators/aura/app/templates", 
                                            File.join(__dir__, "../../../../"))
         end
         
@@ -142,7 +142,7 @@ module Aura
         
         # Fallback to source path
         unless File.directory?(gem_templates)
-          gem_templates = File.expand_path("aura/generators/aura/app/templates", 
+          gem_templates = File.expand_path("lib/aura/generators/aura/app/templates", 
                                            File.join(__dir__, "../../../../"))
         end
         

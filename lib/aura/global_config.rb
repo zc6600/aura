@@ -72,7 +72,7 @@ module Aura
       FileUtils.mkdir_p(repo)
 
       # Copy default templates from the gem directory
-      gem_templates = File.expand_path("aura/generators/aura/app/templates", __dir__)
+      gem_templates = File.expand_path("generators/aura/app/templates", __dir__)
       if File.directory?(gem_templates)
         FileUtils.cp_r(File.join(gem_templates, "."), repo)
       end
