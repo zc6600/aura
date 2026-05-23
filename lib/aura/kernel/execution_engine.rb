@@ -240,7 +240,7 @@ module Aura
           key ||= "python"
           begin
             require "yaml"
-            cfg = File.join(@env_path, "config", "config.yml")
+            cfg = Aura::PathResolver.resolve_config_path(@env_path)
             m = File.exist?(cfg) ? Aura.safe_load_yaml(cfg) : {}
             m.dig("tool_protocol", "runtimes", key) || key
           rescue StandardError
@@ -258,7 +258,7 @@ module Aura
 
         def load_full_config
           require "yaml"
-          path = File.join(@env_path, "config", "config.yml")
+          path = Aura::PathResolver.resolve_config_path(@env_path)
           File.exist?(path) ? Aura.safe_load_yaml(path) : {}
         rescue StandardError
           {}

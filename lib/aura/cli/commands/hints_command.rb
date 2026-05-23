@@ -17,7 +17,7 @@ module Aura
 
         # Find .aura configuration
         aura_dir = Aura::PathResolver.find_aura_dir(project_path)
-        cfg_path = aura_dir ? File.join(aura_dir, "config", "config.yml") : nil
+        cfg_path = aura_dir ? Aura::PathResolver.resolve_config_path(aura_dir) : nil
         cfg = (cfg_path && File.exist?(cfg_path)) ? (YAML.load_file(cfg_path) || {}) : {}
 
         auto_inject_readme = cfg.dig("hints", "auto_inject_readme") != false
@@ -119,7 +119,7 @@ module Aura
           exit 1
         end
 
-        cfg_path = File.join(aura_dir, "config", "config.yml")
+        cfg_path = Aura::PathResolver.resolve_config_path(aura_dir)
         cfg = File.exist?(cfg_path) ? (YAML.load_file(cfg_path) || {}) : {}
         cfg["hints"] ||= {}
         cfg["hints"]["ignore_list"] ||= []

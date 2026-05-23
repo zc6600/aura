@@ -133,7 +133,7 @@ module Aura
         end
 
         def update_config(section, key, value)
-          cfg_path = File.join(@project_path, "config", "config.yml")
+          cfg_path = Aura::PathResolver.resolve_config_path(@project_path)
           data = File.exist?(cfg_path) ? YAML.load_file(cfg_path) : {}
           data[section] ||= {}
           data[section][key] = value

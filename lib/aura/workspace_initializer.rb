@@ -87,6 +87,14 @@ module Aura
           GlobalConfig.git_run(sandbox_aura, "config", "user.name", "Aura Sandbox")
           GlobalConfig.git_run(sandbox_aura, "config", "user.email", "sandbox@aura-os.ai")
           
+          # Copy configuration file from global repo template
+          src_cfg = Aura::PathResolver.resolve_config_path(GlobalConfig.repo_path)
+          if src_cfg && File.exist?(src_cfg)
+            dest_cfg = File.join(sandbox_aura, "config", "config.yml")
+            FileUtils.mkdir_p(File.dirname(dest_cfg))
+            FileUtils.cp(src_cfg, dest_cfg)
+          end
+          
           # Inject .gitignore rule inside .aura folder to ignore runtime databases
           inner_ignore_path = File.join(sandbox_aura, ".gitignore")
           inner_rules = File.exist?(inner_ignore_path) ? File.read(inner_ignore_path) : ""
@@ -129,6 +137,14 @@ module Aura
       if status.success?
         GlobalConfig.git_run(hidden, "config", "user.name", "Aura Workspace")
         GlobalConfig.git_run(hidden, "config", "user.email", "workspace@aura-os.ai")
+        
+        # Copy configuration file from global repo template
+        src_cfg = Aura::PathResolver.resolve_config_path(GlobalConfig.repo_path)
+        if src_cfg && File.exist?(src_cfg)
+          dest_cfg = File.join(hidden, "config", "config.yml")
+          FileUtils.mkdir_p(File.dirname(dest_cfg))
+          FileUtils.cp(src_cfg, dest_cfg)
+        end
         
         # Inject .gitignore rule in parent directory
         git_ignore_path = File.join(target_dir, ".gitignore")

@@ -588,9 +588,9 @@ module Aura
         # Load configuration (checking active .aura workspace config first, then global config)
         aura_dir = find_aura_dir
         cfg_path = if aura_dir
-                     File.join(aura_dir, "config", "config.yml")
+                     Aura::PathResolver.resolve_config_path(aura_dir)
                    else
-                     File.join(Aura::GlobalConfig.repo_path, "config", "config.yml")
+                     Aura::PathResolver.resolve_config_path(Aura::GlobalConfig.repo_path)
                    end
         
         cfg = File.exist?(cfg_path) ? (YAML.load_file(cfg_path) || {}) : {}

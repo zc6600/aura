@@ -7,7 +7,7 @@ require "aura"
 require "aura/cli/commands/application_command"
 require "aura/llm/client"
 
-class MockLLMClient
+class MockLLMClientForAsk
   attr_reader :provider, :model
 
   def initialize(provider:, api_base: nil, api_key: nil, model: nil)
@@ -33,7 +33,7 @@ class TestCliAskCommand < Minitest::Test
     class << Aura::LLM::Client
       alias_method :original_new, :new
       def new(provider:, api_base: nil, api_key: nil, model: nil)
-        MockLLMClient.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
+        MockLLMClientForAsk.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
       end
     end
 

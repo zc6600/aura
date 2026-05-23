@@ -15,21 +15,21 @@ module Aura
       method_option :global, type: :boolean, aliases: "-g", desc: "Target the global template repository config"
       def config(key = nil, value = nil)
         is_global = options[:global] || options["global"]
-        cfg_dir = if is_global
-                    File.join(Aura::GlobalConfig.repo_path, "config")
-                  else
-                    aura_dir = find_aura_dir
-                    if aura_dir.nil?
-                      puts "\e[31m⛔️ Error: Not in an Aura workspace.\e[0m"
-                      puts "To configure globally, use the --global flag."
-                      puts "To initialize a workspace in the current directory, run:"
-                      puts "  $ aura new"
-                      exit 1
-                    end
-                    File.join(aura_dir, "config")
-                  end
+        cfg_path = if is_global
+                     Aura::PathResolver.resolve_config_path(Aura::GlobalConfig.repo_path)
+                   else
+                     aura_dir = find_aura_dir
+                     if aura_dir.nil?
+                       puts "\e[31m⛔️ Error: Not in an Aura workspace.\e[0m"
+                       puts "To configure globally, use the --global flag."
+                       puts "To initialize a workspace in the current directory, run:"
+                       puts "  $ aura new"
+                       exit 1
+                     end
+                     Aura::PathResolver.resolve_config_path(aura_dir)
+                   end
         
-        cfg_path = File.join(cfg_dir, "config.yml")
+        cfg_dir = File.dirname(cfg_path)
         FileUtils.mkdir_p(cfg_dir) unless File.directory?(cfg_dir)
         
         hash = File.exist?(cfg_path) ? (YAML.load_file(cfg_path) || {}) : {}

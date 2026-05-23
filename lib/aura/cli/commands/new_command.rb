@@ -40,6 +40,14 @@ module Aura
           Aura::GlobalConfig.git_run(hidden, "config", "user.name", "Aura Workspace")
           Aura::GlobalConfig.git_run(hidden, "config", "user.email", "workspace@aura-os.ai")
           
+          # Copy configuration file from global repo template
+          src_cfg = Aura::PathResolver.resolve_config_path(Aura::GlobalConfig.repo_path)
+          if src_cfg && File.exist?(src_cfg)
+            dest_cfg = File.join(hidden, "config", "config.yml")
+            FileUtils.mkdir_p(File.dirname(dest_cfg))
+            FileUtils.cp(src_cfg, dest_cfg)
+          end
+          
           # Inject .gitignore rule in parent directory
           git_ignore_path = File.join(target_dir, ".gitignore")
           existing_rules = File.exist?(git_ignore_path) ? File.read(git_ignore_path) : ""

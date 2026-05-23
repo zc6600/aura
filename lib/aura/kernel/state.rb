@@ -237,7 +237,7 @@ module Aura
       end
 
       def read_config
-        cfg = File.join(@project_path, "config", "config.yml")
+        cfg = Aura::PathResolver.resolve_config_path(@project_path)
         return {} unless File.exist?(cfg)
         m = File.mtime(cfg).to_i rescue 0
         if defined?(@cached_cfg) && @cached_cfg && @cached_cfg_mtime == m

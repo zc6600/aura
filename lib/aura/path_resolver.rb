@@ -46,5 +46,17 @@ module Aura
       end
       nil
     end
+    # Resolve the config.yml path inside an environment path.
+    # Prioritizes env_path/config/config.yml, falling back to env_path/config.yml.
+    def self.resolve_config_path(env_path)
+      return nil if env_path.nil?
+      subfolder_cfg = File.join(env_path, "config", "config.yml")
+      if File.exist?(subfolder_cfg)
+        subfolder_cfg
+      else
+        root_cfg = File.join(env_path, "config.yml")
+        File.exist?(root_cfg) ? root_cfg : subfolder_cfg
+      end
+    end
   end
 end

@@ -24,7 +24,7 @@ class TestCliToolsInspectFormats < Minitest::Test
       out = StringIO.new
       begin
         $stdout = out
-        Aura::CLI::EntryPoint.start(["tools", "inspect", "inspect_tool", "--pretty"])
+        Aura::Commands::ToolsCommand.start(["inspect", "inspect_tool", "--pretty"])
       ensure
         $stdout = STDOUT
       end
@@ -38,7 +38,7 @@ class TestCliToolsInspectFormats < Minitest::Test
       out = StringIO.new
       begin
         $stdout = out
-        Aura::CLI::EntryPoint.start(["tools", "inspect", "inspect_tool", "--human"])
+        Aura::Commands::ToolsCommand.start(["inspect", "inspect_tool", "--human"])
       ensure
         $stdout = STDOUT
       end

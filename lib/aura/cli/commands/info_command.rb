@@ -43,12 +43,12 @@ module Aura
         global_path = Aura::GlobalConfig.repo_path
         puts "\n\e[1m📁 Global Environment:\e[0m"
         puts "  Global Repository: #{global_path}"
-        puts "  Global Config: #{File.join(global_path, 'config', 'config.yml')}"
+        puts "  Global Config: #{Aura::PathResolver.resolve_config_path(global_path)}"
         puts "  Global Database: #{File.join(global_path, 'state', 'aura.db')}"
       end
 
       def display_global_llm_config
-        global_cfg_path = File.join(Aura::GlobalConfig.repo_path, "config", "config.yml")
+        global_cfg_path = Aura::PathResolver.resolve_config_path(Aura::GlobalConfig.repo_path)
         return unless File.exist?(global_cfg_path)
         
         require "yaml"
@@ -149,7 +149,7 @@ module Aura
       end
 
       def display_workspace_config(workspace_path)
-        workspace_cfg_path = File.join(workspace_path, "config", "config.yml")
+        workspace_cfg_path = Aura::PathResolver.resolve_config_path(workspace_path)
         unless File.exist?(workspace_cfg_path)
           puts "\n\e[1m⚙️ Workspace Configuration:\e[0m"
           puts "  No workspace-specific config (using global defaults)"

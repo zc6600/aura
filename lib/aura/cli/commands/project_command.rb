@@ -89,7 +89,7 @@ module Aura
         Aura.register_project!(project_name, Dir.pwd)
 
         # Write project name to local config
-        cfg_path = File.join(aura_dir, "config", "config.yml")
+        cfg_path = Aura::PathResolver.resolve_config_path(aura_dir)
         begin
           cfg = File.exist?(cfg_path) ? (YAML.load_file(cfg_path) || {}) : {}
           cfg["project_name"] = project_name.to_s

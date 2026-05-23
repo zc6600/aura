@@ -29,15 +29,6 @@ module Aura
     # copying standard templates and initializing it as a Git repository.
     def self.ensure_repo!
       repo = repo_path
-      return if File.directory?(File.join(repo, ".git"))
-
-      FileUtils.mkdir_p(repo)
-
-      # Copy default templates from the gem directory
-      gem_templates = File.expand_path("aura/generators/aura/app/templates", __dir__)
-      if File.directory?(gem_templates)
-        FileUtils.cp_r(File.join(gem_templates, "."), repo)
-      end
 
       # Ensure config.yml is placed in the config/ subfolder for workspace compatibility
       # If the target config file already exists (e.g. configured by setup.sh), deep-merge to preserve user settings.
@@ -69,6 +60,21 @@ module Aura
         else
           FileUtils.mv(repo_config_file, target_config_file)
         end
+
+        if File.directory?(File.join(repo, ".git"))
+          git_run(repo, "add", ".")
+          git_run(repo, "commit", "-m", "Migrate config.yml to config/config.yml")
+        end
+      end
+
+      return if File.directory?(File.join(repo, ".git"))
+
+      FileUtils.mkdir_p(repo)
+
+      # Copy default templates from the gem directory
+      gem_templates = File.expand_path("aura/generators/aura/app/templates", __dir__)
+      if File.directory?(gem_templates)
+        FileUtils.cp_r(File.join(gem_templates, "."), repo)
       end
 
       # Initialize global repo as a Git repository so local .aura folders can remote clone/pull/push

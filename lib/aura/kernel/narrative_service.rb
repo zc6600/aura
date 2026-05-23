@@ -45,7 +45,7 @@ module Aura
       private
 
       def load_config
-        path = File.join(@project_path, "config", "config.yml")
+        path = Aura::PathResolver.resolve_config_path(@project_path)
         return {} unless File.exist?(path)
         require "yaml"
         YAML.load_file(path) || {}

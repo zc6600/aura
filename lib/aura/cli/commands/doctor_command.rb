@@ -86,9 +86,9 @@ module Aura
 
         workspace_path = find_aura_dir
         cfg_path = if workspace_path
-                     File.join(workspace_path, "config", "config.yml")
+                     Aura::PathResolver.resolve_config_path(workspace_path)
                    else
-                     File.join(Aura::GlobalConfig.repo_path, "config", "config.yml")
+                     Aura::PathResolver.resolve_config_path(Aura::GlobalConfig.repo_path)
                    end
 
         provider = nil

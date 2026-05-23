@@ -111,7 +111,7 @@ module Aura
         def load_config
           begin
             require "yaml"
-            path = File.join(@project_path, "config", "config.yml")
+            path = Aura::PathResolver.resolve_config_path(@project_path)
             File.exist?(path) ? YAML.load_file(path) : {}
           rescue StandardError
             {}
