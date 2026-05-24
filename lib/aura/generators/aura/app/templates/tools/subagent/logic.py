@@ -172,7 +172,10 @@ def run_subagent(goal, subagent_id=None, max_steps=None, timeout=None, name=None
 
 if __name__ == "__main__":
     try:
-        args = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
+        if len(sys.argv) > 1 and sys.argv[1].strip():
+            args = json.loads(sys.argv[1])
+        else:
+            args = json.loads(sys.stdin.read())
         action = args.get("action", "run")
         
         if action == "status":

@@ -28,12 +28,6 @@ def build_tree(base, max_entries=1000, max_depth=3):
             continue
         indent = "  " * depth
         lines.append(f"{indent}{os.path.basename(root)}/")
-        for d in sorted(dirs):
-            if count >= max_entries:
-                lines.append("... (truncated)")
-                return lines
-            lines.append(f"{indent}  {d}/")
-            count += 1
         for f in sorted(files):
             if count >= max_entries:
                 lines.append("... (truncated)")

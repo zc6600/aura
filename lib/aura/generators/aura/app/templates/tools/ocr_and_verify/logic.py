@@ -33,12 +33,11 @@ def verify_content(extracted_text: str, expected_texts: List[str]) -> dict:
     return {"all_found": all_found, "details": results}
 
 def main():
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "Missing arguments"}))
-        sys.exit(1)
-        
     try:
-        args = json.loads(sys.argv[1])
+        if len(sys.argv) > 1 and sys.argv[1].strip():
+            args = json.loads(sys.argv[1])
+        else:
+            args = json.loads(sys.stdin.read())
         image_path = args.get("image_path")
         expected_texts = args.get("expected_texts", [])
         

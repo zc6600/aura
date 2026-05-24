@@ -12,11 +12,12 @@ CONFIG_PATH = "lib/aura/generators/aura/app/templates/config.yml"
 def load_config() -> Dict[str, Any]:
     """Load global configuration to get image generation settings."""
     try:
-        # Try to find config.yml by walking up directories or using absolute path
-        # For simplicity in tool execution, we assume we are running from workspace root
-        # or we find the config relative to the script
-        
-        # 1. Try absolute path if we know where we are (we might not)
+        # 1. Try standard config path in workspace
+        cfg_path = os.path.join(os.getcwd(), "config", "config.yml")
+        if os.path.exists(cfg_path):
+            with open(cfg_path, "r") as f:
+                return yaml.safe_load(f)
+
         # 2. Try relative to current working directory
         if os.path.exists("config.yml"):
             with open("config.yml", "r") as f:
@@ -69,12 +70,11 @@ def generate_openai(prompt: str, size: str, model: str, api_key: str, output_pat
     print(json.dumps({"status": "success", "image_path": output_path, "url": image_url}))
 
 def main():
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "Missing arguments. Usage: main.py '{\"prompt\": \"...\", \"output_path\": \"...\"}'"}))
-        sys.exit(1)
-        
     try:
-        args = json.loads(sys.argv[1])
+        if len(sys.argv) > 1 and sys.argv[1].strip():
+            args = json.loads(sys.argv[1])
+        else:
+            args = json.loads(sys.stdin.read())
         prompt = args.get("prompt")
         output_path = args.get("output_path")
         
