@@ -40,7 +40,6 @@
             }
         },
         "required": [
-            "key",
             "action"
         ]
     }

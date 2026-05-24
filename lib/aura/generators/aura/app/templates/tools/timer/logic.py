@@ -11,6 +11,21 @@ def check_pid(pid):
     except OSError:
         return False
 
+def _truncate_middle(text, max_chars, head_ratio=0.6):
+    try:
+        s = text or ""
+        if max_chars is None or max_chars <= 0:
+            return s, False
+        if len(s) <= max_chars:
+            return s, False
+        head = int(max_chars * head_ratio)
+        head = max(0, min(head, max_chars))
+        tail = max_chars - head
+        truncated = s[:head] + "\n...[truncated]...\n" + (s[-tail:] if tail > 0 else "")
+        return truncated, True
+    except Exception:
+        return text or "", False
+
 def main():
     try:
         raw_args = sys.stdin.read().strip()
@@ -23,6 +38,10 @@ def main():
     wait_pid = args.get("wait_pid")
     poll_interval = args.get("poll_interval", 2)
     timeout_seconds = args.get("timeout_seconds", 300)
+    max_output_chars = args.get("max_output_chars")
+
+    if max_output_chars is None or max_output_chars <= 0:
+        max_output_chars = 30000
 
     if seconds is not None:
         try:
@@ -82,11 +101,16 @@ def main():
             except Exception:
                 pass
 
+        t_out, trunc_o = _truncate_middle(stdout, max_output_chars)
+        t_err, trunc_e = _truncate_middle(stderr, max_output_chars)
+
         print(json.dumps({
             "status": "finished",
             "pid": pid,
-            "stdout": stdout,
-            "stderr": stderr,
+            "stdout": t_out,
+            "stderr": t_err,
+            "stdout_truncated": trunc_o,
+            "stderr_truncated": trunc_e,
             "exit_code": exit_code,
             "elapsed_seconds": elapsed
         }))

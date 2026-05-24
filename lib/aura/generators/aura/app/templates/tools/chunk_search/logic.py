@@ -328,10 +328,10 @@ def chunk_search(path, order, allowed_paths=None, strict_mode=None, chunk_size=1
                             chunks[i]["score"] = 0.0
         order_index = {os.path.relpath(fp, base_dir): i for i, fp in enumerate(ordered)}
         chunks.sort(key=lambda c: (-c.get("score", 0.0), order_index.get(c["file_path"], 0), c["chunk_index"]))
-        if top_k is not None:
-            chunks = chunks[:int(top_k)]
-    if max_chunks is not None:
-        chunks = chunks[:int(max_chunks)]
+        limit_k = int(top_k) if (top_k is not None and int(top_k) > 0) else 20
+        chunks = chunks[:limit_k]
+    limit_chunks = int(max_chunks) if (max_chunks is not None and int(max_chunks) > 0) else 20
+    chunks = chunks[:limit_chunks]
     files_out = apply_field_limits(files_out, file_fields, max_file_fields)
     chunks = apply_field_limits(chunks, chunk_fields, max_chunk_fields)
     result = {"status": "success", "chunks": chunks, "files": files_out}

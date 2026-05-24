@@ -51,7 +51,7 @@ def write_file(file_path, content, allowed_paths=None, forbidden_ext=None, read_
         os.makedirs(os.path.dirname(target_path), exist_ok=True)
         with open(target_path, 'w', encoding='utf-8') as f:
             f.write(content)
-        return {"status": "ok", "content": content}
+        return {"status": "ok", "file_path": file_path, "bytes_written": len(content or "")}
     except Exception as e:
         return {"error": str(e), "status": "failed", "code": "io_error"}
 

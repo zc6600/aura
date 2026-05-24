@@ -34,6 +34,9 @@ def execute_command(command, chdir=None, timeout_seconds=None, max_output_chars=
     try:
         cwd = chdir or os.getcwd()
 
+        if max_output_chars is None or max_output_chars <= 0:
+            max_output_chars = 30000
+
         if terminate_pid is None and pid is None and not fetch_all:
             if not command:
                 return {"error": "Missing required parameter 'command'", "status": "error"}

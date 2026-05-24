@@ -130,8 +130,8 @@ def search_documents(db_name, query=None, tag=None, top_k=None, retrieval_mode=N
             items.sort(key=lambda x: (-x.get("score", 0.0), -x["created_at"], -x["id"]))
         else:
             items.sort(key=lambda x: (-x["created_at"], -x["id"]))
-        if top_k is not None:
-            items = items[:int(top_k)]
+        limit = int(top_k) if top_k is not None else 20
+        items = items[:limit]
         results = []
         for item in items:
             results.append({

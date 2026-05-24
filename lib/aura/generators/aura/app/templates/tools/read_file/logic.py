@@ -41,14 +41,24 @@ def read_file(file_path, allowed_paths=None, strict_mode=None, start_line=None, 
 
         MAX_LINE_CHARS = 10000
 
+        range_truncated = False
+        bound_start = 1
+        bound_end = float('inf')
+        if s_line is not None or e_line is not None:
+            bound_start = s_line if s_line is not None else 1
+            max_end = bound_start + 999
+            if e_line is not None and e_line > max_end:
+                bound_end = max_end
+                range_truncated = True
+            else:
+                bound_end = e_line if e_line is not None else max_end
+
         with open(target_path, 'r', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 total_lines += 1
                 if len(line) > MAX_LINE_CHARS:
                     line = line[:MAX_LINE_CHARS] + f" ... [Line truncated: showing first {MAX_LINE_CHARS} chars] ...\n"
                 if s_line is not None or e_line is not None:
-                    bound_start = s_line if s_line is not None else 1
-                    bound_end = e_line if e_line is not None else float('inf')
                     if bound_start <= total_lines <= bound_end:
                         lines.append(line)
                 else:
@@ -59,9 +69,10 @@ def read_file(file_path, allowed_paths=None, strict_mode=None, start_line=None, 
         is_truncated = False
 
         if s_line is not None or e_line is not None:
-            bound_end = e_line if e_line is not None else float('inf')
-            if total_lines > bound_end:
+            if total_lines > bound_end or range_truncated:
                 is_truncated = True
+                if range_truncated:
+                    content += f"\n\n... [File truncated. Range limited to 1000 lines (lines {bound_start}-{bound_end} of {total_lines}). Use start_line and end_line parameters to read specific sections.]\n"
         else:
             if total_lines > 1000:
                 is_truncated = True

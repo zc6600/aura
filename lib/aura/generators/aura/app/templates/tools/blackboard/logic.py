@@ -131,7 +131,7 @@ def main():
         action = args.get("action")
         key = args.get("key")
         
-        if not key:
+        if action != "list" and not key:
             print(json.dumps({"status": "failed", "error": "Missing 'key' argument"}))
             return
  
