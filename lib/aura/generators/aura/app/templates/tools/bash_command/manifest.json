@@ -25,9 +25,7 @@
       "terminate_pid": { "type": "number", "description": "Terminate a process by pid" },
       "signal": { "type": "string", "description": "Terminate signal: TERM/INT/KILL (default TERM)" }
     },
-    "required": [
-      "command"
-    ]
+    "required": []
   },
   "memory": {
     "retention": "ephemeral",

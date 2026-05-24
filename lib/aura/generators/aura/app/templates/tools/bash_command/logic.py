@@ -34,6 +34,10 @@ def execute_command(command, chdir=None, timeout_seconds=None, max_output_chars=
     try:
         cwd = chdir or os.getcwd()
 
+        if terminate_pid is None and pid is None and not fetch_all:
+            if not command:
+                return {"error": "Missing required parameter 'command'", "status": "error"}
+
         # Terminate a running process
         if terminate_pid is not None:
             try:
