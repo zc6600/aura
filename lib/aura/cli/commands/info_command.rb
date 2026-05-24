@@ -7,6 +7,8 @@ require "yaml"
 module Aura
   module Commands
     class InfoCommand < Thor
+      default_task :info
+
       def self.exit_on_failure?
         true
       end

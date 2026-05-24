@@ -49,7 +49,7 @@ module Aura
         options = { temperature: @temp, max_tokens: @max_tokens }
         options[:tools] = tools if tools && !tools.empty?
 
-        buf = ""
+        buf = +""
         res = @client.complete_stream(messages, options) do |delta|
           yield({ type: "delta", text: delta }) if block_given?
           buf << delta.to_s

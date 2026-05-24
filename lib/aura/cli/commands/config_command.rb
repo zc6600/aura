@@ -7,6 +7,8 @@ require "yaml"
 module Aura
   module Commands
     class ConfigCommand < Thor
+      default_task :config
+
       def self.exit_on_failure?
         true
       end

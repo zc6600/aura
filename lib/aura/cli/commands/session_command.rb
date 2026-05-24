@@ -81,9 +81,7 @@ module Aura
         end
 
         # Confirm deletion
-        print "Are you sure you want to delete session '#{name}'? [y/N] "
-        answer = $stdin.gets&.strip&.downcase
-        unless %w[y yes].include?(answer)
+        unless Aura::CLI::UI.confirm?("Are you sure you want to delete session '#{name}'?")
           puts "Cancelled."
           return
         end

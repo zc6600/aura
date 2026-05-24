@@ -40,28 +40,10 @@ module Aura
     def self.handle_no_workspace(start_dir)
       puts "\e[33m⚠️ Warning: Not in an Aura workspace (no .aura folder found in parent directories).\e[0m"
       
-      use_sandbox = true
-      begin
-        # Skip interactive prompt in test environments or when stdin is not a TTY
-        if defined?(Minitest) || ENV["RACK_ENV"] == "test" || ENV["RAILS_ENV"] == "test" || ENV["CI"] == "true"
-          # Automatically use sandbox in test/CI environments
-          use_sandbox = true
-        elsif $stdin.tty? || File.exist?("/dev/tty")
-          tty_in = File.exist?("/dev/tty") ? File.open("/dev/tty", "r") : $stdin
-          tty_out = File.exist?("/dev/tty") ? File.open("/dev/tty", "w") : $stdout
-          
-          tty_out.print "❓ Would you like to initialize a new Aura workspace in the current directory? (y/N): "
-          response = tty_in.gets.to_s.strip.downcase
-          
-          tty_in.close if tty_in != $stdin
-          tty_out.close if tty_out != $stdout
-          
-          if response == "y" || response == "yes"
-            use_sandbox = false
-          end
-        end
-      rescue StandardError
-        # Default to sandbox on any TTY prompt issue
+      if defined?(Minitest) || ENV["RACK_ENV"] == "test" || ENV["RAILS_ENV"] == "test" || ENV["CI"] == "true"
+        use_sandbox = true
+      else
+        use_sandbox = !Aura::CLI::UI.confirm?("❓ Would you like to initialize a new Aura workspace in the current directory?")
       end
       
       if use_sandbox

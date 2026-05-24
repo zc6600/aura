@@ -8,6 +8,8 @@ require "yaml"
 module Aura
   module Commands
     class NewCommand < Thor
+      default_task :new
+
       def self.exit_on_failure?
         true
       end

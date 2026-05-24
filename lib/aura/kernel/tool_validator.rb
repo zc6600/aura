@@ -11,7 +11,7 @@ module Aura
       def initialize(project_path, registry = nil, state = nil)
         @project_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
         @registry = registry || Aura::Kernel::ToolRegistry.new(@project_path)
-        if state.is_a?(Aura::Memory::Base)
+        if defined?(Aura::Memory) && state.is_a?(Aura::Memory::Base)
           require "aura/memory/adapters/compatibility_adapter"
           @state = Aura::Memory::Adapters::CompatibilityAdapter.new(state)
         else

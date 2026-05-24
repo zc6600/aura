@@ -1,6 +1,19 @@
+# frozen_string_literal: true
+
 module Aura
   module LLM
     class Client
+      @adapters = {}
+
+      # Class-level registry methods
+      def self.register_adapter(provider_name, klass)
+        @adapters[provider_name.to_s] = klass
+      end
+
+      def self.adapters
+        @adapters
+      end
+
       def initialize(provider:, api_base: nil, api_key: nil, model: nil)
         @provider = provider || "local"
         @api_base = api_base
@@ -31,31 +44,38 @@ module Aura
       end
 
       private
-        def build_adapter
-          case @provider
-          when "local"
-            require "aura/llm/adapters/local"
-            Aura::LLM::Adapters::Local.new
-          when "openrouter"
-            require "aura/llm/adapters/openrouter"
-            Aura::LLM::Adapters::OpenRouter.new(api_base: @api_base, api_key: @api_key, model: @model)
-          when "openai"
-            require "aura/llm/adapters/openai"
-            Aura::LLM::Adapters::OpenAI.new(api_base: @api_base, api_key: @api_key, model: @model)
-          when "deepseek"
-            require "aura/llm/adapters/deepseek"
-            Aura::LLM::Adapters::DeepSeek.new(api_base: @api_base, api_key: @api_key, model: @model)
-          when "gemini"
-            require "aura/llm/adapters/gemini"
-            Aura::LLM::Adapters::Gemini.new(api_base: @api_base, api_key: @api_key, model: @model)
-          when "anthropic"
-            require "aura/llm/adapters/anthropic"
-            Aura::LLM::Adapters::Anthropic.new(api_base: @api_base, api_key: @api_key, model: @model)
-          else
-            require "aura/llm/adapters/local"
-            Aura::LLM::Adapters::Local.new
-          end
+
+      def build_adapter
+        klass = self.class.adapters[@provider.to_s]
+        
+        if klass.nil?
+          # Fallback to local
+          require "aura/llm/adapters/local"
+          Aura::LLM::Adapters::Local.new
+        else
+          # Dynamically instantiate the registered adapter class
+          klass.new(api_base: @api_base, api_key: @api_key, model: @model)
         end
+      end
     end
   end
 end
+
+# Register default core adapters
+require "aura/llm/adapters/local"
+Aura::LLM::Client.register_adapter("local", Aura::LLM::Adapters::Local)
+
+require "aura/llm/adapters/openrouter"
+Aura::LLM::Client.register_adapter("openrouter", Aura::LLM::Adapters::OpenRouter)
+
+require "aura/llm/adapters/openai"
+Aura::LLM::Client.register_adapter("openai", Aura::LLM::Adapters::OpenAI)
+
+require "aura/llm/adapters/deepseek"
+Aura::LLM::Client.register_adapter("deepseek", Aura::LLM::Adapters::DeepSeek)
+
+require "aura/llm/adapters/gemini"
+Aura::LLM::Client.register_adapter("gemini", Aura::LLM::Adapters::Gemini)
+
+require "aura/llm/adapters/anthropic"
+Aura::LLM::Client.register_adapter("anthropic", Aura::LLM::Adapters::Anthropic)

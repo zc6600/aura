@@ -5,6 +5,8 @@ require "thor"
 module Aura
   module Commands
     class CompletionCommand < Thor
+      default_task :completion
+
       def self.exit_on_failure?
         true
       end

@@ -10,6 +10,8 @@ require "aura/path_resolver"
 require "aura/global_config"
 require "aura/project_registry"
 require "aura/workspace_initializer"
+require "aura/cli/ui"
+require "aura/llm/http_client"
 
 module Aura
   def self.environment_path(project_path)

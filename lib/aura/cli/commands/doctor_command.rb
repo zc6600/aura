@@ -6,6 +6,8 @@ require "open3"
 module Aura
   module Commands
     class DoctorCommand < Thor
+      default_task :doctor
+
       def self.exit_on_failure?
         true
       end

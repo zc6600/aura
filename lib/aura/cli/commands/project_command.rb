@@ -51,17 +51,7 @@ module Aura
           puts "   - Local environment (.aura/) does not exist physically (already deleted or moved)."
         end
         
-        print "❓ Are you sure you want to proceed? (y/N): "
-        $stdout.flush
-        begin
-          tty = File.open("/dev/tty", "r")
-          confirm = tty.gets.strip
-          tty.close
-        rescue StandardError
-          confirm = $stdin.gets&.strip || "n"
-        end
-
-        if confirm =~ /\A(y|yes)\z/i
+        if Aura::CLI::UI.confirm?("❓ Are you sure you want to proceed?")
           if physical_exists
             begin
               FileUtils.rm_rf(hidden)

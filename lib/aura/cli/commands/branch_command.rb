@@ -5,6 +5,8 @@ require "thor"
 module Aura
   module Commands
     class BranchCommand < Thor
+      default_task :branch
+
       def self.exit_on_failure?
         true
       end
@@ -56,12 +58,7 @@ module Aura
 
       def prompt_create_branch(aura_dir, profile_name)
         puts "❓ Agent profile '#{profile_name}' does not exist."
-        print "   Do you want to create a new profile from the current active? (y/N): "
-        $stdout.flush
-        
-        confirm = get_user_input
-
-        if confirm =~ /\A(y|yes)\z/i
+        if Aura::CLI::UI.confirm?("   Do you want to create a new profile from the current active?")
           create_branch(aura_dir, profile_name)
         else
           puts "Cancelled."
@@ -74,17 +71,6 @@ module Aura
           puts "\e[32mSuccessfully created and switched to new agent profile '#{profile_name}'!\e[0m"
         else
           puts "\e[31mFailed to create agent profile:\n#{create_res[:stderr]}\e[0m"
-        end
-      end
-
-      def get_user_input
-        begin
-          tty = File.open("/dev/tty", "r")
-          confirm = tty.gets.strip
-          tty.close
-          confirm
-        rescue StandardError
-          $stdin.gets&.strip || "n"
         end
       end
 

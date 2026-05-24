@@ -47,61 +47,62 @@ module Aura
         true
       end
 
-      # Delegate to extracted commands
-      desc "new [PATH]", "Initialize an Aura environment at the specified path"
+      # Register single commands as subcommands using Thor's built-in register
+      register(Aura::Commands::NewCommand, "new", "new [PATH]", "Initialize an Aura environment at the specified path")
       def new(target_path = ".")
-        NewCommand.new.invoke(:new, [target_path], {})
+        NewCommand.start(["new", target_path].compact)
       end
 
-      desc "version", "Show Aura version"
+      register(Aura::Commands::VersionCommand, "version", "version", "Show Aura version")
       def version
-        VersionCommand.new.invoke(:version, [], {})
+        VersionCommand.start(["version"])
       end
 
-      desc "completion [SHELL]", "Generate shell autocompletion script (bash or zsh)"
+      register(Aura::Commands::CompletionCommand, "completion", "completion [SHELL]", "Generate shell autocompletion script (bash or zsh)")
       def completion(shell = nil)
-        CompletionCommand.new.invoke(:completion, [shell], {})
+        CompletionCommand.start(["completion", shell].compact)
       end
 
-      desc "doctor", "Run environment checks"
+      register(Aura::Commands::DoctorCommand, "doctor", "doctor", "Run environment checks")
       def doctor
-        DoctorCommand.new.invoke(:doctor, [], {})
+        DoctorCommand.start(["doctor"])
       end
 
-      desc "info", "Display comprehensive system and workspace information"
+      register(Aura::Commands::InfoCommand, "info", "info", "Display comprehensive system and workspace information")
       def info
-        InfoCommand.new.invoke(:info, [], {})
+        InfoCommand.start(["info"])
       end
 
-      desc "config [KEY] [VALUE]", "Read or write configuration settings"
-      method_option :global, type: :boolean, aliases: "-g", desc: "Target the global template repository config"
+      register(Aura::Commands::ConfigCommand, "config", "config [KEY] [VALUE]", "Read or write configuration settings")
       def config(key = nil, value = nil)
-        ConfigCommand.new.invoke(:config, [key, value], options)
+        is_global = options && (options[:global] || options["global"])
+        ConfigCommand.start(["config", key, value].compact + (is_global ? ["--global"] : []))
       end
 
+      register(Aura::Commands::BranchCommand, "branch", "branch [PROFILE_NAME]", "List, switch, or create customized agent profiles")
+      def branch(profile_name = nil)
+        BranchCommand.start(["branch", profile_name].compact)
+      end
+
+      # Project commands delegate using Thor start pattern
       desc "list", "List all globally registered Aura projects"
       def list
-        ProjectCommand.new.invoke(:list, [], {})
+        ProjectCommand.start(["list"])
       end
 
       desc "delete PROJECT_NAME", "Unregister an Aura project and delete its .aura sandbox"
       def delete(project_name)
-        ProjectCommand.new.invoke(:delete, [project_name], {})
+        ProjectCommand.start(["delete", project_name])
       end
 
       desc "register PROJECT_NAME", "Register the current directory as an Aura project"
       def register(project_name)
-        ProjectCommand.new.invoke(:register, [project_name], {})
+        ProjectCommand.start(["register", project_name])
       end
 
       desc "prune", "Remove all registered projects whose directories no longer exist"
       def prune
-        ProjectCommand.new.invoke(:prune, [], {})
-      end
-
-      desc "branch [PROFILE_NAME]", "List, switch, or create customized agent profiles"
-      def branch(profile_name = nil)
-        BranchCommand.new.invoke(:branch, [profile_name], {})
+        ProjectCommand.start(["prune"])
       end
 
       desc "context [PROJECT_PATH]", "Compile and print project context"

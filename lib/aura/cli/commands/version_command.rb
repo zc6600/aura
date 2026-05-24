@@ -5,6 +5,8 @@ require "thor"
 module Aura
   module Commands
     class VersionCommand < Thor
+      default_task :version
+
       def self.exit_on_failure?
         true
       end

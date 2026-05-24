@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require "net/http"
 require "json"
+require "aura/llm/http_client"
 
 module Aura
   module LLM
@@ -14,12 +14,12 @@ module Aura
         end
 
         def complete(messages, options = {})
-          raise "Missing ANTHROPIC_API_KEY" if @api_key.to_s.empty?
-          uri = URI(@api_base)
-          req = Net::HTTP::Post.new(uri)
-          req["x-api-key"] = @api_key
-          req["anthropic-version"] = "2023-06-01"
-          req["Content-Type"] = "application/json"
+          raise Aura::LLMAuthError, "Missing ANTHROPIC_API_KEY" if @api_key.to_s.empty?
+          headers = {
+            "x-api-key" => @api_key,
+            "anthropic-version" => "2023-06-01",
+            "Content-Type" => "application/json"
+          }
 
           system_prompt, cleaned_msgs = extract_system_and_messages(messages)
 
@@ -31,25 +31,20 @@ module Aura
           }
           body[:system] = system_prompt if system_prompt
           body.delete_if { |_, v| v.nil? }
-          
-          req.body = JSON.dump(body)
-          http_opts = { use_ssl: uri.scheme == "https" }
-          res = Net::HTTP.start(uri.host, uri.port, http_opts) { |http| http.request(req) }
-          json = JSON.parse(res.body) rescue {}
+
+          json = HttpClient.post(@api_base, headers, body)
           content = json.dig("content", 0, "text") || ""
           stop_reason = json["stop_reason"]
           { content: content, raw: json, finish_reason: stop_reason }
-        rescue => e
-          { content: "", error: e.message }
         end
 
         def complete_stream(messages, options = {})
-          raise "Missing ANTHROPIC_API_KEY" if @api_key.to_s.empty?
-          uri = URI(@api_base)
-          req = Net::HTTP::Post.new(uri)
-          req["x-api-key"] = @api_key
-          req["anthropic-version"] = "2023-06-01"
-          req["Content-Type"] = "application/json"
+          raise Aura::LLMAuthError, "Missing ANTHROPIC_API_KEY" if @api_key.to_s.empty?
+          headers = {
+            "x-api-key" => @api_key,
+            "anthropic-version" => "2023-06-01",
+            "Content-Type" => "application/json"
+          }
 
           system_prompt, cleaned_msgs = extract_system_and_messages(messages)
 
@@ -63,43 +58,35 @@ module Aura
           body[:system] = system_prompt if system_prompt
           body.delete_if { |_, v| v.nil? }
 
-          req.body = JSON.dump(body)
-          http_opts = { use_ssl: uri.scheme == "https" }
           total = +""
           buffer = +""
           stop_reason = nil
-          Net::HTTP.start(uri.host, uri.port, http_opts) do |http|
-            http.request(req) do |res|
-              res.read_body do |chunk|
-                buffer << chunk.to_s
-                while (idx = buffer.index("\n"))
-                  line = buffer.slice!(0, idx + 1).to_s.chomp
-                  next unless line.start_with?("data: ")
-                  data = line[6..-1].to_s.strip
-                  next if data.empty?
-                  begin
-                    json = JSON.parse(data)
-                    if json["type"] == "content_block_delta"
-                      delta = json.dig("delta", "text")
-                      if delta && !delta.empty?
-                        yield(delta) if block_given?
-                        total << delta
-                      end
-                    elsif json["type"] == "message_delta"
-                      sr = json.dig("delta", "stop_reason")
-                      if sr
-                        stop_reason = sr
-                      end
-                    end
-                  rescue
+
+          HttpClient.post(@api_base, headers, body, stream: true) do |chunk|
+            buffer << chunk.to_s
+            while (idx = buffer.index("\n"))
+              line = buffer.slice!(0, idx + 1).to_s.chomp
+              next unless line.start_with?("data: ")
+              data = line[6..-1].to_s.strip
+              next if data.empty?
+              begin
+                json = JSON.parse(data)
+                if json["type"] == "content_block_delta"
+                  delta = json.dig("delta", "text")
+                  if delta && !delta.empty?
+                    yield(delta) if block_given?
+                    total << delta
                   end
+                elsif json["type"] == "message_delta"
+                  sr = json.dig("delta", "stop_reason")
+                  stop_reason = sr if sr
                 end
+              rescue
+                # Ignore JSON parse errors for incomplete/partial stream lines
               end
             end
           end
           { content: total, finish_reason: stop_reason }
-        rescue => e
-          { content: "", error: e.message }
         end
 
         private
