@@ -48,7 +48,8 @@ def build_subagent_paths(subagent_id, base_dir=None):
         "db_path": os.path.join(state_dir, "aura.db"),
         "contexts_path": os.path.join(state_dir, "tool_contexts.json"),
         "trajectory_path": os.path.join(state_dir, "trajectory.txt"),
-        "status_path": os.path.join(state_dir, "status.json")
+        "status_path": os.path.join(state_dir, "status.json"),
+        "report_path": os.path.join(state_dir, "report.md")
     }
 
 
@@ -208,6 +209,7 @@ def build_async_wrapper_script(cmd, paths):
     status_path = json.dumps(paths["status_path"])
     db_path = json.dumps(paths["db_path"])
     trajectory_path = json.dumps(paths["trajectory_path"])
+    report_path = json.dumps(paths.get("report_path", ""))
     
     return f'''
 import subprocess, json, os, time, datetime, sqlite3
@@ -216,6 +218,7 @@ cmd = {cmd_json}
 status_path = {status_path}
 db_path = {db_path}
 trajectory_path = {trajectory_path}
+report_path = {report_path}
 
 def atomic_write(file_path, data):
     tmp_path = f"{{file_path}}.{{int(time.time() * 1000)}}.tmp"
@@ -225,6 +228,14 @@ def atomic_write(file_path, data):
         os.fsync(f.fileno())
     os.rename(tmp_path, file_path)
 
+def truncate_text(text, limit=1000):
+    if not text:
+        return ""
+    if len(text) <= limit:
+        return text
+    half = limit // 2
+    return text[:half] + "\\n...[truncated]...\\n" + text[-half:]
+
 try:
     proc = subprocess.run(cmd, capture_output=True, text=True)
     result = {{"job_id": os.path.basename(os.path.dirname(status_path))}}
@@ -233,12 +244,43 @@ try:
         try:
             output_json = json.loads(proc.stdout)
             result["status"] = "success"
+            
+            # Extract full report
+            report_text = ""
+            if "final" in output_json:
+                final = output_json["final"]
+                if isinstance(final, dict):
+                    report_text = final.get("content", str(final))
+                    summary_val = final.get("summary")
+                else:
+                    report_text = str(final)
+                    summary_val = None
+            else:
+                report_text = output_json.get("result", "")
+                summary_val = None
+
+            # Write full report to file
+            if report_path:
+                try:
+                    os.makedirs(os.path.dirname(report_path), exist_ok=True)
+                    with open(report_path, "w", encoding="utf-8") as rf:
+                        rf.write(str(report_text))
+                    result["report_path"] = os.path.relpath(report_path, os.getcwd())
+                except Exception as re_err:
+                    result["report_write_error"] = str(re_err)
+
+            # Construct summary
+            if summary_val:
+                result["summary"] = summary_val
+            else:
+                clean_rep = str(report_text).strip()
+                result["summary"] = clean_rep[:500] + " ... [truncated] ..." if len(clean_rep) > 500 else clean_rep
+
+            # Truncated report for status (using safe limit of 30000)
+            result["report"] = truncate_text(str(report_text), 30000)
             if "final" in output_json:
                 result["final"] = output_json["final"]
-                if isinstance(output_json["final"], dict):
-                    result["report"] = output_json["final"].get("content", str(output_json["final"]))
-                else:
-                    result["report"] = str(output_json["final"])
+
         except json.JSONDecodeError:
             result["status"] = "failed"
             result["error"] = "Failed to parse subagent JSON output"

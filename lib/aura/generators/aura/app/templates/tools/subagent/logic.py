@@ -23,7 +23,7 @@ from scripts import (
     build_async_wrapper_script,
 )
 
-def run_subagent(goal, subagent_id=None, max_steps=None, timeout=None, name=None, async_mode=False, persona=None, max_depth=None):
+def run_subagent(goal, subagent_id=None, max_steps=None, timeout=None, name=None, async_mode=False, persona=None, max_depth=None, max_output_chars=None):
     if goal is None:
         goal = ""
     
@@ -153,11 +153,39 @@ def run_subagent(goal, subagent_id=None, max_steps=None, timeout=None, name=None
     try:
         output_json = json.loads(proc.stdout)
         result["status"] = "success"
-        result["report"] = extract_report(output_json)
         
-        if "final" in output_json and isinstance(output_json["final"], dict):
-             if "summary" in output_json["final"]:
-                  result["summary"] = output_json["final"]["summary"]
+        # Get full report
+        report_text = extract_report(output_json)
+        
+        # Save full report to file
+        report_file = paths.get("report_path")
+        if report_file:
+            try:
+                os.makedirs(os.path.dirname(report_file), exist_ok=True)
+                with open(report_file, "w", encoding="utf-8") as f:
+                    f.write(report_text)
+                result["report_path"] = os.path.relpath(report_file, os.getcwd())
+            except Exception as re_err:
+                result["report_write_error"] = str(re_err)
+
+        # Get max output limit
+        limit = 30000
+        if max_output_chars:
+            try:
+                limit = int(max_output_chars)
+            except ValueError:
+                pass
+            
+        # Add truncated report for parent context (retains compatibility with tests)
+        result["report"] = truncate_text(report_text, limit=limit)
+        
+        # Add summary
+        final_dict = output_json.get("final")
+        if isinstance(final_dict, dict) and final_dict.get("summary"):
+            result["summary"] = final_dict["summary"]
+        else:
+            clean_rep = report_text.strip()
+            result["summary"] = clean_rep[:500] + " ... [truncated] ..." if len(clean_rep) > 500 else clean_rep
         
         if "final" in output_json:
             result["final"] = output_json["final"]
@@ -190,6 +218,7 @@ if __name__ == "__main__":
             async_mode = args.get("async_mode", False)
             persona = args.get("persona")
             max_depth = args.get("max_depth")
+            max_output_chars = args.get("max_output_chars")
             result = run_subagent(
                 goal, 
                 subagent_id=subagent_id, 
@@ -198,7 +227,8 @@ if __name__ == "__main__":
                 name=name, 
                 async_mode=async_mode, 
                 persona=persona,
-                max_depth=max_depth
+                max_depth=max_depth,
+                max_output_chars=max_output_chars
             )
             
         print(json.dumps(result))
