@@ -1,0 +1,4 @@
+# Plan Proposal Tool Hint
+- **Purpose**: Propose and seek approval for a high-level task implementation plan.
+- **Action**: Use `action="create"` to draft steps and target files first. Use `action="approve"` once aligned with the user.
+- **Storage**: Plans are isolated under a unique `run_id` to prevent task conflicts.

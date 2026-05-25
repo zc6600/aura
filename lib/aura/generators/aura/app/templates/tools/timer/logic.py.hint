@@ -1,0 +1,4 @@
+# Timer Tool Hint
+- **Purpose**: Delay execution or block/wait until a background process has finished.
+- **Process Polling**: Provide `wait_pid` to await process completion. Output files are dynamically read upon completion.
+- **Context Safety**: Captured output logs are truncated to a default of 30,000 characters to prevent context window explosion.

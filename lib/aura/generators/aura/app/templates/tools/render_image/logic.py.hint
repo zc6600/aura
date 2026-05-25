@@ -1,0 +1,3 @@
+# Render Image Tool Hint
+- **Purpose**: Generate images using generative AI providers (e.g. OpenAI DALL-E) based on text prompts.
+- **Paths**: Requires an output path. Ensure the parent directory is valid and writeable.

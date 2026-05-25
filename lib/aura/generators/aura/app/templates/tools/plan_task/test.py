@@ -29,5 +29,17 @@ class TestPlanTask(unittest.TestCase):
         conn.close()
         self.assertEqual(val, "My Plan")
 
+    def test_generate_task_markdown(self):
+        markdown = generate_task_markdown(
+            tasks=["Task 1", "Task 2", "Task 3"],
+            completed=[0],
+            in_progress=[1],
+            run_id="run_123"
+        )
+        self.assertIn("Task Progress Checklist - Run run_123", markdown)
+        self.assertIn("- [x] Task 1", markdown)
+        self.assertIn("- [/] Task 2", markdown)
+        self.assertIn("- [ ] Task 3", markdown)
+
 if __name__ == "__main__":
     unittest.main()

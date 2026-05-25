@@ -1,0 +1,3 @@
+# Final Tool Hint
+- **Purpose**: Conclude task loop execution by submitting the final summarized answer back to the runner.
+- **Usage**: Call only when the goal is achieved and a clear summary response has been prepared.
