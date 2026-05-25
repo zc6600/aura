@@ -10,7 +10,7 @@ module Aura
       desc "list [PROJECT_PATH]", "List all files parsed for hint injection and their status"
       def list(project_path = ".")
         begin
-          project_path = Aura.resolve_project_path!(project_path)
+          project_path = Aura::PathResolver.resolve_project_path!(project_path)
         rescue SystemExit
           exit 1
         end
@@ -112,7 +112,7 @@ module Aura
       desc "toggle FILE_PATH [PROJECT_PATH]", "Toggle hint injection status for a specific file"
       def toggle(file_path, project_path = ".")
         begin
-          project_path = Aura.resolve_project_path!(project_path)
+          project_path = Aura::PathResolver.resolve_project_path!(project_path)
         rescue SystemExit
           exit 1
         end

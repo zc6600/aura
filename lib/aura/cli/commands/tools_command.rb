@@ -17,7 +17,7 @@ module Aura
       def tool_inspect(name)
         py = runtime_python
         begin
-          resolved_path = Aura.resolve_project_path!(nil)
+          resolved_path = Aura::PathResolver.resolve_project_path!(nil)
         rescue SystemExit
           exit 1
         end
@@ -54,7 +54,7 @@ module Aura
         require "aura/kernel/tool_validator"
         require "aura/kernel/registry"
         begin
-          resolved_path = Aura.resolve_project_path!(project_path)
+          resolved_path = Aura::PathResolver.resolve_project_path!(project_path)
         rescue SystemExit
           exit 1
         end
@@ -66,7 +66,7 @@ module Aura
           { "tool" => name, "state" => st[:state], "reason" => st[:reason], "verified" => st[:verified] }
         end
         if options[:human]
-          puts items.map { |i| "#{i['tool']}: #{i['state']}#{i['reason'] ? " (#{i['reason']})" : ''}" }.join("\n")
+          puts items.map { |i| "#{i['tool']}: #{i['state']}#{" (#{i['reason']})" if i['reason']}" }.join("\n")
         else
           puts JSON.pretty_generate(items)
         end
@@ -75,7 +75,7 @@ module Aura
       desc "generate_group NAME [SUBTOOLS...]", "Generate a hierarchical tool group"
       def generate_group(name, *subtools)
         require "aura/generators/tool_group_generator"
-        resolved_path = Aura.resolve_project_path!(nil)
+        resolved_path = Aura::PathResolver.resolve_project_path!(nil)
         gen = Aura::Generators::ToolGroupGenerator.new([name, subtools], {}, { destination_root: resolved_path })
         gen.invoke_all
       end
@@ -86,27 +86,25 @@ module Aura
           install(tool_name_or_url)
         else
           require "aura/generators/tools_generator"
-          resolved_path = Aura.resolve_project_path!(nil)
+          resolved_path = Aura::PathResolver.resolve_project_path!(nil)
           Aura::Generators::ToolsGenerator.start([tool_name_or_url], destination_root: resolved_path)
         end
       end
 
       desc "install URL_OR_PATH [NAME]", "Install a tool from a Git URL or local directory"
       def install(url_or_path, name = nil)
-        resolved_path = Aura.resolve_project_path!(nil)
+        resolved_path = Aura::PathResolver.resolve_project_path!(nil)
 
         require "securerandom"
         require "fileutils"
         require "open3"
         require "json"
-
-        tmp_base = File.join(resolved_path, ".aura", "tmp")
-        FileUtils.mkdir_p(tmp_base)
-        tmp_dir = File.join(tmp_base, "tool_install_#{SecureRandom.hex(8)}")
+        require "tmpdir"
 
         is_git = url_or_path.start_with?("http://", "https://", "git@")
 
-        begin
+        # Use Dir.mktmpdir for automatic cleanup
+        Dir.mktmpdir("tool_install_") do |tmp_dir|
           if is_git
             puts "Cloning repository: #{url_or_path}..."
             _, err, status = Open3.capture3("git", "clone", "--depth", "1", url_or_path, tmp_dir)
@@ -159,15 +157,18 @@ module Aura
           FileUtils.rm_rf(File.join(dest_dir, ".git"))
 
           puts "\e[32m✓ Tool '#{tool_name}' successfully installed to: #{dest_dir}\e[0m"
-        ensure
-          FileUtils.rm_rf(tmp_dir) if File.exist?(tmp_dir)
+        rescue StandardError => e
+          puts "\e[31m⛔️ Error during tool installation: #{e.message}\e[0m"
+          exit 1
+
+          # Dir.mktmpdir automatically cleans up tmp_dir here
         end
       end
 
       no_commands do
         def runtime_python
           begin
-            resolved_path = Aura.resolve_project_path!(nil)
+            resolved_path = Aura::PathResolver.resolve_project_path!(nil)
           rescue SystemExit
             return "python"
           end
@@ -236,7 +237,7 @@ module Aura
 
         def required_files_from_config
           begin
-            resolved_path = Aura.resolve_project_path!(nil)
+            resolved_path = Aura::PathResolver.resolve_project_path!(nil)
           rescue SystemExit
             return []
           end

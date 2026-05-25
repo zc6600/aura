@@ -14,8 +14,8 @@ module Aura
 
       def initialize(path, options = {})
         env_path = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(path) || path) : path
-        @project_path = env_path
-        @workspace_root = path
+        @env_path = File.expand_path(env_path)
+        @workspace_root = File.expand_path(path)
         @options = options
         @state = options[:state]
         @current_turn = options[:current_turn] || 0
@@ -82,7 +82,7 @@ module Aura
         # We can use registry to find groups
         tps = [
           File.join(@workspace_root, "tools"),
-          File.join(@project_path, "tools")
+          File.join(@env_path, "tools")
         ].uniq
 
         tps.each do |tools_dir|
@@ -121,7 +121,7 @@ module Aura
           }
         else
           # Even if context is not active, the LLM should know the tool exists
-          rel = dir.sub(%r{^#{Regexp.escape(@project_path)}/}, "")
+          rel = relativize(dir)
           @indexed_only << "- #{name}: #{manifest['description'] || ''} [LOCKED: Requires #{req_context}] (Path: #{rel})"
         end
       end
@@ -151,7 +151,7 @@ module Aura
             hint: load_hint(dir)
           }
         else
-          rel = dir.sub(%r{^#{Regexp.escape(@project_path)}/}, "")
+          rel = relativize(dir)
           info = "- #{name}: #{manifest['description'] || ''} (Path: #{rel})"
           info += " (Unlocks: #{subtools.join(', ')})" if manifest["creates_context"] && subtools&.any?
           @indexed_only << info
@@ -202,7 +202,7 @@ module Aura
       def load_hint(dir)
         hint_file = Dir.glob(File.join(dir, "*.hint")).first
         if hint_file
-          rel_hint_file = hint_file.sub(%r{^#{Regexp.escape(@project_path)}/}, "")
+          rel_hint_file = relativize(hint_file)
           return "No specific guidance provided." if ignored?(rel_hint_file)
 
           content = File.read(hint_file).strip
@@ -235,7 +235,7 @@ module Aura
       end
 
       def load_config
-        @config ||= Aura::ConfigLoader.load(@project_path, safe: true)
+        @config ||= Aura::ConfigLoader.load(@env_path, safe: true)
       rescue Aura::ConfigLoader::ConfigError, ArgumentError, TypeError
         {}
       end
@@ -248,7 +248,7 @@ module Aura
       end
 
       def anchors_has_files?
-        dir = File.join(@project_path, "anchors")
+        dir = File.join(@env_path, "anchors")
         return false unless Dir.exist?(dir)
 
         config_exts = [".yaml", ".yml", ".json"]
@@ -327,6 +327,15 @@ module Aura
         cfg = load_config
         limit = cfg.dig("hints", "max_file_chars")
         limit ? limit.to_i : 10_000
+      end
+
+      def relativize(path)
+        ws = @workspace_root.to_s
+        env = @env_path.to_s
+        out = path.to_s
+        out = out.sub(%r{^#{Regexp.escape(ws)}/}, "") unless ws.empty?
+        out = out.sub(%r{^#{Regexp.escape(env)}/}, "") if out == path.to_s && !env.empty?
+        out
       end
 
       def ignored?(rel_path)

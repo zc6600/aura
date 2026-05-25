@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "aura/llm/prompts/registry"
+
 module Aura
   module Context
     class DirectiveProvider
@@ -9,16 +11,14 @@ module Aura
       end
 
       def provide
-        file = resolve_active_skill_path || resolve_system_prompt_path
-        return "" unless file && File.exist?(file)
+        active_skill_path = resolve_active_skill_path
+        content = if active_skill_path
+                    Aura::LLM::Prompts::Registry.read_file_cached(active_skill_path)
+                  else
+                    Aura::LLM::Prompts::Registry.resolve(:standard, @project_path)
+                  end
 
-        content = File.read(file, encoding: "utf-8")
-
-        # If it has front-matter YAML header, strip it
-        if content.start_with?("---")
-          parts = content.split("---", 3)
-          content = parts[2] || content
-        end
+        return "" if content.nil? || content.empty?
 
         content
           .gsub("{{project_path}}", @project_path)

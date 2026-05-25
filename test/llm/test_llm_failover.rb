@@ -29,7 +29,7 @@ class TestLlmFailover < Minitest::Test
       if @model == "auth_fail"
         raise Aura::LLMAuthError, "Auth fail"
       elsif @model == "bad_request_fail"
-        raise Aura::LLMError, "LLM API Error (400): Bad Request parameters"
+        raise Aura::LLMBadRequestError, "Bad Request parameters"
       elsif @model == "rate_limit_fail"
         raise Aura::LLMError, "LLM API Error (429): Rate limited"
       else

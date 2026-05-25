@@ -234,7 +234,7 @@ module Aura
         end
 
         def resolve_project_path!(project_path)
-          Aura.resolve_project_path!(project_path)
+          Aura::PathResolver.resolve_project_path!(project_path)
         end
       end
     end

@@ -104,8 +104,8 @@ module Aura
             subtool_dir = File.join(dir, subtool_name)
             register_tool(subtool_dir, group: group_name)
           end
-        rescue StandardError
-          # Skip invalid groups
+        rescue StandardError => e
+          warn "[ToolRegistry] Failed to load group #{dir}: #{e.message}"
         end
       end
 
@@ -125,8 +125,8 @@ module Aura
             manifest: manifest,
             group: group
           }
-        rescue StandardError
-          # Skip invalid manifests
+        rescue StandardError => e
+          warn "[ToolRegistry] Failed to register tool #{dir}: #{e.message}"
         end
       end
     end

@@ -75,14 +75,7 @@ module Aura
       end
 
       def ensure_workspace!
-        aura_dir = Aura::PathResolver.find_aura_dir(Dir.pwd)
-        if aura_dir.nil?
-          puts "\e[31m⛔️ Error: Not in an Aura workspace (no .aura folder found in parent directories).\e[0m"
-          puts "To initialize a workspace in the current directory, run:"
-          puts "  $ aura new"
-          exit 1
-        end
-        aura_dir
+        Aura::PathResolver.ensure_workspace!(Dir.pwd)
       end
     end
   end

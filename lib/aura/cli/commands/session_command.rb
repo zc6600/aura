@@ -7,10 +7,25 @@ module Aura
   module Commands
     class SessionCommand < Thor
       desc "list", "List all sessions"
+      method_option :json, type: :boolean, aliases: "-j", default: false, desc: "Output in JSON format"
       def list
         session_mgr = resolve_session_mgr
         sessions = session_mgr.list
         current = session_mgr.current_name
+
+        if options[:json]
+          # JSON output for scripting
+          output = sessions.map do |s|
+            {
+              name: s[:name],
+              event_count: s[:event_count] || 0,
+              last_active_at: s[:last_active_at],
+              is_current: s[:name] == current
+            }
+          end
+          puts JSON.pretty_generate(output)
+          return
+        end
 
         if sessions.empty?
           puts "No sessions found. Create one with: aura session create <name>"
@@ -171,7 +186,7 @@ module Aura
       private
 
       def resolve_session_mgr
-        resolved_path = Aura.resolve_project_path!(nil)
+        resolved_path = Aura::PathResolver.resolve_project_path!(nil)
         Aura::Context::SessionManager.new(resolved_path)
       rescue SystemExit
         exit 1

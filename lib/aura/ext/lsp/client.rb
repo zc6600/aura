@@ -152,7 +152,10 @@ module Aura
             end
           rescue EOFError
             break
-          rescue StandardError
+          rescue JSON::ParserError => e
+            warn "[LSPClient] Failed to parse LSP message: #{e.message}"
+          rescue StandardError => e
+            warn "[LSPClient] Error in listen loop: #{e.message}"
             break
           end
         end

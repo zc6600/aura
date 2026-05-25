@@ -239,7 +239,13 @@ module Aura
 
             next if input.empty?
 
-            @executor.process(input, @auto)
+            begin
+              @executor.process(input, @auto)
+            rescue StandardError => e
+              puts "\e[31m⛔️ Error processing command: #{e.message}\e[0m"
+              puts "\e[33mStack trace:\e[0m" if @config["verbose"]
+              puts e.backtrace.first(5).join("\n") if @config["verbose"]
+            end
           end
         end
 
@@ -270,7 +276,7 @@ module Aura
           end
 
           # 4. Fallback for backward compatibility
-          ENV["OPENROUTER_API_KEY"] || ENV["OPENAI_API_KEY"]
+          ENV["OPENROUTER_API_KEY"] || ENV.fetch("OPENAI_API_KEY", nil)
         end
       end
     end

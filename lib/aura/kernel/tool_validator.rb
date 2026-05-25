@@ -8,9 +8,12 @@ require "aura/config_loader"
 module Aura
   module Kernel
     class ToolValidator
-      def initialize(project_path, registry = nil, state = nil)
-        @project_path = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
-        @registry = registry || Aura::Kernel::ToolRegistry.new(@project_path)
+      def initialize(path, registry = nil, state = nil, workspace_path: nil, env_path: nil)
+        resolved_workspace = workspace_path || (defined?(Aura) && Aura.respond_to?(:workspace_path) ? (Aura::PathResolver.workspace_path(path) || path) : path)
+        resolved_env = env_path || (defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(path) || path) : path)
+        @workspace_path = File.expand_path(resolved_workspace)
+        @env_path = File.expand_path(resolved_env)
+        @registry = registry || Aura::Kernel::ToolRegistry.new(@workspace_path)
         if defined?(Aura::Memory) && state.is_a?(Aura::Memory::Base)
           require "aura/memory/adapters/compatibility_adapter"
           @state = Aura::Memory::Adapters::CompatibilityAdapter.new(state)
@@ -25,8 +28,10 @@ module Aura
 
         tool_data = @registry.find(name)
         unless tool_data
-          dir = File.join(@project_path, "tools", name)
-          return { state: "draft", reason: "missing: manifest.json" } if Dir.exist?(dir) && !File.exist?(File.join(dir, "manifest.json"))
+          ws_dir = File.join(@workspace_path, "tools", name)
+          env_dir = File.join(@env_path, "tools", name)
+          found_dir = Dir.exist?(ws_dir) ? ws_dir : (Dir.exist?(env_dir) ? env_dir : nil)
+          return { state: "draft", reason: "missing: manifest.json" } if found_dir && !File.exist?(File.join(found_dir, "manifest.json"))
 
           return { state: "draft", reason: "tool not found: #{name}" }
         end
@@ -95,9 +100,9 @@ module Aura
         else
           if File.exist?(runner_script)
             cmd = [runtime, runner_script, dir]
-            out, err, status = Open3.capture3(*cmd, chdir: @project_path)
+            out, err, status = Open3.capture3(*cmd, chdir: @workspace_path)
           else
-            out, err, status = Open3.capture3(runtime, test_path, chdir: @project_path)
+            out, err, status = Open3.capture3(runtime, test_path, chdir: @workspace_path)
           end
           if status.success?
             mark_verified(name, dir) if @state
@@ -116,7 +121,7 @@ module Aura
       private
 
       def load_config
-        Aura::ConfigLoader.load(@project_path)
+        Aura::ConfigLoader.load(@env_path)
       end
 
       def resolve_runtime(key)
@@ -175,7 +180,7 @@ module Aura
       end
 
       def context_manager
-        @context_manager ||= Aura::Context::Manager.new(@project_path)
+        @context_manager ||= Aura::Context::Manager.new(@env_path)
       end
 
       def find_entry_for(context_type)

@@ -50,37 +50,22 @@ module Aura
 
         # Execute dispatching
         if @mcp_manager.mcp_tool?(tool_name)
-          begin
-            require "timeout"
-            return Timeout.timeout(resolved_timeout) do
-              @mcp_manager.call_tool(tool_name, args)
-            end
-          rescue Timeout::Error
-            return { error: "Tool execution timed out after #{resolved_timeout} seconds.", status: "failed" }
+          return execute_with_timeout(resolved_timeout) do
+            @mcp_manager.call_tool(tool_name, args)
           end
         end
 
         if tool_name.to_s == "lsp_diagnostics"
           require "aura/kernel/tools/lsp_diagnostics"
-          begin
-            require "timeout"
-            return Timeout.timeout(resolved_timeout) do
-              Aura::Kernel::Tools::LSPDiagnostics.new(@lsp_manager).execute(args)
-            end
-          rescue Timeout::Error
-            return { error: "Tool execution timed out after #{resolved_timeout} seconds.", status: "failed" }
+          return execute_with_timeout(resolved_timeout) do
+            Aura::Kernel::Tools::LSPDiagnostics.new(@lsp_manager).execute(args)
           end
         end
 
         if tool_name.to_s == "remember_fact"
           require "aura/kernel/tools/remember_fact"
-          begin
-            require "timeout"
-            return Timeout.timeout(resolved_timeout) do
-              Aura::Kernel::Tools::RememberFact.new(@project_path).execute(args)
-            end
-          rescue Timeout::Error
-            return { error: "Tool execution timed out after #{resolved_timeout} seconds.", status: "failed" }
+          return execute_with_timeout(resolved_timeout) do
+            Aura::Kernel::Tools::RememberFact.new(@project_path).execute(args)
           end
         end
 
@@ -122,7 +107,8 @@ module Aura
             bash_cfg = cfg.dig("tool_protocol", "bash") || {}
             args["timeout_seconds"] ||= bash_cfg["base_wait_seconds"] if bash_cfg["base_wait_seconds"]
           end
-        rescue StandardError
+        rescue StandardError => e
+          warn "[ExecutionEngine] Failed to inject default config for #{tool_name}: #{e.message}"
         end
 
         payload = args.to_json
@@ -146,7 +132,8 @@ module Aura
           begin
             require "aura/kernel/shadow_backup"
             Aura::Kernel::ShadowBackup.new(@project_path).record_changes(tool_name, args)
-          rescue StandardError
+          rescue StandardError => e
+            warn "[ExecutionEngine] Shadow backup failed for #{tool_name}: #{e.message}"
           end
 
           # Git snapshot if enabled
@@ -159,6 +146,15 @@ module Aura
       end
 
       private
+
+      def execute_with_timeout(timeout_val)
+        require "timeout"
+        Timeout.timeout(timeout_val) do
+          yield
+        end
+      rescue Timeout::Error
+        { error: "Tool execution timed out after #{timeout_val} seconds.", status: "failed" }
+      end
 
       def capture3_with_timeout(cmd, stdin_data, chdir, timeout_val)
         pid = nil
@@ -180,38 +176,21 @@ module Aura
               end
 
               # Read stdout and stderr in separate threads
-              stdout_thread = Thread.new do
-                stdout.read
-              rescue IOError, StandardError
-                ""
-              end
-              stderr_thread = Thread.new do
-                stderr.read
-              rescue IOError, StandardError
-                ""
-              end
+              stdout_thread = Thread.new { stdout.read }
+              stderr_thread = Thread.new { stderr.read }
 
               begin
                 raise Timeout::Error, "Tool execution timed out after #{timeout_val} seconds." unless wait_thr.join(timeout_val)
 
+                # Wait for reader threads to complete (they should be done if process exited)
                 stdout_data = stdout_thread.value
                 stderr_data = stderr_thread.value
                 status = wait_thr.value
               ensure
-                begin
-                  stdout_thread.kill
-                rescue StandardError
-                  nil
-                end
-                begin
-                  stderr_thread.kill
-                rescue StandardError
-                  nil
-                end
-                begin
-                  write_thread.kill
-                rescue StandardError
-                  nil
+                # Ensure threads are properly terminated
+                [stdout_thread, stderr_thread, write_thread].each do |t|
+                  t.kill if t.alive?
+                  t.join(1) # Give thread 1s to clean up
                 end
               end
             end

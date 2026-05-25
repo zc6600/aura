@@ -67,8 +67,14 @@ module Aura
         case code
         when 401, 403
           raise Aura::LLMAuthError, "Authentication failed: #{error_message}"
+        when 400
+          raise Aura::LLMBadRequestError, "Bad request: #{error_message}"
         when 408, 504
           raise Aura::LLMTimeoutError, "Request timed out: #{error_message}"
+        when 429
+          raise Aura::LLMRateLimitError, "Rate limit exceeded: #{error_message}"
+        when 500..599
+          raise Aura::LLMServerError, "Server error (#{code}): #{error_message}"
         else
           raise Aura::LLMError, "LLM API Error (#{code}): #{error_message}"
         end

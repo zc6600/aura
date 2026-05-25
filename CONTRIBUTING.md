@@ -205,10 +205,50 @@ lib/aura/
 - [ ] Write tests for new features
 - [ ] All tests pass: `rake test`
 - [ ] Code style passes: `bundle exec rubocop`
+- [ ] Update CHANGELOG.md if adding features or fixing bugs
 - [ ] Update documentation if needed
 - [ ] Rebase on latest main branch
 
-### 2. Commit Messages
+### 2. CHANGELOG Guidelines
+
+**When to update CHANGELOG.md:**
+- Adding new features
+- Fixing bugs
+- Making breaking changes
+- Security improvements
+- Performance optimizations
+
+**How to update:**
+```markdown
+## [Unreleased]
+
+### Added
+- New feature description
+
+### Fixed
+- Bug fix description
+```
+
+**For maintainers - Release process:**
+```bash
+# Generate changelog from commits
+rake changelog:generate[0.2.0,2026-06-01]
+
+# Preview before committing
+rake changelog:preview[0.2.0]
+
+# Commit the changelog
+git add CHANGELOG.md
+git commit -m "docs: update CHANGELOG for v0.2.0"
+
+# Tag the release
+git tag -a v0.2.0 -m "Release v0.2.0"
+git push origin main --tags
+
+# CI will automatically create GitHub Release with changelog
+```
+
+### 3. Commit Messages
 
 Use conventional commits:
 
@@ -228,7 +268,7 @@ docs: update CLI reference with new commands
 test: add coverage for memory metabolizer
 ```
 
-### 3. Pull Request Template
+### 4. Pull Request Template
 
 ```markdown
 ## Description
@@ -250,7 +290,7 @@ Brief description of changes.
 - [ ] Added examples if applicable
 ```
 
-### 4. Review Process
+### 5. Review Process
 
 1. Submit PR to `main` branch
 2. CI must pass (tests, build, coverage)

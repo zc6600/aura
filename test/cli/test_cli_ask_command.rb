@@ -15,6 +15,10 @@ class MockLLMClientForAsk
     @model = model
   end
 
+  def configs_chain
+    [{ provider: @provider, api_key: nil, model: @model }]
+  end
+
   def complete_stream(messages, options, &block)
     # Save messages for verification in tests
     Thread.current[:mock_llm_messages] = messages

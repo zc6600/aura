@@ -26,12 +26,16 @@ module Aura
     PathResolver.find_aura_dir(start_dir)
   end
 
-  def self.safe_load_yaml(path)
-    WorkspaceInitializer.safe_load_yaml(path)
+  def self.resolve_project_path(project_path = nil)
+    PathResolver.resolve_project_path(project_path)
   end
 
-  def self.resolve_project_path!(project_path)
-    WorkspaceInitializer.resolve_project_path!(project_path)
+  def self.resolve_project_path!(project_path = nil)
+    PathResolver.resolve_project_path!(project_path)
+  end
+
+  def self.safe_load_yaml(path)
+    WorkspaceInitializer.safe_load_yaml(path)
   end
 
   def self.registered_projects

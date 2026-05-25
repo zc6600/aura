@@ -1,3 +1,8 @@
+---
+name: system
+description: Global operating protocol for Aura OS agent. Defines mission, workspace rules, tool/skill development specs, and operational constraints.
+---
+
 # AURA OS OPERATING PROTOCOL
 
 # MISSION

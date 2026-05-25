@@ -40,6 +40,22 @@ my_project/                 <-- Clean User Workspace (Files visible to LLM)
 
 ---
 
+## 📋 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a complete list of changes, features, and releases.
+
+### Latest Release: v0.1.0
+
+- AI-native OS with folder-as-workspace architecture
+- Kernel with AgentLoop execution engine
+- Session management with isolated SQLite databases
+- Multi-provider LLM support (OpenAI, OpenRouter, Anthropic, Gemini, DeepSeek)
+- Memory metabolism with tiered retention
+- Ralph Loop for autonomous execution
+- Comprehensive CLI with 20+ commands
+
+---
+
 ## 💻 Installation & Quick Start
 
 ### 1. Installation

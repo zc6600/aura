@@ -35,6 +35,7 @@ I want to understand the architecture and contribute to the framework.
 - [Memory Management](developer-guide/memory-management.md) - Metabolism, retention, summaries
 - [Session Architecture](developer-guide/session-architecture.md) - Session isolation design
 - [Integrations](developer-guide/integrations.md) - MCP, LSP, Hint system
+- [CHANGELOG & CI/CD](developer-guide/changelog-guide.md) - Release management and automation
 - [Testing & CI/CD](developer-guide/testing.md) - Test strategy, CI workflow
 
 ---
@@ -58,6 +59,7 @@ docs/
 │   ├── memory-management.md           # Memory metabolism
 │   ├── session-architecture.md        # Session isolation
 │   ├── integrations.md                # External integrations
+│   ├── changelog-guide.md             # CHANGELOG and release automation
 │   └── testing.md                     # Testing and CI/CD
 └── changelog/                         # Development history
     ├── refactoring.md                 # CLI refactoring history

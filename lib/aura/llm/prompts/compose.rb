@@ -14,21 +14,17 @@ module Aura
         {"tool": "tool_name", "args": {"key": "value"}, "summary": "brief one-line description of what you are doing"}
         ```
 
-        ### To complete the task (ONLY when fully done):
-        ```json
-        {"tool": "final", "args": {"content": "your complete answer or result for the user"}, "summary": "Task complete"}
-        ```
-
         ## Loop Protocol
         - Each turn you receive the current context (state, history) and the user task.
         - You can call any of the provided native tools. Select the appropriate tool and supply its arguments.
         - Call ONE tool per turn. You will receive the result, then decide the next action.
-        - Keep calling tools until the task is fully accomplished, then call "final".
-        - Never call "final" prematurely. Always verify your work before finishing.
+        - Keep calling tools until the task is fully accomplished.
+        - To complete the task: stop outputting JSON and provide your final answer as plain text. The system will detect your natural stop.
+        - Never complete the task prematurely. Always verify your work before finishing.
         - If a tool fails, diagnose the error and try an alternative approach.
 
         ## Rules
-        - ALWAYS output valid JSON. Any plain text response is an error.
+        - ALWAYS output valid JSON when calling tools. Any plain text response (except final answer) is an error.
         - Use "summary" to briefly explain your reasoning (max 120 chars).
         - Read tool definitions carefully before using them.
         - Prefer reading before writing. Verify changes after writing.

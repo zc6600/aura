@@ -343,14 +343,7 @@ module Aura
       private
 
       def ensure_workspace!
-        aura_dir = Aura::PathResolver.find_aura_dir
-        if aura_dir.nil?
-          puts "\e[31m⛔️ Error: Not in an Aura workspace.\e[0m"
-          puts "To initialize a workspace in the current directory, run:"
-          puts "  $ aura new"
-          exit 1
-        end
-        aura_dir
+        Aura::PathResolver.ensure_workspace!(Dir.pwd)
       end
 
       def merge_project(_name, aura_dir)

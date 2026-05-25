@@ -7,6 +7,7 @@ require "timeout"
 require "securerandom"
 require "aura"
 require "aura/llm/prompts/ralph_prompt"
+require "aura/llm/prompts/registry"
 require "aura/llm/parsers/response_parser"
 require "aura/context"
 require "aura/kernel/event_bus"
@@ -137,12 +138,13 @@ module Aura
               agent_loop.run(@goal, ctx: nil)
             rescue StandardError => e
               @event_bus.emit(:thought, content: "Developer AgentLoop raised an exception: #{e.message}")
+              @event_bus.emit(:thought, content: "Stacktrace: #{e.backtrace&.first(5)&.join("\n")}")
               # Resilient fallback: capture loop failure rather than crashing out
               AgentLoop::Result.new(
                 status: :failed,
                 final_content: nil,
                 steps: [],
-                failure_reason: "Developer loop crashed: #{e.message}"
+                failure_reason: "Developer loop crashed: #{e.class} - #{e.message}"
               )
             end
 
@@ -268,8 +270,7 @@ module Aura
 
             audit_content = build_audit_content(changes, previous_audit, test_output)
 
-            critic_rules = load_custom_critic_rules || Aura::LLM::Prompts::DEFAULT_CRITIC_AUDIT_RULES
-            critic_system_prompt = "#{Aura::LLM::Prompts::CRITIC_PROTOCOL_PROMPT}\n\n#{critic_rules}"
+            critic_system_prompt = Aura::LLM::Prompts::Registry.resolve(:ralph_critic, @project_path)
 
             messages = [
               { role: "system", content: critic_system_prompt },
@@ -278,8 +279,7 @@ module Aura
 
             payload[:context] = RalphPayload.new(messages, [])
           else
-            user_directives = load_custom_ralph_system_prompt || Aura::LLM::Prompts::DEFAULT_RALPH_USER_DIRECTIVES
-            system_prompt = "#{Aura::LLM::Prompts::RALPH_PROTOCOL_PROMPT}\n\n#{user_directives}"
+            system_prompt = Aura::LLM::Prompts::Registry.resolve(:ralph_developer, @project_path)
             user_content = build_user_prompt_content(ctx, @last_tool_name, @last_tool_output, @last_test_feedback)
 
             messages = [
@@ -290,20 +290,6 @@ module Aura
             payload[:context] = RalphPayload.new(messages, ctx.respond_to?(:to_tool_schemas) ? ctx.to_tool_schemas : [])
           end
         end
-      end
-
-      def load_custom_ralph_system_prompt
-        path = File.join(@env_path, "prompts", "ralph_system.md")
-        return File.read(path, encoding: "utf-8").strip if File.exist?(path)
-
-        nil
-      end
-
-      def load_custom_critic_rules
-        path = File.join(@env_path, "prompts", "critic_rules.md")
-        return File.read(path, encoding: "utf-8").strip if File.exist?(path)
-
-        nil
       end
 
       def build_user_prompt_content(context_payload, last_tool, last_output, last_test)
@@ -396,8 +382,7 @@ module Aura
 
           audit_content = build_audit_content(changes, previous_audit, test_output)
 
-          critic_rules = load_custom_critic_rules || Aura::LLM::Prompts::DEFAULT_CRITIC_AUDIT_RULES
-          critic_system_prompt = "#{Aura::LLM::Prompts::CRITIC_PROTOCOL_PROMPT}\n\n#{critic_rules}"
+          critic_system_prompt = Aura::LLM::Prompts::Registry.resolve(:ralph_critic, @project_path)
 
           messages = [
             { role: "system", content: critic_system_prompt },
@@ -419,7 +404,8 @@ module Aura
             critic_loop.run("Audit changes", ctx: critic_payload)
           rescue StandardError => e
             @event_bus.emit(:thought, content: "Critic AgentLoop raised an exception: #{e.message}")
-            return { passed: false, output: "Critic LLM loop execution error: #{e.message}" }
+            @event_bus.emit(:thought, content: "Stacktrace: #{e.backtrace&.first(5)&.join("\n")}")
+            return { passed: false, output: "Critic LLM loop execution error: #{e.class} - #{e.message}" }
           end
 
           content = result.final_content.to_s

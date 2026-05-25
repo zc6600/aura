@@ -16,16 +16,6 @@ module Aura
 
       attr_accessor :fallbacks, :max_retries, :event_bus
 
-      # Special exception to abort stream failovers once chunks are yielded
-      class NonRetryableStreamError < StandardError
-        attr_reader :original_error
-
-        def initialize(err)
-          super(err.message)
-          @original_error = err
-        end
-      end
-
       def self.from_config(config, project_path = nil)
         return new(provider: "local") if config.nil?
 
@@ -40,7 +30,7 @@ module Aura
         # Resolve primary api_key
         api_key = config["api_key"] || config[:api_key]
         api_key_env = config["api_key_env"] || config[:api_key_env]
-        api_key ||= ENV[api_key_env] if api_key_env
+        api_key ||= ENV.fetch(api_key_env, nil) if api_key_env
         api_key ||= Aura::LLM::Env.resolve_api_key(provider) unless provider.to_s.empty?
 
         # Resolve fallbacks
@@ -55,7 +45,7 @@ module Aura
 
           fb_key = fb["api_key"] || fb[:api_key]
           fb_key_env = fb["api_key_env"] || fb[:api_key_env]
-          fb_key ||= ENV[fb_key_env] if fb_key_env
+          fb_key ||= ENV.fetch(fb_key_env, nil) if fb_key_env
           fb_key ||= Aura::LLM::Env.resolve_api_key(fb_provider)
 
           fallbacks << {
@@ -76,7 +66,7 @@ module Aura
           else
             fb_key = backup_cfg["api_key"] || backup_cfg[:api_key]
             fb_key_env = backup_cfg["api_key_env"] || backup_cfg[:api_key_env]
-            fb_key ||= ENV[fb_key_env] if fb_key_env
+            fb_key ||= ENV.fetch(fb_key_env, nil) if fb_key_env
             fb_key ||= Aura::LLM::Env.resolve_api_key(fb_provider)
             fallbacks << {
               provider: fb_provider,
@@ -98,6 +88,18 @@ module Aura
         )
         client.fallbacks = fallbacks if client.respond_to?(:fallbacks=)
         client.max_retries = max_retries if client.respond_to?(:max_retries=)
+
+        # Validate that at least one valid configuration exists
+        if client.respond_to?(:configs_chain)
+          all_configs = client.configs_chain
+          valid_configs = all_configs.select { |cfg| cfg[:api_key] && !cfg[:api_key].to_s.strip.empty? }
+          if valid_configs.empty?
+            warn "\e[31m⚠️  Warning: No valid LLM configurations found. Primary and all fallbacks are missing API keys.\e[0m"
+          elsif valid_configs.length < all_configs.length
+            warn "\e[33m⚠️  Warning: #{all_configs.length - valid_configs.length} of #{all_configs.length} LLM configurations have invalid or missing API keys.\e[0m"
+          end
+        end
+
         client
       end
 
@@ -128,30 +130,36 @@ module Aura
 
       def complete_stream(messages, options = {})
         has_yielded = false
-        with_fallback do |adapter, _config|
-          if adapter.respond_to?(:complete_stream)
-            adapter.complete_stream(messages, options) do |delta|
-              has_yielded = true
-              yield(delta) if block_given?
-            end
-          else
-            out = adapter.complete(messages, options)
-            s = out[:content].to_s
-            if block_given?
-              s.each_char do |ch|
+        result = catch(:stream_aborted) do
+          with_fallback do |adapter, _config|
+            if adapter.respond_to?(:complete_stream)
+              adapter.complete_stream(messages, options) do |delta|
                 has_yielded = true
-                yield(ch)
+                yield(delta) if block_given?
               end
+            else
+              out = adapter.complete(messages, options)
+              s = out[:content].to_s
+              if block_given?
+                s.each_char do |ch|
+                  has_yielded = true
+                  yield(ch)
+                end
+              end
+              out
             end
-            out
+          rescue Aura::LLMError => e
+            # If we've already yielded content, we can't retry - abort immediately
+            throw(:stream_aborted, e) if has_yielded
+            # Otherwise, let with_fallback handle retry/fallback logic
+            raise e
           end
-        rescue Aura::LLMError => e
-          raise NonRetryableStreamError, e if has_yielded
-
-          raise e
         end
-      rescue NonRetryableStreamError => e
-        raise e.original_error
+
+        # If we caught an abort, re-raise the error
+        raise result if result.is_a?(Aura::LLMError)
+
+        result
       end
 
       def supports_native_tools?
@@ -189,9 +197,6 @@ module Aura
           rescue Aura::LLMError => e
             last_error = e
 
-            # Immediately escalate if it's a non-retryable stream error wrapped in NonRetryableStreamError
-            raise e if e.is_a?(NonRetryableStreamError)
-
             # Record failure
             record_provider_failure(config)
 
@@ -228,6 +233,11 @@ module Aura
           health = @health_registry[key]
           if health && health[:failure_count] >= 3 && (now - health[:last_failed_at] < 30)
             false
+          elsif health && health[:failure_count] >= 3 && (now - health[:last_failed_at] >= 30)
+            # Cooldown expired: allow one probe attempt by reducing failure count
+            health[:failure_count] = 2
+            health[:probing] = true
+            true
           else
             true
           end
@@ -239,11 +249,17 @@ module Aura
         @health_registry[key] ||= { failure_count: 0, last_failed_at: nil }
         @health_registry[key][:failure_count] += 1
         @health_registry[key][:last_failed_at] = Time.now
+
+        # If this was a probe attempt that failed, increment more aggressively
+        return unless @health_registry[key][:probing]
+
+        @health_registry[key][:failure_count] += 1
+        @health_registry[key][:probing] = false
       end
 
       def reset_provider_health(cfg)
         key = config_key(cfg)
-        @health_registry[key] = { failure_count: 0, last_failed_at: nil }
+        @health_registry[key] = { failure_count: 0, last_failed_at: nil, probing: false }
       end
 
       def config_key(cfg)
@@ -253,22 +269,14 @@ module Aura
       # Helper to check if an error is transient/retryable
       def retryable_error?(error)
         case error
-        when Aura::LLMAuthError
+        when Aura::LLMAuthError, Aura::LLMBadRequestError
           false
-        when Aura::LLMTimeoutError
+        when Aura::LLMTimeoutError, Aura::LLMRateLimitError, Aura::LLMServerError
           true
         when Aura::LLMError
-          # Parse error message to determine status code if available
-          # Formats from validate_response_code!: "LLM API Error (code): ..."
-          if error.message =~ /API Error \((\d+)\)/
-            code = ::Regexp.last_match(1).to_i
-            # 429: Rate Limit, 5xx: Server Errors
-            code == 429 || (code >= 500 && code < 600)
-          else
-            # Default to true for connection failures (e.g. SocketError / Net::HTTP connection refused)
-            # which are wrapped as Aura::LLMError without a specific HTTP status code
-            true
-          end
+          # Default to true for connection failures (e.g. SocketError / Net::HTTP connection refused)
+          # which are wrapped as Aura::LLMError without a specific HTTP status code
+          true
         else
           false
         end

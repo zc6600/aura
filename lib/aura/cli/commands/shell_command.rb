@@ -24,6 +24,14 @@ module Aura
         session_name = "session_#{Time.now.strftime('%Y%m%d_%H%M%S')}" if merged_opts[:new_session] || merged_opts["new_session"]
 
         if session_name && !session_name.to_s.strip.empty?
+          # Validate session name for security
+          begin
+            session_name = Aura::PathResolver.sanitize_session_name(session_name)
+          rescue ArgumentError => e
+            puts "\e[31m⛔️ Error: Invalid session name: #{e.message}\e[0m"
+            exit 1
+          end
+
           ENV["AURA_SESSION_NAME"] = session_name.to_s
           require "fileutils"
           env_path = Aura::PathResolver.environment_path(File.expand_path(project_path))

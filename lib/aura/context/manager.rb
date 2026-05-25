@@ -8,16 +8,21 @@ require "securerandom"
 module Aura
   module Context
     class Manager
-      attr_reader :project_path
+      attr_reader :env_path
 
-      def initialize(project_path)
-        @project_path = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
-        env_path = ENV["AURA_TOOL_CONTEXTS_PATH"]
-        @state_file = if env_path && !env_path.to_s.strip.empty?
-                        File.expand_path(env_path, @project_path)
+      def initialize(path)
+        resolved_env = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(path) || path) : path
+        @env_path = File.expand_path(resolved_env)
+        override_path = ENV["AURA_TOOL_CONTEXTS_PATH"]
+        @state_file = if override_path && !override_path.to_s.strip.empty?
+                        File.expand_path(override_path, @env_path)
                       else
-                        File.join(@project_path, "state", "tool_contexts.json")
+                        File.join(@env_path, "state", "tool_contexts.json")
                       end
+      end
+
+      def project_path
+        @env_path
       end
 
       def add_context(type, data = {}, id: nil)

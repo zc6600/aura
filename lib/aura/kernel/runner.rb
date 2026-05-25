@@ -21,6 +21,7 @@ module Aura
       include EventEmitter
 
       attr_reader :hooks, :current_job, :memory, :planner, :project_path, :env_path
+      alias workspace_path project_path
 
       def initialize(project_path, memory: nil)
         @project_path = File.expand_path(project_path)
@@ -28,7 +29,7 @@ module Aura
 
         @registry = Aura::Kernel::ToolRegistry.new(@env_path)
         @memory = memory || default_memory
-        @validator = Aura::Kernel::ToolValidator.new(@env_path, @registry, @memory)
+        @validator = Aura::Kernel::ToolValidator.new(@project_path, @registry, @memory, env_path: @env_path)
         @lsp_manager = Aura::LSP::Manager.new(@project_path)
         @engine = Aura::Kernel::ExecutionEngine.new(@project_path, env_path: @env_path, lsp_manager: @lsp_manager)
         @context_manager = Aura::Context::Manager.new(@env_path)
@@ -47,7 +48,7 @@ module Aura
       # Hot-swap the active SQLite database session to achieve physical amnesia without runner re-instantiation
       def reconnect_session!(session_name)
         ENV["AURA_SESSION_NAME"] = session_name
-        if @memory.respond_to?(:store) && @memory.store
+        if @memory && @memory.respond_to?(:store) && @memory.store
           begin
             @memory.store.close
           rescue StandardError
@@ -55,7 +56,7 @@ module Aura
           end
         end
         @memory = default_memory
-        @validator = Aura::Kernel::ToolValidator.new(@env_path, @registry, @memory)
+        @validator = Aura::Kernel::ToolValidator.new(@project_path, @registry, @memory, env_path: @env_path)
         @planner = Aura::Kernel::Planner.new(@project_path, env_path: @env_path)
       end
 
@@ -129,7 +130,7 @@ module Aura
 
       def record_user_input(input)
         @last_user_event_id = @memory.recorder.record_user(input)
-        @current_job&.add_event(@last_user_event_id)
+        @current_job.add_event(@last_user_event_id) if @current_job
         @last_user_event_id
       end
 
@@ -171,7 +172,7 @@ module Aura
         res = res_payload[:result]
 
         if modified_files && !modified_files.empty?
-          res = res.is_a?(Hash) ? res : { status: "ok" }
+          res = { status: "ok" } unless res.is_a?(Hash)
           res["modified_files"] = modified_files
         end
 
@@ -179,7 +180,7 @@ module Aura
 
         call_seq = @last_user_event_id
         event_id = @memory.recorder.record_execution(tool, res, call_seq: call_seq)
-        @current_job&.add_event(event_id)
+        @current_job.add_event(event_id) if @current_job
 
         handle_context_lifecycle(tool, args, res)
         begin
@@ -205,7 +206,7 @@ module Aura
       def default_memory
         config = Aura::Memory::Config.new(
           store: { project_path: @env_path },
-          metabolism: load_config["state_management"] || {}
+          metabolism: load_config.dig("state_management") || {}
         )
         Aura::Memory::Base.new(
           config: config,
@@ -279,7 +280,7 @@ module Aura
         end
 
         modified.select! { |f| f.start_with?(@project_path) }
-        modified.map! { |f| f.sub("#{@project_path}/", "") }
+        modified.map! { |f| f.sub(@project_path + "/", "") }
         modified
       end
 

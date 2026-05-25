@@ -10,14 +10,10 @@ module Aura
     # Resolve project workspace path by climbing parent directories.
     # If not in a workspace, guides the user to initialize a new workspace or falls back to a global sandbox.
     def self.resolve_project_path!(project_path)
-      start_dir = project_path.to_s.strip.empty? ? Dir.pwd : project_path
-      aura_dir = PathResolver.find_aura_dir(start_dir)
+      # Use PathResolver for consistent path resolution
+      resolved = PathResolver.resolve_project_path(project_path)
 
-      if aura_dir
-        File.dirname(aura_dir)
-      else
-        handle_no_workspace(start_dir)
-      end
+      resolved || handle_no_workspace(project_path)
     end
 
     # Safe YAML file loader to prevent arbitrary code execution (CVE-2013-0156)
@@ -29,7 +25,7 @@ module Aura
         if Gem::Version.new(RUBY_VERSION) >= Gem::Version.new("3.1.0")
           YAML.safe_load_file(path, permitted_classes: [Symbol])
         else
-          YAML.safe_load(File.read(path), permitted_classes: [Symbol])
+          YAML.safe_load_file(path, permitted_classes: [Symbol])
         end || {}
       rescue StandardError
         {}

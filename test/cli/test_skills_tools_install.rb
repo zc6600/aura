@@ -18,10 +18,18 @@ class TestSkillsToolsInstall < Minitest::Test
     FileUtils.mkdir_p(@mock_home)
 
     @orig_resolve = Aura.method(:resolve_project_path!)
+    @orig_path_resolver_resolve = Aura::PathResolver.method(:resolve_project_path!)
+    @orig_path_resolver_resolve_no_bang = Aura::PathResolver.method(:resolve_project_path)
     @orig_dir_home = Dir.method(:home)
 
     proj = @project
     Aura.define_singleton_method(:resolve_project_path!) do |*args|
+      proj
+    end
+    Aura::PathResolver.define_singleton_method(:resolve_project_path!) do |*args|
+      proj
+    end
+    Aura::PathResolver.define_singleton_method(:resolve_project_path) do |*args|
       proj
     end
   end
@@ -31,6 +39,16 @@ class TestSkillsToolsInstall < Minitest::Test
     orig_resolve = @orig_resolve
     Aura.define_singleton_method(:resolve_project_path!) do |*args|
       orig_resolve.call(*args)
+    end
+
+    orig_path_resolver_resolve = @orig_path_resolver_resolve
+    Aura::PathResolver.define_singleton_method(:resolve_project_path!) do |*args|
+      orig_path_resolver_resolve.call(*args)
+    end
+
+    orig_path_resolver_resolve_no_bang = @orig_path_resolver_resolve_no_bang
+    Aura::PathResolver.define_singleton_method(:resolve_project_path) do |*args|
+      orig_path_resolver_resolve_no_bang.call(*args)
     end
 
     orig_dir_home = @orig_dir_home

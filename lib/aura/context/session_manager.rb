@@ -27,15 +27,19 @@ module Aura
     #   ENV["AURA_STATE_DB_PATH"] = session.current_db_path
     #   runner = Runner.new(project_path)
     class SessionManager
-      attr_reader :project_path, :state_dir
+      attr_reader :env_path, :state_dir
 
-      def initialize(project_path)
-        env_path = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
-        @project_path = File.expand_path(env_path)
-        @state_dir = File.join(@project_path, "state")
+      def initialize(path)
+        resolved_env = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(path) || path) : path
+        @env_path = File.expand_path(resolved_env)
+        @state_dir = File.join(@env_path, "state")
         @sessions_dir = File.join(@state_dir, "sessions")
         @metadata_file = File.join(@state_dir, "sessions.json")
         FileUtils.mkdir_p(@sessions_dir)
+      end
+
+      def project_path
+        @env_path
       end
 
       # Create a new session

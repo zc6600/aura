@@ -13,7 +13,14 @@ module Aura
       end
 
       desc "doctor", "Run environment checks"
+      method_option :prompts, type: :boolean, aliases: "-p", desc: "Validate prompt templates and synchronization"
       def doctor
+        if options[:prompts]
+          load_dotenv_files
+          check_prompts
+          return
+        end
+
         ruby_ver = RUBY_VERSION
         puts "Ruby: #{ruby_ver}"
 
@@ -131,9 +138,88 @@ module Aura
         end
 
         puts "Aura CLI: OK"
+
+        puts "\nChecking prompt templates..."
+        check_prompts
       end
 
       private
+
+      def check_prompts
+        workspace_path = find_aura_dir ? File.dirname(find_aura_dir) : Dir.pwd
+        puts "Workspace Root: #{workspace_path}"
+
+        require "aura/llm/prompts/registry"
+
+        # Validate standard prompt
+        puts "\n[Standard Mode Prompt]"
+        standard_prompt = Aura::LLM::Prompts::Registry.resolve(:standard, workspace_path)
+        validate_and_print_prompt(:standard, standard_prompt)
+
+        # Validate Ralph developer prompt
+        puts "\n[Ralph Developer Prompt]"
+        ralph_dev_prompt = Aura::LLM::Prompts::Registry.resolve(:ralph_developer, workspace_path)
+        validate_and_print_prompt(:ralph_developer, ralph_dev_prompt)
+
+        # Validate Ralph critic prompt
+        puts "\n[Ralph Critic Prompt]"
+        ralph_critic_prompt = Aura::LLM::Prompts::Registry.resolve(:ralph_critic, workspace_path)
+        validate_and_print_prompt(:ralph_critic, ralph_critic_prompt)
+
+        # Sync checks: compare overrides with system defaults
+        check_overrides_sync(workspace_path)
+      end
+
+      def validate_and_print_prompt(mode, prompt)
+        char_count = prompt.length
+        puts "  Compiled Length: #{char_count} chars (~#{(char_count / 4.0).round} tokens)"
+        
+        if char_count > 100_000
+          puts "  \e[31m❌ Warning: Prompt length exceeds 100k characters. This may cause large latency or API costs.\e[0m"
+        elsif char_count > 20_000
+          puts "  \e[33m⚠️ Warning: Prompt length is large (#{char_count} chars). Check if all sections are necessary.\e[0m"
+        else
+          puts "  Length constraint: \e[32mOK\e[0m"
+        end
+
+        issues = Aura::LLM::Prompts::Registry.validate_prompt(prompt)
+        if issues.any?
+          issues.each { |iss| puts "  \e[33m⚠️ #{iss}\e[0m" }
+        else
+          puts "  Structure validation: \e[32mOK\e[0m"
+        end
+      end
+
+      def check_overrides_sync(workspace_path)
+        # Check standard legacy skills/system.md
+        legacy = File.join(workspace_path, "skills", "system.md")
+        if File.exist?(legacy)
+          puts "\n[Workspace Prompt Sync]"
+          puts "  Found legacy system override at skills/system.md."
+          puts "  💡 Note: Modular prompt section overrides (prompts/system/*.md) will be ignored because skills/system.md takes precedence."
+        end
+
+        # Check for any modular overrides
+        override_dir = File.join(workspace_path, "prompts", "system")
+        if File.directory?(override_dir)
+          puts "\n[Workspace Prompt Sync]"
+          Dir.glob(File.join(override_dir, "*.md")).each do |override_file|
+            basename = File.basename(override_file)
+            puts "  Found modular override: prompts/system/#{basename}"
+            
+            # Compare with system default if exists
+            default_path = File.expand_path("../../llm/prompts/system/#{basename}", __dir__)
+            if File.exist?(default_path)
+              default_content = File.read(default_path, encoding: "utf-8")
+              override_content = File.read(override_file, encoding: "utf-8")
+              
+              if default_content.strip == override_content.strip
+                puts "    \e[33m⚠️ Identical to system default. Consider removing this override to receive future framework updates.\e[0m"
+              end
+            end
+          end
+        end
+      end
 
       def find_aura_dir
         Aura::PathResolver.find_aura_dir(Dir.pwd)

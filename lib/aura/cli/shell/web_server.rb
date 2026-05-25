@@ -5,12 +5,15 @@ require "sqlite3"
 require "open3"
 require "json"
 require "yaml"
+require "uri"
+require_relative "thread_pool"
+require_relative "connection_pool"
 
 module Aura
   module CLI
     module Shell
-      # Lightweight HTTP server for Aura web dashboard
-      # Handles SSE streaming, event retrieval, and shadow workspace diff visualization
+      # Optimized HTTP server for Aura web dashboard
+      # Features: Thread pool, connection pooling, SSE streaming, session history
       class WebServer
         def initialize(project_path, port:, host:)
           @project_path = File.expand_path(project_path)
@@ -20,22 +23,62 @@ module Aura
           @env_path = Aura::PathResolver.environment_path(@project_path)
           @db_path = Aura::PathResolver.session_db_path(@project_path)
           @project_name = extract_project_name
+          @thread_pool = ThreadPool.new(max_threads: 10)
+          @db_pool = ConnectionPool.new(size: 5) { SQLite3::Database.new(@db_path) }
         end
 
         def start
-          server = TCPServer.new(@host, @port)
+          # Setup signal handlers for graceful shutdown
+          setup_signal_handlers
+
+          @server = TCPServer.new(@host, @port)
           puts "Aura Web listening at http://#{@host}:#{@port}/"
 
           while @running
-            socket = server.accept
-            handle_request(socket)
+            begin
+              socket = @server.accept
+              @thread_pool.post { handle_request(socket) }
+            rescue IOError, Errno::EBADF
+              break
+            end
           end
 
-          server.close
+          cleanup
         end
 
         def stop
           @running = false
+          begin
+            @server.close if @server && !@server.closed?
+          rescue StandardError
+            nil
+          end
+        end
+
+        def cleanup
+          puts "\nShutting down Aura Web server..."
+          begin
+            @server.close unless @server.closed?
+          rescue StandardError
+            nil
+          end
+          @thread_pool.shutdown
+          @db_pool.close
+          puts "Server stopped."
+        end
+
+        def setup_signal_handlers
+          # Handle SIGINT (Ctrl+C)
+          Signal.trap("INT") do
+            puts "\n\e[33mReceived SIGINT. Shutting down gracefully...\e[0m"
+            stop
+          end
+
+          # Handle SIGTERM
+          Signal.trap("TERM") do
+            puts "\n\e[33mReceived SIGTERM. Shutting down gracefully...\e[0m"
+            stop
+          end
         end
 
         private
@@ -53,47 +96,150 @@ module Aura
           end
         end
 
+        def parse_query_string(query_string)
+          return {} unless query_string
+
+          params = {}
+          query_string.split("&").each do |pair|
+            key, value = pair.split("=", 2)
+            params[URI.decode_www_form_component(key.to_s)] = URI.decode_www_form_component(value.to_s) if key
+          end
+          params
+        end
+
         def handle_request(socket)
+          # Store socket in thread-local storage for SSE handler
+          Thread.current[:socket] = socket
+
           req_line = socket.gets || ""
-          path = req_line.split(" ")[1] || "/"
+          return if req_line.strip.empty?
+
+          parts = req_line.split
+          method = parts[0] || "GET"
+          path = parts[1] || "/"
+          _http_version = parts[2]
+
+          path, query_string = path.split("?", 2)
+          params = parse_query_string(query_string)
+
+          headers = {}
+          loop do
+            line = socket.gets
+            break if line.nil? || line.strip.empty?
+
+            key, value = line.split(":", 2)
+            headers[key.to_s.strip.downcase] = value.to_s.strip if key && value
+          end
+
+          # Read body for POST/PUT requests (reserved for future use)
+          _body = ""
+          if %w[POST PUT].include?(method) && headers["content-length"]
+            content_length = headers["content-length"].to_i
+            _body = socket.read(content_length) if content_length.positive?
+          end
 
           begin
-            case path
-            when "/events"
-              handle_events(socket)
-            when "/diff"
-              handle_diff(socket)
-            when "/sse"
-              handle_sse(socket)
-            when "/shutdown"
-              handle_shutdown(socket)
-            else
-              handle_dashboard(socket)
-            end
+            log_request(method, path)
+
+            response = route_request(method, path, params)
+            socket.write(response) if response
+
+            log_response(path, 200)
+          rescue StandardError => e
+            log_error(path, e)
+            error_response = build_error_response(e.message)
+            socket.write(error_response)
           ensure
             socket.close unless path == "/sse"
           end
         end
 
-        def handle_events(socket)
-          body = ""
-          if File.exist?(@db_path)
-            db = SQLite3::Database.new(@db_path)
-            rows = db.execute("SELECT payload FROM events ORDER BY id DESC LIMIT 3")
-            lines = rows.map { |r| r[0].to_s }
-            body = lines.reverse.join("\n")
-            db.close
-          end
+        def route_request(method, path, _params)
+          return build_cors_response if method == "OPTIONS"
 
-          payload = { tail: body }.to_json
-          send_response(socket, 200, "application/json", payload)
-        rescue StandardError => e
-          send_response(socket, 200, "application/json", { tail: "error: #{e.message}" }.to_json)
+          case path
+          when "/events"
+            build_response(200, "application/json", events_json)
+          when "/diff"
+            build_response(200, "application/json", diff_json)
+          when "/sse"
+            handle_sse_direct
+            nil
+          when "/shutdown"
+            Thread.new do
+              sleep 0.2
+              stop
+            end
+            build_response(200, "text/plain", "shutting down")
+          when "/api/sessions"
+            build_response(200, "application/json", sessions_json)
+          when %r{/api/sessions/([^/]+)}
+            session_id = path.match(%r{/api/sessions/([^/]+)})[1]
+            build_response(200, "application/json", session_json(session_id))
+          else
+            build_response(200, "text/html; charset=utf-8", build_dashboard_html)
+          end
         end
 
-        def handle_diff(socket)
+        def build_cors_response
+          headers = {
+            "Access-Control-Allow-Origin" => "*",
+            "Access-Control-Allow-Methods" => "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers" => "Content-Type, Authorization",
+            "Access-Control-Max-Age" => "86400"
+          }
+          build_response(200, "text/plain", "", headers)
+        end
+
+        def build_response(status, content_type, body, extra_headers = {})
+          status_text = status == 200 ? "200 OK" : "#{status} Error"
+
+          cors_headers = {
+            "Access-Control-Allow-Origin" => "*",
+            "Access-Control-Allow-Methods" => "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers" => "Content-Type"
+          }
+
+          all_headers = cors_headers.merge(extra_headers)
+          header_str = all_headers.map { |k, v| "#{k}: #{v}" }.join("\r\n")
+
+          "HTTP/1.1 #{status_text}\r\nContent-Type: #{content_type}\r\n#{header_str}\r\nContent-Length: #{body.bytesize}\r\n\r\n#{body}"
+        end
+
+        def build_error_response(message)
+          error_body = { error: message, timestamp: Time.now.to_s }.to_json
+          build_response(500, "application/json", error_body)
+        end
+
+        def log_request(method, path)
+          puts "[#{Time.now.strftime('%H:%M:%S')}] #{method} #{path}"
+        end
+
+        def log_response(path, status)
+          puts "[#{Time.now.strftime('%H:%M:%S')}] #{path} -> #{status}"
+        end
+
+        def log_error(path, error)
+          warn "[#{Time.now.strftime('%H:%M:%S')}] ERROR #{path}: #{error.message}"
+        end
+
+        def events_json
+          body = ""
+          if File.exist?(@db_path)
+            @db_pool.with do |db|
+              rows = db.execute("SELECT payload FROM events ORDER BY id DESC LIMIT 50")
+              lines = rows.map { |r| r[0].to_s }
+              body = lines.reverse.join("\n")
+            end
+          end
+          { tail: body }.to_json
+        rescue StandardError => e
+          { tail: "error: #{e.message}" }.to_json
+        end
+
+        def diff_json
           shadow_path = File.join(@env_path, "shadow")
-          diff_body = "No changes recorded in the shadow workspace yet. Aura files will show up here after agent modifications."
+          diff_body = "No changes recorded in the shadow workspace yet."
 
           if File.directory?(File.join(shadow_path, ".git"))
             out, _err, status = Open3.capture3("git diff HEAD~1 HEAD", chdir: shadow_path)
@@ -104,56 +250,80 @@ module Aura
               diff_body = out_unstaged if status_unstaged.success? && !out_unstaged.to_s.strip.empty?
             end
           end
-
-          payload = { diff: diff_body }.to_json
-          send_response(socket, 200, "application/json", payload)
+          { diff: diff_body }.to_json
         end
 
-        def handle_sse(socket)
-          headers = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n"
-          socket.write(headers)
-          last_id = 0
+        def sessions_json
+          sessions = []
+          if File.exist?(@db_path)
+            @db_pool.with do |db|
+              rows = db.execute("SELECT DISTINCT phase FROM events WHERE phase IS NOT NULL AND phase != '' ORDER BY phase DESC LIMIT 20")
+              sessions = rows.flatten
+            end
+          end
+          { sessions: sessions }.to_json
+        rescue StandardError => e
+          { sessions: [], error: e.message }.to_json
+        end
 
-          loop do
-            begin
-              if File.exist?(@db_path)
-                db = SQLite3::Database.new(@db_path)
-                rows = db.execute("SELECT id, payload FROM events WHERE id > ? ORDER BY id ASC", [last_id])
-                rows.each do |row|
-                  id, payload = row
-                  socket.write("data: #{payload}\r\n\r\n")
-                  socket.flush
-                  last_id = id.to_i
+        def session_json(session_id)
+          events = []
+          if File.exist?(@db_path)
+            @db_pool.with do |db|
+              rows = db.execute("SELECT payload FROM events WHERE phase = ? ORDER BY id ASC", [session_id])
+              events = rows.flatten.map do |r|
+                JSON.parse(r.to_s)
+              rescue StandardError
+                r.to_s
+              end
+            end
+          end
+          { session_id: session_id, events: events }.to_json
+        rescue StandardError => e
+          { session_id: session_id, events: [], error: e.message }.to_json
+        end
+
+        def handle_sse_direct
+          socket = Thread.current[:socket]
+          return unless socket
+
+          begin
+            socket.write("HTTP/1.1 200 OK\r\n" \
+                         "Content-Type: text/event-stream\r\n" \
+                         "Cache-Control: no-cache\r\n" \
+                         "Connection: keep-alive\r\n" \
+                         "Access-Control-Allow-Origin: *\r\n" \
+                         "\r\n")
+            socket.flush
+            last_id = 0
+
+            loop do
+              begin
+                if File.exist?(@db_path)
+                  @db_pool.with do |db|
+                    rows = db.execute("SELECT id, payload FROM events WHERE id > ? ORDER BY id ASC", [last_id])
+                    rows.each do |row|
+                      id, payload = row
+                      socket.write("data: #{payload}\r\n\r\n")
+                      socket.flush
+                      last_id = id.to_i
+                    end
+                  end
                 end
-                db.close
-              else
-                socket.write("data: {\"warning\":\"db not found\"}\r\n\r\n")
+              rescue StandardError => e
+                socket.write("event: error\r\ndata: #{e.message}\r\n\r\n")
                 socket.flush
               end
-            rescue StandardError => e
-              socket.write("event: error\r\ndata: #{e.message}\r\n\r\n")
-              socket.flush
+
+              sleep 0.5
+              break unless @running
             end
-
-            sleep 1
-            break unless @running
+          rescue IOError, Errno::EPIPE, Errno::ECONNRESET
+            # Client disconnected - this is normal for SSE
+          ensure
+            # Clear thread-local storage
+            Thread.current[:socket] = nil
           end
-        end
-
-        def handle_shutdown(socket)
-          send_response(socket, 200, "text/plain", "shutting down")
-          @running = false
-        end
-
-        def handle_dashboard(socket)
-          html = build_dashboard_html
-          send_response(socket, 200, "text/html; charset=utf-8", html)
-        end
-
-        def send_response(socket, status, content_type, body)
-          status_text = status == 200 ? "200 OK" : "#{status} Error"
-          resp = "HTTP/1.1 #{status_text}\r\nContent-Type: #{content_type}\r\nContent-Length: #{body.bytesize}\r\n\r\n#{body}"
-          socket.write(resp)
         end
 
         def build_dashboard_html
@@ -306,6 +476,17 @@ module Aura
                   color: var(--text-muted);
                   border-top: 1px solid var(--border-color);
                 }
+                .session-selector {
+                  margin-bottom: 12px;
+                }
+                .session-selector select {
+                  background: rgba(255, 255, 255, 0.08);
+                  border: 1px solid var(--border-color);
+                  color: var(--text-main);
+                  padding: 6px 12px;
+                  border-radius: 6px;
+                  font-family: inherit;
+                }
               </style>
             </head>
             <body>
@@ -320,15 +501,23 @@ module Aura
               </header>
 
               <main class="dashboard-container">
-                <!-- Left: Log Stream -->
                 <div class="panel">
                   <div class="panel-header">
                     <div class="panel-title">Live Events & Logs</div>
+                    <div class="panel-actions">
+                      <button onclick="loadSessions()">Load Sessions</button>
+                    </div>
                   </div>
-                  <div class="panel-body" id="log-container">Starting log subscription...</div>
+                  <div class="panel-body">
+                    <div class="session-selector">
+                      <select id="session-select" onchange="loadSessionEvents()">
+                        <option value="">Live Stream</option>
+                      </select>
+                    </div>
+                    <div id="log-container">Starting log subscription...</div>
+                  </div>
                 </div>
 
-                <!-- Right: Shadow Workspace Diff -->
                 <div class="panel">
                   <div class="panel-header">
                     <div class="panel-title">Shadow Workspace Diff</div>
@@ -347,25 +536,27 @@ module Aura
               <script>
                 var s = new EventSource('/sse');
                 var logContainer = document.getElementById('log-container');
-            #{'    '}
-                s.onmessage = function(e) {
-                  if (logContainer.textContent.startsWith('Starting log')) {
-                    logContainer.textContent = '';
-                  }
-            #{'      '}
-                  var data = e.data;
-                  try {
-                    var parsed = JSON.parse(data);
-                    if (parsed.message) {
-                      data = parsed.message;
-                    }
-                  } catch(err) {}
+                var sessionSelect = document.getElementById('session-select');
 
-                  logContainer.textContent += data + '\\n';
-                  logContainer.scrollTop = logContainer.scrollHeight;
-            #{'      '}
-                  // Auto fetch diff on new events
-                  fetchDiff();
+                s.onmessage = function(e) {
+                  if (sessionSelect.value === '') {
+                    if (logContainer.textContent.startsWith('Starting log')) {
+                      logContainer.textContent = '';
+                    }
+            #{'  '}
+                    var data = e.data;
+                    try {
+                      var parsed = JSON.parse(data);
+                      if (parsed.message) {
+                        data = parsed.message;
+                      }
+                    } catch(err) {}
+
+                    logContainer.textContent += data + '\\n';
+                    logContainer.scrollTop = logContainer.scrollHeight;
+            #{'  '}
+                    fetchDiff();
+                  }
                 };
 
                 function fetchDiff() {
@@ -374,7 +565,7 @@ module Aura
                     .then(data => {
                       var diffContainer = document.getElementById('diff-container');
                       diffContainer.innerHTML = '';
-            #{'          '}
+
                       if (!data.diff) {
                         diffContainer.textContent = 'No diffs found.';
                         return;
@@ -400,7 +591,42 @@ module Aura
                     });
                 }
 
-                // Initial fetch
+                function loadSessions() {
+                  fetch('/api/sessions')
+                    .then(res => res.json())
+                    .then(data => {
+                      sessionSelect.innerHTML = '<option value="">Live Stream</option>';
+                      data.sessions.forEach(function(id) {
+                        var option = document.createElement('option');
+                        option.value = id;
+                        option.textContent = 'Session ' + id;
+                        sessionSelect.appendChild(option);
+                      });
+                    });
+                }
+
+                function loadSessionEvents() {
+                  var sessionId = sessionSelect.value;
+                  if (!sessionId) {
+                    logContainer.textContent = 'Starting log subscription...';
+                    return;
+                  }
+
+                  fetch('/api/sessions/' + sessionId)
+                    .then(res => res.json())
+                    .then(data => {
+                      logContainer.textContent = '';
+                      data.events.forEach(function(evt) {
+                        if (typeof evt === 'object' && evt.message) {
+                          logContainer.textContent += evt.message + '\\n';
+                        } else {
+                          logContainer.textContent += String(evt) + '\\n';
+                        }
+                      });
+                      logContainer.scrollTop = logContainer.scrollHeight;
+                    });
+                }
+
                 fetchDiff();
               </script>
             </body>

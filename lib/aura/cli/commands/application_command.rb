@@ -65,9 +65,6 @@ module Aura
       end
 
       register(Aura::Commands::DoctorCommand, "doctor", "doctor", "Run environment checks")
-      def doctor
-        DoctorCommand.start(["doctor"])
-      end
 
       register(Aura::Commands::InfoCommand, "info", "info", "Display comprehensive system and workspace information")
       def info
@@ -109,7 +106,7 @@ module Aura
       desc "context [PROJECT_PATH]", "Compile and print project context"
       def context(project_path = nil)
         require "aura/memory"
-        resolved_path = Aura::WorkspaceInitializer.resolve_project_path!(project_path)
+        resolved_path = Aura::PathResolver.resolve_project_path!(project_path)
         root = File.expand_path(resolved_path)
         env_path = Aura::PathResolver.environment_path(root)
         config = Aura::Memory::Config.new(store: { project_path: env_path })
@@ -145,21 +142,36 @@ module Aura
       method_option :goal, type: :string, aliases: "-g", desc: "Autonomous goal to execute without interactive input (exits when complete)"
       method_option :non_interactive, type: :boolean, aliases: "--ni", default: false,
                                       desc: "Run non-interactively (requires --goal); final answer is printed to stdout"
-      method_option :mode, type: :string, default: "classic", desc: "Run loop mode: classic or ralph"
+      method_option :mode, type: :string, default: "classic", desc: "Run loop mode: classic or ralph",
+                           validate: lambda { |mode|
+                             %w[classic ralph].include?(mode.to_s.downcase) || (puts "\e[31m⛔️ Error: Mode must be 'classic' or 'ralph'\e[0m"
+                                                                                exit 1)
+                           }
       method_option :verify, type: :string, desc: "Verify test command for Ralph Loop"
       method_option :critic, type: :boolean, default: false, desc: "Use Critic LLM instead of test command for Ralph Loop"
       method_option :max_steps, type: :numeric, desc: "Maximum steps/calls in Ralph Loop"
       def chat(project_path = nil)
-        resolved_path = Aura::WorkspaceInitializer.resolve_project_path!(project_path)
+        resolved_path = Aura::PathResolver.resolve_project_path!(project_path)
+
+        # Validate max_steps if provided
+        if options[:max_steps] || options["max_steps"]
+          max_steps = options[:max_steps] || options["max_steps"]
+          options[:max_steps] = Aura::PathResolver.validate_max_steps(max_steps)
+        end
+
         Aura::Commands::ShellCommand.new.start(resolved_path, options)
       end
 
       desc "web [PROJECT_PATH]", "Start a lightweight Aura web server (events JSON & SSE)"
-      method_option :port, type: :numeric, aliases: "-p", default: 9299, desc: "Port to bind"
+      method_option :port, type: :numeric, aliases: "-p", default: 9299, desc: "Port to bind",
+                           validate: lambda { |p|
+                             (p.to_i >= 0 && p.to_i <= 65_535) || (puts "\e[31m⛔️ Error: Port must be between 0 and 65535\e[0m"
+                                                                   exit 1)
+                           }
       method_option :host, type: :string, aliases: "-h", default: "127.0.0.1", desc: "Host address"
       def web(project_path = nil)
-        resolved_path = Aura::WorkspaceInitializer.resolve_project_path!(project_path)
-        port = (options[:port] || options["port"] || 9299).to_i
+        resolved_path = Aura::PathResolver.resolve_project_path!(project_path)
+        port = Aura::PathResolver.validate_port(options[:port] || options["port"] || 9299)
         host = (options[:host] || options["host"] || "127.0.0.1").to_s
 
         server = Aura::CLI::Shell::WebServer.new(resolved_path, port: port, host: host)
@@ -278,8 +290,12 @@ module Aura
         sessions_dir = File.join(state_dir, "ask_sessions")
         session_name = options[:session] || options["session"] || "default"
         # Sanitize session name to prevent directory traversal
-        session_name = session_name.to_s.gsub(/[^a-zA-Z0-9_-]/, "")
-        session_name = "default" if session_name.empty?
+        begin
+          session_name = Aura::PathResolver.sanitize_session_name(session_name)
+        rescue ArgumentError => e
+          puts "\e[31m⛔️ Error: Invalid session name: #{e.message}\e[0m"
+          exit 1
+        end
         history_file = File.join(sessions_dir, "#{session_name}.json")
 
         if options[:clear] || options["clear"]
@@ -365,14 +381,7 @@ module Aura
       end
 
       def ensure_workspace!
-        aura_dir = find_aura_dir
-        if aura_dir.nil?
-          puts "\e[31m⛔️ Error: Not in an Aura workspace (no .aura folder found in parent directories).\e[0m"
-          puts "To initialize a workspace in the current directory, run:"
-          puts "  $ aura new"
-          exit 1
-        end
-        aura_dir
+        Aura::PathResolver.ensure_workspace!(Dir.pwd)
       end
     end
   end

@@ -153,7 +153,10 @@ module Aura
         begin
           msg = JSON.parse(data)
           handle_message(msg)
-        rescue StandardError
+        rescue JSON::ParserError => e
+          warn "[SSEClient] Failed to parse SSE message: #{e.message}"
+        rescue StandardError => e
+          warn "[SSEClient] Error handling SSE message: #{e.message}"
         end
       end
 

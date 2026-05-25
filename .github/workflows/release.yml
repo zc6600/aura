@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Ruby 3.3
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.3'
+        bundler-cache: true
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y sqlite3 libsqlite3-dev
+
+    - name: Extract version from tag
+      id: version
+      run: |
+        TAG=${GITHUB_REF#refs/tags/}
+        VERSION=${TAG#v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+    - name: Generate release notes from CHANGELOG
+      id: changelog
+      run: |
+        VERSION=${{ steps.version.outputs.version }}
+        
+        # Extract the section for this version from CHANGELOG.md
+        if grep -q "^## \[$VERSION\]" CHANGELOG.md; then
+          sed -n "/^## \[$VERSION\]/,/^## /p" CHANGELOG.md | head -n -1 > /tmp/release-notes.md
+          echo "Found changelog entry for $VERSION"
+        else
+          echo "## [$VERSION] - $(date +%Y-%m-%d)" > /tmp/release-notes.md
+          echo "" >> /tmp/release-notes.md
+          echo "Automated release generated from git commits." >> /tmp/release-notes.md
+          echo "WARNING: No manual changelog entry found for $VERSION"
+        fi
+        
+        # Read the content for the release body
+        RELEASE_NOTES=$(cat /tmp/release-notes.md)
+        echo "release_notes<<EOF" >> $GITHUB_OUTPUT
+        echo "$RELEASE_NOTES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Build gem
+      run: |
+        AURA_RELEASE=1 gem build aura.gemspec
+        echo "GEM_FILE=$(ls *.gem | head -1)" >> $GITHUB_ENV
+
+    - name: Run tests
+      run: bundle exec rake test
+      env:
+        OPENAI_API_KEY: "sk-test-mock-key"
+        OPENROUTER_API_KEY: "sk-or-test-mock-key"
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.tag }}
+        name: "Release ${{ steps.version.outputs.tag }}"
+        body_path: /tmp/release-notes.md
+        files: |
+          ${{ env.GEM_FILE }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+
+    - name: Upload gem to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ${{ env.GEM_FILE }}
+        asset_name: ${{ env.GEM_FILE }}
+        asset_content_type: application/octet-stream

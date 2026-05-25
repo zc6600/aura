@@ -7,6 +7,9 @@ module Aura
   class LLMError < Error; end
   class LLMTimeoutError < LLMError; end
   class LLMAuthError < LLMError; end
+  class LLMRateLimitError < LLMError; end
+  class LLMServerError < LLMError; end
+  class LLMBadRequestError < LLMError; end
 
   # Tool Execution Errors
   class ToolError < Error; end

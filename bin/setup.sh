@@ -345,5 +345,3 @@ if [ "$IS_REMOTE_INSTALL" = true ]; then
 fi
 
 exit 0
-EOT
-    echo -e "Created automated setup script at bin/setup.sh"

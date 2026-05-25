@@ -51,7 +51,14 @@ module Aura
 
           # Prevent backing up the environment folder or files outside workspace
           next if rel_path.start_with?(".aura/") || rel_path.include?("/.aura/")
-          next unless abs_src.start_with?(@project_path)
+
+          begin
+            real_src = File.realpath(abs_src)
+            real_project = File.realpath(@project_path)
+            next unless real_src.start_with?(real_project)
+          rescue StandardError
+            next
+          end
 
           # Skip if ignored in the user's project git
           if File.exist?(File.join(@project_path, ".git"))
