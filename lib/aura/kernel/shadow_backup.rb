@@ -26,14 +26,14 @@ module Aura
           if status.success?
             out.each_line do |line|
               # line format: " M path/to/file.py" or "?? path/to/file.py"
-              filepath = line[3..-1].to_s.strip
+              filepath = line[3..].to_s.strip
               filepath = filepath.gsub(/\A"|"\z/, "") # strip quotes if git quotes the path
               changed_files << filepath
             end
           end
         else
           # Fallback: parse specific file writing arguments
-          if tool_args && tool_args.is_a?(Hash)
+          if tool_args.is_a?(Hash)
             file_path = tool_args["file_path"] || tool_args["path"]
             changed_files << file_path if file_path && !file_path.to_s.strip.empty?
           end
@@ -55,7 +55,7 @@ module Aura
 
           # Skip if ignored in the user's project git
           if File.exist?(File.join(@project_path, ".git"))
-            ignore_out, _err, ignore_status = Open3.capture3("git", "check-ignore", rel_path, chdir: @project_path)
+            _, _err, ignore_status = Open3.capture3("git", "check-ignore", rel_path, chdir: @project_path)
             next if ignore_status.success?
           end
 
@@ -80,18 +80,18 @@ module Aura
       private
 
       def ensure_shadow_git_initialized!
-        unless File.directory?(@shadow_git)
-          FileUtils.mkdir_p(@shadow_path)
-          Open3.capture3("git", "init", chdir: @shadow_path)
-          Open3.capture3("git", "config", "user.name", "Aura Shadow Backup", chdir: @shadow_path)
-          Open3.capture3("git", "config", "user.email", "shadow@aura-os.ai", chdir: @shadow_path)
-          
-          # Create initial commit
-          gitignore_path = File.join(@shadow_path, ".gitignore")
-          File.write(gitignore_path, "") unless File.exist?(gitignore_path)
-          Open3.capture3("git", "add", ".gitignore", chdir: @shadow_path)
-          Open3.capture3("git", "commit", "-m", "Initial commit", chdir: @shadow_path)
-        end
+        return if File.directory?(@shadow_git)
+
+        FileUtils.mkdir_p(@shadow_path)
+        Open3.capture3("git", "init", chdir: @shadow_path)
+        Open3.capture3("git", "config", "user.name", "Aura Shadow Backup", chdir: @shadow_path)
+        Open3.capture3("git", "config", "user.email", "shadow@aura-os.ai", chdir: @shadow_path)
+
+        # Create initial commit
+        gitignore_path = File.join(@shadow_path, ".gitignore")
+        File.write(gitignore_path, "") unless File.exist?(gitignore_path)
+        Open3.capture3("git", "add", ".gitignore", chdir: @shadow_path)
+        Open3.capture3("git", "commit", "-m", "Initial commit", chdir: @shadow_path)
       end
     end
   end

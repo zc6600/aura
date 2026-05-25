@@ -19,6 +19,7 @@ module Aura
 
         def complete(messages, options = {})
           raise Aura::LLMAuthError, "Missing OPENROUTER_API_KEY" if @api_key.to_s.empty?
+
           headers = {
             "Authorization" => "Bearer #{@api_key}",
             "Content-Type" => "application/json"
@@ -43,6 +44,7 @@ module Aura
 
         def complete_stream(messages, options = {})
           raise Aura::LLMAuthError, "Missing OPENROUTER_API_KEY" if @api_key.to_s.empty?
+
           headers = {
             "Authorization" => "Bearer #{@api_key}",
             "Content-Type" => "application/json"
@@ -70,8 +72,10 @@ module Aura
             while (idx = buffer.index("\n"))
               line = buffer.slice!(0, idx + 1).to_s.chomp
               next unless line.start_with?("data: ")
-              data = line[6..-1].to_s.strip
+
+              data = line[6..].to_s.strip
               next if data.empty? || data == "[DONE]"
+
               begin
                 json = JSON.parse(data)
                 delta = json.dig("choices", 0, "delta", "content")
@@ -95,7 +99,7 @@ module Aura
                     end
                   end
                 end
-              rescue
+              rescue StandardError
                 # Ignore JSON parse errors for incomplete/partial stream lines
               end
             end

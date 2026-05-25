@@ -5,4 +5,3 @@ module Aura
     class ContextOverflowError < StandardError; end
   end
 end
-

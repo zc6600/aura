@@ -141,3 +141,64 @@ jobs:
         name: rubocop-report
         path: rubocop-output.json
         retention-days: 30
+
+  validate-changelog:
+    name: Validate CHANGELOG
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for changelog validation
+
+    - name: Check CHANGELOG.md exists
+      run: |
+        if [ ! -f "CHANGELOG.md" ]; then
+          echo "::error::CHANGELOG.md not found. Please create it following Keep a Changelog format."
+          exit 1
+        fi
+        echo "✓ CHANGELOG.md exists"
+
+    - name: Validate CHANGELOG format
+      run: |
+        # Check for required sections
+        if ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
+          echo "::warning::Missing [Unreleased] section in CHANGELOG.md"
+        fi
+        
+        # Check for Unreleased changes (should be empty on tagged releases)
+        if git describe --exact-match --tags HEAD 2>/dev/null; then
+          echo "Tagged release detected"
+          unreleased_content=$(sed -n '/^## \[Unreleased\]/,/^## /p' CHANGELOG.md | tail -n +2 | head -n -1)
+          if [ -n "$unreleased_content" ]; then
+            echo "::warning::[Unreleased] section has content for tagged release"
+          fi
+        fi
+        
+        echo "✓ CHANGELOG.md format validated"
+
+    - name: Generate release notes (for tags)
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        TAG=${GITHUB_REF#refs/tags/}
+        echo "Generating release notes for $TAG"
+        
+        # Extract changelog entry for this version
+        VERSION=${TAG#v}
+        sed -n "/^## \[$VERSION\]/,/^## /p" CHANGELOG.md | head -n -1 > /tmp/release-notes.md
+        
+        if [ -s /tmp/release-notes.md ]; then
+          echo "✓ Release notes extracted"
+          cat /tmp/release-notes.md
+        else
+          echo "::warning::No changelog entry found for $VERSION"
+        fi
+
+    - name: Upload release notes
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-notes
+        path: /tmp/release-notes.md
+        retention-days: 90

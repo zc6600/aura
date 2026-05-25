@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Aura
   module LLM
     class Env
@@ -25,21 +27,19 @@ module Aura
       end
 
       def self.load_file(path)
-        begin
-          File.readlines(path).each do |line|
-            line = line.strip
-            next if line.empty? || line.start_with?("#")
-            line = line.sub(/^export\s+/, "")
-            key, val = line.split("=", 2)
-            next unless key && val
-            val = val.strip
-            if (val.start_with?("\"") && val.end_with?("\"")) || (val.start_with?("'") && val.end_with?("'"))
-              val = val[1..-2]
-            end
-            ENV[key] ||= val
-          end
-        rescue StandardError
+        File.readlines(path).each do |line|
+          line = line.strip
+          next if line.empty? || line.start_with?("#")
+
+          line = line.sub(/^export\s+/, "")
+          key, val = line.split("=", 2)
+          next unless key && val
+
+          val = val.strip
+          val = val[1..-2] if (val.start_with?("\"") && val.end_with?("\"")) || (val.start_with?("'") && val.end_with?("'"))
+          ENV[key] ||= val
         end
+      rescue StandardError
       end
 
       def self.resolve_api_key(provider)

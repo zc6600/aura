@@ -14,7 +14,7 @@ module Aura
       end
 
       # Register callbacks for UI events
-      # Supported events: :on_token, :on_stream_end, :on_waiting, :on_clear_waiting, 
+      # Supported events: :on_token, :on_stream_end, :on_waiting, :on_clear_waiting,
       #                   :on_tool_start, :on_tool_executing, :on_tool_result, :on_tool_blocked,
       #                   :on_warning, :on_error, :on_thought, :ask_confirmation
       def on(event, &block)
@@ -32,7 +32,7 @@ module Aura
 
         # Create EventBus for AgentLoop
         bus = Aura::Kernel::EventBus.new
-        
+
         # Track streaming state for UI waiting indicator
         streamed = false
         start_time = nil
@@ -100,7 +100,7 @@ module Aura
 
         # Instantiate and run AgentLoop
         agent_loop = Aura::Kernel::AgentLoop.new(@runner, event_bus: bus)
-        
+
         begin
           res = agent_loop.run(input)
           if res.status == :completed
@@ -122,19 +122,19 @@ module Aura
       def hooks
         @runner.hooks
       end
-      
+
       # Helper to register the standard dangerous tool confirmation hook
       def register_confirmation_hook(dangerous_tools)
-        @runner.hooks.register(:before_tool_execution) do |tool, args|
+        @runner.hooks.register(:before_tool_execution) do |tool, _args|
           is_auto = @runner.current_job&.metadata&.dig(:auto_mode)
           next true if is_auto
-          
+
           if dangerous_tools.include?(tool.to_s)
-             if @callbacks[:ask_confirmation]
-               @callbacks[:ask_confirmation].call("DANGEROUS TOOL: #{tool}. Execute?")
-             else
-               true
-             end
+            if @callbacks[:ask_confirmation]
+              @callbacks[:ask_confirmation].call("DANGEROUS TOOL: #{tool}. Execute?")
+            else
+              true
+            end
           else
             true
           end
@@ -144,28 +144,28 @@ module Aura
       private
 
       def notify(event, *args)
-        @callbacks[event].call(*args) if @callbacks[event]
+        @callbacks[event]&.call(*args)
       end
 
       def setup_runner_subscriptions
         return if @subscribed
-        
+
         @runner.on(:tool_start) do |payload|
           notify(:on_tool_start, payload[:tool], payload[:summary], payload[:args])
         end
-        
+
         @runner.on(:tool_executing) do |_|
           notify(:on_tool_executing)
         end
-        
+
         @runner.on(:tool_blocked) do |payload|
           notify(:on_warning, "Tool blocked: #{payload[:reason]}")
         end
-        
+
         @runner.on(:tool_result) do |payload|
           notify(:on_tool_result, payload[:result])
         end
-        
+
         @subscribed = true
       end
     end

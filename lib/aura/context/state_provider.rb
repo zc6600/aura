@@ -17,6 +17,7 @@ module Aura
 
       def provide
         return nil unless @db
+
         section = ["# AGENT STATE & MEMORY"]
         history_entries = []
         fallback_seq = 0
@@ -25,6 +26,7 @@ module Aura
           summaries.each do |s|
             content = s["content"] || s[:content]
             next if content.to_s.strip.empty?
+
             ts = (s["timestamp"] || s[:timestamp]).to_i
             source_event_id = s["source_event_id"] || s[:source_event_id] || s["event_id"] || s[:event_id]
             seq = source_event_id || (s["id"] || s[:id])
@@ -36,6 +38,7 @@ module Aura
           summaries.to_s.split("\n").each do |line|
             body = line.to_s.gsub(/\s+/, " ").strip
             next if body.empty?
+
             fallback_seq += 1
             history_entries << { ts: 0, seq: fallback_seq, order: 2, id: 0, body: "Summary: #{body}" }
           end
@@ -44,6 +47,7 @@ module Aura
           summary.to_s.split("\n").each do |line|
             body = line.to_s.gsub(/\s+/, " ").strip
             next if body.empty?
+
             fallback_seq += 1
             history_entries << { ts: 0, seq: fallback_seq, order: 2, id: 0, body: "Summary: #{body}" }
           end
@@ -82,9 +86,7 @@ module Aura
               lines << "Variables:"
               other_vars.keys.sort.each do |key|
                 val = other_vars[key].to_s
-                if val.length > 10000
-                  val = val[0, 10000] + " ... [truncated]"
-                end
+                val = "#{val[0, 10_000]} ... [truncated]" if val.length > 10_000
                 lines << "- #{key}: #{val}"
               end
             end
@@ -95,33 +97,34 @@ module Aura
         begin
           if @db.respond_to?(:read_config, true)
             cfg = @db.send(:read_config) || {}
-            cc = (cfg["context_compression"] || {})
+            cc = cfg["context_compression"] || {}
             gap = cc["event_time_gap_seconds"]
             v = gap.to_i if gap
-            threshold = v if v && v > 0
+            threshold = v if v&.positive?
           end
         rescue StandardError
         end
         if @db.respond_to?(:get_recent_events_structured, true)
           # Include "plan" phase to show agent's responses in history
-          items = @db.send(:get_recent_events_structured, phases: ["user", "plan", "execution"]) || []
+          items = @db.send(:get_recent_events_structured, phases: %w[user plan execution]) || []
           if items.any?
             items.each do |e|
               ts = e["timestamp"]
               phase = e["phase"].to_s
               tool = e["tool"]
               pl = e["payload"]
-              if phase == "user"
+              case phase
+              when "user"
                 txt = pl.is_a?(Hash) ? (pl["content"] || pl["text"] || "") : pl.to_s
                 txt = txt.to_s.gsub(/\s+/, " ").strip
                 body = "User: #{txt}"
                 seq = if pl.is_a?(Hash) && pl["call_seq"]
-                  pl["call_seq"].to_i
-                else
-                  e["id"].to_i
-                end
+                        pl["call_seq"].to_i
+                      else
+                        e["id"].to_i
+                      end
                 history_entries << { ts: ts.to_i, seq: seq, order: 0, id: e["id"].to_i, body: body }
-              elsif phase == "plan"
+              when "plan"
                 # Show agent's tool call summary or plan
                 plan_data = pl.is_a?(Hash) ? pl : {}
                 plan_tool = plan_data["tool"] || plan_data[:tool]
@@ -131,21 +134,21 @@ module Aura
                   # For final answers, show the content
                   final_content = (plan_data["args"] || plan_data[:args] || {})["content"]
                   txt = final_content.to_s.gsub(/\s+/, " ").strip
-                  txt = txt[0, 200] + "..." if txt.length > 200
+                  txt = "#{txt[0, 200]}..." if txt.length > 200
                   body = "Agent: #{txt.empty? ? 'Task completed' : txt}"
                 else
                   # For tool calls, show thought (reasoning) if present, otherwise summary or tool name
                   body = if thought && !thought.to_s.strip.empty?
-                    "Agent: #{thought.to_s.gsub(/\s+/, " ").strip}"
-                  elsif summary && !summary.to_s.strip.empty?
-                    "Agent: #{summary.to_s.gsub(/\s+/, " ").strip}"
-                  else
-                    "Agent: Calling #{plan_tool}"
-                  end
+                           "Agent: #{thought.to_s.gsub(/\s+/, ' ').strip}"
+                         elsif summary && !summary.to_s.strip.empty?
+                           "Agent: #{summary.to_s.gsub(/\s+/, ' ').strip}"
+                         else
+                           "Agent: Calling #{plan_tool}"
+                         end
                 end
                 seq = e["id"].to_i
                 history_entries << { ts: ts.to_i, seq: seq, order: 0, id: e["id"].to_i, body: body }
-              elsif phase == "execution"
+              when "execution"
                 res = pl.is_a?(Hash) ? pl["result"] : nil
                 status = ""
                 if pl.is_a?(Hash)
@@ -156,31 +159,33 @@ module Aura
                   status = res_status || top_status
                   if status.to_s.empty?
                     success = res_success.nil? ? top_success : res_success
-                    status = success == true ? "ok" : (success == false ? "failed" : "")
+                    status = if success == true
+                               "ok"
+                             else
+                               (success == false ? "failed" : "")
+                             end
                   end
                 end
                 body = if pl.is_a?(Hash)
-                  candidates = []
-                  if res.is_a?(Hash)
-                    candidates.concat([res["output"], res["content"], res["stdout"], res["stderr"], res["message"]])
-                  end
-                  candidates.concat([pl["output"], pl["content"], pl["stdout"], pl["stderr"], pl["message"]])
-                  found = candidates.find { |v| v && !v.to_s.strip.empty? }
-                  if found && !found.to_s.strip.empty?
-                    found
-                  else
-                    res ? res.to_json : pl.to_s
-                  end
-                else
-                  pl.to_s
-                end
+                         candidates = []
+                         candidates.concat([res["output"], res["content"], res["stdout"], res["stderr"], res["message"]]) if res.is_a?(Hash)
+                         candidates.concat([pl["output"], pl["content"], pl["stdout"], pl["stderr"], pl["message"]])
+                         found = candidates.find { |v| v && !v.to_s.strip.empty? }
+                         if found && !found.to_s.strip.empty?
+                           found
+                         else
+                           res ? res.to_json : pl.to_s
+                         end
+                       else
+                         pl.to_s
+                       end
                 body = body.to_s.gsub(/\s+/, " ").strip
                 body = "Tool #{tool}: #{status} - #{body}"
                 seq = if pl.is_a?(Hash) && pl["call_seq"]
-                  pl["call_seq"].to_i
-                else
-                  e["id"].to_i
-                end
+                        pl["call_seq"].to_i
+                      else
+                        e["id"].to_i
+                      end
                 history_entries << { ts: ts.to_i, seq: seq, order: 1, id: e["id"].to_i, body: body }
               else
                 txt = pl.is_a?(Hash) ? (pl["content"] || pl["text"] || pl.to_json) : pl.to_s
@@ -196,6 +201,7 @@ module Aura
             recent.to_s.split("\n").each do |line|
               body = line.to_s.gsub(/\s+/, " ").strip
               next if body.empty?
+
               fallback_seq += 1
               history_entries << { ts: 0, seq: fallback_seq, order: 2, id: 0, body: body }
             end
@@ -207,10 +213,15 @@ module Aura
           lines = ordered.map do |e|
             ts = e[:ts].to_i
             prefix = ""
-            if ts > 0
+            if ts.positive?
               # Show timestamp if it's the first event or if gap is significant (threshold seconds)
               show_time = last_ts.nil? || ((ts - last_ts).abs >= threshold)
-              tstr = begin Time.at(ts).strftime("%H:%M:%S") rescue ts.to_s end
+              tstr = begin
+                Time.at(ts).strftime("%H:%M:%S")
+              rescue StandardError
+                ts.to_s
+              end
+
               prefix = show_time ? "[#{tstr}] " : ""
               last_ts = ts
             end

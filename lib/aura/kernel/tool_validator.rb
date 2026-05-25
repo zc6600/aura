@@ -9,7 +9,7 @@ module Aura
   module Kernel
     class ToolValidator
       def initialize(project_path, registry = nil, state = nil)
-        @project_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
+        @project_path = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
         @registry = registry || Aura::Kernel::ToolRegistry.new(@project_path)
         if defined?(Aura::Memory) && state.is_a?(Aura::Memory::Base)
           require "aura/memory/adapters/compatibility_adapter"
@@ -22,19 +22,19 @@ module Aura
       def status_for(name)
         return { state: "draft", reason: "tool name is nil" } if name.nil? || name.to_s.empty?
         return { state: "ready", verified: true } if name.to_s.start_with?("mcp.")
+
         tool_data = @registry.find(name)
         unless tool_data
           dir = File.join(@project_path, "tools", name)
-          if Dir.exist?(dir) && !File.exist?(File.join(dir, "manifest.json"))
-            return { state: "draft", reason: "missing: manifest.json" }
-          end
+          return { state: "draft", reason: "missing: manifest.json" } if Dir.exist?(dir) && !File.exist?(File.join(dir, "manifest.json"))
+
           return { state: "draft", reason: "tool not found: #{name}" }
         end
-        
+
         dir = tool_data[:path]
         manifest = tool_data[:manifest] || {}
         cfg = load_config
-        req = (cfg.dig("tool_protocol", "required_files") || [])
+        req = cfg.dig("tool_protocol", "required_files") || []
         test_file = manifest["test"] || manifest.dig("verification", "test_file") || "test.py"
         skip_test = manifest["skip_test"] == true || (manifest.dig("verification", "require_test") == false)
         req = req.reject { |f| skip_test && (f == test_file || f == "test.py") }
@@ -44,9 +44,7 @@ module Aura
         # Check if it was previously verified
         if @state
           vars = @state.get_active_variables
-          if vars["tool_status:#{name}"] == "ready"
-            return { state: "ready", verified: true }
-          end
+          return { state: "ready", verified: true } if vars["tool_status:#{name}"] == "ready"
         end
 
         if skip_test
@@ -58,6 +56,7 @@ module Aura
 
       def ensure_active(name)
         return { ok: true } if name.to_s.start_with?("mcp.")
+
         tool_data = @registry.find(name)
         return { ok: false, advice: "tool not found: #{name}" } unless tool_data
 
@@ -65,16 +64,15 @@ module Aura
         manifest = tool_data[:manifest]
 
         # Cache Check: If state is available and file hasn't changed, skip test
-        if @state && cache_valid?(name, dir)
-          return { ok: true, cached: true }
-        end
+        return { ok: true, cached: true } if @state && cache_valid?(name, dir)
 
         # Context Check
         req_context = manifest["requires_context"]
         if req_context
           active = context_manager.active_contexts(req_context)
           if active.empty?
-            return { ok: false, advice: "Tool '#{name}' requires active '#{req_context}' context. Please call an entry tool (like '#{find_entry_for(req_context)}') first." }
+            return { ok: false,
+                     advice: "Tool '#{name}' requires active '#{req_context}' context. Please call an entry tool (like '#{find_entry_for(req_context)}') first." }
           end
         end
 
@@ -87,13 +85,13 @@ module Aura
           test_path = File.join(dir, test_entry)
           return { ok: false, advice: "missing test: #{test_entry}" } unless File.exist?(test_path)
         end
-        
+
         # Use standardized tool runner
         runner_script = File.expand_path("../../runners/tool_runner.py", __dir__)
-        
+
         if skip_test
           mark_verified(name, dir) if @state
-          return { ok: true }
+          { ok: true }
         else
           if File.exist?(runner_script)
             cmd = [runtime, runner_script, dir]
@@ -116,72 +114,77 @@ module Aura
       end
 
       private
-        def load_config
-          Aura::ConfigLoader.load(@project_path)
-        end
 
-        def resolve_runtime(key)
-          key ||= "python"
-          cfg = load_config
-          resolved = cfg.dig("tool_protocol", "runtimes", key.to_s) || key.to_s
-          resolved = "python" if resolved == "python3"
-          resolved
-        end
+      def load_config
+        Aura::ConfigLoader.load(@project_path)
+      end
 
-        def cache_valid?(name, dir)
-          return false unless @state
-          vars = @state.get_active_variables
-          return false unless vars["tool_status:#{name}"] == "ready"
+      def resolve_runtime(key)
+        key ||= "python"
+        cfg = load_config
+        resolved = cfg.dig("tool_protocol", "runtimes", key.to_s) || key.to_s
+        resolved = "python" if resolved == "python3"
+        resolved
+      end
 
-          last_mtime = vars["tool_mtime:#{name}"]
-          return false unless last_mtime
-          
-          current_mtime = max_mtime(dir)
-          last_mtime.to_i == current_mtime
-        end
+      def cache_valid?(name, dir)
+        return false unless @state
 
-        def mark_verified(name, dir)
-          return unless @state
-          @state.set_variable("tool_status:#{name}", "ready")
-          @state.set_variable("tool_mtime:#{name}", max_mtime(dir))
-          @state.set_variable("tool_error:#{name}", "")
-        end
+        vars = @state.get_active_variables
+        return false unless vars["tool_status:#{name}"] == "ready"
 
-        def mark_failed(name, error)
-          return unless @state
-          @state.set_variable("tool_status:#{name}", "failed")
-          # Save the last line (actual exception) instead of just "Traceback..."
-          msg = error.to_s.strip.split("\n").last || error.to_s
-          @state.set_variable("tool_error:#{name}", msg)
-        end
+        last_mtime = vars["tool_mtime:#{name}"]
+        return false unless last_mtime
 
-        def max_mtime(dir)
-          # Get max mtime of any file in tool directory (non-recursive)
-          files = Dir.glob(File.join(dir, "*"))
-          return 0 if files.empty?
-          files.map { |f| File.mtime(f).to_i }.max
-        end
+        current_mtime = max_mtime(dir)
+        last_mtime.to_i == current_mtime
+      end
 
-        def read_manifest(dir)
-          path = File.join(dir, "manifest.json")
-          begin
-            File.exist?(path) ? JSON.parse(File.read(path)) : {}
-          rescue StandardError
-            {}
-          end
-        end
+      def mark_verified(name, dir)
+        return unless @state
 
-        def context_manager
-          @context_manager ||= Aura::Context::Manager.new(@project_path)
-        end
+        @state.set_variable("tool_status:#{name}", "ready")
+        @state.set_variable("tool_mtime:#{name}", max_mtime(dir))
+        @state.set_variable("tool_error:#{name}", "")
+      end
 
-        def find_entry_for(context_type)
-          @registry.all_tools.each do |tname|
-            t = @registry.find(tname)
-            return tname if t[:manifest]["creates_context"] == context_type
-          end
-          "entry tool"
+      def mark_failed(name, error)
+        return unless @state
+
+        @state.set_variable("tool_status:#{name}", "failed")
+        # Save the last line (actual exception) instead of just "Traceback..."
+        msg = error.to_s.strip.split("\n").last || error.to_s
+        @state.set_variable("tool_error:#{name}", msg)
+      end
+
+      def max_mtime(dir)
+        # Get max mtime of any file in tool directory (non-recursive)
+        files = Dir.glob(File.join(dir, "*"))
+        return 0 if files.empty?
+
+        files.map { |f| File.mtime(f).to_i }.max
+      end
+
+      def read_manifest(dir)
+        path = File.join(dir, "manifest.json")
+        begin
+          File.exist?(path) ? JSON.parse(File.read(path)) : {}
+        rescue StandardError
+          {}
         end
+      end
+
+      def context_manager
+        @context_manager ||= Aura::Context::Manager.new(@project_path)
+      end
+
+      def find_entry_for(context_type)
+        @registry.all_tools.each do |tname|
+          t = @registry.find(tname)
+          return tname if t[:manifest]["creates_context"] == context_type
+        end
+        "entry tool"
+      end
     end
   end
 end

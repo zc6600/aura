@@ -18,7 +18,7 @@ module Aura
         # Find .aura configuration
         aura_dir = Aura::PathResolver.find_aura_dir(project_path)
         cfg_path = aura_dir ? Aura::PathResolver.resolve_config_path(aura_dir) : nil
-        cfg = (cfg_path && File.exist?(cfg_path)) ? (YAML.load_file(cfg_path) || {}) : {}
+        cfg = cfg_path && File.exist?(cfg_path) ? (YAML.load_file(cfg_path) || {}) : {}
 
         auto_inject_readme = cfg.dig("hints", "auto_inject_readme") != false
         ignore_list = cfg.dig("hints", "ignore_list") || []
@@ -34,8 +34,6 @@ module Aura
                      "auto_inject_readme: false"
                    elsif ignore_list.include?("AURA_README.md")
                      "in ignore_list"
-                   else
-                     nil
                    end
           injectables << {
             type: "Global Rules",
@@ -47,7 +45,7 @@ module Aura
 
         # 2. .hint files
         Dir.glob(File.join(project_path, "{knowledge,tools}", "**", "*.hint")).each do |file|
-          rel = file.sub(/^#{Regexp.escape(project_path)}\//, "")
+          rel = file.sub(%r{^#{Regexp.escape(project_path)}/}, "")
           ignored = ignore_list.any? { |pat| File.fnmatch?(pat, rel, File::FNM_PATHNAME | File::FNM_DOTMATCH) || rel == pat || rel.include?(pat) }
           injectables << {
             type: ".hint File",
@@ -61,9 +59,10 @@ module Aura
         Dir.glob(File.join(project_path, "**", "*.{py,rb,sh,md,txt}")).each do |file|
           next if file.include?("/.git/") || file.include?("/.aura/") || file.include?("/state/")
           next unless File.file?(file)
-          next if File.size(file) > 102400
-          rel = file.sub(/^#{Regexp.escape(project_path)}\//, "")
-          
+          next if File.size(file) > 102_400
+
+          rel = file.sub(%r{^#{Regexp.escape(project_path)}/}, "")
+
           # Read first 15 lines to see if it has a magic hint
           has_hint = false
           begin
@@ -71,6 +70,7 @@ module Aura
               15.times do
                 line = f.gets
                 break unless line
+
                 if line =~ /@aura-hint:/
                   has_hint = true
                   break
@@ -80,15 +80,15 @@ module Aura
           rescue StandardError
           end
 
-          if has_hint
-            ignored = ignore_list.any? { |pat| File.fnmatch?(pat, rel, File::FNM_PATHNAME | File::FNM_DOTMATCH) || rel == pat || rel.include?(pat) }
-            injectables << {
-              type: "Magic Hint (@aura-hint)",
-              path: rel,
-              status: ignored ? "IGNORED" : "INJECTED",
-              reason: ignored ? "in ignore_list" : nil
-            }
-          end
+          next unless has_hint
+
+          ignored = ignore_list.any? { |pat| File.fnmatch?(pat, rel, File::FNM_PATHNAME | File::FNM_DOTMATCH) || rel == pat || rel.include?(pat) }
+          injectables << {
+            type: "Magic Hint (@aura-hint)",
+            path: rel,
+            status: ignored ? "IGNORED" : "INJECTED",
+            reason: ignored ? "in ignore_list" : nil
+          }
         end
 
         if injectables.empty?
@@ -98,12 +98,12 @@ module Aura
 
         # Display results
         puts "\n=== Hint & Guidance Injection Files ==="
-        puts sprintf("%-28s %-50s %-12s %s", "TYPE", "FILE PATH", "STATUS", "REASON")
+        puts format("%-28s %-50s %-12s %s", "TYPE", "FILE PATH", "STATUS", "REASON")
         puts "-" * 110
         injectables.each do |item|
           status_color = item[:status] == "INJECTED" ? "\e[32mINJECTED\e[0m" : "\e[33mIGNORED\e[0m"
           reason_str = item[:reason] ? "(\e[31m#{item[:reason]}\e[0m)" : ""
-          puts sprintf("%-28s %-50s %-20s %s", item[:type], item[:path], status_color, reason_str)
+          puts format("%-28s %-50s %-20s %s", item[:type], item[:path], status_color, reason_str)
         end
         puts "-" * 110
         puts "\n💡 Use 'aura hints toggle <FILE_PATH>' to manually enable/disable injection for a file."

@@ -25,18 +25,18 @@ module Aura
           setup_environment
           mode = @options[:mode] || @options["mode"] || "classic"
 
+          goal = @options[:goal] || @options["goal"]
           if mode.to_s.downcase == "ralph"
-            goal = @options[:goal] || @options["goal"]
             if goal.nil? || goal.to_s.strip.empty?
-              $stderr.puts "\e[31m⛔️ Error: Ralph Loop requires an autonomous goal (use --goal or -g).\e[0m"
+              warn "\e[31m⛔️ Error: Ralph Loop requires an autonomous goal (use --goal or -g).\e[0m"
               exit 1
             end
 
             require "aura/kernel/ralph_loop"
             require_relative "console_renderer"
-            
+
             renderer = ConsoleRenderer.new(verbose: @config["verbose"])
-            
+
             # Subscribe to runner events for tool execution visualization
             @runner.on(:tool_start) do |ev|
               renderer.on_tool_start(ev[:tool], ev[:summary], ev[:args])
@@ -44,34 +44,34 @@ module Aura
             @runner.on(:tool_result) do |ev|
               renderer.on_tool_result(ev[:result])
             end
-            
+
             # Create a dedicated event bus for the Ralph Loop
             bus = Aura::Kernel::EventBus.new
-            
+
             bus.subscribe(:ralph_start) do |payload|
               puts "\e[34m🚀 Starting Ralph Loop for goal: '#{payload[:goal]}'\e[0m"
               puts "   - Max Steps: #{payload[:max_steps]}"
               puts "   - Verifier: #{payload[:verifier]}"
               puts ""
             end
-            
+
             bus.subscribe(:ralph_step_start) do |payload|
               puts "\e[36m--- [Ralph Loop Step #{payload[:step]}/#{payload[:max_steps]} | Session: #{payload[:session]}] ---\e[0m"
             end
-            
+
             bus.subscribe(:thought) do |payload|
               renderer.on_thought(payload[:content])
             end
-            
+
             bus.subscribe(:warning) do |payload|
               renderer.on_warning(payload[:message])
             end
-            
+
             bus.subscribe(:final_answer) do |payload|
               puts "\e[32m✅ Ralph Loop Success! All verification checks passed.\e[0m"
               puts "Final Output: #{payload[:content]}"
             end
-            
+
             bus.subscribe(:loop_aborted) do |payload|
               renderer.on_error("Ralph Loop aborted: #{payload[:reason]}")
             end
@@ -91,7 +91,6 @@ module Aura
               exit 1
             end
           else
-            goal = @options[:goal] || @options["goal"]
             show_dashboard if goal.nil? || goal.to_s.strip.empty?
             run_loop
           end
@@ -102,26 +101,24 @@ module Aura
         def setup_environment
           @runner = Aura::Kernel::Runner.new(@project_path)
           @config = load_config
-          
+
           # Load environment variables from .env file
           require "aura/llm/env"
           Aura::LLM::Env.load_from(@project_path)
-          
+
           # Initialize session management
           @session_mgr = Aura::Context::SessionManager.new(@project_path)
           current_session = @session_mgr.current_name
-          if current_session
-            puts "\e[33m📝 Session: #{current_session}\e[0m" if @options[:verbose]
-          end
-          
+          puts "\e[33m📝 Session: #{current_session}\e[0m" if current_session && @options[:verbose]
+
           if @options[:verbose]
-            @config["verbose"] = true 
+            @config["verbose"] = true
             puts "Verbose mode: ON" if @config["verbose"] || ENV["VERBOSE"] == "true"
           end
 
           # Initialize LLM client with automatic defaults
           llm_config = @config["llm"] || {}
-          
+
           # Apply default provider if not configured
           provider = llm_config["provider"]
           if provider.nil? || provider.to_s.strip.empty? || provider == "local"
@@ -139,27 +136,25 @@ module Aura
               provider = "local"
             end
           end
-          
+
           # Apply default model if not configured
           model = llm_config["model"]
           if model.nil? || model.to_s.strip.empty?
-            case provider
-            when "openrouter"
-              model = "openai/gpt-4o"
-            when "openai"
-              model = "gpt-4o"
-            when "anthropic"
-              model = "claude-sonnet-4-20250514"
-            else
-              model = nil
-            end
+            model = case provider
+                    when "openrouter"
+                      "openai/gpt-4o"
+                    when "openai"
+                      "gpt-4o"
+                    when "anthropic"
+                      "claude-sonnet-4-20250514"
+                    end
             puts "\e[32mℹ️ Using default model: #{model}\e[0m" if model && @options[:verbose]
           end
-          
+
           # Update config with resolved values
           llm_config["provider"] = provider
           llm_config["model"] = model if model
-          
+
           @client = if defined?(Aura::LLM::Client) && Aura::LLM::Client.respond_to?(:from_config)
                       Aura::LLM::Client.from_config(llm_config, @project_path)
                     else
@@ -189,7 +184,7 @@ module Aura
           end
 
           puts "Welcome to Aura Shell. Type /help for commands."
-          
+
           loop do
             begin
               line = Readline.readline("aura> ", true)
@@ -208,7 +203,7 @@ module Aura
             end
 
             input = line.strip
-            
+
             # Basic multiline support with backslash
             if input.end_with?("\\")
               buffer = [input.sub(/\\$/, "")]
@@ -216,6 +211,7 @@ module Aura
                 print "....> "
                 cont = $stdin.gets
                 break if cont.nil?
+
                 cont_strip = cont.strip
                 if cont_strip.end_with?("\\")
                   buffer << cont_strip.sub(/\\$/, "")
@@ -228,10 +224,8 @@ module Aura
             end
 
             break if %w[exit quit].include?(input.downcase)
-            
-            if @slash_manager.handle(input)
-              next
-            end
+
+            next if @slash_manager.handle(input)
 
             if input.downcase == "auto on"
               @auto = true
@@ -242,9 +236,9 @@ module Aura
               puts "Auto mode: OFF (Interactive Mode)"
               next
             end
-            
+
             next if input.empty?
-            
+
             @executor.process(input, @auto)
           end
         end
@@ -258,8 +252,8 @@ module Aura
           return config["api_key"] if config["api_key"]
 
           # 1. Check explicit environment variable name in config
-          if (env_var = config["api_key_env"])
-            return ENV[env_var] if ENV[env_var]
+          if (env_var = config["api_key_env"]) && ENV[env_var]
+            return ENV[env_var]
           end
 
           # 2. Use Aura::LLM::Env.resolve_api_key which handles .env loading

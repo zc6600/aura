@@ -35,8 +35,7 @@ module Aura
       SYSTEM
 
       class Compose
-
-        def self.messages_and_tools(context, goal = nil, options = {})
+        def self.messages_and_tools(context, goal = nil, _options = {})
           # Use Payload directly
           if context.respond_to?(:to_messages) && context.respond_to?(:to_tool_schemas)
             messages = context.to_messages(goal: goal)
@@ -53,4 +52,3 @@ module Aura
     end
   end
 end
-

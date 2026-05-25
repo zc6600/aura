@@ -16,10 +16,10 @@ module Aura
     #   session = SessionManager.new(project_path)
     #   session.create("research-task")
     #   session.activate("research-task")
-    #   
+    #
     #   # List all sessions
     #   session.list  # => [{name: "default", ...}, {name: "research-task", ...}]
-    #   
+    #
     #   # Get current session db path
     #   session.current_db_path  # => "/path/to/state/sessions/research-task.db"
     #
@@ -30,7 +30,7 @@ module Aura
       attr_reader :project_path, :state_dir
 
       def initialize(project_path)
-        env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
+        env_path = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
         @project_path = File.expand_path(env_path)
         @state_dir = File.join(@project_path, "state")
         @sessions_dir = File.join(@state_dir, "sessions")
@@ -44,22 +44,20 @@ module Aura
       # @return [Hash] Session info
       def create(name, metadata = {})
         validate_session_name(name)
-        
-        if File.exist?(db_path_for(name))
-          raise ArgumentError, "Session '#{name}' already exists"
-        end
+
+        raise ArgumentError, "Session '#{name}' already exists" if File.exist?(db_path_for(name))
 
         db_path = db_path_for(name)
-        
+
         begin
           require "aura/memory"
           Aura::Memory::Stores::SQLiteStore.new(db_path: db_path).close
         rescue StandardError => e
-          $stderr.puts "[SessionManager] Failed to initialize session DB: #{e.message}"
+          warn "[SessionManager] Failed to initialize session DB: #{e.message}"
           # Fallback: create empty file
           FileUtils.touch(db_path)
         end
-        
+
         session_info = {
           name: name,
           db_path: db_path,
@@ -90,9 +88,7 @@ module Aura
       # @param name [String] Session name
       # @return [String] Database path
       def activate(name)
-        unless exists?(name)
-          raise ArgumentError, "Session '#{name}' does not exist"
-        end
+        raise ArgumentError, "Session '#{name}' does not exist" unless exists?(name)
 
         # Update active session file (for State class to read)
         active_file = File.join(@state_dir, "active_session.txt")
@@ -107,7 +103,7 @@ module Aura
 
         # Set environment variable for current process
         ENV["AURA_SESSION_NAME"] = name
-        ENV["AURA_STATE_DB_PATH"] = nil  # Clear direct path, let State resolve from session name
+        ENV["AURA_STATE_DB_PATH"] = nil # Clear direct path, let State resolve from session name
 
         db_path_for(name)
       end
@@ -117,6 +113,7 @@ module Aura
       def current_name
         active_file = File.join(@state_dir, "active_session.txt")
         return nil unless File.exist?(active_file)
+
         File.read(active_file).strip
       rescue StandardError
         nil
@@ -134,42 +131,44 @@ module Aura
       # @return [Array<Hash>] Session info list
       def list(include_missing: false)
         sessions_hash = load_metadata
-        
+
         # Auto-discover any session databases present in the directory
         if Dir.exist?(@sessions_dir)
           Dir.glob(File.join(@sessions_dir, "*.db")).each do |db_path|
             name = File.basename(db_path, ".db")
             name_sym = name.to_sym
-            unless sessions_hash.key?(name_sym)
-              sessions_hash[name_sym] = {
-                name: name,
-                db_path: db_path,
-                created_at: (File.birthtime(db_path).iso8601 rescue File.mtime(db_path).iso8601),
-                last_active_at: File.mtime(db_path).iso8601,
-                description: name == "default" ? "Default session" : "Auto-discovered session",
-                tags: [],
-                turn_count: 0,
-                event_count: 0
-              }
-            end
+            next if sessions_hash.key?(name_sym)
+
+            sessions_hash[name_sym] = {
+              name: name,
+              db_path: db_path,
+              created_at: begin
+                File.birthtime(db_path).iso8601
+              rescue StandardError
+                File.mtime(db_path).iso8601
+              end,
+              last_active_at: File.mtime(db_path).iso8601,
+              description: name == "default" ? "Default session" : "Auto-discovered session",
+              tags: [],
+              turn_count: 0,
+              event_count: 0
+            }
           end
           save_metadata(sessions_hash)
         end
 
         sessions = sessions_hash.values
-        
+
         # Enrich with current stats
         sessions.map! do |info|
-          begin
-            if File.exist?(info[:db_path])
-              stats = get_session_stats(info[:db_path])
-              info.merge(stats)
-            else
-              info
-            end
-          rescue StandardError
+          if File.exist?(info[:db_path])
+            stats = get_session_stats(info[:db_path])
+            info.merge(stats)
+          else
             info
           end
+        rescue StandardError
+          info
         end
 
         # Filter out missing dbs if requested
@@ -180,12 +179,10 @@ module Aura
       # @param name [String] Session name
       # @return [Boolean] Success
       def delete(name)
-        unless exists?(name)
-          raise ArgumentError, "Session '#{name}' does not exist"
-        end
+        raise ArgumentError, "Session '#{name}' does not exist" unless exists?(name)
 
         db_path = db_path_for(name)
-        
+
         # Delete database file
         File.delete(db_path) if File.exist?(db_path)
 
@@ -203,14 +200,10 @@ module Aura
       # @return [Hash] Updated session info
       def rename(old_name, new_name)
         validate_session_name(new_name)
-        
-        unless exists?(old_name)
-          raise ArgumentError, "Session '#{old_name}' does not exist"
-        end
 
-        if File.exist?(db_path_for(new_name))
-          raise ArgumentError, "Session '#{new_name}' already exists"
-        end
+        raise ArgumentError, "Session '#{old_name}' does not exist" unless exists?(old_name)
+
+        raise ArgumentError, "Session '#{new_name}' already exists" if File.exist?(db_path_for(new_name))
 
         old_db = db_path_for(old_name)
         new_db = db_path_for(new_name)
@@ -229,9 +222,7 @@ module Aura
         end
 
         # Update active session if needed
-        if current_name == old_name
-          activate(new_name)
-        end
+        activate(new_name) if current_name == old_name
 
         info
       end
@@ -241,13 +232,9 @@ module Aura
       # @param new_name [String] New session name
       # @return [Hash] New session info
       def duplicate(source_name, new_name)
-        unless exists?(source_name)
-          raise ArgumentError, "Session '#{source_name}' does not exist"
-        end
+        raise ArgumentError, "Session '#{source_name}' does not exist" unless exists?(source_name)
 
-        if File.exist?(db_path_for(new_name))
-          raise ArgumentError, "Session '#{new_name}' already exists"
-        end
+        raise ArgumentError, "Session '#{new_name}' already exists" if File.exist?(db_path_for(new_name))
 
         source_db = db_path_for(source_name)
         new_db = db_path_for(new_name)
@@ -278,9 +265,7 @@ module Aura
       # @param name [String] Session name
       # @param dest_path [String] Destination path
       def export(name, dest_path)
-        unless exists?(name)
-          raise ArgumentError, "Session '#{name}' does not exist"
-        end
+        raise ArgumentError, "Session '#{name}' does not exist" unless exists?(name)
 
         FileUtils.mkdir_p(File.dirname(dest_path))
         FileUtils.cp(db_path_for(name), dest_path)
@@ -291,16 +276,12 @@ module Aura
       # @param name [String] Session name to create
       # @return [Hash] Session info
       def import(source_path, name)
-        unless File.exist?(source_path)
-          raise ArgumentError, "Source file '#{source_path}' does not exist"
-        end
+        raise ArgumentError, "Source file '#{source_path}' does not exist" unless File.exist?(source_path)
 
-        if File.exist?(db_path_for(name))
-          raise ArgumentError, "Session '#{name}' already exists"
-        end
+        raise ArgumentError, "Session '#{name}' already exists" if File.exist?(db_path_for(name))
 
         FileUtils.cp(source_path, db_path_for(name))
-        
+
         # Create metadata entry
         session_info = {
           name: name,
@@ -327,21 +308,18 @@ module Aura
       end
 
       def validate_session_name(name)
-        if name.to_s.strip.empty?
-          raise ArgumentError, "Session name cannot be empty"
-        end
-        
-        if name.include?("/") || name.include?("\\")
-          raise ArgumentError, "Session name cannot contain path separators"
-        end
+        raise ArgumentError, "Session name cannot be empty" if name.to_s.strip.empty?
 
-        if name.include?("..")
-          raise ArgumentError, "Session name cannot contain '..'"
-        end
+        raise ArgumentError, "Session name cannot contain path separators" if name.include?("/") || name.include?("\\")
+
+        return unless name.include?("..")
+
+        raise ArgumentError, "Session name cannot contain '..'"
       end
 
       def load_metadata
         return {} unless File.exist?(@metadata_file)
+
         JSON.parse(File.read(@metadata_file), symbolize_names: true)
       rescue StandardError
         {}
@@ -350,23 +328,23 @@ module Aura
       def save_metadata(sessions)
         File.write(@metadata_file, JSON.pretty_generate(sessions))
       rescue StandardError => e
-        $stderr.puts "[SessionManager] Failed to save metadata: #{e.message}"
+        warn "[SessionManager] Failed to save metadata: #{e.message}"
       end
 
       def get_session_stats(db_path)
         require "sqlite3"
         db = SQLite3::Database.new(db_path)
-        
+
         event_count = db.get_first_value("SELECT COUNT(*) FROM events").to_i
         summary_count = db.get_first_value("SELECT COUNT(*) FROM summaries").to_i
         last_timestamp = db.get_first_value("SELECT MAX(timestamp) FROM events")
-        
+
         db.close
 
         {
           event_count: event_count,
           summary_count: summary_count,
-          turn_count: (event_count / 3.0).ceil,  # Rough estimate: user + plan + execution
+          turn_count: (event_count / 3.0).ceil, # Rough estimate: user + plan + execution
           last_event_at: last_timestamp ? Time.at(last_timestamp.to_i).iso8601 : nil
         }
       rescue StandardError

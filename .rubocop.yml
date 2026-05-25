@@ -3,7 +3,7 @@
 
 AllCops:
   TargetRubyVersion: 3.0
-  NewCops: disable  # Don't enable new cops automatically
+  NewCops: enable
   SuggestExtensions: false
   Exclude:
     - 'vendor/**/*'
@@ -12,6 +12,7 @@ AllCops:
     - 'tests/**/*'
     - 'external/**/*'
     - 'tmp/**/*'
+    - 'pkg/**/*'
 
 # Layout Rules
 Layout/LineLength:
@@ -30,7 +31,7 @@ Metrics/AbcSize:
 
 Metrics/BlockLength:
   Max: 100
-  ExcludedMethods: ['describe', 'context', 'it']
+  AllowedMethods: ['describe', 'context', 'it']
 
 Metrics/ClassLength:
   Max: 300
@@ -61,11 +62,11 @@ Style/AsciiComments:
   Enabled: false  # Allow Chinese comments
 
 # Naming
-Naming/MethodParameterName:
-  MinLength: 1
-
 Naming/VariableNumber:
   Enabled: false
+
+Naming/MethodParameterName:
+  MinNameLength: 1
 
 # Gemspec
 Gemspec/RequiredRubyVersion:

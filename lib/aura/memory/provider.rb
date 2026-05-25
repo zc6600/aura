@@ -26,7 +26,7 @@ module Aura
         @store.all_variables
       end
 
-      def assemble_context(include: [:events, :summaries, :variables], options: {})
+      def assemble_context(include: %i[events summaries variables], options: {})
         context = {}
         context[:events] = recent_events(limit: options[:event_limit], phases: options[:phases]) if include.include?(:events)
         context[:summaries] = recent_summaries(limit: options[:summary_limit]) if include.include?(:summaries)
@@ -37,7 +37,6 @@ module Aura
       def to_markdown(options: {})
         section = ["# AGENT STATE & MEMORY"]
         history_entries = []
-        fallback_seq = 0
 
         summaries = recent_summaries(limit: options[:summary_limit])
         summaries.each do |s|
@@ -57,7 +56,7 @@ module Aura
           section << "### Active Variables:\n#{lines.join("\n")}" unless lines.empty?
         end
 
-        items = recent_events(limit: options[:event_limit], phases: ["user", "plan", "execution"])
+        items = recent_events(limit: options[:event_limit], phases: %w[user plan execution])
         if items.any?
           items.each do |e|
             entry = format_event(e)
@@ -110,7 +109,7 @@ module Aura
           lines << "Variables:"
           other_vars.keys.sort.each do |key|
             val = other_vars[key].to_s
-            val = val[0, 10000] + " ... [truncated]" if val.length > 10000
+            val = "#{val[0, 10_000]} ... [truncated]" if val.length > 10_000
             lines << "- #{key}: #{val}"
           end
         end
@@ -143,13 +142,13 @@ module Aura
           if plan_tool.to_s == "final"
             final_content = (plan_data["args"] || plan_data[:args] || {})["content"]
             txt = final_content.to_s.gsub(/\s+/, " ").strip
-            txt = txt[0, 200] + "..." if txt.length > 200
+            txt = "#{txt[0, 200]}..." if txt.length > 200
             body = "Agent: #{txt.empty? ? 'Task completed' : txt}"
           else
             body = if thought && !thought.to_s.strip.empty?
-                     "Agent: #{thought.to_s.gsub(/\s+/, " ").strip}"
+                     "Agent: #{thought.to_s.gsub(/\s+/, ' ').strip}"
                    elsif summary && !summary.to_s.strip.empty?
-                     "Agent: #{summary.to_s.gsub(/\s+/, " ").strip}"
+                     "Agent: #{summary.to_s.gsub(/\s+/, ' ').strip}"
                    else
                      "Agent: Calling #{plan_tool}"
                    end
@@ -166,15 +165,17 @@ module Aura
             status = res_status || top_status
             if status.to_s.empty?
               success = res_success.nil? ? top_success : res_success
-              status = success == true ? "ok" : (success == false ? "failed" : "")
+              status = if success == true
+                         "ok"
+                       else
+                         (success == false ? "failed" : "")
+                       end
             end
           end
 
           body = if pl.is_a?(Hash)
                    candidates = []
-                   if res.is_a?(Hash)
-                     candidates.concat([res["output"], res["content"], res["stdout"], res["stderr"], res["message"]])
-                   end
+                   candidates.concat([res["output"], res["content"], res["stdout"], res["stderr"], res["message"]]) if res.is_a?(Hash)
                    candidates.concat([pl["output"], pl["content"], pl["stdout"], pl["stderr"], pl["message"]])
                    found = candidates.find { |v| v && !v.to_s.strip.empty? }
                    if found && !found.to_s.strip.empty?
@@ -201,9 +202,14 @@ module Aura
         lines = ordered.map do |e|
           ts = e[:ts].to_i
           prefix = ""
-          if ts > 0
+          if ts.positive?
             show_time = last_ts.nil? || ((ts - last_ts).abs >= threshold)
-            tstr = begin Time.at(ts).strftime("%H:%M:%S") rescue ts.to_s end
+            tstr = begin
+              Time.at(ts).strftime("%H:%M:%S")
+            rescue StandardError
+              ts.to_s
+            end
+
             prefix = show_time ? "[#{tstr}] " : ""
             last_ts = ts
           end

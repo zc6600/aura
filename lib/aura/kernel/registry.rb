@@ -7,8 +7,8 @@ module Aura
     class ToolRegistry
       def initialize(project_path)
         @project_path = project_path
-        @env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
-        @workspace_path = (defined?(Aura) && Aura.respond_to?(:workspace_path)) ? (Aura::PathResolver.workspace_path(project_path) || project_path) : project_path
+        @env_path = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
+        @workspace_path = defined?(Aura) && Aura.respond_to?(:workspace_path) ? (Aura::PathResolver.workspace_path(project_path) || project_path) : project_path
 
         @tools_paths = [
           File.join(@workspace_path, "tools"),
@@ -24,6 +24,7 @@ module Aura
         maybe_refresh!
         tool = @registry[tool_name]
         return tool if tool
+
         scan!
         @registry[tool_name]
       end
@@ -43,9 +44,10 @@ module Aura
 
         @tools_paths.each do |tools_path|
           next unless Dir.exist?(tools_path)
+
           Dir.glob(File.join(tools_path, "*")) do |dir|
             next unless File.directory?(dir)
-            
+
             if File.exist?(File.join(dir, "group_manifest.json"))
               process_group(dir)
             else
@@ -57,10 +59,11 @@ module Aura
       end
 
       private
-      
+
       def maybe_refresh!
         current = latest_tools_mtime
         return if @last_scan_mtime && current <= @last_scan_mtime
+
         scan!
       end
 
@@ -68,6 +71,7 @@ module Aura
         mtimes = [0]
         @tools_paths.each do |tools_path|
           next unless Dir.exist?(tools_path)
+
           paths = [tools_path]
           paths.concat(Dir.glob(File.join(tools_path, "*", "manifest.json")))
           paths.concat(Dir.glob(File.join(tools_path, "*", "group_manifest.json")))
@@ -82,9 +86,9 @@ module Aura
         begin
           group_manifest = JSON.parse(File.read(manifest_path))
           group_name = group_manifest["group_name"] || File.basename(dir)
-          @groups[group_name] = { 
-            path: dir, 
-            manifest: group_manifest 
+          @groups[group_name] = {
+            path: dir,
+            manifest: group_manifest
           }
 
           # Process entry tool
@@ -100,7 +104,7 @@ module Aura
             subtool_dir = File.join(dir, subtool_name)
             register_tool(subtool_dir, group: group_name)
           end
-        rescue StandardError => e
+        rescue StandardError
           # Skip invalid groups
         end
       end

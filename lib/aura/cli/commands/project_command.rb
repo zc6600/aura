@@ -34,7 +34,7 @@ module Aura
       def delete(project_name)
         projects = Aura.registered_projects
         path = projects[project_name.to_s]
-        
+
         if path.nil?
           puts "\e[31m⛔️ Error: Project '#{project_name}' is not registered globally.\e[0m"
           exit 1
@@ -42,7 +42,7 @@ module Aura
 
         puts "⚠️ WARNING: You are about to delete project '#{project_name}'."
         puts "   - Registered Path: #{path}"
-        
+
         hidden = File.join(path, ".aura")
         physical_exists = File.directory?(hidden)
         if physical_exists
@@ -50,7 +50,7 @@ module Aura
         else
           puts "   - Local environment (.aura/) does not exist physically (already deleted or moved)."
         end
-        
+
         if Aura::CLI::UI.confirm?("❓ Are you sure you want to proceed?")
           if physical_exists
             begin
@@ -60,7 +60,7 @@ module Aura
               puts "\e[31mFailed to delete physical sandbox: #{e.message}\e[0m"
             end
           end
-          
+
           if Aura.unregister_project!(project_name)
             puts "\e[32mProject '#{project_name}' has been successfully unregistered globally.\e[0m"
           else
@@ -101,14 +101,14 @@ module Aura
 
         pruned_count = 0
         projects.each do |name, path|
-          unless File.directory?(File.join(path, ".aura"))
-            Aura.unregister_project!(name)
-            puts "\e[33mPruned missing project '#{name}' (path: #{path})\e[0m"
-            pruned_count += 1
-          end
+          next if File.directory?(File.join(path, ".aura"))
+
+          Aura.unregister_project!(name)
+          puts "\e[33mPruned missing project '#{name}' (path: #{path})\e[0m"
+          pruned_count += 1
         end
 
-        if pruned_count > 0
+        if pruned_count.positive?
           puts "\e[32mSuccessfully pruned #{pruned_count} missing project(s)!\e[0m"
         else
           puts "No missing projects to prune."

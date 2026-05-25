@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 #
 # Aura Memory Module - Basic Usage Examples
 #
@@ -8,7 +9,7 @@
 require "fileutils"
 require "tmpdir"
 
-$LOAD_PATH.unshift File.expand_path("../../../", __FILE__)
+$LOAD_PATH.unshift File.expand_path("../..", __dir__)
 require "aura/memory"
 
 # Example 1: Basic initialization and recording
@@ -47,7 +48,6 @@ def example_basic_usage
     markdown = memory.provider.to_markdown
     puts "\nMarkdown output (first 200 chars):"
     puts markdown[0..200]
-
   ensure
     memory.store.close
     FileUtils.remove_entry(test_dir)

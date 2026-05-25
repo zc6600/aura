@@ -44,6 +44,7 @@ module Aura
         sections << daily_memory if daily_memory
 
         return nil if sections.empty?
+
         sections.join("\n\n")
       end
 

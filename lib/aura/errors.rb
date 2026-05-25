@@ -10,6 +10,7 @@ module Aura
 
   # Tool Execution Errors
   class ToolError < Error; end
+
   class ToolBlockedError < ToolError
     attr_reader :tool_name, :advice
 

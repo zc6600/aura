@@ -9,5 +9,5 @@ $LOAD_PATH.unshift File.expand_path("../lib", __dir__)
 
 # Add Aura framework to load path if it's not installed as a gem
 # During development, we link to the local Aura source
-aura_lib = File.expand_path("../../lib", __dir__) 
+aura_lib = File.expand_path("../../lib", __dir__)
 $LOAD_PATH.unshift(aura_lib) if Dir.exist?(File.join(aura_lib, "aura"))

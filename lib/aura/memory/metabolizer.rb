@@ -51,8 +51,8 @@ module Aura
           end
         rescue StandardError => e
           stats[:errors] += 1
-          $stderr.puts "[Memory::Metabolizer] Error: #{e.message}"
-          $stderr.puts e.backtrace.first(5).join("\n")
+          warn "[Memory::Metabolizer] Error: #{e.message}"
+          warn e.backtrace.first(5).join("\n")
         end
 
         stats
@@ -63,6 +63,7 @@ module Aura
 
       def wrap_event_bus(bus)
         return bus if bus.nil? || bus.is_a?(EventBus)
+
         EventBus.new(bus)
       end
 
@@ -92,17 +93,17 @@ module Aura
         summary = summary[0, max_chars] if summary && summary.length > max_chars
         summary
       rescue StandardError => e
-        $stderr.puts "[Memory::Metabolizer] Summary generation failed: #{e.message}"
+        warn "[Memory::Metabolizer] Summary generation failed: #{e.message}"
         nil
       end
 
       def summarization_enabled?
         val = @metabolism_config.dig(:summarization, :enabled)
-        val.nil? ? true : (val == true)
+        val.nil? || (val == true)
       end
 
       def emit(event, data = {})
-        @event_bus&.emit(event, data) if @event_bus
+        @event_bus&.emit(event, data)
       end
     end
   end

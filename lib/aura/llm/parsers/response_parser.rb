@@ -7,51 +7,45 @@ module Aura
     module Parsers
       class ResponseParser
         def self.parse(output)
-          begin
-            raw = output.is_a?(String) ? output.to_s : output.to_s
-            obj = output.is_a?(String) ? (safe_json_parse(raw) || raw) : output
-            if obj.is_a?(Hash)
-              if obj["tool"]
-                return { type: "tool_call", tool: obj["tool"], args: normalize_args(obj["args"]), summary: obj["summary"] }
-              end
+          raw = output.is_a?(String) ? output.to_s : output.to_s
+          obj = output.is_a?(String) ? (safe_json_parse(raw) || raw) : output
+          if obj.is_a?(Hash)
+            return { type: "tool_call", tool: obj["tool"], args: normalize_args(obj["args"]), summary: obj["summary"] } if obj["tool"]
 
-              tc = obj["tool_calls"]
-              if tc.is_a?(Array) && tc.any?
-                call = tc.first || {}
-                tool = call["tool"] || call["name"] || (call["function"] && call["function"]["name"])
-                args = call["args"] || call["arguments"] || call["input"] || (call["function"] && call["function"]["arguments"]) || {}
-                args = normalize_args(args)
-                summary = obj["summary"] || call["summary"] || (args.is_a?(Hash) ? args.delete("summary") : nil)
-                # If there is a content field in the main object, it's the thought
-                thought = obj["content"] || obj["message"] && obj["message"]["content"]
-                return { type: "tool_call", tool: tool, args: args || {}, summary: summary, thought: thought }
-              end
-
-              nested = obj.dig("choices", 0, "message", "tool_calls")
-              if nested.is_a?(Array) && nested.any?
-                call = nested.first || {}
-                tool = call["tool"] || call["name"] || (call["function"] && call["function"]["name"])
-                args = call["args"] || call["arguments"] || call["input"] || (call["function"] && call["function"]["arguments"]) || {}
-                args = normalize_args(args)
-                summary = obj["summary"] || call["summary"] || (args.is_a?(Hash) ? args.delete("summary") : nil)
-                # The content is usually in message.content
-                thought = obj.dig("choices", 0, "message", "content")
-                return { type: "tool_call", tool: tool, args: args || {}, summary: summary, thought: thought }
-              end
+            tc = obj["tool_calls"]
+            if tc.is_a?(Array) && tc.any?
+              call = tc.first || {}
+              tool = call["tool"] || call["name"] || (call["function"] && call["function"]["name"])
+              args = call["args"] || call["arguments"] || call["input"] || (call["function"] && call["function"]["arguments"]) || {}
+              args = normalize_args(args)
+              summary = obj["summary"] || call["summary"] || (args.is_a?(Hash) ? args.delete("summary") : nil)
+              # If there is a content field in the main object, it's the thought
+              thought = obj["content"] || obj["message"] && obj["message"]["content"]
+              return { type: "tool_call", tool: tool, args: args || {}, summary: summary, thought: thought }
             end
-            { type: "text", content: output.to_s }
-          rescue StandardError
-            { type: "text", content: output.to_s }
+
+            nested = obj.dig("choices", 0, "message", "tool_calls")
+            if nested.is_a?(Array) && nested.any?
+              call = nested.first || {}
+              tool = call["tool"] || call["name"] || (call["function"] && call["function"]["name"])
+              args = call["args"] || call["arguments"] || call["input"] || (call["function"] && call["function"]["arguments"]) || {}
+              args = normalize_args(args)
+              summary = obj["summary"] || call["summary"] || (args.is_a?(Hash) ? args.delete("summary") : nil)
+              # The content is usually in message.content
+              thought = obj.dig("choices", 0, "message", "content")
+              return { type: "tool_call", tool: tool, args: args || {}, summary: summary, thought: thought }
+            end
           end
+          { type: "text", content: output.to_s }
+        rescue StandardError
+          { type: "text", content: output.to_s }
         end
 
         def self.safe_json_parse(s)
-          begin
-            JSON.parse(s)
-          rescue StandardError
-            blk = extract_json_block(s)
-            blk ? JSON.parse(blk) : nil
-          end
+          JSON.parse(s)
+        rescue StandardError
+          blk = extract_json_block(s)
+          blk ? JSON.parse(blk) : nil
         end
 
         def self.extract_json_block(s)
@@ -62,9 +56,8 @@ module Aura
           end
           start = s.index("{")
           endi = s.rindex("}")
-          if start && endi && endi > start
-            return s[start..endi]
-          end
+          return s[start..endi] if start && endi && endi > start
+
           nil
         end
 

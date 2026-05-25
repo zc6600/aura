@@ -21,9 +21,7 @@ module Aura
       def start(project_path, external_opts = {})
         merged_opts = options.to_h.merge(external_opts.to_h)
         session_name = merged_opts[:session] || merged_opts["session"]
-        if merged_opts[:new_session] || merged_opts["new_session"]
-          session_name = "session_#{Time.now.strftime('%Y%m%d_%H%M%S')}"
-        end
+        session_name = "session_#{Time.now.strftime('%Y%m%d_%H%M%S')}" if merged_opts[:new_session] || merged_opts["new_session"]
 
         if session_name && !session_name.to_s.strip.empty?
           ENV["AURA_SESSION_NAME"] = session_name.to_s

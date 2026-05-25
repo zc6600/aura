@@ -25,16 +25,16 @@ module Aura
         puts "=" * 70
         puts "\e[1;34m🌟 Aura OS - System Information\e[0m"
         puts "=" * 70
-        
+
         puts "\n\e[1m📦 System:\e[0m"
         puts "  OS: #{RbConfig::CONFIG['host_os']}"
         puts "  Ruby: #{RUBY_VERSION} (#{RUBY_PLATFORM})"
         puts "  Architecture: #{RbConfig::CONFIG['arch']}"
-        
+
         puts "\n\e[1m🎯 Aura Framework:\e[0m"
         puts "  Version: #{Aura::VERSION}"
         puts "  CLI Path: #{File.expand_path(__dir__)}"
-        
+
         display_global_environment
         display_global_llm_config
         display_docker_status
@@ -52,26 +52,25 @@ module Aura
       def display_global_llm_config
         global_cfg_path = Aura::PathResolver.resolve_config_path(Aura::GlobalConfig.repo_path)
         return unless File.exist?(global_cfg_path)
-        
+
         require "yaml"
         global_cfg = YAML.load_file(global_cfg_path) || {}
         global_llm_cfg = global_cfg["llm"] || {}
         provider = global_llm_cfg["provider"] || "Not configured"
         model = global_llm_cfg["model"] || "Default"
         api_base = global_llm_cfg["api_base"] || "Default"
-        
+
         puts "\n\e[1m🤖 Global LLM Configuration:\e[0m"
         puts "  Provider: #{provider}"
         puts "  Model: #{model}"
         puts "  API Base: #{api_base}"
-        
+
         env_var_name = case provider.to_s.downcase
                        when "openai" then "OPENAI_API_KEY"
                        when "openrouter" then "OPENROUTER_API_KEY"
                        when "anthropic" then "ANTHROPIC_API_KEY"
                        when "gemini" then "GEMINI_API_KEY"
                        when "deepseek" then "DEEPSEEK_API_KEY"
-                       else nil
                        end
         api_key_status = if env_var_name && ENV[env_var_name] && !ENV[env_var_name].empty?
                            "\e[32mSet (via environment)\e[0m"
@@ -88,10 +87,10 @@ module Aura
         docker_ver, _err, docker_status = Open3.capture3("docker", "--version")
         if docker_status.success?
           puts "  Docker: #{docker_ver.strip}"
-          docker_info_out, _err, info_status = Open3.capture3("docker", "info", "--format", "{{.ServerVersion}}")
+          _, _err, info_status = Open3.capture3("docker", "info", "--format", "{{.ServerVersion}}")
           if info_status.success?
             puts "  Daemon: \e[32mRunning\e[0m"
-            containers_out, _err, _ = Open3.capture3("docker", "ps", "-a", "--format", "{{.Names}}")
+            containers_out, _err, = Open3.capture3("docker", "ps", "-a", "--format", "{{.Names}}")
             container_count = containers_out.strip.empty? ? 0 : containers_out.strip.split("\n").size
             puts "  Containers: #{container_count} total"
           else
@@ -118,33 +117,33 @@ module Aura
 
       def display_workspace_info
         workspace_path = find_aura_dir
-        
+
         unless workspace_path
-          puts "\n" + "=" * 70
+          puts "\n#{'=' * 70}"
           puts "\e[1;33m⚠️  No Workspace Detected\e[0m"
           puts "=" * 70
           puts "\n  Not currently in an Aura workspace (no .aura directory found)."
           puts "  To create a workspace, run: \e[1maura new <project_name>\e[0m"
-          puts "\n" + "=" * 70
+          puts "\n#{'=' * 70}"
           return
         end
 
-        puts "\n" + "=" * 70
+        puts "\n#{'=' * 70}"
         puts "\e[1;32m📂 Workspace Information (Current Project)\e[0m"
         puts "=" * 70
-        
+
         puts "\n\e[1m📍 Workspace:\e[0m"
         puts "  Workspace Root: #{File.dirname(workspace_path)}"
         puts "  .aura Path: #{workspace_path}"
-        
+
         display_workspace_config(workspace_path)
         display_workspace_database(workspace_path)
         display_workspace_skills(workspace_path)
         display_workspace_tools(workspace_path)
         display_sandbox_config(workspace_path)
         display_git_branch(workspace_path)
-        
-        puts "\n" + "=" * 70
+
+        puts "\n#{'=' * 70}"
       end
 
       def display_workspace_config(workspace_path)
@@ -154,13 +153,13 @@ module Aura
           puts "  No workspace-specific config (using global defaults)"
           return
         end
-        
+
         require "yaml" unless defined?(YAML)
         workspace_cfg = YAML.load_file(workspace_cfg_path) || {}
         workspace_llm_cfg = workspace_cfg["llm"] || {}
-        
+
         puts "\n\e[1m⚙️ Workspace Configuration:\e[0m"
-        
+
         if workspace_llm_cfg["provider"]
           puts "  LLM Provider: \e[33m#{workspace_llm_cfg['provider']} (workspace override)\e[0m"
           puts "  LLM Model: #{workspace_llm_cfg['model'] || 'Inherit from global'}"
@@ -178,7 +177,7 @@ module Aura
           puts "  Not yet initialized"
           return
         end
-        
+
         db_size = File.size(workspace_db_path)
         puts "  Path: #{workspace_db_path}"
         puts "  Size: #{db_size > 1024 ? "#{(db_size / 1024.0).round(1)} KB" : "#{db_size} B"}"
@@ -194,6 +193,7 @@ module Aura
         workspace_skills = []
         skill_paths.each do |dir|
           next unless File.directory?(dir)
+
           entries = Dir.entries(dir).reject { |e| e.start_with?(".") || !File.directory?(File.join(dir, e)) }
           workspace_skills.concat(entries)
         end
@@ -216,6 +216,7 @@ module Aura
         workspace_tools = []
         tool_paths.each do |dir|
           next unless File.directory?(dir)
+
           entries = Dir.entries(dir).reject { |e| e.start_with?(".") || !File.directory?(File.join(dir, e)) }
           workspace_tools.concat(entries)
         end
@@ -238,7 +239,7 @@ module Aura
       def display_git_branch(workspace_path)
         git_branch, _err, git_status = Open3.capture3("git", "branch", "--show-current", chdir: workspace_path)
         return unless git_status.success?
-        
+
         branch = git_branch.strip
         puts "\n\e[1m🌿 Agent Profile:\e[0m"
         puts "  Git Branch: #{branch.empty? ? 'HEAD detached' : branch}"

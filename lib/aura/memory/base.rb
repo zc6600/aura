@@ -13,11 +13,9 @@ module Aura
 
         @recorder = Recorder.new(@store)
         @provider = Provider.new(@store)
-        
+
         policy = @config.retention_policy
-        if @registry && policy.respond_to?(:instance_variable_set)
-          policy.instance_variable_set(:@registry, @registry)
-        end
+        policy.instance_variable_set(:@registry, @registry) if @registry && policy.respond_to?(:instance_variable_set)
 
         @metabolizer = Metabolizer.new(
           store: @store,

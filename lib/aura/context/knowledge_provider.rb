@@ -20,6 +20,7 @@ module Aura
           section = ["# PROJECT KNOWLEDGE BASE (Persistent Facts)"]
           knowledge.each do |category, facts|
             next if facts.empty?
+
             section << "## #{category.capitalize}"
             facts.each { |fact| section << "- #{fact}" }
           end

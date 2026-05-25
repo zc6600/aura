@@ -23,6 +23,7 @@ module Aura
         skill_paths = {}
         [template_skills_dir, skills_dir].each do |base_dir|
           next unless File.directory?(base_dir)
+
           Dir.glob(File.join(base_dir, "*/SKILL.md")).each do |skill_file|
             skill_name = File.basename(File.dirname(skill_file))
             skill_paths[skill_name] = skill_file
@@ -51,7 +52,7 @@ module Aura
       desc "run NAME [PROJECT_PATH]", "Start an interactive session with the specified skill activated"
       def skill_run(name, project_path = nil)
         resolved_path = Aura.resolve_project_path!(project_path)
-        
+
         # Verify the skill exists
         skills_dir = File.join(resolved_path, "skills")
         template_skills_dir = File.expand_path("../../generators/aura/app/templates/skills", __dir__)
@@ -67,7 +68,7 @@ module Aura
 
         puts "\e[32m🚀 Starting Aura with skill '#{name}' activated...\e[0m"
         ENV["AURA_ACTIVE_SKILL"] = name.to_s
-        
+
         # Delegate to ShellCommand
         require "aura/cli/commands/shell_command"
         Aura::Commands::ShellCommand.new.start(resolved_path)
@@ -94,7 +95,7 @@ module Aura
         begin
           if is_git
             puts "Cloning repository: #{url_or_path}..."
-            out, err, status = Open3.capture3("git", "clone", "--depth", "1", url_or_path, tmp_dir)
+            _, err, status = Open3.capture3("git", "clone", "--depth", "1", url_or_path, tmp_dir)
             unless status.success?
               puts "\e[31m⛔️ Error: Failed to clone repository: #{err}\e[0m"
               exit 1
@@ -126,10 +127,8 @@ module Aura
           skill_name = name
           if skill_name.nil? || skill_name.to_s.strip.empty?
             meta = parse_skill_meta(skill_md)
-            if meta[:name] && meta[:name] != File.basename(File.dirname(skill_md))
-              skill_name = meta[:name].to_s.downcase.gsub(/[^a-z0-9_\-]/, "")
-            end
-            skill_name = File.basename(src_dir).downcase.gsub(/[^a-z0-9_\-]/, "") if skill_name.nil? || skill_name.empty?
+            skill_name = meta[:name].to_s.downcase.gsub(/[^a-z0-9_-]/, "") if meta[:name] && meta[:name] != File.basename(File.dirname(skill_md))
+            skill_name = File.basename(src_dir).downcase.gsub(/[^a-z0-9_-]/, "") if skill_name.nil? || skill_name.empty?
           end
 
           dest_dir = File.join(resolved_path, "skills", skill_name)
@@ -153,7 +152,7 @@ module Aura
       def parse_skill_meta(path)
         content = File.read(path, encoding: "utf-8")
         meta = { name: File.basename(File.dirname(path)), description: nil }
-        
+
         # Extract YAML front-matter if present
         if content.start_with?("---")
           parts = content.split("---", 3)

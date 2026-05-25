@@ -13,7 +13,7 @@ module Aura
       attr_reader :active_tools
 
       def initialize(path, options = {})
-        env_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(path) || path) : path
+        env_path = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(path) || path) : path
         @project_path = env_path
         @workspace_root = path
         @options = options
@@ -42,7 +42,7 @@ module Aura
         @loaded_tools = []
         @indexed_only = []
         @active_tools = []
-        
+
         @registry.all_tools.each do |name|
           tool_data = @registry.find(name)
           manifest = tool_data[:manifest]
@@ -84,18 +84,15 @@ module Aura
           File.join(@workspace_root, "tools"),
           File.join(@project_path, "tools")
         ].uniq
-        
+
         tps.each do |tools_dir|
           next unless Dir.exist?(tools_dir)
+
           Dir.glob(File.join(tools_dir, "*", "group_manifest.json")) do |manifest_path|
-            begin
-              manifest = JSON.parse(File.read(manifest_path))
-              if manifest["context"] && manifest["context"]["name"]
-                configs[manifest["context"]["name"]] = manifest["context"]["lifecycle"]["ttl"]
-              end
-            rescue JSON::ParserError, Errno::ENOENT, Errno::EACCES
-              next
-            end
+            manifest = JSON.parse(File.read(manifest_path))
+            configs[manifest["context"]["name"]] = manifest["context"]["lifecycle"]["ttl"] if manifest["context"] && manifest["context"]["name"]
+          rescue JSON::ParserError, Errno::ENOENT, Errno::EACCES
+            next
           end
         end
         configs
@@ -108,7 +105,7 @@ module Aura
       def process_subtool(name, dir, manifest)
         req_context = manifest["requires_context"]
         active_instances = @active_contexts.select { |_, ctx| ctx["type"] == req_context }
-        
+
         if active_instances.any?
           desc = build_full_description(name, dir, manifest)
           instance_ids = active_instances.keys.join(", ")
@@ -124,22 +121,19 @@ module Aura
           }
         else
           # Even if context is not active, the LLM should know the tool exists
-          rel = dir.sub(/^#{Regexp.escape(@project_path)}\//, "")
-          @indexed_only << "- #{name}: #{manifest["description"] || ""} [LOCKED: Requires #{req_context}] (Path: #{rel})"
+          rel = dir.sub(%r{^#{Regexp.escape(@project_path)}/}, "")
+          @indexed_only << "- #{name}: #{manifest['description'] || ''} [LOCKED: Requires #{req_context}] (Path: #{rel})"
         end
       end
 
       def process_top_level_tool(name, dir, manifest)
-        if name == "anchor_submit" && !anchors_has_files?
-          return
-        end
+        return if name == "anchor_submit" && !anchors_has_files?
+
         # If it's an entry tool, add info about subtools it unlocks
         breadcrumb = ""
         if manifest["creates_context"]
           subtools = find_subtools_for_context(manifest["creates_context"])
-          if subtools.any?
-            breadcrumb = "\nUnlocks subtools: #{subtools.join(', ')}"
-          end
+          breadcrumb = "\nUnlocks subtools: #{subtools.join(', ')}" if subtools.any?
         end
 
         # Treat previously verified tools as "active" so the agent can reliably discover them.
@@ -157,8 +151,8 @@ module Aura
             hint: load_hint(dir)
           }
         else
-          rel = dir.sub(/^#{Regexp.escape(@project_path)}\//, "")
-          info = "- #{name}: #{manifest["description"] || ""} (Path: #{rel})"
+          rel = dir.sub(%r{^#{Regexp.escape(@project_path)}/}, "")
+          info = "- #{name}: #{manifest['description'] || ''} (Path: #{rel})"
           info += " (Unlocks: #{subtools.join(', ')})" if manifest["creates_context"] && subtools&.any?
           @indexed_only << info
         end
@@ -177,7 +171,7 @@ module Aura
         perms = manifest["permissions"] || {}
         schema = manifest["input_schema"] || manifest["input"]
         usage  = usage_from_schema(schema) || "n/a"
-        
+
         req_context = manifest["requires_context"]
         req_line = req_context ? "Requires: #{req_context}" : nil
 
@@ -189,7 +183,7 @@ module Aura
           "Usage: #{usage}",
           "Hint: #{hint}"
         ].compact
-        
+
         lines.join("\n")
       end
 
@@ -199,6 +193,7 @@ module Aura
 
       def load_json(path)
         return nil unless File.exist?(path)
+
         JSON.parse(File.read(path))
       rescue JSON::ParserError, Errno::ENOENT, Errno::EACCES
         nil
@@ -207,15 +202,12 @@ module Aura
       def load_hint(dir)
         hint_file = Dir.glob(File.join(dir, "*.hint")).first
         if hint_file
-          rel_hint_file = hint_file.sub(/^#{Regexp.escape(@project_path)}\//, "")
-          if ignored?(rel_hint_file)
-            return "No specific guidance provided."
-          end
+          rel_hint_file = hint_file.sub(%r{^#{Regexp.escape(@project_path)}/}, "")
+          return "No specific guidance provided." if ignored?(rel_hint_file)
+
           content = File.read(hint_file).strip
           max_file_chars = fetch_max_file_chars
-          if content.length > max_file_chars
-            content = content[0, max_file_chars] + " ... [truncated]"
-          end
+          content = "#{content[0, max_file_chars]} ... [truncated]" if content.length > max_file_chars
           content
         else
           "No specific guidance provided."
@@ -226,22 +218,21 @@ module Aura
 
       def usage_from_schema(schema)
         return nil unless schema.is_a?(Hash)
+
         props = schema["properties"] || {}
         required = schema["required"] || []
         sample = {}
         props.each do |k, v|
-          case v["type"]
-          when "string" then sample[k] = "string"
-          when "number", "integer" then sample[k] = 0
-          when "boolean" then sample[k] = false
-          when "object" then sample[k] = {}
-          when "array" then sample[k] = []
-          else sample[k] = nil
-          end
+          sample[k] = case v["type"]
+                      when "string" then "string"
+                      when "number", "integer" then 0
+                      when "boolean" then false
+                      when "object" then {}
+                      when "array" then []
+                      end
         end
         { input: sample, required: required }.to_json
       end
-
 
       def load_config
         @config ||= Aura::ConfigLoader.load(@project_path, safe: true)
@@ -252,16 +243,17 @@ module Aura
       def is_core_tool?(name)
         cfg = load_config
         core = cfg.dig("tool_protocol", "core_tools")
-        core ||= ["read_file", "inspect_tool", "write_file"]
+        core ||= %w[read_file inspect_tool write_file]
         core.include?(name)
       end
 
       def anchors_has_files?
         dir = File.join(@project_path, "anchors")
         return false unless Dir.exist?(dir)
+
         config_exts = [".yaml", ".yml", ".json"]
         Dir.glob(File.join(dir, "*"))
-          .any? { |f| File.file?(f) && config_exts.include?(File.extname(f).downcase) }
+           .any? { |f| File.file?(f) && config_exts.include?(File.extname(f).downcase) }
       end
 
       def append_mcp_tools
@@ -323,9 +315,9 @@ module Aura
         ].join("\n")
 
         @active_tools << {
-          name: info['name'],
-          description: info['description'] || "",
-          input_schema: info['input_schema'] || {},
+          name: info["name"],
+          description: info["description"] || "",
+          input_schema: info["input_schema"] || {},
           permissions: {},
           hint: "Use this tool to get real-time feedback on code changes."
         }
@@ -334,15 +326,15 @@ module Aura
       def fetch_max_file_chars
         cfg = load_config
         limit = cfg.dig("hints", "max_file_chars")
-        limit ? limit.to_i : 10000
+        limit ? limit.to_i : 10_000
       end
 
       def ignored?(rel_path)
         cfg = load_config
         ignore_list = cfg.dig("hints", "ignore_list") || []
         ignore_list.any? do |pattern|
-          File.fnmatch?(pattern, rel_path, File::FNM_PATHNAME | File::FNM_DOTMATCH) || 
-            rel_path == pattern || 
+          File.fnmatch?(pattern, rel_path, File::FNM_PATHNAME | File::FNM_DOTMATCH) ||
+            rel_path == pattern ||
             rel_path.include?(pattern)
         end
       end

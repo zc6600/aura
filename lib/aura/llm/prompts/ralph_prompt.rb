@@ -49,7 +49,6 @@ module Aura
         }
       SYSTEM
 
-
       # --- DEFAULT USER LEVEL INSTRUCTIONS (Overridden if local files exist in workspace) ---
 
       DEFAULT_RALPH_USER_DIRECTIVES = <<~MD
@@ -70,4 +69,3 @@ module Aura
     end
   end
 end
-

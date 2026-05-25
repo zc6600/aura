@@ -20,8 +20,8 @@ module Aura
       # @param max_steps [Integer, nil] Maximum execution steps to prevent infinite loop. If nil, read from config.
       # @return [Result]
       def run(goal, ctx: nil, max_steps: nil)
-        limit_steps   = max_steps || max_steps_from_config
-        ctx           = ctx || observe
+        limit_steps = max_steps || max_steps_from_config
+        ctx ||= observe
         format_errors = 0
         tool_errors   = 0
         steps         = []
@@ -48,7 +48,7 @@ module Aura
           end
 
           # Abnormal termination: truncation, safety filter, or provider error
-          if ["length", "content_filter", "error"].include?(finish_reason)
+          if %w[length content_filter error].include?(finish_reason)
             reason = "Loop terminated due to finish_reason: #{finish_reason}"
             @event_bus.emit(:loop_aborted, reason: reason)
             return Result.new(status: :failed, steps: steps, failure_reason: reason)
@@ -74,9 +74,7 @@ module Aura
 
           # Emit thought if present (mixed response: tool + reasoning)
           thought = plan[:thought] || plan["thought"]
-          if thought && !thought.to_s.empty?
-            @event_bus.emit(:thought, content: thought.to_s)
-          end
+          @event_bus.emit(:thought, content: thought.to_s) if thought && !thought.to_s.empty?
 
           tool_name = (plan[:tool] || plan["tool"]).to_s
           format_errors = 0
@@ -86,8 +84,8 @@ module Aura
           result = execute_tool(plan)
           steps << {
             tool: tool_name,
-            args: (plan[:args] || plan["args"] || {}),
-            summary: (plan[:summary] || plan["summary"]),
+            args: plan[:args] || plan["args"] || {},
+            summary: plan[:summary] || plan["summary"],
             result: result
           }
 
@@ -143,8 +141,8 @@ module Aura
 
       def execute_tool(plan)
         call = {
-          "tool"    => plan[:tool]    || plan["tool"],
-          "args"    => plan[:args]    || plan["args"]    || {},
+          "tool" => plan[:tool]    || plan["tool"],
+          "args" => plan[:args]    || plan["args"] || {},
           "summary" => plan[:summary] || plan["summary"]
         }
         @runner.run_call(call)
@@ -154,13 +152,14 @@ module Aura
       # Handles both plain-text responses and structured hashes.
       def extract_stop_content(plan)
         return "" unless plan.is_a?(Hash)
+
         # Prefer explicit content field, fall back to args["content"] for legacy compatibility
         (plan[:content] || plan["content"] ||
           (plan[:args] || plan["args"] || {})["content"]).to_s
       end
 
       def inject_format_error(ctx)
-        <<~MSG.strip + "\n\n" + ctx.to_s
+        "#{<<~MSG.strip}\n\n#{ctx}"
           [SYSTEM ERROR] Your last response did not contain a valid tool call.
           You MUST respond with a JSON object specifying a tool. Example:
             {"tool": "bash_command", "args": {"command": "ls"}, "summary": "List files"}
@@ -170,7 +169,7 @@ module Aura
         MSG
       end
 
-      def inject_tool_error(ctx, tool_name, result)
+      def inject_tool_error(_ctx, tool_name, result)
         "[TOOL ERROR] Tool '#{tool_name}' was #{result[:status]}: #{result[:advice]}\n" \
         "Please choose a different approach or tool.\n\n#{observe}"
       end

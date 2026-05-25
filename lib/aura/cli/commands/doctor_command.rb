@@ -16,7 +16,7 @@ module Aura
       def doctor
         ruby_ver = RUBY_VERSION
         puts "Ruby: #{ruby_ver}"
-        
+
         # Check Git
         git_ver, _err, status = Open3.capture3("git", "--version")
         if status.success?
@@ -32,12 +32,12 @@ module Aura
         docker_ver, _err, docker_status = Open3.capture3("docker", "--version")
         if docker_status.success?
           puts "Docker: #{docker_ver.strip}"
-          
+
           # Check if Docker daemon is running
-          docker_info_out, _err, info_status = Open3.capture3("docker", "info", "--format", "{{.ServerVersion}}")
+          _, _err, info_status = Open3.capture3("docker", "info", "--format", "{{.ServerVersion}}")
           if info_status.success?
             puts "Docker Daemon: \e[32mRunning\e[0m"
-            
+
             # Check if buildx is available
             buildx_out, _err, buildx_status = Open3.capture3("docker", "buildx", "version")
             if buildx_status.success?
@@ -45,7 +45,7 @@ module Aura
             else
               puts "\e[33m⚠️ Docker Buildx: Not available (optional but recommended)\e[0m"
             end
-            
+
             # Check if sandbox image exists
             sandbox_image = "aura-sandbox"
             images_out, _err, images_status = Open3.capture3("docker", "images", "--format", "{{.Repository}}:{{.Tag}}", sandbox_image)
@@ -87,11 +87,7 @@ module Aura
         load_dotenv_files
 
         workspace_path = find_aura_dir
-        cfg_path = if workspace_path
-                     Aura::PathResolver.resolve_config_path(workspace_path)
-                   else
-                     Aura::PathResolver.resolve_config_path(Aura::GlobalConfig.repo_path)
-                   end
+        cfg_path = Aura::PathResolver.resolve_config_path(workspace_path || Aura::GlobalConfig.repo_path)
 
         provider = nil
         api_key_set = false
@@ -110,7 +106,6 @@ module Aura
                              when "anthropic" then "ANTHROPIC_API_KEY"
                              when "gemini" then "GEMINI_API_KEY"
                              when "deepseek" then "DEEPSEEK_API_KEY"
-                             else nil
                              end
               api_key_set = (env_var_name && ENV[env_var_name] && !ENV[env_var_name].empty?) ||
                             (llm_cfg["api_key"] && !llm_cfg["api_key"].to_s.strip.empty?)

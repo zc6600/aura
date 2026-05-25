@@ -39,11 +39,11 @@ module Aura
 
         # Check for agent override
         args_timeout = args["timeout_seconds"] || args["timeout"]
-        if args_timeout && agent_can_modify
-          resolved_timeout = args_timeout.to_f
-        else
-          resolved_timeout = base_timeout.to_f
-        end
+        resolved_timeout = if args_timeout && agent_can_modify
+                             args_timeout.to_f
+                           else
+                             base_timeout.to_f
+                           end
 
         # Enforce maximum timeout upper bound
         resolved_timeout = [resolved_timeout, max_timeout.to_f].min
@@ -126,10 +126,10 @@ module Aura
         end
 
         payload = args.to_json
-        
+
         # Apply sandboxing if enabled
         cmd, final_args = apply_sandbox(cfg, runtime, logic, payload)
-        
+
         begin
           # Always use stdin for payload transfer to avoid dual-channel confusion
           out, err, status = capture3_with_timeout(cmd, final_args, @project_path, resolved_timeout)
@@ -141,7 +141,7 @@ module Aura
         if status.success?
           obj = parse_json_safe(body)
           obj["status"] = obj["status"] || "ok"
-          
+
           # Run shadow backup to track changes locally
           begin
             require "aura/kernel/shadow_backup"
@@ -150,9 +150,7 @@ module Aura
           end
 
           # Git snapshot if enabled
-          if cfg.dig("security", "git_snapshots")
-            Aura::Kernel::GitState.new(@project_path).snapshot(tool_name, success: true)
-          end
+          Aura::Kernel::GitState.new(@project_path).snapshot(tool_name, success: true) if cfg.dig("security", "git_snapshots")
 
           obj
         else
@@ -161,130 +159,134 @@ module Aura
       end
 
       private
-        def capture3_with_timeout(cmd, stdin_data, chdir, timeout_val)
-          pid = nil
-          stdout_data = ""
-          stderr_data = ""
-          status = nil
-          
-          begin
-            require "timeout"
-            Timeout.timeout(timeout_val + 2) do
-              Open3.popen3(*cmd, chdir: chdir) do |stdin, stdout, stderr, wait_thr|
-                pid = wait_thr.pid
-                
-                # Write stdin in a separate thread to prevent pipe deadlock
-                write_thread = Thread.new do
-                  begin
-                    stdin.write(stdin_data) if stdin_data
-                    stdin.close
-                  rescue IOError, StandardError
-                  end
-                end
-                
-                # Read stdout and stderr in separate threads
-                stdout_thread = Thread.new do
-                  begin
-                    stdout.read
-                  rescue IOError, StandardError
-                    ""
-                  end
-                end
-                stderr_thread = Thread.new do
-                  begin
-                    stderr.read
-                  rescue IOError, StandardError
-                    ""
-                  end
-                end
-                
-                begin
-                  unless wait_thr.join(timeout_val)
-                    raise Timeout::Error, "Tool execution timed out after #{timeout_val} seconds."
-                  end
-                  stdout_data = stdout_thread.value
-                  stderr_data = stderr_thread.value
-                  status = wait_thr.value
-                ensure
-                  stdout_thread.kill rescue nil
-                  stderr_thread.kill rescue nil
-                  write_thread.kill rescue nil
-                end
+
+      def capture3_with_timeout(cmd, stdin_data, chdir, timeout_val)
+        pid = nil
+        stdout_data = ""
+        stderr_data = ""
+        status = nil
+
+        begin
+          require "timeout"
+          Timeout.timeout(timeout_val + 2) do
+            Open3.popen3(*cmd, chdir: chdir) do |stdin, stdout, stderr, wait_thr|
+              pid = wait_thr.pid
+
+              # Write stdin in a separate thread to prevent pipe deadlock
+              write_thread = Thread.new do
+                stdin.write(stdin_data) if stdin_data
+                stdin.close
+              rescue IOError, StandardError
               end
-            end
-            [stdout_data, stderr_data, status]
-          rescue Timeout::Error
-            if pid
+
+              # Read stdout and stderr in separate threads
+              stdout_thread = Thread.new do
+                stdout.read
+              rescue IOError, StandardError
+                ""
+              end
+              stderr_thread = Thread.new do
+                stderr.read
+              rescue IOError, StandardError
+                ""
+              end
+
               begin
-                Process.kill("TERM", pid)
-                Timeout.timeout(2) { Process.wait(pid) }
-              rescue StandardError
+                raise Timeout::Error, "Tool execution timed out after #{timeout_val} seconds." unless wait_thr.join(timeout_val)
+
+                stdout_data = stdout_thread.value
+                stderr_data = stderr_thread.value
+                status = wait_thr.value
+              ensure
                 begin
-                  Process.kill("KILL", pid)
-                  Process.wait(pid)
+                  stdout_thread.kill
                 rescue StandardError
+                  nil
+                end
+                begin
+                  stderr_thread.kill
+                rescue StandardError
+                  nil
+                end
+                begin
+                  write_thread.kill
+                rescue StandardError
+                  nil
                 end
               end
             end
-            raise
           end
-        end
-
-        def read_manifest(dir)
-          path = File.join(dir, "manifest.json")
-          begin
-            File.exist?(path) ? JSON.parse(File.read(path)) : {}
-          rescue StandardError
-            {}
-          end
-        end
-
-        def resolve_runtime(key)
-          key ||= "python"
-          cfg = load_full_config
-          resolved = cfg.dig("tool_protocol", "runtimes", key.to_s) || key.to_s
-          resolved = "python" if resolved == "python3"
-          resolved
-        end
-
-        def parse_json_safe(s)
-          begin
-            JSON.parse(s)
-          rescue StandardError
-            { output: s }
-          end
-        end
-
-        def load_full_config
-          Aura::ConfigLoader.load(@env_path, safe: true)
-        end
-
-        def apply_sandbox(cfg, runtime, logic, payload)
-          sandbox = cfg.dig("security", "sandbox")
-          return [[runtime, logic], payload] unless sandbox && sandbox["enabled"]
-
-          case sandbox["provider"]
-          when "docker"
-            image = sandbox["image"] || "aura-sandbox:latest"
-            # In docker mode, we mount the project path and run the tool
-            # Note: This is a simplified implementation
-            [
-              ["docker", "run", "--rm", "-i", "-v", "#{@project_path}:/app", "-w", "/app", image, runtime, logic],
-              payload
-            ]
-          when "local"
-            # Local restricted execution (e.g. via a wrapper or lower-privilege user)
-            # For now, we use a placeholder wrapper if it exists
-            wrapper = File.join(@env_path, "bin", "sandbox-wrapper")
-            if File.exist?(wrapper)
-              [[wrapper, runtime, logic], payload]
-            else
-              [[runtime, logic], payload]
+          [stdout_data, stderr_data, status]
+        rescue Timeout::Error
+          if pid
+            begin
+              Process.kill("TERM", pid)
+              Timeout.timeout(2) { Process.wait(pid) }
+            rescue StandardError
+              begin
+                Process.kill("KILL", pid)
+                Process.wait(pid)
+              rescue StandardError
+              end
             end
+          end
+          raise
+        end
+      end
+
+      def read_manifest(dir)
+        path = File.join(dir, "manifest.json")
+        begin
+          File.exist?(path) ? JSON.parse(File.read(path)) : {}
+        rescue StandardError
+          {}
+        end
+      end
+
+      def resolve_runtime(key)
+        key ||= "python"
+        cfg = load_full_config
+        resolved = cfg.dig("tool_protocol", "runtimes", key.to_s) || key.to_s
+        resolved = "python" if resolved == "python3"
+        resolved
+      end
+
+      def parse_json_safe(s)
+        JSON.parse(s)
+      rescue StandardError
+        { output: s }
+      end
+
+      def load_full_config
+        Aura::ConfigLoader.load(@env_path, safe: true)
+      end
+
+      def apply_sandbox(cfg, runtime, logic, payload)
+        sandbox = cfg.dig("security", "sandbox")
+        return [[runtime, logic], payload] unless sandbox && sandbox["enabled"]
+
+        case sandbox["provider"]
+        when "docker"
+          image = sandbox["image"] || "aura-sandbox:latest"
+          # In docker mode, we mount the project path and run the tool
+          # Note: This is a simplified implementation
+          [
+            ["docker", "run", "--rm", "-i", "-v", "#{@project_path}:/app", "-w", "/app", image, runtime, logic],
+            payload
+          ]
+        when "local"
+          # Local restricted execution (e.g. via a wrapper or lower-privilege user)
+          # For now, we use a placeholder wrapper if it exists
+          wrapper = File.join(@env_path, "bin", "sandbox-wrapper")
+          if File.exist?(wrapper)
+            [[wrapper, runtime, logic], payload]
           else
             [[runtime, logic], payload]
           end
+        else
+          [[runtime, logic], payload]
         end
+      end
     end
   end
 end

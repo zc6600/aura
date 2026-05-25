@@ -30,12 +30,12 @@ module Aura
                      end
                      Aura::PathResolver.resolve_config_path(aura_dir)
                    end
-        
+
         cfg_dir = File.dirname(cfg_path)
         FileUtils.mkdir_p(cfg_dir) unless File.directory?(cfg_dir)
-        
+
         hash = File.exist?(cfg_path) ? (YAML.load_file(cfg_path) || {}) : {}
-        
+
         if key.nil?
           # List all config
           puts YAML.dump(hash)
@@ -66,6 +66,7 @@ module Aura
         curr = hash
         parts.each do |p|
           return nil unless curr.is_a?(Hash)
+
           curr = curr[p] || curr[p.to_s]
         end
         curr
@@ -78,15 +79,16 @@ module Aura
           curr[p] = {} unless curr[p].is_a?(Hash)
           curr = curr[p]
         end
-        
+
         # Parse value type
-        parsed_val = if value == "true"
+        parsed_val = case value
+                     when "true"
                        true
-                     elsif value == "false"
+                     when "false"
                        false
-                     elsif value =~ /\A\d+\z/
+                     when /\A\d+\z/
                        value.to_i
-                     elsif value =~ /\A\d*\.\d+\z/
+                     when /\A\d*\.\d+\z/
                        value.to_f
                      else
                        value

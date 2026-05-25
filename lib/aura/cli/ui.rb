@@ -6,33 +6,31 @@ module Aura
       # Prompts the user with a y/N question and returns true if they answer yes.
       # Automatically falls back to default in non-interactive or test environments.
       def self.confirm?(question, default = false)
-        begin
-          tty_in = if File.exist?("/dev/tty") && $stdin.tty?
-                     File.open("/dev/tty", "r")
-                   else
-                     $stdin
-                   end
-          tty_out = if File.exist?("/dev/tty") && $stdin.tty?
-                      File.open("/dev/tty", "w")
-                    else
-                      $stdout
-                    end
+        tty_in = if File.exist?("/dev/tty") && $stdin.tty?
+                   File.open("/dev/tty", "r")
+                 else
+                   $stdin
+                 end
+        tty_out = if File.exist?("/dev/tty") && $stdin.tty?
+                    File.open("/dev/tty", "w")
+                  else
+                    $stdout
+                  end
 
-          tty_out.print "#{question} (y/N): "
-          tty_out.flush
-          
-          res_gets = tty_in.gets
-          return default if res_gets.nil?
+        tty_out.print "#{question} (y/N): "
+        tty_out.flush
 
-          response = res_gets.strip.downcase
+        res_gets = tty_in.gets
+        return default if res_gets.nil?
 
-          tty_in.close if tty_in != $stdin
-          tty_out.close if tty_out != $stdout
+        response = res_gets.strip.downcase
 
-          response == "y" || response == "yes"
-        rescue StandardError
-          default
-        end
+        tty_in.close if tty_in != $stdin
+        tty_out.close if tty_out != $stdout
+
+        %w[y yes].include?(response)
+      rescue StandardError
+        default
       end
 
       # Prompts for text input from the console

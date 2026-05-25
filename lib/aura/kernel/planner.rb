@@ -77,25 +77,26 @@ module Aura
       end
 
       private
-        def validate_parsed_plan(parsed, raw_body)
-          if parsed[:type] == "tool_call"
-            if parsed[:tool].to_s.strip.empty?
-              puts "\e[33m⚠️ Warning: Parsed tool call missing tool name\e[0m"
-              puts "   Raw: #{raw_body[0, 200]}..."
-            end
-            if !parsed[:args].is_a?(Hash)
-              puts "\e[33m⚠️ Warning: Tool args is not a Hash: #{parsed[:args].class}\e[0m"
-              puts "   Raw: #{raw_body[0, 200]}..."
-            end
-          elsif parsed[:type] == "text"
-            puts "\e[33m⚠️ Warning: LLM returned text instead of JSON\e[0m"
-            puts "   Raw: #{raw_body[0, 300]}..."
+
+      def validate_parsed_plan(parsed, raw_body)
+        if parsed[:type] == "tool_call"
+          if parsed[:tool].to_s.strip.empty?
+            puts "\e[33m⚠️ Warning: Parsed tool call missing tool name\e[0m"
+            puts "   Raw: #{raw_body[0, 200]}..."
           end
+          unless parsed[:args].is_a?(Hash)
+            puts "\e[33m⚠️ Warning: Tool args is not a Hash: #{parsed[:args].class}\e[0m"
+            puts "   Raw: #{raw_body[0, 200]}..."
+          end
+        elsif parsed[:type] == "text"
+          puts "\e[33m⚠️ Warning: LLM returned text instead of JSON\e[0m"
+          puts "   Raw: #{raw_body[0, 300]}..."
         end
-        
-        def load_config
-          Aura::ConfigLoader.load(@env_path, safe: true)
-        end
+      end
+
+      def load_config
+        Aura::ConfigLoader.load(@env_path, safe: true)
+      end
     end
   end
 end

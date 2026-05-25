@@ -14,9 +14,9 @@ module Aura
       end
 
       def check_availability
-        unless File.directory?(File.join(self.class.source_root, tool_name))
-          raise Thor::Error, "Tool '#{tool_name}' not found in library. Available tools: #{available_tools.join(', ')}"
-        end
+        return if File.directory?(File.join(self.class.source_root, tool_name))
+
+        raise Thor::Error, "Tool '#{tool_name}' not found in library. Available tools: #{available_tools.join(', ')}"
       end
 
       def copy_tool

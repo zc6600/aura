@@ -45,7 +45,7 @@ module Aura
         return new unless File.exist?(path)
 
         config_data = YAML.safe_load_file(path) || {}
-        memory_config = config_data.dig("state_management") || {}
+        memory_config = config_data["state_management"] || {}
         new(memory_config)
       end
 

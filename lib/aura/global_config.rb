@@ -42,16 +42,16 @@ module Aura
             require "yaml"
             existing_cfg = YAML.load_file(target_config_file) || {}
             template_cfg = YAML.load_file(repo_config_file) || {}
-            
+
             # Deep-merge existing_cfg (user choices) on top of template_cfg
-            merged_cfg = template_cfg.merge(existing_cfg) do |key, oldval, newval|
+            merged_cfg = template_cfg.merge(existing_cfg) do |_key, oldval, newval|
               if oldval.is_a?(Hash) && newval.is_a?(Hash)
                 oldval.merge(newval)
               else
                 newval
               end
             end
-            
+
             File.write(target_config_file, YAML.dump(merged_cfg))
             FileUtils.rm(repo_config_file)
           rescue StandardError
@@ -73,21 +73,19 @@ module Aura
 
       # Copy default templates from the gem directory
       gem_templates = File.expand_path("generators/aura/app/templates", __dir__)
-      if File.directory?(gem_templates)
-        FileUtils.cp_r(File.join(gem_templates, "."), repo)
-      end
+      FileUtils.cp_r(File.join(gem_templates, "."), repo) if File.directory?(gem_templates)
 
       # Initialize global repo as a Git repository so local .aura folders can remote clone/pull/push
       git_run(repo, "init")
       git_run(repo, "config", "user.name", "Aura CLI")
       git_run(repo, "config", "user.email", "support@aura-os.ai")
       git_run(repo, "config", "receive.denyCurrentBranch", "updateInstead")
-      
+
       # Check if git version supports checkout -b
       git_run(repo, "checkout", "-b", "main")
       git_run(repo, "add", ".")
       git_run(repo, "commit", "-m", "Initial template commit")
-      
+
       # Ensure branch is explicitly main
       git_run(repo, "branch", "-M", "main")
     end

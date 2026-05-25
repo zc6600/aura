@@ -15,11 +15,11 @@ module Aura
       if path.nil? || path.to_s.strip.empty?
         return options[:required] ? raise(ConfigError, "Config path could not be resolved") : {}
       end
-      
+
       unless File.exist?(path)
         return options[:required] ? raise(FileNotFoundError, "Config file not found: #{path}") : {}
       end
-      
+
       if options[:safe]
         Aura.safe_load_yaml(path)
       else
@@ -38,14 +38,13 @@ module Aura
     end
 
     def self.load_with_fallback(primary_path, fallback_path = nil)
-      begin
-        return load(primary_path, safe: true)
-      rescue FileNotFoundError
-        return {} if fallback_path.nil?
-        load(fallback_path, safe: true)
-      rescue ConfigError
-        {}
-      end
+      load(primary_path, safe: true)
+    rescue FileNotFoundError
+      return {} if fallback_path.nil?
+
+      load(fallback_path, safe: true)
+    rescue ConfigError
+      {}
     end
 
     module ClassMethods

@@ -16,17 +16,13 @@ module Aura
           fact = args["fact"]
           category = args["category"] || "general"
 
-          unless fact
-            return { content: "Error: No fact provided.", is_error: true }
-          end
+          return { content: "Error: No fact provided.", is_error: true } unless fact
 
           knowledge = load_knowledge
           knowledge[category] ||= []
-          
+
           # Avoid duplicates
-          unless knowledge[category].include?(fact)
-            knowledge[category] << fact
-          end
+          knowledge[category] << fact unless knowledge[category].include?(fact)
 
           save_knowledge(knowledge)
           { content: "Fact remembered in category '#{category}': #{fact}", is_error: false }
@@ -36,6 +32,7 @@ module Aura
 
         def load_knowledge
           return {} unless File.exist?(@knowledge_file)
+
           begin
             JSON.parse(File.read(@knowledge_file))
           rescue StandardError

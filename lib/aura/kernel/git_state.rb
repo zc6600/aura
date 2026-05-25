@@ -17,12 +17,12 @@ module Aura
         return unless success
 
         message = "[Aura] Tool execution: #{tool_name}"
-        
+
         # Add all changes (except state/ which should be gitignored)
         Open3.capture3("git", "add", ".", chdir: @project_path)
-        
+
         # Check if there are changes to commit
-        out, _err, status = Open3.capture3("git", "status", "--porcelain", chdir: @project_path)
+        out, _err, = Open3.capture3("git", "status", "--porcelain", chdir: @project_path)
         return if out.to_s.strip.empty?
 
         # Commit

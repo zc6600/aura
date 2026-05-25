@@ -15,19 +15,15 @@ module Aura
 
       def emit(event_type, **payload)
         @listeners[event_type].each do |listener|
-          begin
-            listener.call(payload)
-          rescue => e
-            $stderr.puts "[EventBus Error] Exception in listener for #{event_type}: #{e.message}"
-          end
+          listener.call(payload)
+        rescue StandardError => e
+          warn "[EventBus Error] Exception in listener for #{event_type}: #{e.message}"
         end
         # Also support wildcard listeners
         @listeners[:*].each do |listener|
-          begin
-            listener.call(event_type, payload)
-          rescue => e
-            $stderr.puts "[EventBus Error] Exception in wildcard listener for #{event_type}: #{e.message}"
-          end
+          listener.call(event_type, payload)
+        rescue StandardError => e
+          warn "[EventBus Error] Exception in wildcard listener for #{event_type}: #{e.message}"
         end
       end
     end

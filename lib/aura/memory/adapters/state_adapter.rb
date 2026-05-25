@@ -69,9 +69,9 @@ module Aura
           @state.get_active_variables
         end
 
-        def transaction
+        def transaction(&block)
           db = @state.instance_variable_get(:@db)
-          db.transaction { yield }
+          db.transaction(&block)
         end
       end
     end

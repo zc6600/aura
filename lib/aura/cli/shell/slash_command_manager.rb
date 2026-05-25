@@ -50,18 +50,18 @@ module Aura
 
             puts "Aura Conversation Sessions:"
             puts "-" * 60
-            
+
             if sessions.empty?
               puts "  No sessions found."
               puts "  Create one: aura session create <name>"
             else
               sessions.each do |s|
-                active_star = (s[:name] == current) ? "* " : "  "
+                active_star = s[:name] == current ? "* " : "  "
                 events = s[:event_count] || 0
                 puts "#{active_star}#{s[:name].to_s.ljust(30)} (#{events} events)"
               end
             end
-            
+
             puts "-" * 60
             puts "Usage: /session <session_name>  - Switch session"
             puts "       /session new             - Start a new timestamped session"
@@ -69,11 +69,9 @@ module Aura
             name = args.strip
             if name.downcase == "new"
               name = "session_#{Time.now.strftime('%Y%m%d_%H%M%S')}"
-              
+
               # Create the session if it doesn't exist
-              unless session_mgr.exists?(name)
-                session_mgr.create(name)
-              end
+              session_mgr.create(name) unless session_mgr.exists?(name)
             end
 
             unless session_mgr.exists?(name)
@@ -84,7 +82,7 @@ module Aura
 
             session_mgr.activate(name)
             puts "🔄 Switching conversation session to '#{name}'..."
-            
+
             if @on_reload
               @on_reload.call
               puts "\e[32mSuccessfully switched and hot-loaded session '#{name}'!\e[0m"
@@ -138,7 +136,7 @@ module Aura
           data[section] ||= {}
           data[section][key] = value
           File.write(cfg_path, YAML.dump(data))
-          # Reload config in the caller context if needed via callback, 
+          # Reload config in the caller context if needed via callback,
           # but here we rely on the next call to @config_loader.call to pick it up.
         end
       end

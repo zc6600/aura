@@ -10,6 +10,7 @@ module Aura
     # Otherwise, workspace_path itself is the environment root.
     def self.environment_path(project_path)
       return nil if project_path.nil?
+
       expanded = File.expand_path(project_path)
       hidden_dir = File.join(expanded, ".aura")
       if File.directory?(hidden_dir)
@@ -22,6 +23,7 @@ module Aura
     # Find the workspace root path (parent of .aura if it exists).
     def self.workspace_path(project_path)
       return nil if project_path.nil?
+
       expanded = File.expand_path(project_path)
       if File.basename(expanded) == ".aura"
         File.dirname(expanded)
@@ -37,19 +39,21 @@ module Aura
       dir = File.expand_path(start_dir)
       loop do
         hidden = File.join(dir, ".aura")
-        if File.directory?(hidden) && hidden != File.expand_path("~/.aura")
-          return hidden
-        end
+        return hidden if File.directory?(hidden) && hidden != File.expand_path("~/.aura")
+
         parent = File.dirname(dir)
         break if parent == dir
+
         dir = parent
       end
       nil
     end
+
     # Resolve the config.yml path inside an environment path.
     # Prioritizes env_path/config/config.yml, falling back to env_path/config.yml.
     def self.resolve_config_path(env_path)
       return nil if env_path.nil?
+
       subfolder_cfg = File.join(env_path, "config", "config.yml")
       if File.exist?(subfolder_cfg)
         subfolder_cfg
@@ -64,7 +68,7 @@ module Aura
     def self.session_db_path(project_path, session_name = nil)
       env_path = environment_path(project_path || ".")
       state_dir = File.join(env_path, "state")
-      
+
       env_db = ENV["AURA_STATE_DB_PATH"]
       return File.expand_path(env_db, env_path) if env_db && !env_db.to_s.strip.empty?
 
@@ -72,12 +76,20 @@ module Aura
       if resolved_session.nil? || resolved_session.to_s.strip.empty?
         active_txt = File.join(state_dir, "active_session.txt")
         resolved_session = if File.exist?(active_txt)
-          File.read(active_txt).strip rescue "default"
-        else
-          FileUtils.mkdir_p(state_dir)
-          File.write(active_txt, "default") rescue nil
-          "default"
-        end
+                             begin
+                               File.read(active_txt).strip
+                             rescue StandardError
+                               "default"
+                             end
+                           else
+                             FileUtils.mkdir_p(state_dir)
+                             begin
+                               File.write(active_txt, "default")
+                             rescue StandardError
+                               nil
+                             end
+                             "default"
+                           end
       end
       resolved_session = "default" if resolved_session.to_s.strip.empty?
 
@@ -88,8 +100,8 @@ module Aura
         FileUtils.mkdir_p(File.dirname(default_db))
         begin
           FileUtils.mv(legacy_db, default_db)
-        rescue => e
-          $stderr.puts "[PathResolver] Migration failed: #{e.class}: #{e.message}"
+        rescue StandardError => e
+          warn "[PathResolver] Migration failed: #{e.class}: #{e.message}"
         end
       end
 

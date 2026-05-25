@@ -24,7 +24,7 @@ module Aura
         end
 
         def on_waiting(elapsed)
-          print "\r⏳ Waiting for response... (#{format("%.1fs", elapsed)})"
+          print "\r⏳ Waiting for response... (#{format('%.1fs', elapsed)})"
           $stdout.flush
         end
 
@@ -35,9 +35,9 @@ module Aura
         def on_tool_start(tool, summary, args)
           puts "\n>> 🔧 Tool: #{tool}"
           puts "   🧾 Summary: #{summary}" if summary && !summary.to_s.strip.empty?
-          if @verbose
-            puts "   🧩 Args: #{format_args(args)}" unless args.nil? || args.empty?
-          end
+          return unless @verbose
+
+          puts "   🧩 Args: #{format_args(args)}" unless args.nil? || args.empty?
         end
 
         def on_tool_executing
@@ -47,13 +47,13 @@ module Aura
         def on_tool_result(result)
           status = result.is_a?(Hash) ? (result["status"] || result[:status]) : nil
           status_color = case status.to_s
-          when "ok", "success" then "\e[32m"  # Green
-          when "failed", "blocked" then "\e[31m"  # Red
-          else "\e[33m"  # Yellow
-          end
-          
+                         when "ok", "success" then "\e[32m" # Green
+                         when "failed", "blocked" then "\e[31m" # Red
+                         else "\e[33m" # Yellow
+                         end
+
           puts "   #{status_color}✓ Status: #{status}\e[0m"
-          
+
           # Extract and display output
           output = nil
           if result.is_a?(Hash)
@@ -62,27 +62,25 @@ module Aura
                      result["stdout"] || result[:stdout] ||
                      result["message"] || result[:message]
           end
-          
+
           if output && !output.to_s.strip.empty?
             output_str = output.to_s.strip
             # Truncate long outputs
-            if output_str.length > 200
-              output_str = output_str[0..197] + "..."
-            end
+            output_str = "#{output_str[0..197]}..." if output_str.length > 200
             # Show first line or truncated output
             first_line = output_str.lines.first&.strip || output_str
             puts "   📄 #{first_line}" if first_line && !first_line.empty?
           end
-          
+
           # Display modified files if present
-          if result.is_a?(Hash)
-            modified = result["modified_files"] || result[:modified_files]
-            if modified && !modified.empty?
-              puts "   📝 Modified files:"
-              modified.each do |file|
-                puts "      • #{file}"
-              end
-            end
+          return unless result.is_a?(Hash)
+
+          modified = result["modified_files"] || result[:modified_files]
+          return unless modified && !modified.empty?
+
+          puts "   📝 Modified files:"
+          modified.each do |file|
+            puts "      • #{file}"
           end
         end
 
@@ -92,7 +90,7 @@ module Aura
           else
             puts "\n>> 💬 Response:"
           end
-          puts thought.to_s
+          puts thought
         end
 
         def on_error(message)
@@ -100,7 +98,7 @@ module Aura
         end
 
         def on_warning(message)
-           puts "\n>> ⚠️  #{message}"
+          puts "\n>> ⚠️  #{message}"
         end
 
         def ask_confirmation(message)
@@ -113,6 +111,7 @@ module Aura
 
         def format_duration(seconds)
           return "0s" unless seconds
+
           if seconds < 60
             format("%.1fs", seconds)
           else
@@ -122,13 +121,14 @@ module Aura
 
         def format_args(args)
           return "" if args.nil?
+
           json = JSON.generate(args)
           if json.length > 100
-            json[0..97] + "..."
+            "#{json[0..97]}..."
           else
             json
           end
-        rescue
+        rescue StandardError
           args.to_s
         end
       end

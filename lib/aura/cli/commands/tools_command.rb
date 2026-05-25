@@ -14,38 +14,42 @@ module Aura
       method_option :pretty, type: :boolean, aliases: "-p", default: false, desc: "Pretty-print JSON output"
       method_option :human,  type: :boolean, aliases: "-H", default: false, desc: "Human-readable summary"
 
-        def tool_inspect(name)
-          py = runtime_python
-          begin
-            resolved_path = Aura.resolve_project_path!(nil)
-          rescue SystemExit
-            exit 1
-          end
-          env_path = Aura::PathResolver.environment_path(resolved_path)
-          logic = File.join(env_path, "tools", "inspect_tool", "logic.py")
-          unless File.exist?(logic)
-            puts "inspect_tool not found under #{logic}"
-            return
-          end
-          payload = { "tool_name" => name }.to_json
-          out, err, status = Open3.capture3(py, logic, payload)
-          text = status.success? ? out : (err.empty? ? out : err)
-          begin
-            data = JSON.parse(text)
-            if options[:human]
-              puts human_tool_inspect(data, name)
-            elsif options[:pretty]
-              puts JSON.pretty_generate(data)
-            else
-              puts text
-            end
-          rescue JSON::ParserError
+      def tool_inspect(name)
+        py = runtime_python
+        begin
+          resolved_path = Aura.resolve_project_path!(nil)
+        rescue SystemExit
+          exit 1
+        end
+        env_path = Aura::PathResolver.environment_path(resolved_path)
+        logic = File.join(env_path, "tools", "inspect_tool", "logic.py")
+        unless File.exist?(logic)
+          puts "inspect_tool not found under #{logic}"
+          return
+        end
+        payload = { "tool_name" => name }.to_json
+        out, err, status = Open3.capture3(py, logic, payload)
+        text = if status.success?
+                 out
+               else
+                 (err.empty? ? out : err)
+               end
+        begin
+          data = JSON.parse(text)
+          if options[:human]
+            puts human_tool_inspect(data, name)
+          elsif options[:pretty]
+            puts JSON.pretty_generate(data)
+          else
             puts text
           end
+        rescue JSON::ParserError
+          puts text
         end
+      end
 
       desc "list [PROJECT_PATH]", "List all tools and their status"
-      method_option :human,  type: :boolean, aliases: "-H", default: false, desc: "Human-readable output"
+      method_option :human, type: :boolean, aliases: "-H", default: false, desc: "Human-readable output"
       def list(project_path = nil)
         require "aura/kernel/tool_validator"
         require "aura/kernel/registry"
@@ -62,7 +66,7 @@ module Aura
           { "tool" => name, "state" => st[:state], "reason" => st[:reason], "verified" => st[:verified] }
         end
         if options[:human]
-          puts items.map { |i| "#{i["tool"]}: #{i["state"]}#{i["reason"] ? " (#{i["reason"]})" : ""}" }.join("\n")
+          puts items.map { |i| "#{i['tool']}: #{i['state']}#{i['reason'] ? " (#{i['reason']})" : ''}" }.join("\n")
         else
           puts JSON.pretty_generate(items)
         end
@@ -105,7 +109,7 @@ module Aura
         begin
           if is_git
             puts "Cloning repository: #{url_or_path}..."
-            out, err, status = Open3.capture3("git", "clone", "--depth", "1", url_or_path, tmp_dir)
+            _, err, status = Open3.capture3("git", "clone", "--depth", "1", url_or_path, tmp_dir)
             unless status.success?
               puts "\e[31m⛔️ Error: Failed to clone repository: #{err}\e[0m"
               exit 1
@@ -141,7 +145,7 @@ module Aura
               tool_name = manifest_data["name"]
             rescue StandardError
             end
-            tool_name = File.basename(src_dir).downcase.gsub(/[^a-z0-9_\-]/, "") if tool_name.nil? || tool_name.empty?
+            tool_name = File.basename(src_dir).downcase.gsub(/[^a-z0-9_-]/, "") if tool_name.nil? || tool_name.empty?
           end
 
           dest_dir = File.join(resolved_path, "tools", tool_name)
@@ -186,29 +190,23 @@ module Aura
           lines << "Tool: #{tname}"
           st = data["status"]
           lines << "Status: #{st}" if st
-          if data["error"]
-            lines << "Error: #{data["error"]}"
-          end
-          if data["code"]
-            lines << "Code: #{data["code"]}"
-          end
+          lines << "Error: #{data['error']}" if data["error"]
+          lines << "Code: #{data['code']}" if data["code"]
           man = data["manifest"] || {}
-          lines << "Name: #{man["name"]}" if man["name"]
-          lines << "Description: #{man["description"]}" if man["description"]
+          lines << "Name: #{man['name']}" if man["name"]
+          lines << "Description: #{man['description']}" if man["description"]
           runtime = man["runtime"]
           lines << "Runtime: #{runtime}" if runtime
-          if man["permissions"]
-            lines << "Permissions: #{man["permissions"].to_json}"
-          end
+          lines << "Permissions: #{man['permissions'].to_json}" if man["permissions"]
           files = data["files"] || []
-          lines << "Files: #{files.join(", ")}" unless files.empty?
-          hint = data["hint"] || (data["magic_hints"]&.first)
+          lines << "Files: #{files.join(', ')}" unless files.empty?
+          hint = data["hint"] || data["magic_hints"]&.first
           lines << "Hint: #{hint}" if hint
           if (schema = man["input_schema"]).is_a?(Hash)
             props = schema["properties"] || {}
             req   = schema["required"] || []
-            lines << "Input keys: #{props.keys.join(", ")}" unless props.empty?
-            lines << "Required: #{req.join(", ")}" unless req.empty?
+            lines << "Input keys: #{props.keys.join(', ')}" unless props.empty?
+            lines << "Required: #{req.join(', ')}" unless req.empty?
           end
           if (tree = data["tree"]).is_a?(Array) && !tree.empty?
             lines << "Tree:"
@@ -217,20 +215,20 @@ module Aura
           req_files = required_files_from_config
           if req_files.any? && files.any?
             missing = req_files - files
-            lines << "Missing: #{missing.join(", ")}" if missing.any?
+            lines << "Missing: #{missing.join(', ')}" if missing.any?
           end
           code = data["code"]
           if st && st != "ok"
-            suggestion = nil
-            if code == "not_found"
-              suggestion = "Suggestion: 创建 tools/#{tname} 或运行 ./bin/aura tools add #{tname}"
-            elsif code == "execution_error"
-              suggestion = "Suggestion: 修复逻辑或清理 __pycache__ 后重试"
-            elsif code
-              suggestion = "Suggestion: 根据错误码 #{code} 修复配置或权限"
-            else
-              suggestion = "Suggestion: 检查 manifest.json 与 logic.py 是否完整"
-            end
+            nil
+            suggestion = if code == "not_found"
+                           "Suggestion: 创建 tools/#{tname} 或运行 ./bin/aura tools add #{tname}"
+                         elsif code == "execution_error"
+                           "Suggestion: 修复逻辑或清理 __pycache__ 后重试"
+                         elsif code
+                           "Suggestion: 根据错误码 #{code} 修复配置或权限"
+                         else
+                           "Suggestion: 检查 manifest.json 与 logic.py 是否完整"
+                         end
             lines << suggestion if suggestion
           end
           lines.join("\n")

@@ -58,7 +58,7 @@ module Aura
             args << since.to_i
           end
 
-          query << " WHERE #{conditions.join(" AND ")}" unless conditions.empty?
+          query << " WHERE #{conditions.join(' AND ')}" unless conditions.empty?
           query << " ORDER BY id DESC"
           if offset
             query << " LIMIT ? OFFSET ?"
@@ -147,9 +147,9 @@ module Aura
           vars
         end
 
-        def transaction
+        def transaction(&block)
           @db_lock.synchronize do
-            @db.transaction { yield }
+            @db.transaction(&block)
           end
         end
 
@@ -165,7 +165,7 @@ module Aura
             # Move events to undone_events
             @db.execute("INSERT INTO undone_events SELECT * FROM events WHERE id >= ?", [last_user_id])
             @db.execute("DELETE FROM events WHERE id >= ?", [last_user_id])
-            
+
             # Move summaries to undone_summaries
             @db.execute("INSERT INTO undone_summaries SELECT * FROM summaries WHERE source_event_id >= ?", [last_user_id])
             @db.execute("DELETE FROM summaries WHERE source_event_id >= ?", [last_user_id])
@@ -186,14 +186,15 @@ module Aura
               # Restore a single turn (range [next_user_id, following_user_id))
               @db.execute("INSERT INTO events SELECT * FROM undone_events WHERE id >= ? AND id < ?", [next_user_id, following_user_id])
               @db.execute("DELETE FROM undone_events WHERE id >= ? AND id < ?", [next_user_id, following_user_id])
-              
-              @db.execute("INSERT INTO summaries SELECT * FROM undone_summaries WHERE source_event_id >= ? AND source_event_id < ?", [next_user_id, following_user_id])
+
+              @db.execute("INSERT INTO summaries SELECT * FROM undone_summaries WHERE source_event_id >= ? AND source_event_id < ?",
+                          [next_user_id, following_user_id])
               @db.execute("DELETE FROM undone_summaries WHERE source_event_id >= ? AND source_event_id < ?", [next_user_id, following_user_id])
             else
               # Restore everything from next_user_id onwards (tail)
               @db.execute("INSERT INTO events SELECT * FROM undone_events WHERE id >= ?", [next_user_id])
               @db.execute("DELETE FROM undone_events WHERE id >= ?", [next_user_id])
-              
+
               @db.execute("INSERT INTO summaries SELECT * FROM undone_summaries WHERE source_event_id >= ?", [next_user_id])
               @db.execute("DELETE FROM undone_summaries WHERE source_event_id >= ?", [next_user_id])
             end

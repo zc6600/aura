@@ -5,7 +5,7 @@ require "json"
 module Aura
   module Context
     # StateRecorder: Writes events to the state database
-    # 
+    #
     # This is the write-side counterpart to StateProvider (read-side).
     # It provides a structured interface for persisting events from different phases:
     # - user: User input messages
@@ -38,7 +38,7 @@ module Aura
       # @return [Integer] Event ID
       def record_plan(plan)
         return nil unless plan.is_a?(Hash)
-        
+
         # Extract and normalize plan components
         plan_data = {
           phase: "plan",
@@ -47,14 +47,15 @@ module Aura
           summary: plan[:summary] || plan["summary"],
           thought: plan[:thought] || plan["thought"]
         }
-        
+
         # Preserve any additional fields from the original plan
         plan.each do |key, value|
           key_str = key.to_s
           next if %w[tool args summary thought type].include?(key_str)
+
           plan_data[key_str] = value
         end
-        
+
         @state.record_event(plan_data)
       end
 
@@ -88,8 +89,6 @@ module Aura
         @state.record_event(payload)
       end
 
-
-
       # Record a custom event with arbitrary phase and payload
       # @param phase [String] The event phase
       # @param payload [Hash] Additional event data
@@ -105,26 +104,26 @@ module Aura
         event_ids = []
         events.each do |event|
           type = event[:type] || event["type"]
-          case type
-          when "user"
-            event_ids << record_user(event[:content] || event["content"], call_seq: event[:call_seq])
-          when "plan"
-            event_ids << record_plan(event[:plan] || event["plan_data"])
-          when "execution"
-            event_ids << record_execution(
-              event[:tool] || event["tool_name"],
-              event[:result],
-              call_seq: event[:call_seq]
-            )
-          when "interception"
-            event_ids << record_interception(
-              event[:tool] || event["tool_name"],
-              event[:advice],
-              reason: event[:reason]
-            )
-          else
-            event_ids << record_custom(type, event.reject { |k, _| [:type].include?(k) })
-          end
+          event_ids << case type
+                       when "user"
+                         record_user(event[:content] || event["content"], call_seq: event[:call_seq])
+                       when "plan"
+                         record_plan(event[:plan] || event["plan_data"])
+                       when "execution"
+                         record_execution(
+                           event[:tool] || event["tool_name"],
+                           event[:result],
+                           call_seq: event[:call_seq]
+                         )
+                       when "interception"
+                         record_interception(
+                           event[:tool] || event["tool_name"],
+                           event[:advice],
+                           reason: event[:reason]
+                         )
+                       else
+                         record_custom(type, event.reject { |k, _| [:type].include?(k) })
+                       end
         end
         event_ids
       end

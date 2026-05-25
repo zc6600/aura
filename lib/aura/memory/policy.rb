@@ -4,9 +4,9 @@ module Aura
   module Memory
     class Policy
       DEFAULT_TIERS = {
-        ephemeral: { phases: ["execution", "observe"], max_steps: 5, summarize: true },
-        working: { phases: ["plan", "user"], max_steps: 50, summarize: false },
-        insights: { phases: ["learn", "interception"], max_steps: 200, summarize: true },
+        ephemeral: { phases: %w[execution observe], max_steps: 5, summarize: true },
+        working: { phases: %w[plan user], max_steps: 50, summarize: false },
+        insights: { phases: %w[learn interception], max_steps: 200, summarize: true },
         permanent: { phases: ["milestone"], permanent: true }
       }.freeze
 

@@ -1,5 +1,6 @@
+# frozen_string_literal: true
+
 require "aura/ext/lsp/client"
-require "thread"
 
 module Aura
   module LSP
@@ -36,41 +37,42 @@ module Aura
       end
 
       private
-        def start_client(language)
-          config = lsp_configs[language.to_s]
-          return nil unless config
 
-          client = Aura::LSP::Client.new(config[:command], config[:args], config[:env] || {})
-          client.on_notification("textDocument/publishDiagnostics") do |params|
-            update_diagnostics(params)
-          end
-          
-          client.initialize_server(@project_path)
-          client
+      def start_client(language)
+        config = lsp_configs[language.to_s]
+        return nil unless config
+
+        client = Aura::LSP::Client.new(config[:command], config[:args], config[:env] || {})
+        client.on_notification("textDocument/publishDiagnostics") do |params|
+          update_diagnostics(params)
         end
 
-        def lsp_configs
-          {
-            "ruby" => {
-              "command" => "solargraph",
-              "args" => ["stdio"],
-              "env" => { "PATH" => ENV["PATH"] }
-            },
-            "python" => {
-              "command" => "pyright-langserver",
-              "args" => ["--stdio"],
-              "env" => { "PATH" => ENV["PATH"] }
-            }
+        client.initialize_server(@project_path)
+        client
+      end
+
+      def lsp_configs
+        {
+          "ruby" => {
+            "command" => "solargraph",
+            "args" => ["stdio"],
+            "env" => { "PATH" => ENV["PATH"] }
+          },
+          "python" => {
+            "command" => "pyright-langserver",
+            "args" => ["--stdio"],
+            "env" => { "PATH" => ENV["PATH"] }
           }
-        end
+        }
+      end
 
-        def update_diagnostics(params)
-          uri = params["uri"]
-          diags = params["diagnostics"] || []
-          @lock.synchronize do
-            @diagnostics[uri] = diags
-          end
+      def update_diagnostics(params)
+        uri = params["uri"]
+        diags = params["diagnostics"] || []
+        @lock.synchronize do
+          @diagnostics[uri] = diags
         end
+      end
     end
   end
 end

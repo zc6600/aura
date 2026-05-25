@@ -1,7 +1,8 @@
+# frozen_string_literal: true
+
 require "json"
 require "open3"
 require "timeout"
-require "thread"
 
 module Aura
   module LSP
@@ -27,51 +28,54 @@ module Aura
 
       def start
         return if @stdin
+
         @running = true
         @stdin, @stdout, @stderr, @wait_thr = Open3.popen3(@env, @command, *@args)
         @reader_thread = Thread.new { listen_loop }
       end
 
       def stop
-        begin
-          # Signal reader thread to stop gracefully
-          @running = false
-          
-          # Close stdin first to signal the server
-          @stdin&.close
-          
-          # Give threads time to cleanup
-          [@reader_thread, @wait_thr].each do |t|
-            if t && t.alive?
-              t.join(2) rescue nil  # Wait up to 2 seconds
-              t.kill if t && t.alive?  # Force kill if still alive
-            end
+        # Signal reader thread to stop gracefully
+        @running = false
+
+        # Close stdin first to signal the server
+        @stdin&.close
+
+        # Give threads time to cleanup
+        [@reader_thread, @wait_thr].each do |t|
+          next unless t&.alive?
+
+          begin
+            t.join(2)
+          rescue StandardError
+            nil
           end
-          
-          # Close remaining pipes
-          @stdout&.close
-          @stderr&.close
-        rescue StandardError
-          nil
-        ensure
-          @stdin = nil
-          @stdout = nil
-          @stderr = nil
-          @wait_thr = nil
-          @reader_thread = nil
+          t.kill if t&.alive? # Force kill if still alive
         end
+
+        # Close remaining pipes
+        @stdout&.close
+        @stderr&.close
+      rescue StandardError
+        nil
+      ensure
+        @stdin = nil
+        @stdout = nil
+        @stderr = nil
+        @wait_thr = nil
+        @reader_thread = nil
       end
 
       def initialize_server(root_path)
         start
         resp = request("initialize", {
-          "processId" => Process.pid,
-          "rootPath" => root_path,
-          "rootUri" => "file://#{root_path}",
-          "capabilities" => client_capabilities,
-          "initializationOptions" => {}
-        })
-        
+                         "processId" => Process.pid,
+                         "rootPath" => root_path,
+                         "rootUri" => "file://#{root_path}",
+                         "capabilities" => client_capabilities,
+                         "initializationOptions" => {}
+                       })
+
         if resp && resp["result"]
           @server_capabilities = resp["result"]["capabilities"]
           notify("initialized", {})
@@ -83,15 +87,15 @@ module Aura
       def request(method, params = nil)
         id = @next_id
         @next_id += 1
-        
+
         q = Queue.new
         @lock.synchronize { @handlers[id.to_s] = q }
-        
+
         payload = { "jsonrpc" => "2.0", "id" => id, "method" => method }
         payload["params"] = params if params
-        
+
         write_message(payload)
-        
+
         begin
           Timeout.timeout(@timeout) { q.pop }
         ensure
@@ -114,55 +118,57 @@ module Aura
       end
 
       private
-        def client_capabilities
-          {
-            "textDocument" => {
-              "synchronization" => { "dynamicRegistration" => true, "didSave" => true },
-              "publishDiagnostics" => { "relatedInformation" => true }
-            },
-            "workspace" => { "configuration" => true }
-          }
-        end
 
-        def write_message(payload)
-          body = JSON.generate(payload)
-          @stdin.write("Content-Length: #{body.bytesize}\r\n\r\n#{body}")
-          @stdin.flush
-        rescue StandardError
-          nil
-        end
+      def client_capabilities
+        {
+          "textDocument" => {
+            "synchronization" => { "dynamicRegistration" => true, "didSave" => true },
+            "publishDiagnostics" => { "relatedInformation" => true }
+          },
+          "workspace" => { "configuration" => true }
+        }
+      end
 
-        def listen_loop
-          @stdout.binmode
-          while @running
-            begin
-              line = @stdout.gets("\r\n")
-              break unless line
-              if line =~ /Content-Length: (\d+)/
-                length = $1.to_i
-                @stdout.gets("\r\n") # skip \r\n
-                body = @stdout.read(length)
-                handle_message(JSON.parse(body))
-              end
-            rescue EOFError
-              break
-            rescue StandardError => e
-              break
+      def write_message(payload)
+        body = JSON.generate(payload)
+        @stdin.write("Content-Length: #{body.bytesize}\r\n\r\n#{body}")
+        @stdin.flush
+      rescue StandardError
+        nil
+      end
+
+      def listen_loop
+        @stdout.binmode
+        while @running
+          begin
+            line = @stdout.gets("\r\n")
+            break unless line
+
+            if line =~ /Content-Length: (\d+)/
+              length = ::Regexp.last_match(1).to_i
+              @stdout.gets("\r\n") # skip \r\n
+              body = @stdout.read(length)
+              handle_message(JSON.parse(body))
             end
+          rescue EOFError
+            break
+          rescue StandardError
+            break
           end
         end
+      end
 
-        def handle_message(msg)
-          if msg["id"]
-            # Response
-            q = @lock.synchronize { @handlers[msg["id"].to_s] }
-            q.push(msg) if q
-          elsif msg["method"]
-            # Notification or Request from server
-            handler = @lock.synchronize { @notification_handlers[msg["method"]] }
-            handler.call(msg["params"]) if handler
-          end
+      def handle_message(msg)
+        if msg["id"]
+          # Response
+          q = @lock.synchronize { @handlers[msg["id"].to_s] }
+          q&.push(msg)
+        elsif msg["method"]
+          # Notification or Request from server
+          handler = @lock.synchronize { @notification_handlers[msg["method"]] }
+          handler&.call(msg["params"])
         end
+      end
     end
   end
 end

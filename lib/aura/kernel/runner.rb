@@ -37,14 +37,22 @@ module Aura
         @current_job = nil
         @lock = Mutex.new
 
-        at_exit { @memory.store.close rescue nil }
+        at_exit do
+          @memory.store.close
+        rescue StandardError
+          nil
+        end
       end
 
       # Hot-swap the active SQLite database session to achieve physical amnesia without runner re-instantiation
       def reconnect_session!(session_name)
         ENV["AURA_SESSION_NAME"] = session_name
-        if @memory && @memory.respond_to?(:store) && @memory.store
-          @memory.store.close rescue nil
+        if @memory.respond_to?(:store) && @memory.store
+          begin
+            @memory.store.close
+          rescue StandardError
+            nil
+          end
         end
         @memory = default_memory
         @validator = Aura::Kernel::ToolValidator.new(@env_path, @registry, @memory)
@@ -57,9 +65,8 @@ module Aura
 
       def start_job(metadata = {})
         @lock.synchronize do
-          if @current_job && @current_job.status == :running
-             raise "Runner is busy with job #{@current_job.id}"
-          end
+          raise "Runner is busy with job #{@current_job.id}" if @current_job && @current_job.status == :running
+
           @current_job = Aura::Kernel::Job.new(metadata)
           @current_job.start!
         end
@@ -122,7 +129,7 @@ module Aura
 
       def record_user_input(input)
         @last_user_event_id = @memory.recorder.record_user(input)
-        @current_job.add_event(@last_user_event_id) if @current_job
+        @current_job&.add_event(@last_user_event_id)
         @last_user_event_id
       end
 
@@ -172,7 +179,7 @@ module Aura
 
         call_seq = @last_user_event_id
         event_id = @memory.recorder.record_execution(tool, res, call_seq: call_seq)
-        @current_job.add_event(event_id) if @current_job
+        @current_job&.add_event(event_id)
 
         handle_context_lifecycle(tool, args, res)
         begin
@@ -198,7 +205,7 @@ module Aura
       def default_memory
         config = Aura::Memory::Config.new(
           store: { project_path: @env_path },
-          metabolism: load_config.dig("state_management") || {}
+          metabolism: load_config["state_management"] || {}
         )
         Aura::Memory::Base.new(
           config: config,
@@ -206,8 +213,6 @@ module Aura
           registry: @registry
         )
       end
-
-
 
       def handle_context_lifecycle(tool, args, res)
         tool_data = @registry.find(tool)
@@ -251,9 +256,11 @@ module Aura
       def auto_verify_core_tools
         names = (core_tools_from_config + auto_verify_from_config).uniq
         return if names.empty?
+
         names.each do |name|
           st = @validator.status_for(name)
           next unless st[:state] == "ready"
+
           @validator.ensure_active(name)
         end
       end
@@ -266,15 +273,13 @@ module Aura
         modified = after_state.keys - before_state.keys
 
         after_state.each do |path, info|
-          if before_state[path]
-            if before_state[path][:mtime] != info[:mtime] || before_state[path][:size] != info[:size]
-              modified << path unless modified.include?(path)
-            end
-          end
+          next unless before_state[path]
+
+          modified << path if (before_state[path][:mtime] != info[:mtime] || before_state[path][:size] != info[:size]) && !modified.include?(path)
         end
 
         modified.select! { |f| f.start_with?(@project_path) }
-        modified.map! { |f| f.sub(@project_path + "/", "") }
+        modified.map! { |f| f.sub("#{@project_path}/", "") }
         modified
       end
 
@@ -284,6 +289,7 @@ module Aura
           next unless File.file?(path)
           next if path.include?("/.git/")
           next if path.include?("/.aura/")
+
           stat = File.stat(path)
           state[path] = { mtime: stat.mtime.to_i, size: stat.size }
         end

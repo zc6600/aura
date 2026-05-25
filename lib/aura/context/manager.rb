@@ -11,19 +11,19 @@ module Aura
       attr_reader :project_path
 
       def initialize(project_path)
-        @project_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
+        @project_path = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
         env_path = ENV["AURA_TOOL_CONTEXTS_PATH"]
         @state_file = if env_path && !env_path.to_s.strip.empty?
-          File.expand_path(env_path, @project_path)
-        else
-          File.join(@project_path, "state", "tool_contexts.json")
-        end
+                        File.expand_path(env_path, @project_path)
+                      else
+                        File.join(@project_path, "state", "tool_contexts.json")
+                      end
       end
 
       def add_context(type, data = {}, id: nil)
         contexts = load_contexts
         id ||= "#{type}_#{SecureRandom.hex(4)}"
-        
+
         contexts[id] = {
           "type" => type,
           "created_at" => Time.now.iso8601,
@@ -32,7 +32,7 @@ module Aura
           "last_used_turn" => current_turn,
           "data" => data
         }
-        
+
         save_contexts(contexts)
         id
       end
@@ -40,6 +40,7 @@ module Aura
       def remove_context(id)
         contexts = load_contexts
         return false unless contexts.delete(id)
+
         save_contexts(contexts)
         true
       end
@@ -68,17 +69,18 @@ module Aura
         @current_turn = current_turn
         contexts = load_contexts
         initial_count = contexts.count
-        
-        contexts.delete_if do |id, ctx|
+
+        contexts.delete_if do |_id, ctx|
           !context_active?(ctx, ttl_configs[ctx["type"]])
         end
-        
+
         save_contexts(contexts) if contexts.count != initial_count
         contexts
       end
 
       def load_contexts
         return {} unless File.exist?(@state_file)
+
         begin
           data = JSON.parse(File.read(@state_file))
           data["contexts"] || {}
@@ -113,7 +115,11 @@ module Aura
 
         if ttl_config["seconds"]
           # Sliding TTL: check against last_used instead of created
-          last_used_at = Time.parse(ctx["last_used_at"] || ctx["created_at"]) rescue Time.now
+          last_used_at = begin
+            Time.parse(ctx["last_used_at"] || ctx["created_at"])
+          rescue StandardError
+            Time.now
+          end
           age_seconds = Time.now - last_used_at
           pass_time = age_seconds < ttl_config["seconds"]
         end

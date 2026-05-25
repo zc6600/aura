@@ -17,6 +17,7 @@ module Aura
     def self.registered_projects
       cfg_path = config_path
       return {} unless File.exist?(cfg_path)
+
       begin
         require "yaml"
         data = YAML.load_file(cfg_path)
@@ -46,6 +47,7 @@ module Aura
     def self.unregister!(name)
       cfg_path = config_path
       return false unless File.exist?(cfg_path)
+
       begin
         require "yaml"
         data = YAML.load_file(cfg_path) || {}

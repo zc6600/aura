@@ -44,12 +44,10 @@ module Aura
           raise Aura::LLMTimeoutError, "LLM request timed out: #{e.message}"
         rescue Aura::LLMError => e
           raise e
-        rescue => e
+        rescue StandardError => e
           raise Aura::LLMError, "LLM connection failed: #{e.message}"
         end
       end
-
-      private
 
       def self.validate_response_code!(response)
         code = response.respond_to?(:code) ? response.code.to_i : 200
@@ -62,7 +60,7 @@ module Aura
           begin
             parsed = JSON.parse(error_message)
             error_message = parsed.dig("error", "message") || parsed["message"] || error_message
-          rescue
+          rescue StandardError
           end
         end
 

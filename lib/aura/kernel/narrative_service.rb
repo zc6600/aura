@@ -18,7 +18,7 @@ module Aura
         # Load LLM config
         cfg = load_config
         llm_cfg = cfg["llm"] || {}
-        
+
         client = if defined?(Aura::LLM::Client) && Aura::LLM::Client.respond_to?(:from_config)
                    Aura::LLM::Client.from_config(llm_cfg, @project_path)
                  else
@@ -63,7 +63,7 @@ module Aura
         end.join("\n")
 
         <<~PROMPT
-          Please synthesize the following tool execution history into a concise "Progress Narrative". 
+          Please synthesize the following tool execution history into a concise "Progress Narrative".#{' '}
           Focus on what was attempted, what the result was, and the current status.
           Keep it under 200 words.
 

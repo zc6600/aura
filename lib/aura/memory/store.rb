@@ -49,8 +49,7 @@ module Aura
         raise NotImplementedError, "#{self.class} must implement #transaction"
       end
 
-      def close
-      end
+      def close; end
 
       protected
 

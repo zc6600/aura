@@ -22,8 +22,7 @@ module Aura
           @store.insert_summary(content: content, source_event_id: source_event_id)
         end
 
-        def metabolize_if_needed
-        end
+        def metabolize_if_needed; end
 
         def get_active_variables
           @store.all_variables

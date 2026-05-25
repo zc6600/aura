@@ -10,18 +10,26 @@ module Aura
       attr_reader :project_path, :memory, :adapter
 
       def initialize(project_path)
-        # Note: original State initialized with environment path if possible.
-        @project_path = (defined?(Aura) && Aura.respond_to?(:environment_path)) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
-        
+        # NOTE: original State initialized with environment path if possible.
+        @project_path = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(project_path) || project_path) : project_path
+
         config_file = Aura::PathResolver.resolve_config_path(@project_path)
         config_hash = {}
         if config_file && File.exist?(config_file)
           begin
             require "yaml"
-            parsed = Aura.respond_to?(:safe_load_yaml) ? Aura.safe_load_yaml(config_file) : (YAML.safe_load_file(config_file) rescue {})
+            parsed = if Aura.respond_to?(:safe_load_yaml)
+                       Aura.safe_load_yaml(config_file)
+                     else
+                       begin
+                         YAML.safe_load_file(config_file)
+                       rescue StandardError
+                         {}
+                       end
+                     end
             config_hash = parsed["state_management"] || {}
-          rescue => e
-            $stderr.puts "[State] Failed to load config from #{config_file}: #{e.message}"
+          rescue StandardError => e
+            warn "[State] Failed to load config from #{config_file}: #{e.message}"
           end
         end
 

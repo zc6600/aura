@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "thor"
 
 module Aura
@@ -80,12 +82,10 @@ module Aura
             preview = ctx.split("\n").first(options[:preview_lines]).join("\n")
             puts({ context_preview: preview, result: out }.to_json)
           end
+        elsif options[:human]
+          puts human_kernel_output(ctx, nil, nil, options[:preview_lines], verbose)
         else
-          if options[:human]
-            puts human_kernel_output(ctx, nil, nil, options[:preview_lines], verbose)
-          else
-            puts ctx
-          end
+          puts ctx
         end
       end
 
@@ -105,8 +105,8 @@ module Aura
           ctx = "[Context overflow] #{e.message}"
           res = runner.plan(options[:goal], ctx)
         end
+        preview = ctx.split("\n").first(options[:preview_lines]).join("\n")
         if options[:human]
-          preview = ctx.split("\n").first(options[:preview_lines]).join("\n")
           puts [
             "== Context Preview ==",
             preview,
@@ -114,7 +114,6 @@ module Aura
             res.to_json
           ].join("\n")
         else
-          preview = ctx.split("\n").first(options[:preview_lines]).join("\n")
           puts({ context_preview: preview, plan: res }.to_json)
         end
       end
@@ -129,22 +128,22 @@ module Aura
         require "aura/kernel/agent_loop"
         resolved_path = resolve_project_path!(project_path)
         runner = Aura::Kernel::Runner.new(File.expand_path(resolved_path))
-        
+
         agent_loop = Aura::Kernel::AgentLoop.new(runner)
         max_steps = options[:max_steps] ? options[:max_steps].to_i : 30
         res = agent_loop.run(options[:goal], max_steps: max_steps)
-        
+
         formatted_steps = res.steps.map do |step|
           payload = { "tool" => step[:tool], "args" => step[:args], "summary" => step[:summary] }
           format_loop_step(payload, step[:result])
         end
-        
+
         final_res = if res.status == :completed
-          res.steps.last ? res.steps.last[:result] : { "status" => "completed", "content" => res.final_content }
-        else
-          { "status" => "failed", "reason" => res.failure_reason || "aborted", "steps" => res.steps.size }
-        end
-        
+                      res.steps.last ? res.steps.last[:result] : { "status" => "completed", "content" => res.final_content }
+                    else
+                      { "status" => "failed", "reason" => res.failure_reason || "aborted", "steps" => res.steps.size }
+                    end
+
         if options[:human]
           verbose = options[:verbose] || ENV["VERBOSE"] == "true"
           puts formatted_steps.map { |s| human_loop_step(s, verbose) }.join("\n")
@@ -160,11 +159,9 @@ module Aura
           lines << ctx.split("\n").first(nlines).join("\n")
           lines << "== Call =="
           if payload
-            lines << "Tool: #{payload["tool"]}"
-            lines << "Args: #{(payload["args"] || {}).to_json}" if verbose
-            if payload["summary"] && !payload["summary"].to_s.empty?
-              lines << "Summary: #{payload["summary"]}"
-            end
+            lines << "Tool: #{payload['tool']}"
+            lines << "Args: #{(payload['args'] || {}).to_json}" if verbose
+            lines << "Summary: #{payload['summary']}" if payload["summary"] && !payload["summary"].to_s.empty?
           else
             lines << "(no call provided)"
           end
@@ -173,11 +170,11 @@ module Aura
             lines << "(no execution)"
           elsif out.is_a?(Hash)
             status = out["status"] || out[:status] || "ok"
-            if %w[blocked upgrade_required].include?(status.to_s)
-              lines << "Status: #{status} (Tool execution blocked/failed)"
-            else
-              lines << "Status: #{status}"
-            end
+            lines << if %w[blocked upgrade_required].include?(status.to_s)
+                       "Status: #{status} (Tool execution blocked/failed)"
+                     else
+                       "Status: #{status}"
+                     end
             body = format_result_body(out)
             body = truncate_output(body, 5) unless verbose
             lines << body.to_s
@@ -193,24 +190,20 @@ module Aura
           summary = payload["summary"]
           status = out.is_a?(Hash) ? (out["status"] || out[:status]) : nil
           body = if out.is_a?(Hash)
-            out["content"] || out["output"] || out["message"] || out["stdout"] || out["stderr"] || out.to_json
-          else
-            out.to_s
-          end
+                   out["content"] || out["output"] || out["message"] || out["stdout"] || out["stderr"] || out.to_json
+                 else
+                   out.to_s
+                 end
           { "tool" => tool, "args" => args, "summary" => summary, "status" => status, "output" => body }
         end
 
         def human_loop_step(step, verbose)
           lines = []
           lines << "== Step =="
-          lines << "Tool: #{step["tool"]}"
-          lines << "Args: #{(step["args"] || {}).to_json}" if verbose
-          if step["summary"] && !step["summary"].to_s.empty?
-            lines << "Summary: #{step["summary"]}"
-          end
-          if step["status"]
-            lines << "Status: #{step["status"]}"
-          end
+          lines << "Tool: #{step['tool']}"
+          lines << "Args: #{(step['args'] || {}).to_json}" if verbose
+          lines << "Summary: #{step['summary']}" if step["summary"] && !step["summary"].to_s.empty?
+          lines << "Status: #{step['status']}" if step["status"]
           lines << "Output:"
           body = step["output"].to_s
           body = truncate_output(body, 5) unless verbose
@@ -220,18 +213,23 @@ module Aura
 
         def truncate_output(body, max_lines)
           return "" if body.nil?
+
           lines = body.to_s.lines
           return body.to_s if lines.size <= max_lines
-          lines[0...max_lines].join.strip + "..."
+
+          "#{lines[0...max_lines].join.strip}..."
         end
 
         def format_result_body(res)
           return res.to_s unless res.is_a?(Hash)
+
           candidates = [res["content"], res["output"], res["message"], res["stdout"], res["stderr"]]
           found = candidates.find { |v| v && !v.to_s.strip.empty? }
           return found.to_s if found
+
           keys = res.keys.map(&:to_s)
           return "Result returned (fields: #{keys.join(', ')})" if keys.any?
+
           "Result returned"
         end
 
