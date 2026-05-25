@@ -11,7 +11,7 @@ module Aura
         ## 🚨 CRITICAL SYSTEM PROTOCOL
         1. NO SESSION MEMORY: You have NO access to previous chat history or conversation messages. Each turn is a completely fresh invocation.
         2. DISK IS YOUR BRAIN: The filesystem is your only memory. Trust the task board (task.md) and current file contents.
-        3. RELENTLESS PERSISTENCE: If the verification tests or critic feedbacks are failing, you MUST continue troubleshooting and patching.
+        3. RELENTLESS PERSISTENCE: If the verification tests or critic feedback are failing, you MUST continue troubleshooting and patching.
         4. DO NOT WAVE THE WHITE FLAG: Do not output apologies or "I cannot resolve this" responses. If a path is blocked, select a different tool or debug the logs.
 
         ## 🧪 VERIFICATION & TERMINATION RULES
@@ -63,7 +63,7 @@ module Aura
       DEFAULT_CRITIC_AUDIT_RULES = <<~MD
         ## AUDITING CHECKLIST & QUALITY CRITERIA
         - Check for logical correctness.
-        - Check for clean coding styling and modern patterns.
+        - Check for clean code styling and modern patterns.
         - Look out for edge cases, nil safety, and correct error handling.
         - Ensure all criteria defined in the user's goal are successfully met.
       MD

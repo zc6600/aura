@@ -3,6 +3,8 @@
 require "open3"
 require "json"
 require "fileutils"
+require "timeout"
+require "securerandom"
 require "aura"
 require "aura/llm/prompts/ralph_prompt"
 require "aura/llm/parsers/response_parser"
@@ -40,27 +42,43 @@ module Aura
     end
 
     class RalphLoop
+      class FilteredEventBus
+        def initialize(delegate, suppressed_events)
+          @delegate = delegate
+          @suppressed_events = Array(suppressed_events).map { |e| e.to_sym }
+        end
+
+        def emit(event, **payload)
+          return if @suppressed_events.include?(event.to_sym)
+          @delegate.emit(event, **payload)
+        end
+      end
+
+      DEFAULT_MAX_STEPS = 100
+      DEFAULT_TIMEOUT = 45 # 45 seconds timeout for physical tests
+      MAX_UNTRACKED_FILES = 15
+      MAX_FILE_SIZE_BYTES = 20_480 # 20KB
+
       def initialize(runner, goal, options = {})
         @runner = runner
-        @project_path = File.expand_path(@runner.instance_variable_get(:@project_path))
-        @env_path = File.expand_path(@runner.instance_variable_get(:@env_path))
+        @project_path = File.expand_path(@runner.project_path)
+        @env_path = File.expand_path(@runner.env_path)
         @goal = goal
         @options = options
-        @event_bus = options[:event_bus] || NullEventBus.new
+        @event_bus = options[:event_bus].nil? ? NullEventBus.new : options[:event_bus]
+        # Suppress loop_aborted from propagating from inner loop to prevent outer termination confusion
+        @inner_event_bus = FilteredEventBus.new(@event_bus, [:final_answer, :loop_aborted])
         
         # Load configuration
         @config = @runner.load_config || {}
         
         # Setup Ralph Loop parameters
-        @max_steps = (@options[:max_steps] || @config.dig("ralph", "max_steps") || 100).to_i
+        @max_steps = (@options[:max_steps] || @config.dig("ralph", "max_steps") || DEFAULT_MAX_STEPS).to_i
         @verify_command = @options[:verify_command] || @config.dig("ralph", "verify_command")
         @use_critic = @options[:critic] || @config.dig("ralph", "use_critic") || false
         
         # Set up state variables for persistent prompt injection
-        @last_tool_name = "None"
-        @last_tool_output = "No tools executed yet."
-        @last_test_feedback = "Not run yet."
-        @current_mode = :developer
+        reset_state_variables
         
         # Define hook proc and register it cleanly
         setup_planning_hook
@@ -68,61 +86,63 @@ module Aura
       end
       
       def run
-        run_id = Time.now.strftime("%Y%m%d_%H%M%S")
-        step_count = 1
+        @run_id = "#{Time.now.strftime("%Y%m%d_%H%M%S")}_#{SecureRandom.hex(4)}"
+        @iteration_count = 1
+        starting_session = ENV["AURA_SESSION_NAME"] || "default"
+        @temp_sessions = []
 
         # Automatically seed a checklist task.md if none exists
         task_path = File.join(@project_path, "task.md")
         unless File.exist?(task_path)
-          File.write(task_path, <<~MARKDOWN, encoding: "utf-8")
-            # Task Progress Checklist
-            - [ ] #{@goal}
-          MARKDOWN
+          begin
+            File.write(task_path, <<~MARKDOWN, encoding: "utf-8")
+              # Task Progress Checklist
+              - [ ] #{@goal}
+            MARKDOWN
+          rescue StandardError => e
+            @event_bus.emit(:warning, message: "Failed to create task.md checklist: #{e.message}")
+          end
         end
         
-        @last_tool_name = "None"
-        @last_tool_output = "No tools executed yet."
-        @last_test_feedback = "Not run yet."
-        @current_mode = :developer
+        reset_state_variables
         
         @event_bus.emit(:ralph_start, goal: @goal, max_steps: @max_steps, verifier: @use_critic ? "Critic LLM" : "Physical command: '#{@verify_command}'")
         
         begin
           loop do
-            if step_count > @max_steps
+            if @iteration_count > @max_steps
               @event_bus.emit(:loop_aborted, reason: "Max steps limit reached (#{@max_steps})")
               return :failed
             end
             
-            # 1. Stateless isolation: generate a fresh temporary session name
-            session_name = "ralph_run_#{run_id}_step_#{step_count}"
+            # Reset current mode to developer at the start of each iteration
+            @current_mode = :developer
             
-            @event_bus.emit(:ralph_step_start, step: step_count, max_steps: @max_steps, session: session_name)
+            # 1. Stateless isolation: generate a fresh temporary session name
+            session_name = "ralph_run_#{@run_id}_step_#{@iteration_count}"
+            @temp_sessions << session_name
+            
+            @event_bus.emit(:ralph_step_start, step: @iteration_count, max_steps: @max_steps, session: session_name)
             
             # 2. Hot-swap the runner's database memory session cleanly
             @runner.reconnect_session!(session_name)
             
-            # 3. Observe current project workspace state (LSP, task.md, knowledge)
-            context_payload = @runner.observe
+            # 3. Execute standard Developer AgentLoop
+            @event_bus.emit(:thought, content: "Starting Developer AgentLoop (Iteration #{@iteration_count}/#{@max_steps})...")
+            agent_loop = AgentLoop.new(@runner, event_bus: @inner_event_bus)
             
-            # 4. Compose stateless messages
-            user_directives = load_custom_ralph_system_prompt || Aura::LLM::Prompts::DEFAULT_RALPH_USER_DIRECTIVES
-            system_prompt = "#{Aura::LLM::Prompts::RALPH_PROTOCOL_PROMPT}\n\n#{user_directives}"
-            user_content = build_user_prompt_content(context_payload, @last_tool_name, @last_tool_output, @last_test_feedback)
-            
-            messages = [
-              { role: "system", content: system_prompt },
-              { role: "user", content: user_content }
-            ]
-            
-            # Wrap our custom messages and tools in RalphPayload for AgentLoop compatibility
-            payload = RalphPayload.new(messages, context_payload.to_tool_schemas)
-            
-            # 5. Execute standard Developer AgentLoop
-            @current_mode = :developer
-            @event_bus.emit(:thought, content: "Starting Developer AgentLoop...")
-            agent_loop = AgentLoop.new(@runner, event_bus: @event_bus)
-            result = agent_loop.run(@goal, ctx: payload)
+            result = begin
+              agent_loop.run(@goal, ctx: nil)
+            rescue StandardError => e
+              @event_bus.emit(:thought, content: "Developer AgentLoop raised an exception: #{e.message}")
+              # Resilient fallback: capture loop failure rather than crashing out
+              AgentLoop::Result.new(
+                status: :failed,
+                final_content: nil,
+                steps: [],
+                failure_reason: "Developer loop crashed: #{e.message}"
+              )
+            end
             
             # Track the last executed tool for iteration recap
             if result.steps && !result.steps.empty?
@@ -136,7 +156,7 @@ module Aura
             
             @event_bus.emit(:thought, content: "Developer AgentLoop finished with status: #{result.status}. Running verification checks...")
             
-            # 6. Run verification checks
+            # 4. Run verification checks (which caches outputs to avoid double execution)
             verification = run_verification
             
             if result.status == :completed && verification[:passed]
@@ -144,21 +164,90 @@ module Aura
               @event_bus.emit(:final_answer, content: final_content)
               return :completed
             else
-              @event_bus.emit(:thought, content: "Verification failed or AgentLoop did not complete naturally. Final attempt rejected.")
+              reason = result.status != :completed ? "AgentLoop did not complete naturally (#{result.status}: #{result.failure_reason || 'unknown'})" : "Verification check failed."
+              @event_bus.emit(:thought, content: "#{reason} Final attempt rejected.")
               @last_test_feedback = verification[:output]
-              step_count += 1
+              @iteration_count += 1
             end
           end
+        rescue StandardError => e
+          @event_bus.emit(:thought, content: "Ralph Loop encountered a fatal error: #{e.message}")
+          return :failed
         ensure
-          # Software Engineering Hygiene: Clean up our hook block from the runner to avoid side effects
-          if @runner.hooks.instance_variable_get(:@hooks)
-            @runner.hooks.instance_variable_get(:@hooks)[:before_planning]&.delete(@planning_hook_proc)
+          # Restore the starting session database
+          begin
+            @runner.reconnect_session!(starting_session)
+          rescue StandardError => e
+            @event_bus.emit(:warning, message: "Error reconnecting starting session: #{e.message}")
           end
+
+          # Clean up temporary database files
+          clean_temporary_session_files
+
+          # Software Engineering Hygiene: Clean up our hook block from the runner to avoid side effects
+          @runner.hooks.unregister(:before_planning, @planning_hook_proc)
         end
       end
       
       private
       
+      def reset_state_variables
+        @last_tool_name = "None"
+        @last_tool_output = "No tools executed yet."
+        @last_test_feedback = "Not run yet."
+        @current_mode = :developer
+      end
+
+      def clean_temporary_session_files
+        @temp_sessions.each do |session_name|
+          begin
+            db_path = Aura::PathResolver.session_db_path(@project_path, session_name)
+            if File.exist?(db_path)
+              File.delete(db_path)
+            end
+            # Also clean SQLite sidecars
+            ["-journal", "-wal", "-shm"].each do |suffix|
+              sidecar = "#{db_path}#{suffix}"
+              File.delete(sidecar) if File.exist?(sidecar)
+            end
+          rescue StandardError => e
+            @event_bus.emit(:warning, message: "Error deleting temporary session files for #{session_name}: #{e.message}")
+          end
+        end
+      end
+
+      def build_audit_content(changes, previous_audit, test_output)
+        task_content = ""
+        task_path = File.join(@project_path, "task.md")
+        if File.exist?(task_path)
+          begin
+            task_content = "### task.md Checklist:\n```markdown\n#{File.read(task_path, encoding: "utf-8")}\n```"
+          rescue StandardError
+            task_content = "### task.md Checklist:\n[Error reading task.md]"
+          end
+        end
+
+        <<~AUDIT
+          # INITIAL GOAL
+          #{@goal}
+
+          # PREVIOUS CRITIC AUDIT
+          #{previous_audit}
+
+          # CURRENT WORKSPACE CHANGES
+          #{changes}
+
+          # PHYSICAL TEST EXECUTION VERIFICATION LOG
+          #{test_output}
+
+          # TASK CHECKLIST
+          #{task_content}
+
+          Please audit these changes. Are they complete and correct according to the Goal?
+          Does it address the previous critique and satisfy all acceptance criteria?
+        AUDIT
+      end
+
       def setup_planning_hook
         @planning_hook_proc = lambda do |payload|
           ctx = payload[:context]
@@ -168,46 +257,18 @@ module Aura
           
           # Dynamically wrap context observations with Ralph system prompts
           if @current_mode == :critic
+            # Critical optimization: In critic mode, the physical tests and git diff have
+            # ALREADY been run and cached. We do NOT run them again!
             changes = get_git_diff_with_untracked
             previous_audit = load_previous_critique
             
-            test_output = ""
-            if @verify_command && !@verify_command.to_s.strip.empty?
-              begin
-                stdout, stderr, _ = Open3.capture3(@verify_command, chdir: @project_path)
-                test_output = "### Test Execution Output (Command: '#{@verify_command}'):\nSTDOUT:\n#{stdout}\nSTDERR:\n#{stderr}"
-              rescue StandardError => e
-                test_output = "### Test Execution Output (Command: '#{@verify_command}'):\nError running test command: #{e.message}"
-              end
+            test_output = if @verify_command && !@verify_command.to_s.strip.empty?
+              "### Test Execution Output (Command: '#{@verify_command}'):\n#{@last_test_feedback}"
             else
-              test_output = "No physical verification command configured."
+              "No physical verification command configured."
             end
 
-            task_content = ""
-            task_path = File.join(@project_path, "task.md")
-            if File.exist?(task_path)
-              task_content = "### task.md Checklist:\n```markdown\n#{File.read(task_path, encoding: "utf-8")}\n```"
-            end
-            
-            audit_content = <<~AUDIT
-              # INITIAL GOAL
-              #{@goal}
-
-              # PREVIOUS CRITIC AUDIT
-              #{previous_audit}
-
-              # CURRENT WORKSPACE CHANGES
-              #{changes}
-
-              # PHYSICAL TEST EXECUTION VERIFICATION LOG
-              #{test_output}
-
-              # TASK CHECKLIST
-              #{task_content}
-
-              Please audit these changes. Are they complete and correct according to the Goal?
-              Does it address the previous critique and satisfy all acceptance criteria?
-            AUDIT
+            audit_content = build_audit_content(changes, previous_audit, test_output)
             
             critic_rules = load_custom_critic_rules || Aura::LLM::Prompts::DEFAULT_CRITIC_AUDIT_RULES
             critic_system_prompt = "#{Aura::LLM::Prompts::CRITIC_PROTOCOL_PROMPT}\n\n#{critic_rules}"
@@ -246,8 +307,16 @@ module Aura
       end
       
       def build_user_prompt_content(context_payload, last_tool, last_output, last_test)
-        # Exclude directive (old system.md), active tools index, and state (which is empty anyway)
-        parts = context_payload.to_markdown_excluding([:directive, :active, :index, :state])
+        if context_payload.nil?
+          parts = "No workspace context payload."
+        else
+          # Exclude directive (old system.md), active tools index, and state (which is empty anyway)
+          parts = if context_payload.respond_to?(:to_markdown_excluding)
+            context_payload.to_markdown_excluding([:directive, :active, :index, :state])
+          else
+            context_payload.to_s
+          end
+        end
         
         recap = <<~RECAP
           # LAST ITERATION RECAP
@@ -286,102 +355,105 @@ module Aura
           return { passed: true, output: "No verification command configured. Auto-passed." }
         end
         
-        stdout, stderr, status = Open3.capture3(@verify_command, chdir: @project_path)
-        passed = status.success?
-        output = "STDOUT:\n#{stdout}\nSTDERR:\n#{stderr}"
-        { passed: passed, output: output }
-      rescue StandardError => e
-        { passed: false, output: "Error running test command: #{e.message}" }
+        timeout_sec = @options[:timeout]
+        timeout_sec = @config.dig("ralph", "timeout") if timeout_sec.nil?
+        timeout_sec = DEFAULT_TIMEOUT if timeout_sec.nil?
+        timeout_sec = timeout_sec.to_f
+        
+        begin
+          stdout, stderr, status = nil
+          Timeout.timeout(timeout_sec) do
+            # Secure execution: execute explicitly via shell using Array syntax to prevent command injection
+            stdout, stderr, status = Open3.capture3("sh", "-c", @verify_command, chdir: @project_path)
+          end
+          passed = status.success?
+          output = "STDOUT:\n#{stdout}\nSTDERR:\n#{stderr}"
+          { passed: passed, output: output }
+        rescue Timeout::Error
+          { passed: false, output: "Verification command timed out after #{timeout_sec} seconds." }
+        rescue StandardError => e
+          { passed: false, output: "Error running test command: #{e.message}" }
+        end
       end
       
       def run_critic_audit
+        # Wrap entire method body in ensure to guarantee @current_mode resets back to developer
         @current_mode = :critic
-        changes = get_git_diff_with_untracked
-        previous_audit = load_previous_critique
         
-        # Run physical test command first if present to gather compiler/test traces for Critic
-        test_output = ""
-        if @verify_command && !@verify_command.to_s.strip.empty?
-          begin
-            stdout, stderr, _ = Open3.capture3(@verify_command, chdir: @project_path)
-            test_output = "### Test Execution Output (Command: '#{@verify_command}'):\nSTDOUT:\n#{stdout}\nSTDERR:\n#{stderr}"
-          rescue StandardError => e
-            test_output = "### Test Execution Output (Command: '#{@verify_command}'):\nError running test command: #{e.message}"
+        begin
+          # 1. Run physical test command first if present to gather compiler/test traces for Critic
+          test_res = run_physical_test
+          @last_test_feedback = test_res[:output]
+          
+          changes = get_git_diff_with_untracked
+          previous_audit = load_previous_critique
+          
+          test_output = if @verify_command && !@verify_command.to_s.strip.empty?
+            "### Test Execution Output (Command: '#{@verify_command}'):\n#{@last_test_feedback}"
+          else
+            "No physical verification command configured."
           end
-        else
-          test_output = "No physical verification command configured."
-        end
 
-        task_content = ""
-        task_path = File.join(@project_path, "task.md")
-        if File.exist?(task_path)
-          task_content = "### task.md Checklist:\n```markdown\n#{File.read(task_path, encoding: "utf-8")}\n```"
-        end
-        
-        audit_content = <<~AUDIT
-          # INITIAL GOAL
-          #{@goal}
-
-          # PREVIOUS CRITIC AUDIT
-          #{previous_audit}
-
-          # CURRENT WORKSPACE CHANGES
-          #{changes}
-
-          # PHYSICAL TEST EXECUTION VERIFICATION LOG
-          #{test_output}
-
-          # TASK CHECKLIST
-          #{task_content}
-
-          Please audit these changes. Are they complete and correct according to the Goal?
-          Does it address the previous critique and satisfy all acceptance criteria?
-        AUDIT
-        
-        critic_rules = load_custom_critic_rules || Aura::LLM::Prompts::DEFAULT_CRITIC_AUDIT_RULES
-        critic_system_prompt = "#{Aura::LLM::Prompts::CRITIC_PROTOCOL_PROMPT}\n\n#{critic_rules}"
-        
-        messages = [
-          { role: "system", content: critic_system_prompt },
-          { role: "user", content: audit_content }
-        ]
-        
-        critic_payload = RalphPayload.new(messages, []) # Critic has no tools
-        
-        # Rotate to critic session to keep audit database amnesia separate
-        critic_session = "ralph_critic_audit_#{Time.now.to_i}"
-        @runner.reconnect_session!(critic_session)
-        
-        # Run Critic Agent via AgentLoop
-        @event_bus.emit(:thought, content: "Starting Critic AgentLoop...")
-        critic_loop = AgentLoop.new(@runner, event_bus: @event_bus)
-        result = critic_loop.run("Audit changes", ctx: critic_payload)
-        
-        content = result.final_content.to_s
-        parsed = Aura::LLM::Parsers::ResponseParser.safe_json_parse(content)
-        
-        if parsed.is_a?(Hash)
-          completed = (parsed["completed"] == true || parsed[:completed] == true)
-          critique = parsed["critique"] || parsed[:critique] || ""
-          advice = parsed["advice"] || parsed[:advice] || ""
+          audit_content = build_audit_content(changes, previous_audit, test_output)
           
-          # Persist the critique report under .aura/state/critic_audit.md
-          write_critic_audit_file(critique, advice, completed)
+          critic_rules = load_custom_critic_rules || Aura::LLM::Prompts::DEFAULT_CRITIC_AUDIT_RULES
+          critic_system_prompt = "#{Aura::LLM::Prompts::CRITIC_PROTOCOL_PROMPT}\n\n#{critic_rules}"
           
-          feedback = "CRITIQUE:\n#{critique}\n\nADVICE:\n#{advice}"
-          { passed: completed, output: feedback }
-        else
-          # Fallback if Critic doesn't output valid JSON
-          fallback_feedback = "Critic LLM output format error. Feedback:\n#{content}"
-          write_critic_audit_file("Failed to parse JSON critique. Raw content: #{content}", "Ensure the critic outputs valid JSON.", false)
-          { passed: false, output: fallback_feedback }
+          messages = [
+            { role: "system", content: critic_system_prompt },
+            { role: "user", content: audit_content }
+          ]
+          
+          critic_payload = RalphPayload.new(messages, []) # Critic has no tools
+          
+          # Rotate to critic session to keep audit database amnesia separate
+          critic_session = "ralph_critic_audit_#{@run_id}_step_#{@iteration_count}"
+          @temp_sessions << critic_session
+          @runner.reconnect_session!(critic_session)
+          
+          # Run Critic Agent via AgentLoop
+          @event_bus.emit(:thought, content: "Starting Critic AgentLoop...")
+          critic_loop = AgentLoop.new(@runner, event_bus: @inner_event_bus)
+          
+          result = begin
+            critic_loop.run("Audit changes", ctx: critic_payload)
+          rescue StandardError => e
+            @event_bus.emit(:thought, content: "Critic AgentLoop raised an exception: #{e.message}")
+            return { passed: false, output: "Critic LLM loop execution error: #{e.message}" }
+          end
+          
+          content = result.final_content.to_s
+          parsed = Aura::LLM::Parsers::ResponseParser.safe_json_parse(content)
+          
+          if parsed.is_a?(Hash)
+            completed = (parsed["completed"] == true || parsed[:completed] == true)
+            critique = parsed["critique"] || parsed[:critique] || ""
+            advice = parsed["advice"] || parsed[:advice] || ""
+            
+            # Persist the critique report under unique critic_audit_#{run_id}_step_#{iteration_count}.md file
+            write_critic_audit_file(critique, advice, completed)
+            
+            feedback = "CRITIQUE:\n#{critique}\n\nADVICE:\n#{advice}"
+            { passed: completed, output: feedback }
+          else
+            # Fallback if Critic doesn't output valid JSON
+            fallback_feedback = "Critic LLM output format error. Feedback:\n#{content}"
+            write_critic_audit_file("Failed to parse JSON critique. Raw content: #{content}", "Ensure the critic outputs valid JSON.", false)
+            { passed: false, output: fallback_feedback }
+          end
+        rescue StandardError => e
+          @event_bus.emit(:thought, content: "Critic audit failed: #{e.message}")
+          { passed: false, output: "Critic audit error: #{e.message}" }
+        ensure
+          @current_mode = :developer
         end
       end
       
       def get_git_diff
-        stdout, _, _ = Open3.capture3("git diff HEAD", chdir: @project_path)
+        stdout, _, _ = Open3.capture3("git", "diff", "HEAD", chdir: @project_path)
         stdout.to_s
-      rescue StandardError
+      rescue StandardError => e
+        @event_bus.emit(:warning, message: "Git diff failed: #{e.message}")
         ""
       end
 
@@ -390,24 +462,45 @@ module Aura
         
         untracked_files = []
         begin
-          stdout, _, _ = Open3.capture3("git status --porcelain", chdir: @project_path)
-          stdout.to_s.each_line do |line|
-            if line.start_with?("?? ")
-              file_path = line[3..-1].strip
-              untracked_files << file_path
+          stdout, stderr, status = Open3.capture3("git", "status", "--porcelain", chdir: @project_path)
+          if status.success?
+            stdout.to_s.each_line do |line|
+              if line.start_with?("?? ")
+                file_path = line[3..-1].strip
+                untracked_files << file_path
+              end
             end
+          else
+            @event_bus.emit(:warning, message: "Git status failed: #{stderr}")
           end
-        rescue StandardError
-          # Safe fallback if git is not initialized
+        rescue StandardError => e
+          @event_bus.emit(:warning, message: "Git command error: #{e.message}")
         end
         
         untracked_content = []
-        untracked_files.each do |f|
+        # Cap untracked files count at MAX_UNTRACKED_FILES to prevent context bloating
+        untracked_files.take(MAX_UNTRACKED_FILES).each do |f|
           full_path = File.join(@project_path, f)
           if File.file?(full_path)
-            content = File.read(full_path, encoding: "utf-8") rescue "[Error reading file]"
-            untracked_content << "### Untracked File: #{f}\n```\n#{content}\n```"
+            # Skip files larger than MAX_FILE_SIZE_BYTES to protect memory and context window
+            next if File.size(full_path) > MAX_FILE_SIZE_BYTES
+
+            begin
+              content = File.read(full_path, encoding: "utf-8")
+              # Heuristic to skip binary files
+              if content.include?("\x00")
+                untracked_content << "### Untracked File: #{f}\n[Skipped: Binary file detected]"
+              else
+                untracked_content << "### Untracked File: #{f}\n```\n#{content}\n```"
+              end
+            rescue StandardError => e
+              untracked_content << "### Untracked File: #{f}\n[Error reading file: #{e.message}]"
+            end
           end
+        end
+        
+        if untracked_files.size > MAX_UNTRACKED_FILES
+          untracked_content << "### [Truncated: #{untracked_files.size - MAX_UNTRACKED_FILES} additional untracked files present but skipped]"
         end
         
         [
@@ -417,16 +510,21 @@ module Aura
       end
 
       def load_previous_critique
-        audit_path = File.join(@env_path, "state", "critic_audit.md")
+        prev_step = @iteration_count - 1
+        audit_path = File.join(@env_path, "state", "critic_audit_#{@run_id}_step_#{prev_step}.md")
         if File.exist?(audit_path)
-          File.read(audit_path, encoding: "utf-8")
+          begin
+            File.read(audit_path, encoding: "utf-8")
+          rescue StandardError
+            "No previous critic audit exists."
+          end
         else
           "No previous critic audit exists."
         end
       end
 
       def write_critic_audit_file(critique, advice, passed)
-        audit_path = File.join(@env_path, "state", "critic_audit.md")
+        audit_path = File.join(@env_path, "state", "critic_audit_#{@run_id}_step_#{@iteration_count}.md")
         FileUtils.mkdir_p(File.dirname(audit_path))
         
         status_str = passed ? "PASSING" : "FAILING"
@@ -441,7 +539,11 @@ module Aura
           ## Advice
           #{advice}
         MARKDOWN
-        File.write(audit_path, content, encoding: "utf-8")
+        begin
+          File.write(audit_path, content, encoding: "utf-8")
+        rescue StandardError => e
+          @event_bus.emit(:warning, message: "Error writing critic audit file: #{e.message}")
+        end
       end
       
       def format_tool_result(run_res)

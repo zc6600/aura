@@ -16,16 +16,22 @@ module Aura
         @project_path = File.expand_path(project_path)
         @env_path = options[:env_path] || Aura::PathResolver.environment_path(@project_path)
         cfg = load_config
-        provider = cfg.dig("llm", "provider") || "local"
-        api_base = cfg.dig("llm", "api_base")
-        model = cfg.dig("llm", "model")
-        @temp = cfg.dig("llm", "temperature")
-        @max_tokens = cfg.dig("llm", "max_tokens")
+        llm_cfg = cfg["llm"] || {}
+        @temp = llm_cfg["temperature"]
+        @max_tokens = llm_cfg["max_tokens"]
         @sum_suggest = cfg.dig("tool_protocol", "call_summary", "suggested_chars")
         @sum_max = cfg.dig("tool_protocol", "call_summary", "max_chars")
-        Aura::LLM::Env.load_from(@project_path)
-        api_key = Aura::LLM::Env.resolve_api_key(provider)
-        @client = Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
+
+        @client = if defined?(Aura::LLM::Client) && Aura::LLM::Client.respond_to?(:from_config)
+                    Aura::LLM::Client.from_config(llm_cfg, @project_path)
+                  else
+                    provider = llm_cfg["provider"] || "local"
+                    api_base = llm_cfg["api_base"]
+                    model = llm_cfg["model"]
+                    Aura::LLM::Env.load_from(@project_path)
+                    api_key = Aura::LLM::Env.resolve_api_key(provider)
+                    Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
+                  end
       end
 
       def plan(context, goal = nil)

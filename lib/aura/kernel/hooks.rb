@@ -12,6 +12,10 @@ module Aura
         @hooks[name] << block
       end
 
+      def unregister(name, hook_proc)
+        @hooks[name]&.delete(hook_proc)
+      end
+
       # Runs hooks for a given name.
       # If any hook returns explicitly false (not nil), the operation may be considered halted/rejected.
       # Returns true if all hooks pass (or no hooks exist), false if any hook returns false.

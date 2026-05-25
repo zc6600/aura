@@ -22,7 +22,7 @@ module Aura
         changed_files = []
         if File.exist?(File.join(@project_path, ".git"))
           # Use git status to find modified or untracked files
-          out, _err, status = Open3.capture3("git status --porcelain", chdir: @project_path)
+          out, _err, status = Open3.capture3("git", "status", "--porcelain", chdir: @project_path)
           if status.success?
             out.each_line do |line|
               # line format: " M path/to/file.py" or "?? path/to/file.py"

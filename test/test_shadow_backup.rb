@@ -9,7 +9,7 @@ require "aura/kernel/shadow_backup"
 class TestShadowBackup < Minitest::Test
   def setup
     # Create temp workspace
-    @tmp_dir = File.join(Dir.pwd, "tmp_test_workspace_#{Time.now.to_i}")
+    @tmp_dir = File.join(Dir.pwd, "tmp_test_workspace_#{Time.now.to_f.to_s.gsub('.', '_')}_#{rand(10000..99999)}")
     FileUtils.mkdir_p(@tmp_dir)
     FileUtils.mkdir_p(File.join(@tmp_dir, ".aura"))
 

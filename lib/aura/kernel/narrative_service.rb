@@ -17,13 +17,18 @@ module Aura
 
         # Load LLM config
         cfg = load_config
-        provider = cfg.dig("llm", "provider") || "local"
-        api_base = cfg.dig("llm", "api_base")
-        model = cfg.dig("llm", "model")
+        llm_cfg = cfg["llm"] || {}
         
-        Aura::LLM::Env.load_from(@project_path)
-        api_key = Aura::LLM::Env.resolve_api_key(provider)
-        client = Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
+        client = if defined?(Aura::LLM::Client) && Aura::LLM::Client.respond_to?(:from_config)
+                   Aura::LLM::Client.from_config(llm_cfg, @project_path)
+                 else
+                   provider = llm_cfg["provider"] || "local"
+                   api_base = llm_cfg["api_base"]
+                   model = llm_cfg["model"]
+                   Aura::LLM::Env.load_from(@project_path)
+                   api_key = Aura::LLM::Env.resolve_api_key(provider)
+                   Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
+                 end
 
         prompt = compose_prompt(events)
         merged_prompt = <<~MSG.strip

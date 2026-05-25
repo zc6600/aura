@@ -139,6 +139,16 @@ llm:
   api_base: ""
   temperature: 0.2
   max_tokens: 20000
+  max_retries: 2            # 每个 LLM 配置请求出错时重试的最大次数
+  
+  # 备份/备用 LLM 链 (按顺序尝试，当主 LLM 请求多次失败后自动切换)
+  # fallbacks:
+  #   - provider: "openai"
+  #     model: "gpt-4o-mini"
+  #     temperature: 0.2
+  #     max_tokens: 20000
+  #   - provider: "anthropic"
+  #     model: "claude-3-5-haiku-20241022"
 
 embedding:
   provider: "openrouter"

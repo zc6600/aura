@@ -160,12 +160,16 @@ module Aura
           llm_config["provider"] = provider
           llm_config["model"] = model if model
           
-          @client = Aura::LLM::Client.new(
-            provider: provider,
-            api_base: llm_config["api_base"],
-            api_key: resolve_api_key(llm_config),
-            model: model
-          )
+          @client = if defined?(Aura::LLM::Client) && Aura::LLM::Client.respond_to?(:from_config)
+                      Aura::LLM::Client.from_config(llm_config, @project_path)
+                    else
+                      Aura::LLM::Client.new(
+                        provider: provider,
+                        api_base: llm_config["api_base"],
+                        api_key: resolve_api_key(llm_config),
+                        model: model
+                      )
+                    end
 
           @slash_manager = SlashCommandManager.new(@project_path, -> { load_config }, @runner, on_reload: -> { setup_environment })
           @executor = Executor.new(@project_path, @runner, -> { load_config })

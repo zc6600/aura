@@ -641,7 +641,16 @@ module Aura
           end
         end
         
-        client = Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
+        llm_cfg = (cfg["llm"] || {}).dup
+        llm_cfg["provider"] = options[:provider] || options["provider"] if options[:provider] || options["provider"]
+        llm_cfg["model"] = options[:model] || options["model"] if options[:model] || options["model"]
+        project_path = aura_dir ? File.dirname(aura_dir) : Dir.pwd
+
+        client = if defined?(Aura::LLM::Client) && Aura::LLM::Client.respond_to?(:from_config)
+                   Aura::LLM::Client.from_config(llm_cfg, project_path)
+                 else
+                   Aura::LLM::Client.new(provider: provider, api_base: api_base, api_key: api_key, model: model)
+                 end
         
         messages = []
         system_instruction = options[:system] || options["system"]

@@ -20,7 +20,7 @@ module Aura
     class Runner
       include EventEmitter
 
-      attr_reader :hooks, :current_job, :memory, :planner
+      attr_reader :hooks, :current_job, :memory, :planner, :project_path, :env_path
 
       def initialize(project_path, memory: nil)
         @project_path = File.expand_path(project_path)
