@@ -72,6 +72,8 @@ module Aura
       end
 
       register(Aura::Commands::ConfigCommand, "config", "config [KEY] [VALUE]", "Read or write configuration settings")
+      desc "config [KEY] [VALUE]", "Read or write configuration settings"
+      method_option :global, type: :boolean, aliases: "-g", desc: "Target the global template repository config"
       def config(key = nil, value = nil)
         is_global = options && (options[:global] || options["global"])
         ConfigCommand.start(["config", key, value].compact + (is_global ? ["--global"] : []))

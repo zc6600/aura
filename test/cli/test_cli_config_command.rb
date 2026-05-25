@@ -132,4 +132,20 @@ class TestCliConfigCommand < Minitest::Test
       assert_equal "anthropic", global_cfg["llm"]["provider"]
     end
   end
+
+  def test_global_flag_parsed_by_cli_start
+    Dir.chdir(@tmp_dir) do
+      capture_io do
+        Aura::Commands::ApplicationCommand.start(["config", "llm.provider", "anthropic", "--global"])
+      end
+
+      out, _ = capture_io do
+        Aura::Commands::ApplicationCommand.start(["config", "llm.provider", "--global"])
+      end
+      assert_equal "anthropic\n", out
+
+      global_cfg = YAML.load_file(File.join(@global_path, "config", "config.yml"))
+      assert_equal "anthropic", global_cfg["llm"]["provider"]
+    end
+  end
 end
