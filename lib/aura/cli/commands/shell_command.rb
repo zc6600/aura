@@ -14,6 +14,10 @@ module Aura
       method_option :verbose, type: :boolean, aliases: "-v", desc: "Show detailed output"
       method_option :session, type: :string, aliases: "-s", desc: "Start chat with a specific session database"
       method_option :new_session, type: :boolean, aliases: "-n", desc: "Start a brand new timestamped chat session"
+      method_option :mode, type: :string, default: "classic", desc: "Run loop mode: classic or ralph"
+      method_option :verify, type: :string, desc: "Verify test command for Ralph Loop"
+      method_option :critic, type: :boolean, default: false, desc: "Use Critic LLM instead of test command for Ralph Loop"
+      method_option :max_steps, type: :numeric, desc: "Maximum steps/calls in Ralph Loop"
       def start(project_path, external_opts = {})
         merged_opts = options.to_h.merge(external_opts.to_h)
         session_name = merged_opts[:session] || merged_opts["session"]

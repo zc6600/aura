@@ -143,6 +143,10 @@ module Aura
       method_option :verbose, type: :boolean, aliases: "-v", desc: "Show detailed output"
       method_option :goal, type: :string, aliases: "-g", desc: "Autonomous goal to execute without interactive input (exits when complete)"
       method_option :non_interactive, type: :boolean, aliases: "--ni", default: false, desc: "Run non-interactively (requires --goal); final answer is printed to stdout"
+      method_option :mode, type: :string, default: "classic", desc: "Run loop mode: classic or ralph"
+      method_option :verify, type: :string, desc: "Verify test command for Ralph Loop"
+      method_option :critic, type: :boolean, default: false, desc: "Use Critic LLM instead of test command for Ralph Loop"
+      method_option :max_steps, type: :numeric, desc: "Maximum steps/calls in Ralph Loop"
       def chat(project_path = nil)
         resolved_path = Aura::WorkspaceInitializer.resolve_project_path!(project_path)
         Aura::Commands::ShellCommand.new.start(resolved_path, options)

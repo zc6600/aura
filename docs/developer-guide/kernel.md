@@ -21,19 +21,30 @@ The unified central orchestrator for the agent's goal execution.
 
 **Usage**: AgentLoop wraps Runner for complex goal-based execution. For simpler interactions, Runner can be used directly.
 
-### 2. The Runner (`Aura::Kernel::Runner`)
+### 2. The Ralph Loop (`Aura::Kernel::RalphLoop`)
+
+A meta-loop orchestrator that wraps and executes standard `AgentLoop` instances in a verification-driven, stateless feedback cycle.
+
+**Responsibilities:**
+- **Session DB Rotation**: Generates fresh session names per step and hot-swaps memory SQLite databases via `Runner#reconnect_session!` to achieve database history amnesia.
+- **Planning Hook Injection**: Registers a `:before_planning` hook on the `Runner` to persistently wrap standard payload observations, ensuring that the `RALPH_PROTOCOL_PROMPT` and verification error recaps are never forgotten during multi-step executions.
+- **Dual Verification**: Supports physical command suite runs (succeeding on exit code `0`) or Critic LLM auditing (running audits via a secondary zero-tool `AgentLoop` and parsing JSON outcomes).
+- **Critique Persistence**: Persists auditing feedback reports under `.aura/state/critic_audit.md` inside the workspace.
+
+### 3. The Runner (`Aura::Kernel::Runner`)
 
 Acts as the context adapter and execution coordinator.
 
 **Responsibilities:**
 - **Observe**: Assembles prompt context from state/database and registers current environment metadata
+- **Session Swapping**: Implements `reconnect_session!(session_name)` to swap database session references on the fly.
 - **State Recording**: Records state events (user inputs, plans, completions) and manages job states in the database
 - **Execution Hook Coordinator**: Dispatches pre-execution and post-execution hooks (e.g. dangerous tool checks)
 - **Event Emission**: Includes EventEmitter module for broadcasting tool execution events
 
 **Lifecycle**: Observe → Plan → Execute → (Learn)
 
-### 3. The Event Bus (`Aura::Kernel::EventEmitter`)
+### 4. The Event Bus (`Aura::Kernel::EventEmitter`)
 
 An event-driven publisher-subscriber module that decouples core agent execution from user interfaces (CLI, Web client).
 
@@ -50,7 +61,7 @@ An event-driven publisher-subscriber module that decouples core agent execution 
 
 **Note**: A separate `event_bus.rb` file exists but is not currently used by Runner; Runner uses the EventEmitter mixin pattern instead.
 
-### 4. Execution Engine (`Aura::Kernel::ExecutionEngine`)
+### 5. Execution Engine (`Aura::Kernel::ExecutionEngine`)
 
 Handles the low-level execution of tools.
 
@@ -59,7 +70,7 @@ Handles the low-level execution of tools.
 - **Runtime Resolution**: Maps `runtime: python3` in manifest to actual paths via `config.yml`
 - **Output Parsing**: Captures stdout/stderr. Expects JSON output from tools
 
-### 5. Tool Validator (`Aura::Kernel::ToolValidator`)
+### 6. Tool Validator (`Aura::Kernel::ToolValidator`)
 
 Enforces the "Evolution Loop" quality gate.
 

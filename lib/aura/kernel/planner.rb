@@ -10,6 +10,8 @@ require "aura/config_loader"
 module Aura
   module Kernel
     class Planner
+      attr_reader :client, :temp, :max_tokens
+
       def initialize(project_path, options = {})
         @project_path = File.expand_path(project_path)
         @env_path = options[:env_path] || Aura::PathResolver.environment_path(@project_path)

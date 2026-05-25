@@ -23,9 +23,78 @@ module Aura
 
         def start
           setup_environment
-          goal = @options[:goal] || @options["goal"]
-          show_dashboard if goal.nil? || goal.to_s.strip.empty?
-          run_loop
+          mode = @options[:mode] || @options["mode"] || "classic"
+
+          if mode.to_s.downcase == "ralph"
+            goal = @options[:goal] || @options["goal"]
+            if goal.nil? || goal.to_s.strip.empty?
+              $stderr.puts "\e[31m⛔️ Error: Ralph Loop requires an autonomous goal (use --goal or -g).\e[0m"
+              exit 1
+            end
+
+            require "aura/kernel/ralph_loop"
+            require_relative "console_renderer"
+            
+            renderer = ConsoleRenderer.new(verbose: @config["verbose"])
+            
+            # Subscribe to runner events for tool execution visualization
+            @runner.on(:tool_start) do |ev|
+              renderer.on_tool_start(ev[:tool], ev[:summary], ev[:args])
+            end
+            @runner.on(:tool_result) do |ev|
+              renderer.on_tool_result(ev[:result])
+            end
+            
+            # Create a dedicated event bus for the Ralph Loop
+            bus = Aura::Kernel::EventBus.new
+            
+            bus.subscribe(:ralph_start) do |payload|
+              puts "\e[34m🚀 Starting Ralph Loop for goal: '#{payload[:goal]}'\e[0m"
+              puts "   - Max Steps: #{payload[:max_steps]}"
+              puts "   - Verifier: #{payload[:verifier]}"
+              puts ""
+            end
+            
+            bus.subscribe(:ralph_step_start) do |payload|
+              puts "\e[36m--- [Ralph Loop Step #{payload[:step]}/#{payload[:max_steps]} | Session: #{payload[:session]}] ---\e[0m"
+            end
+            
+            bus.subscribe(:thought) do |payload|
+              renderer.on_thought(payload[:content])
+            end
+            
+            bus.subscribe(:warning) do |payload|
+              renderer.on_warning(payload[:message])
+            end
+            
+            bus.subscribe(:final_answer) do |payload|
+              puts "\e[32m✅ Ralph Loop Success! All verification checks passed.\e[0m"
+              puts "Final Output: #{payload[:content]}"
+            end
+            
+            bus.subscribe(:loop_aborted) do |payload|
+              renderer.on_error("Ralph Loop aborted: #{payload[:reason]}")
+            end
+
+            loop_opts = {
+              max_steps: @options[:max_steps] || @options["max_steps"],
+              verify_command: @options[:verify] || @options["verify"],
+              critic: @options[:critic] || @options["critic"],
+              event_bus: bus
+            }
+            ralph = Aura::Kernel::RalphLoop.new(@runner, goal.to_s.strip, loop_opts)
+            res = ralph.run
+
+            if res == :completed
+              exit 0
+            else
+              exit 1
+            end
+          else
+            goal = @options[:goal] || @options["goal"]
+            show_dashboard if goal.nil? || goal.to_s.strip.empty?
+            run_loop
+          end
         end
 
         private

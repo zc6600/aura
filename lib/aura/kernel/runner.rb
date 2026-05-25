@@ -20,7 +20,7 @@ module Aura
     class Runner
       include EventEmitter
 
-      attr_reader :hooks, :current_job, :memory
+      attr_reader :hooks, :current_job, :memory, :planner
 
       def initialize(project_path, memory: nil)
         @project_path = File.expand_path(project_path)
@@ -38,6 +38,17 @@ module Aura
         @lock = Mutex.new
 
         at_exit { @memory.store.close rescue nil }
+      end
+
+      # Hot-swap the active SQLite database session to achieve physical amnesia without runner re-instantiation
+      def reconnect_session!(session_name)
+        ENV["AURA_SESSION_NAME"] = session_name
+        if @memory && @memory.respond_to?(:store) && @memory.store
+          @memory.store.close rescue nil
+        end
+        @memory = default_memory
+        @validator = Aura::Kernel::ToolValidator.new(@env_path, @registry, @memory)
+        @planner = Aura::Kernel::Planner.new(@project_path, env_path: @env_path)
       end
 
       def load_config
