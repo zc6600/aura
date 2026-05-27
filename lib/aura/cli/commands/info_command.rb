@@ -72,7 +72,7 @@ module Aura
                        when "gemini" then "GEMINI_API_KEY"
                        when "deepseek" then "DEEPSEEK_API_KEY"
                        end
-        api_key_status = if env_var_name && ENV[env_var_name] && !ENV[env_var_name].empty?
+        api_key_status = if env_var_name && ENV.fetch(env_var_name, nil) && !ENV[env_var_name].empty?
                            "\e[32mSet (via environment)\e[0m"
                          elsif global_llm_cfg["api_key"] && !global_llm_cfg["api_key"].to_s.strip.empty?
                            "\e[32mSet (via config)\e[0m"

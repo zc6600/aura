@@ -28,7 +28,7 @@ module Aura
       private
 
       def resolve_active_skill_path
-        active = @options[:active_skill] || ENV["AURA_ACTIVE_SKILL"]
+        active = @options[:active_skill] || ENV.fetch("AURA_ACTIVE_SKILL", nil)
         return nil if active.nil? || active.to_s.strip.empty?
 
         candidates = []

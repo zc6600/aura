@@ -20,7 +20,7 @@ module Aura
               args = normalize_args(args)
               summary = obj["summary"] || call["summary"] || (args.is_a?(Hash) ? args.delete("summary") : nil)
               # If there is a content field in the main object, it's the thought
-              thought = obj["content"] || obj["message"] && obj["message"]["content"]
+              thought = obj["content"] || (obj["message"] && obj["message"]["content"])
               return { type: "tool_call", tool: tool, args: args || {}, summary: summary, thought: thought }
             end
 

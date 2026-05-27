@@ -289,6 +289,64 @@ class TestToolRegistry < Minitest::Test
     assert_equal 1, registry.all_tools.length
   end
 
+  # Test 21: Nested standalone tool registration (e.g. tools/category/subcategory/tool)
+  def test_nested_standalone_tool
+    nested_dir = File.join(@tools_path, "category", "subcategory", "my_nested_tool")
+    FileUtils.mkdir_p(nested_dir)
+    File.write(File.join(nested_dir, "manifest.json"), JSON.generate({
+      "name" => "my_nested_tool",
+      "description" => "A nested tool"
+    }))
+
+    registry = Aura::Kernel::ToolRegistry.new(@tmpdir)
+
+    assert_includes registry.all_tools, "my_nested_tool"
+    tool = registry.find("my_nested_tool")
+    assert_equal "my_nested_tool", tool[:manifest]["name"]
+    assert_nil tool[:group]
+  end
+
+  # Test 22: Nested group manifest registration
+  def test_nested_group_tool
+    nested_group_dir = File.join(@tools_path, "category", "my_group")
+    FileUtils.mkdir_p(nested_group_dir)
+    File.write(File.join(nested_group_dir, "group_manifest.json"), JSON.generate({
+      "group_name" => "nested_group",
+      "entry_tool" => "open",
+      "subtools" => ["click"]
+    }))
+
+    # Create entry tool
+    open_dir = File.join(nested_group_dir, "open")
+    FileUtils.mkdir_p(open_dir)
+    File.write(File.join(open_dir, "manifest.json"), JSON.generate({ "name" => "nested_open" }))
+
+    # Create subtool
+    click_dir = File.join(nested_group_dir, "click")
+    FileUtils.mkdir_p(click_dir)
+    File.write(File.join(click_dir, "manifest.json"), JSON.generate({ "name" => "nested_click" }))
+
+    registry = Aura::Kernel::ToolRegistry.new(@tmpdir)
+
+    assert_includes registry.all_tools, "nested_open"
+    assert_includes registry.all_tools, "nested_click"
+    assert_equal "nested_group", registry.group_for("nested_open")
+    assert_equal "nested_group", registry.group_for("nested_click")
+  end
+
+  # Test 23: Hot refresh on nested tool changes
+  def test_nested_hot_refresh
+    registry = Aura::Kernel::ToolRegistry.new(@tmpdir)
+    assert_equal 0, registry.all_tools.length
+
+    sleep 1.1 # Ensure mtime difference
+    nested_dir = File.join(@tools_path, "category", "subcategory", "new_nested_tool")
+    FileUtils.mkdir_p(nested_dir)
+    File.write(File.join(nested_dir, "manifest.json"), JSON.generate({ "name" => "new_nested_tool" }))
+
+    assert_includes registry.all_tools, "new_nested_tool"
+  end
+
   private
 
   def create_tool(name, manifest)

@@ -168,7 +168,7 @@ module Aura
               @event_bus.emit(:final_answer, content: final_content)
               return :completed
             else
-              reason = result.status != :completed ? "AgentLoop did not complete naturally (#{result.status}: #{result.failure_reason || 'unknown'})" : "Verification check failed."
+              reason = result.status == :completed ? "Verification check failed." : "AgentLoop did not complete naturally (#{result.status}: #{result.failure_reason || 'unknown'})"
               @event_bus.emit(:thought, content: "#{reason} Final attempt rejected.")
               @last_test_feedback = verification[:output]
               @iteration_count += 1

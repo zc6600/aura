@@ -147,11 +147,9 @@ module Aura
 
       private
 
-      def execute_with_timeout(timeout_val)
+      def execute_with_timeout(timeout_val, &block)
         require "timeout"
-        Timeout.timeout(timeout_val) do
-          yield
-        end
+        Timeout.timeout(timeout_val, &block)
       rescue Timeout::Error
         { error: "Tool execution timed out after #{timeout_val} seconds.", status: "failed" }
       end

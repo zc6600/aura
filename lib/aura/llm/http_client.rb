@@ -53,7 +53,18 @@ module Aura
         code = response.respond_to?(:code) ? response.code.to_i : 200
         return if code >= 200 && code < 300
 
-        error_message = response.body.to_s.strip
+        error_message = if response.respond_to?(:body) && response.body && !response.body.to_s.strip.empty?
+                          response.body.to_s.strip
+                        elsif response.respond_to?(:read_body)
+                          begin
+                            response.read_body.to_s.strip
+                          rescue StandardError
+                            ""
+                          end
+                        else
+                          ""
+                        end
+
         if error_message.empty?
           error_message = "HTTP Status #{code}"
         else

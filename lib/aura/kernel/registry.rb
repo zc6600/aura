@@ -47,18 +47,26 @@ module Aura
 
           Dir.glob(File.join(tools_path, "*")) do |dir|
             next unless File.directory?(dir)
-
-            if File.exist?(File.join(dir, "group_manifest.json"))
-              process_group(dir)
-            else
-              process_standalone_tool(dir)
-            end
+            scan_directory(dir)
           end
         end
         @last_scan_mtime = latest_tools_mtime
       end
 
       private
+
+      def scan_directory(dir)
+        if File.exist?(File.join(dir, "group_manifest.json"))
+          process_group(dir)
+        elsif File.exist?(File.join(dir, "manifest.json"))
+          process_standalone_tool(dir)
+        else
+          Dir.glob(File.join(dir, "*")) do |sub_dir|
+            next unless File.directory?(sub_dir)
+            scan_directory(sub_dir)
+          end
+        end
+      end
 
       def maybe_refresh!
         current = latest_tools_mtime
@@ -73,9 +81,8 @@ module Aura
           next unless Dir.exist?(tools_path)
 
           paths = [tools_path]
-          paths.concat(Dir.glob(File.join(tools_path, "*", "manifest.json")))
-          paths.concat(Dir.glob(File.join(tools_path, "*", "group_manifest.json")))
-          paths.concat(Dir.glob(File.join(tools_path, "*", "*", "manifest.json")))
+          paths.concat(Dir.glob(File.join(tools_path, "**", "manifest.json")))
+          paths.concat(Dir.glob(File.join(tools_path, "**", "group_manifest.json")))
           mtimes.concat(paths.map { |p| File.exist?(p) ? File.mtime(p).to_i : 0 })
         end
         mtimes.max

@@ -52,16 +52,16 @@ module Aura
           end
 
           # Resolve prompts by mode and priority
-          def resolve(mode, project_path, options = {})
+          def resolve(mode, project_path, _options = {})
             case mode.to_sym
             when :standard
               # Check for legacy single-file override
               legacy_path = find_file_in_workspace(project_path, [
-                "skills/system.md",
-                ".aura/skills/system.md",
-                "prompts/system.md",
-                ".aura/prompts/system.md"
-              ])
+                                                     "skills/system.md",
+                                                     ".aura/skills/system.md",
+                                                     "prompts/system.md",
+                                                     ".aura/prompts/system.md"
+                                                   ])
 
               custom = if legacy_path
                          read_file_cached(legacy_path)
@@ -88,11 +88,11 @@ module Aura
 
               # Ralph user directives override
               ralph_path = find_file_in_workspace(project_path, [
-                "prompts/ralph_system.md",
-                ".aura/prompts/ralph_system.md",
-                "skills/ralph_system.md",
-                ".aura/skills/ralph_system.md"
-              ])
+                                                    "prompts/ralph_system.md",
+                                                    ".aura/prompts/ralph_system.md",
+                                                    "skills/ralph_system.md",
+                                                    ".aura/skills/ralph_system.md"
+                                                  ])
 
               custom = if ralph_path
                          read_file_cached(ralph_path)
@@ -108,11 +108,11 @@ module Aura
 
               # Critic rules override
               critic_path = find_file_in_workspace(project_path, [
-                "prompts/critic_rules.md",
-                ".aura/prompts/critic_rules.md",
-                "skills/critic_rules.md",
-                ".aura/skills/critic_rules.md"
-              ])
+                                                     "prompts/critic_rules.md",
+                                                     ".aura/prompts/critic_rules.md",
+                                                     "skills/critic_rules.md",
+                                                     ".aura/skills/critic_rules.md"
+                                                   ])
 
               custom = if critic_path
                          read_file_cached(critic_path)
@@ -134,9 +134,7 @@ module Aura
             return ["Prompt content is empty"] if content.to_s.strip.empty?
 
             # 1. JSON formatting rules verification
-            unless content.include?("JSON") || content.include?("json")
-              issues << "Warning: Prompt does not mention JSON output structure."
-            end
+            issues << "Warning: Prompt does not mention JSON output structure." unless content.include?("JSON") || content.include?("json")
 
             # 2. Strict response format verification
             unless content.include?("tool") && content.include?("args")
@@ -172,6 +170,7 @@ module Aura
                 return path if File.exist?(path)
               end
               break if dir == limit || dir == File.dirname(dir)
+
               dir = File.dirname(dir)
             end
             nil
@@ -181,11 +180,11 @@ module Aura
             SECTIONS.map do |section|
               # Check for workspace override for this section
               section_override = find_file_in_workspace(project_path, [
-                "prompts/system/#{section}",
-                ".aura/prompts/system/#{section}",
-                "skills/system/#{section}",
-                ".aura/skills/system/#{section}"
-              ])
+                                                          "prompts/system/#{section}",
+                                                          ".aura/prompts/system/#{section}",
+                                                          "skills/system/#{section}",
+                                                          ".aura/skills/system/#{section}"
+                                                        ])
 
               if section_override
                 read_file_cached(section_override)

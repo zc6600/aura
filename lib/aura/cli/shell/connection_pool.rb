@@ -5,6 +5,7 @@ class ConnectionPool
   def initialize(size:, &block)
     @size = size
     @connections = []
+    @allocated = 0
     @block = block
     @mutex = Mutex.new
     @condition = ConditionVariable.new
@@ -18,21 +19,26 @@ class ConnectionPool
   end
 
   def close
-    @connections.each(&:close)
+    @mutex.synchronize do
+      @connections.each(&:close)
+      @connections.clear
+      @allocated = 0
+    end
   end
 
   private
 
   def checkout
     @mutex.synchronize do
-      while @connections.empty?
-        if @connections.size >= @size
-          @condition.wait(@mutex)
-        else
-          @connections << @block.call
-        end
+      @condition.wait(@mutex) while @connections.empty? && @allocated >= @size
+
+      if @connections.empty?
+        conn = @block.call
+        @allocated += 1
+        conn
+      else
+        @connections.pop
       end
-      @connections.pop
     end
   end
 

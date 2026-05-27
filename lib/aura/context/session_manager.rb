@@ -75,7 +75,7 @@ module Aura
 
         # Register in metadata
         sessions = load_metadata
-        sessions[name] = session_info
+        sessions[name.to_sym] = session_info
         save_metadata(sessions)
 
         session_info
@@ -85,7 +85,7 @@ module Aura
       # @param name [String] Session name
       # @return [Boolean]
       def exists?(name)
-        File.exist?(db_path_for(name)) || load_metadata.key?(name)
+        File.exist?(db_path_for(name)) || load_metadata.key?(name.to_sym)
       end
 
       # Activate a session (set as current)
@@ -100,8 +100,8 @@ module Aura
 
         # Update last_active_at in metadata
         sessions = load_metadata
-        if sessions[name]
-          sessions[name][:last_active_at] = Time.now.iso8601
+        if sessions[name.to_sym]
+          sessions[name.to_sym][:last_active_at] = Time.now.iso8601
           save_metadata(sessions)
         end
 
@@ -148,7 +148,7 @@ module Aura
               db_path: db_path,
               created_at: begin
                 File.birthtime(db_path).iso8601
-              rescue StandardError
+              rescue NotImplementedError, StandardError
                 File.mtime(db_path).iso8601
               end,
               last_active_at: File.mtime(db_path).iso8601,
@@ -192,7 +192,7 @@ module Aura
 
         # Remove from metadata
         sessions = load_metadata
-        sessions.delete(name)
+        sessions.delete(name.to_sym)
         save_metadata(sessions)
 
         true
@@ -217,11 +217,11 @@ module Aura
 
         # Update metadata
         sessions = load_metadata
-        info = sessions.delete(old_name)
+        info = sessions.delete(old_name.to_sym)
         if info
           info[:name] = new_name
           info[:db_path] = new_db
-          sessions[new_name] = info
+          sessions[new_name.to_sym] = info
           save_metadata(sessions)
         end
 
@@ -259,7 +259,7 @@ module Aura
         }
 
         sessions = load_metadata
-        sessions[new_name] = session_info
+        sessions[new_name.to_sym] = session_info
         save_metadata(sessions)
 
         session_info
@@ -299,7 +299,7 @@ module Aura
         }
 
         sessions = load_metadata
-        sessions[name] = session_info
+        sessions[name.to_sym] = session_info
         save_metadata(sessions)
 
         session_info

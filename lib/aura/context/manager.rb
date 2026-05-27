@@ -13,7 +13,7 @@ module Aura
       def initialize(path)
         resolved_env = defined?(Aura) && Aura.respond_to?(:environment_path) ? (Aura::PathResolver.environment_path(path) || path) : path
         @env_path = File.expand_path(resolved_env)
-        override_path = ENV["AURA_TOOL_CONTEXTS_PATH"]
+        override_path = ENV.fetch("AURA_TOOL_CONTEXTS_PATH", nil)
         @state_file = if override_path && !override_path.to_s.strip.empty?
                         File.expand_path(override_path, @env_path)
                       else

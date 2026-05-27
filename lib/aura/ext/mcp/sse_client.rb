@@ -107,7 +107,7 @@ module Aura
         # The initialize response typically contains the endpoint to POST to,
         # but for simplicity, many servers use the same URL or a relative path.
         # Here we assume the server accepts POSTs at the same URL (simplified).
-        req = Net::HTTP::Post.new(@url.path)
+        req = Net::HTTP::Post.new(@url.request_uri)
         @headers.each { |k, v| req[k] = v }
         req.body = JSON.generate(payload)
         req["Content-Type"] = "application/json"
@@ -122,7 +122,7 @@ module Aura
       def listen_loop
         Net::HTTP.start(@url.host, @url.port, use_ssl: @url.scheme == "https") do |http|
           @http = http
-          req = Net::HTTP::Get.new(@url.path)
+          req = Net::HTTP::Get.new(@url.request_uri)
           @headers.each { |k, v| req[k] = v }
           req["Accept"] = "text/event-stream"
 
@@ -149,7 +149,7 @@ module Aura
 
         return unless line.start_with?("data:")
 
-        data = line["data:".length..].strip
+        data = line[("data:".length)..].strip
         begin
           msg = JSON.parse(data)
           handle_message(msg)

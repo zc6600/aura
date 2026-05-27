@@ -50,16 +50,16 @@ module Aura
         title.length # -2 for corners
 
         line = BOX_CHARS[:top_left] +
-               BOX_CHARS[:horizontal] * 3 +
+               (BOX_CHARS[:horizontal] * 3) +
                title +
-               BOX_CHARS[:horizontal] * (WIDTH - 3 - title.length - 2) +
+               (BOX_CHARS[:horizontal] * (WIDTH - 3 - title.length - 2)) +
                BOX_CHARS[:top_right]
         puts line
       end
 
       def print_bottom_border
         line = BOX_CHARS[:bottom_left] +
-               BOX_CHARS[:horizontal] * (WIDTH - 2) +
+               (BOX_CHARS[:horizontal] * (WIDTH - 2)) +
                BOX_CHARS[:bottom_right]
         puts line
       end
@@ -96,15 +96,15 @@ module Aura
             left_text = logo_lines[i - 2]
             # Center logo in main area
             padding = (MAIN_WIDTH - left_text.length) / 2
-            left_col = " " * padding + colorize(left_text, 36) + " " * (MAIN_WIDTH - padding - left_text.length)
+            left_col = (" " * padding) + colorize(left_text, 36) + (" " * (MAIN_WIDTH - padding - left_text.length))
           elsif i == height - 2
             # Info line
             info = "Model: #{@llm_config['model'] || 'Unknown'}"
-            left_col = " " * 2 + info + " " * (MAIN_WIDTH - info.length - 2)
+            left_col = (" " * 2) + info + (" " * (MAIN_WIDTH - info.length - 2))
           elsif i == height - 1
             # Path line
             path_str = truncate(@project_path, MAIN_WIDTH - 4)
-            left_col = " " * 2 + colorize(path_str, 90) + " " * (MAIN_WIDTH - path_str.length - 2)
+            left_col = (" " * 2) + colorize(path_str, 90) + (" " * (MAIN_WIDTH - path_str.length - 2))
           else
             left_col = " " * MAIN_WIDTH
           end

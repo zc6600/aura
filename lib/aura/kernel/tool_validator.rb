@@ -30,7 +30,11 @@ module Aura
         unless tool_data
           ws_dir = File.join(@workspace_path, "tools", name)
           env_dir = File.join(@env_path, "tools", name)
-          found_dir = Dir.exist?(ws_dir) ? ws_dir : (Dir.exist?(env_dir) ? env_dir : nil)
+          found_dir = if Dir.exist?(ws_dir)
+                        ws_dir
+                      else
+                        (Dir.exist?(env_dir) ? env_dir : nil)
+                      end
           return { state: "draft", reason: "missing: manifest.json" } if found_dir && !File.exist?(File.join(found_dir, "manifest.json"))
 
           return { state: "draft", reason: "tool not found: #{name}" }

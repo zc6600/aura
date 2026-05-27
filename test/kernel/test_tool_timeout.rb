@@ -5,9 +5,9 @@ require "yaml"
 
 class TestToolTimeout < Minitest::Test
   def setup
-    @app = File.join(Dir.pwd, "tmp_tool_timeout")
+    @app = File.join(Dir.pwd, "tmp_tool_timeout_#{self.name}")
     FileUtils.rm_rf(@app)
-    system("ruby bin/aura new tmp_tool_timeout")
+    system("ruby bin/aura new tmp_tool_timeout_#{self.name}")
     @tools = File.join(@app, ".aura", "tools")
     FileUtils.mkdir_p(@tools)
     @config_path = File.join(@app, ".aura", "config", "config.yml")

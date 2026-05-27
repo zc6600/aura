@@ -49,26 +49,24 @@ class ChangelogGenerator
 
   def save_to_changelog(changelog_path = "CHANGELOG.md")
     new_entry = generate
-    
-    unless File.exist?(changelog_path)
-      File.write(changelog_path, "# Changelog\n\n")
-    end
+
+    File.write(changelog_path, "# Changelog\n\n") unless File.exist?(changelog_path)
 
     content = File.read(changelog_path)
-    
+
     # Insert after the Unreleased section or at the beginning
     if content.include?("## [Unreleased]")
       # Find the position after the Unreleased section
       lines = content.lines
       insert_index = nil
-      
+
       lines.each_with_index do |line, index|
         if line.start_with?("## [") && index > 0
           insert_index = index
           break
         end
       end
-      
+
       if insert_index
         lines.insert(insert_index, "\n---\n\n", new_entry, "\n")
         File.write(changelog_path, lines.join)
@@ -87,11 +85,11 @@ class ChangelogGenerator
 
   def fetch_commits
     # Get commits since last tag, or all commits if no tags
-    last_tag, _ = Open3.capture2("git describe --tags --abbrev=0 2>/dev/null")
+    last_tag, = Open3.capture2("git describe --tags --abbrev=0 2>/dev/null")
     last_tag = last_tag.strip
-    
+
     range = last_tag.empty? ? "HEAD" : "#{last_tag}..HEAD"
-    
+
     output, status = Open3.capture2("git log #{range} --pretty=format:'%H %s'")
     return [] unless status.success?
 
@@ -106,15 +104,15 @@ class ChangelogGenerator
 
     @commits.each do |commit|
       message = commit[:message]
-      
+
       # Parse conventional commit format: type: description
       if message =~ /^(\w+)(\(.+\))?:\s+(.+)/
-        type = $1.to_sym
-        description = $3
-        
+        type = ::Regexp.last_match(1).to_sym
+        description = ::Regexp.last_match(3)
+
         # Skip chore commits for minor changes
         next if type == :chore && description =~ /merge|version bump/i
-        
+
         categorized[type] << {
           message: description.capitalize,
           hash: commit[:hash][0..7]
@@ -136,9 +134,9 @@ end
 if __FILE__ == $0
   version = ARGV[0]
   date = ARGV[1]
-  
+
   generator = ChangelogGenerator.new(version, date)
-  
+
   if ARGV.include?("--print")
     puts generator.generate
   else

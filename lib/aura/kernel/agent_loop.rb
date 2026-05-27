@@ -171,7 +171,7 @@ module Aura
 
       def inject_tool_error(_ctx, tool_name, result)
         "[TOOL ERROR] Tool '#{tool_name}' was #{result[:status]}: #{result[:advice]}\n" \
-        "Please choose a different approach or tool.\n\n#{observe}"
+          "Please choose a different approach or tool.\n\n#{observe}"
       end
     end
   end

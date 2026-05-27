@@ -122,7 +122,7 @@ module Aura
       end
 
       def bash_completion
-        <<~'BASH'
+        <<~BASH
           _aura() {
               local cur prev opts
               COMPREPLY=()

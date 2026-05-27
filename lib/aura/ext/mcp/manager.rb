@@ -7,13 +7,31 @@ require "aura/ext/mcp/sse_client"
 module Aura
   module MCP
     class Manager
+      @active_managers = []
+      @mutex = Mutex.new
+
+      class << self
+        attr_reader :active_managers, :mutex
+      end
+
+      # Register global shutdown hook once
+      at_exit do
+        managers = []
+        mutex.synchronize do
+          managers = active_managers.dup
+          active_managers.clear
+        end
+        managers.each(&:shutdown)
+      end
+
       def initialize(project_path)
         @project_path = project_path
         @clients = {}
-        at_exit { shutdown }
+        self.class.mutex.synchronize { self.class.active_managers << self }
       end
 
       def shutdown
+        self.class.mutex.synchronize { self.class.active_managers.delete(self) }
         @clients.each_value do |client|
           client.close if client.respond_to?(:close)
         end

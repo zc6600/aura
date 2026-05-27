@@ -13,12 +13,14 @@ class TestCliConfigCommand < Minitest::Test
     
     @test_global_repo = File.join(@tmp_dir, "global_repo")
     @test_workspace = File.join(@tmp_dir, "my_project")
+    @global_path = File.join(@tmp_dir, "global_repo_stub")
     
     # Stub Aura's global repo path to prevent reading/modifying developer config
+    global_path_var = @global_path
+    @orig_global_repo_path = Aura.method(:global_repo_path)
     Aura.define_singleton_method(:global_repo_path) do
-      File.join(Dir.tmpdir, "aura-config-test-sandbox-global-repo")
+      global_path_var
     end
-    @global_path = Aura.global_repo_path
     
     # Initialize mock global config
     FileUtils.mkdir_p(File.join(@global_path, "config"))
@@ -28,8 +30,9 @@ class TestCliConfigCommand < Minitest::Test
   end
 
   def teardown
+    orig_repo = @orig_global_repo_path
+    Aura.define_singleton_method(:global_repo_path) { orig_repo.call }
     FileUtils.remove_entry(@tmp_dir) if File.exist?(@tmp_dir)
-    FileUtils.remove_entry(@global_path) if File.exist?(@global_path)
   end
 
   def test_local_config_outside_workspace

@@ -21,12 +21,7 @@ module Aura
       return {} unless File.exist?(path)
 
       begin
-        # Use safe_load to prevent arbitrary object instantiation
-        if Gem::Version.new(RUBY_VERSION) >= Gem::Version.new("3.1.0")
-          YAML.safe_load_file(path, permitted_classes: [Symbol])
-        else
-          YAML.safe_load_file(path, permitted_classes: [Symbol])
-        end || {}
+        YAML.safe_load_file(path, permitted_classes: [Symbol]) || {}
       rescue StandardError
         {}
       end

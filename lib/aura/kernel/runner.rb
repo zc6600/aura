@@ -286,7 +286,7 @@ module Aura
 
       def get_file_state
         state = {}
-        Dir.glob("#{@project_path}/**/*").each do |path|
+        Dir.glob("#{@project_path}/**/*", File::FNM_DOTMATCH).each do |path|
           next unless File.file?(path)
           next if path.include?("/.git/")
           next if path.include?("/.aura/")

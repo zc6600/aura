@@ -275,35 +275,8 @@ module Aura
       end
 
       def collect_available_tool_names
-        tps = [
-          File.join(@path, "tools"),
-          File.join(@env_path, "tools")
-        ].uniq
-
-        names = []
-        tps.each do |tp|
-          next unless Dir.exist?(tp)
-
-          Dir.glob(File.join(tp, "*")).each do |tool_dir|
-            next unless File.directory?(tool_dir)
-
-            dir_name = File.basename(tool_dir).to_s
-            names << dir_name unless dir_name.empty?
-
-            manifest_path = File.join(tool_dir, "manifest.json")
-            next unless File.exist?(manifest_path)
-
-            begin
-              man = JSON.parse(File.read(manifest_path))
-              man_name = man["name"].to_s.strip
-              names << man_name unless man_name.empty?
-            rescue JSON::ParserError, Errno::ENOENT, Errno::EACCES
-              next
-            end
-          end
-        end
-
-        names.compact.uniq
+        registry = Aura::Kernel::ToolRegistry.new(@env_path)
+        registry.all_tools
       end
 
       def build_user_task_view

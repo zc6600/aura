@@ -321,6 +321,11 @@ module Aura
           rescue IOError, Errno::EPIPE, Errno::ECONNRESET
             # Client disconnected - this is normal for SSE
           ensure
+            begin
+              socket.close
+            rescue StandardError
+              nil
+            end
             # Clear thread-local storage
             Thread.current[:socket] = nil
           end

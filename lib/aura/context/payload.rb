@@ -20,8 +20,8 @@ module Aura
       end
 
       # Forward any string methods to the markdown representation
-      def method_missing(method, *args, &block)
-        to_markdown.send(method, *args, &block)
+      def method_missing(method, ...)
+        to_markdown.send(method, ...)
       end
 
       def respond_to_missing?(method, include_private = false)

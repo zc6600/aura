@@ -88,7 +88,7 @@ module Aura
         tps.each do |tools_dir|
           next unless Dir.exist?(tools_dir)
 
-          Dir.glob(File.join(tools_dir, "*", "group_manifest.json")) do |manifest_path|
+          Dir.glob(File.join(tools_dir, "**", "group_manifest.json")) do |manifest_path|
             manifest = JSON.parse(File.read(manifest_path))
             configs[manifest["context"]["name"]] = manifest["context"]["lifecycle"]["ttl"] if manifest["context"] && manifest["context"]["name"]
           rescue JSON::ParserError, Errno::ENOENT, Errno::EACCES

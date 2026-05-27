@@ -39,19 +39,13 @@ namespace :changelog do
 
   desc "Validate CHANGELOG.md format"
   task :validate do
-    unless File.exist?("CHANGELOG.md")
-      abort "ERROR: CHANGELOG.md not found"
-    end
+    abort "ERROR: CHANGELOG.md not found" unless File.exist?("CHANGELOG.md")
 
     content = File.read("CHANGELOG.md")
-    
-    unless content.include?("## [Unreleased]")
-      puts "WARNING: Missing [Unreleased] section"
-    end
 
-    unless content.include?("Keep a Changelog")
-      puts "WARNING: Not following Keep a Changelog format"
-    end
+    puts "WARNING: Missing [Unreleased] section" unless content.include?("## [Unreleased]")
+
+    puts "WARNING: Not following Keep a Changelog format" unless content.include?("Keep a Changelog")
 
     puts "✓ CHANGELOG.md validated"
   end

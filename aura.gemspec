@@ -30,4 +30,5 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "sqlite3", "~> 1.6"
   spec.add_dependency "thor", "~> 1.2"
+  spec.metadata["rubygems_mfa_required"] = "true"
 end

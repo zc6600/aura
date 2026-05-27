@@ -34,12 +34,18 @@ class TestSessionManager < Minitest::Test
   end
 
   def test_activate_session
-    @manager.create("session-b")
+    session = @manager.create("session-b")
+    created_time = session[:last_active_at]
+    sleep 1
     db_path = @manager.activate("session-b")
     
     assert_includes db_path, "session-b.db"
     assert_equal "session-b", @manager.current_name
     assert_equal "session-b", ENV["AURA_SESSION_NAME"]
+
+    # Assert metadata timestamp is updated
+    metadata = @manager.send(:load_metadata)
+    assert_operator Time.parse(metadata[:"session-b"][:last_active_at]), :>, Time.parse(created_time)
   end
 
   def test_activate_nonexistent_session
@@ -65,6 +71,10 @@ class TestSessionManager < Minitest::Test
     
     @manager.delete("to-delete")
     refute @manager.exists?("to-delete")
+
+    # Assert removed from sessions.json
+    metadata = @manager.send(:load_metadata)
+    refute metadata.key?(:"to-delete")
   end
 
   def test_rename_session
@@ -73,6 +83,11 @@ class TestSessionManager < Minitest::Test
     
     refute @manager.exists?("old-name")
     assert @manager.exists?("new-name")
+
+    # Assert metadata updated in sessions.json
+    metadata = @manager.send(:load_metadata)
+    refute metadata.key?(:"old-name")
+    assert metadata.key?(:"new-name")
   end
 
   def test_rename_updates_active_session

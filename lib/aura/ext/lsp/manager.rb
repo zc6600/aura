@@ -56,12 +56,12 @@ module Aura
           "ruby" => {
             "command" => "solargraph",
             "args" => ["stdio"],
-            "env" => { "PATH" => ENV["PATH"] }
+            "env" => { "PATH" => ENV.fetch("PATH", nil) }
           },
           "python" => {
             "command" => "pyright-langserver",
             "args" => ["--stdio"],
-            "env" => { "PATH" => ENV["PATH"] }
+            "env" => { "PATH" => ENV.fetch("PATH", nil) }
           }
         }
       end

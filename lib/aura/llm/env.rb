@@ -45,10 +45,10 @@ module Aura
       def self.resolve_api_key(provider)
         name = provider.to_s.upcase.gsub(/[^A-Z0-9]/, "_")
         vendor_key = name.empty? ? nil : "#{name}_API_KEY"
-        if vendor_key && ENV[vendor_key] && !ENV[vendor_key].to_s.empty?
-          ENV[vendor_key]
+        if vendor_key && ENV.fetch(vendor_key, nil) && !ENV[vendor_key].to_s.empty?
+          ENV.fetch(vendor_key, nil)
         else
-          ENV["AURA_LLM_API_KEY"]
+          ENV.fetch("AURA_LLM_API_KEY", nil)
         end
       end
     end

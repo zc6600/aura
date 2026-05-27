@@ -17,11 +17,17 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     @test_workspace = File.join(@tmp_dir, "my_project")
     
     # Stub Aura's global repo path and projects list to point to our test folder
+    global_repo_path_var = File.join(@tmp_dir, "global_repo_stub")
+    global_projects_config_path_var = File.join(@tmp_dir, "projects.yml")
+
+    @orig_global_repo_path = Aura.method(:global_repo_path)
+    @orig_global_projects_config_path = Aura.method(:global_projects_config_path)
+
     Aura.define_singleton_method(:global_repo_path) do
-      File.join(Dir.tmpdir, "aura-test-sandbox-global-repo")
+      global_repo_path_var
     end
     Aura.define_singleton_method(:global_projects_config_path) do
-      File.join(Dir.tmpdir, "aura-test-sandbox-projects.yml")
+      global_projects_config_path_var
     end
     @global_path = Aura.global_repo_path
     
@@ -48,10 +54,14 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
 
   def teardown
     ENV["AURA_SESSION_NAME"] = nil
+    
+    orig_repo = @orig_global_repo_path
+    Aura.define_singleton_method(:global_repo_path) { orig_repo.call }
+    
+    orig_projects = @orig_global_projects_config_path
+    Aura.define_singleton_method(:global_projects_config_path) { orig_projects.call }
+    
     FileUtils.remove_entry(@tmp_dir) if File.exist?(@tmp_dir)
-    FileUtils.remove_entry(@global_path) if File.exist?(@global_path)
-    proj_path = Aura.global_projects_config_path
-    FileUtils.remove_entry(proj_path) if File.exist?(proj_path)
   end
 
   def test_path_decoupling_helpers

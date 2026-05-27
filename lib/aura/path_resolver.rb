@@ -81,8 +81,6 @@ module Aura
       expanded = File.expand_path(project_path)
       if File.basename(expanded) == ".aura"
         File.dirname(expanded)
-      elsif File.directory?(File.join(expanded, ".aura"))
-        expanded
       else
         expanded
       end

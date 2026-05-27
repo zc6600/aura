@@ -114,7 +114,7 @@ module Aura
                              when "gemini" then "GEMINI_API_KEY"
                              when "deepseek" then "DEEPSEEK_API_KEY"
                              end
-              api_key_set = (env_var_name && ENV[env_var_name] && !ENV[env_var_name].empty?) ||
+              api_key_set = (env_var_name && ENV.fetch(env_var_name, nil) && !ENV[env_var_name].empty?) ||
                             (llm_cfg["api_key"] && !llm_cfg["api_key"].to_s.strip.empty?)
             end
           rescue StandardError
@@ -170,10 +170,10 @@ module Aura
         check_overrides_sync(workspace_path)
       end
 
-      def validate_and_print_prompt(mode, prompt)
+      def validate_and_print_prompt(_mode, prompt)
         char_count = prompt.length
         puts "  Compiled Length: #{char_count} chars (~#{(char_count / 4.0).round} tokens)"
-        
+
         if char_count > 100_000
           puts "  \e[31m❌ Warning: Prompt length exceeds 100k characters. This may cause large latency or API costs.\e[0m"
         elsif char_count > 20_000
@@ -201,22 +201,22 @@ module Aura
 
         # Check for any modular overrides
         override_dir = File.join(workspace_path, "prompts", "system")
-        if File.directory?(override_dir)
-          puts "\n[Workspace Prompt Sync]"
-          Dir.glob(File.join(override_dir, "*.md")).each do |override_file|
-            basename = File.basename(override_file)
-            puts "  Found modular override: prompts/system/#{basename}"
-            
-            # Compare with system default if exists
-            default_path = File.expand_path("../../llm/prompts/system/#{basename}", __dir__)
-            if File.exist?(default_path)
-              default_content = File.read(default_path, encoding: "utf-8")
-              override_content = File.read(override_file, encoding: "utf-8")
-              
-              if default_content.strip == override_content.strip
-                puts "    \e[33m⚠️ Identical to system default. Consider removing this override to receive future framework updates.\e[0m"
-              end
-            end
+        return unless File.directory?(override_dir)
+
+        puts "\n[Workspace Prompt Sync]"
+        Dir.glob(File.join(override_dir, "*.md")).each do |override_file|
+          basename = File.basename(override_file)
+          puts "  Found modular override: prompts/system/#{basename}"
+
+          # Compare with system default if exists
+          default_path = File.expand_path("../../llm/prompts/system/#{basename}", __dir__)
+          next unless File.exist?(default_path)
+
+          default_content = File.read(default_path, encoding: "utf-8")
+          override_content = File.read(override_file, encoding: "utf-8")
+
+          if default_content.strip == override_content.strip
+            puts "    \e[33m⚠️ Identical to system default. Consider removing this override to receive future framework updates.\e[0m"
           end
         end
       end
