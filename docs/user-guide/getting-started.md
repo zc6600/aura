@@ -188,6 +188,13 @@ These commands can be run from the source root:
 
 All other commands must be run from within a workspace directory.
 
+### Bypassing Source Root Protection
+
+For developers working directly on the Aura OS source code who wish to run commands (like `aura chat`) in the source root directory, the restriction can be bypassed:
+
+- By setting the environment variable `AURA_ALLOW_ROOT=true` (e.g. `AURA_ALLOW_ROOT=true aura chat`)
+- By appending the `--allow-root` option to the command line (e.g. `aura chat --allow-root`)
+
 ---
 
 ## Next Steps

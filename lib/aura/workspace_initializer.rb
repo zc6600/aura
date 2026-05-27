@@ -148,5 +148,51 @@ module Aura
         exit 1
       end
     end
+
+    def self.initialize_global_env
+      global_env = File.expand_path("~/.aura/global")
+
+      unless File.directory?(global_env)
+        FileUtils.mkdir_p(File.dirname(global_env))
+        GlobalConfig.ensure_repo!
+
+        puts "Initializing global environment at #{global_env}..."
+        _, err, status = Open3.capture3("git", "clone", GlobalConfig.repo_path, global_env)
+        if status.success?
+          GlobalConfig.git_run(global_env, "config", "user.name", "Aura Global")
+          GlobalConfig.git_run(global_env, "config", "user.email", "global@aura-os.ai")
+
+          # Copy configuration file from global repo template
+          src_cfg = Aura::PathResolver.resolve_config_path(GlobalConfig.repo_path)
+          if src_cfg && File.exist?(src_cfg)
+            dest_cfg = File.join(global_env, "config", "config.yml")
+            FileUtils.mkdir_p(File.dirname(dest_cfg))
+            FileUtils.cp(src_cfg, dest_cfg)
+          end
+
+          # Inject .gitignore rule inside .aura folder to ignore runtime databases
+          inner_ignore_path = File.join(global_env, ".gitignore")
+          inner_rules = File.exist?(inner_ignore_path) ? File.read(inner_ignore_path) : ""
+          File.write(inner_ignore_path, "#{inner_rules}\nstate/aura.db*\n") unless inner_rules.include?("state/aura.db*")
+
+          # Record global project name in config
+          cfg_path = File.join(global_env, "config", "config.yml")
+          if File.exist?(cfg_path)
+            begin
+              cfg = YAML.load_file(cfg_path) || {}
+              cfg["project_name"] = "global"
+              File.write(cfg_path, YAML.dump(cfg))
+            rescue StandardError
+            end
+          end
+          puts "\e[32mGlobal environment initialized successfully!\e[0m"
+        else
+          puts "\e[31m⛔️ Error: Failed to initialize global environment:\n#{err}\e[0m"
+          exit 1
+        end
+      end
+
+      global_env
+    end
   end
 end

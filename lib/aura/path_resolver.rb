@@ -65,6 +65,15 @@ module Aura
     def self.environment_path(project_path)
       return nil if project_path.nil?
 
+      if ENV["AURA_GLOBAL_ENV"] == "true"
+        global_env = File.expand_path("~/.aura/global")
+        unless File.directory?(global_env)
+          require "aura/workspace_initializer"
+          WorkspaceInitializer.initialize_global_env
+        end
+        return global_env
+      end
+
       expanded = File.expand_path(project_path)
       hidden_dir = File.join(expanded, ".aura")
       if File.directory?(hidden_dir)
@@ -78,6 +87,10 @@ module Aura
     def self.workspace_path(project_path)
       return nil if project_path.nil?
 
+      if ENV["AURA_GLOBAL_ENV"] == "true"
+        return File.expand_path(project_path)
+      end
+
       expanded = File.expand_path(project_path)
       if File.basename(expanded) == ".aura"
         File.dirname(expanded)
@@ -89,6 +102,10 @@ module Aura
     # Resolve project path with consistent behavior across all commands
     # This is the single source of truth for project path resolution
     def self.resolve_project_path(project_path = nil)
+      if ENV["AURA_GLOBAL_ENV"] == "true"
+        return project_path.to_s.strip.empty? ? Dir.pwd : File.expand_path(project_path)
+      end
+
       start_dir = project_path.to_s.strip.empty? ? Dir.pwd : File.expand_path(project_path)
       aura_dir = find_aura_dir(start_dir)
 
@@ -130,6 +147,15 @@ module Aura
 
     # Ensure starting from a workspace, otherwise print standard error and exit.
     def self.ensure_workspace!(start_dir = Dir.pwd)
+      if ENV["AURA_GLOBAL_ENV"] == "true"
+        global_env = File.expand_path("~/.aura/global")
+        unless File.directory?(global_env)
+          require "aura/workspace_initializer"
+          WorkspaceInitializer.initialize_global_env
+        end
+        return global_env
+      end
+
       aura_dir = find_aura_dir(start_dir)
       if aura_dir.nil?
         warn "\e[31m⛔️ Error: Not in an Aura workspace (no .aura folder found in parent directories).\e[0m"

@@ -116,9 +116,9 @@ module Aura
       end
 
       def display_workspace_info
-        workspace_path = find_aura_dir
+        project_root = Aura::PathResolver.resolve_project_path(Dir.pwd)
 
-        unless workspace_path
+        unless project_root
           puts "\n#{'=' * 70}"
           puts "\e[1;33m⚠️  No Workspace Detected\e[0m"
           puts "=" * 70
@@ -128,12 +128,14 @@ module Aura
           return
         end
 
+        workspace_path = Aura::PathResolver.environment_path(project_root)
+
         puts "\n#{'=' * 70}"
         puts "\e[1;32m📂 Workspace Information (Current Project)\e[0m"
         puts "=" * 70
 
         puts "\n\e[1m📍 Workspace:\e[0m"
-        puts "  Workspace Root: #{File.dirname(workspace_path)}"
+        puts "  Workspace Root: #{project_root}"
         puts "  .aura Path: #{workspace_path}"
 
         display_workspace_config(workspace_path)

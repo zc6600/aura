@@ -131,36 +131,69 @@ module Aura
       end
 
       def scan_all_magic_hints
+        require "find"
         hints = []
         max_chars = fetch_max_hint_chars
-        Dir.glob(File.join(@path, "**", "*.{py,rb,sh,md,txt}")) do |file|
-          next if file.include?("/.git/") || file.include?("/.aura/") || file.include?("/state/")
-          next unless File.file?(file)
-          next if File.size(file) > 102_400 # Skip files larger than 100KB
+        max_files_limit = 1000
+        max_depth = (@path == Dir.home || @path == "/") ? 2 : 5
+        file_count = 0
 
-          rel_path = file.sub(%r{^#{Regexp.escape(@path)}/}, "")
-          next if ignored?(rel_path)
+        begin
+          Find.find(@path) do |file|
+            if File.directory?(file)
+              if File.expand_path(file) == File.expand_path(@path)
+                next
+              end
 
-          begin
-            File.open(file, "r") do |f|
-              15.times do
-                line = f.gets
-                break unless line
+              base = File.basename(file)
+              if base.start_with?(".") || %w[node_modules vendor tmp log build dist coverage state].include?(base)
+                Find.prune
+              end
 
-                next unless line =~ /@aura-hint:\s*(.*)/
+              # Limit recursion depth
+              rel_dir = file.sub(%r{^#{Regexp.escape(@path)}/?}, "")
+              depth = rel_dir.empty? ? 0 : rel_dir.split("/").size
+              if depth >= max_depth
+                Find.prune
+              end
+            else
+              next unless file =~ /\.(py|rb|sh|md|txt)$/
+              next if File.size(file) > 102_400 # Skip files larger than 100KB
 
-                hint_content = ::Regexp.last_match(1).strip
-                if hint_content.length > max_chars
-                  warn "[WARNING] Aura-hint in #{rel_path} was truncated because it exceeds the #{max_chars} character limit!"
-                  hint_content = hint_content[0, max_chars] + " ... [truncated: hint exceeds #{max_chars} character limit]"
+              rel_path = file.sub(%r{^#{Regexp.escape(@path)}/}, "")
+              next if ignored?(rel_path)
+
+              file_count += 1
+              if file_count > max_files_limit
+                warn "[WARNING] Magic hint scan reached file limit (#{max_files_limit}). Truncating scan."
+                break
+              end
+
+              begin
+                File.open(file, "r") do |f|
+                  15.times do
+                    line = f.gets
+                    break unless line
+
+                    next unless line =~ /@aura-hint:\s*(.*)/
+
+                    hint_content = ::Regexp.last_match(1).strip
+                    if hint_content.length > max_chars
+                      warn "[WARNING] Aura-hint in #{rel_path} was truncated because it exceeds the #{max_chars} character limit!"
+                      hint_content = hint_content[0, max_chars] + " ... [truncated: hint exceeds #{max_chars} character limit]"
+                    end
+                    hints << "- [From #{rel_path}]: #{hint_content}"
+                  end
                 end
-                hints << "- [From #{rel_path}]: #{hint_content}"
+              rescue Errno::ENOENT, Errno::EACCES, IOError
+                next
               end
             end
-          rescue Errno::ENOENT, Errno::EACCES, IOError
-            next
           end
+        rescue StandardError => e
+          warn "[WARNING] Error scanning for magic hints: #{e.message}"
         end
+
         hints.join("\n")
       end
 
