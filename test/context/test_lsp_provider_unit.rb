@@ -1,5 +1,5 @@
 require "minitest/autorun"
-require "aura/context/lsp_provider"
+require "aura/context/env_provider/lsp_provider"
 require "json"
 
 class TestLSPProvider < Minitest::Test
@@ -8,7 +8,7 @@ class TestLSPProvider < Minitest::Test
   end
 
   def test_provide_empty_when_no_manager
-    provider = Aura::Context::LSPProvider.new(@project_path, nil)
+    provider = Aura::Context::EnvProvider::LSPProvider.new(@project_path, nil)
     assert_equal "", provider.provide
   end
 
@@ -36,7 +36,7 @@ class TestLSPProvider < Minitest::Test
       ]
     }
     
-    provider = Aura::Context::LSPProvider.new(@project_path, mock_manager)
+    provider = Aura::Context::EnvProvider::LSPProvider.new(@project_path, mock_manager)
     out = provider.provide
     
     assert_includes out, "# CODE HEALTH (LSP Diagnostics)"

@@ -2,13 +2,18 @@
 
 require "aura"
 require "aura/config_loader"
-require_relative "directive_provider" # includes TaskProvider
-require_relative "environment_provider"
-require_relative "knowledge_provider"
-require_relative "lsp_provider"
-require_relative "tool_provider"
-require_relative "state_provider"
-require_relative "markdown_workspace_provider"
+
+require_relative "prompt/directive_provider"
+require_relative "prompt/workspace_provider"
+require_relative "prompt/task_provider"
+require_relative "env_provider/environment_provider"
+require_relative "env_provider/lsp_provider"
+require_relative "env_provider/knowledge_provider"
+require_relative "env_provider/tool_provider"
+require_relative "memory/state_provider"
+require_relative "prompt"
+require_relative "env_provider"
+require_relative "memory"
 
 module Aura
   module Context
@@ -18,35 +23,93 @@ module Aura
         @env_path = Aura::PathResolver.environment_path(@project_path)
         @db = db
         @options = options || {}
-        @providers = [
-          DirectiveProvider.new(@project_path, options),
-          MarkdownWorkspaceProvider.new(@project_path), # Added Markdown Workspace support
-          EnvironmentProvider.new(@project_path, env_path: @env_path),
-          KnowledgeProvider.new(@project_path),
-          LSPProvider.new(@project_path, options[:lsp_manager]),
-          ToolProvider.new(@env_path, options.merge(state: db)),
-          TaskProvider.new(@project_path),
-          StateProvider.new(db, options)
-        ].compact
+
+        @directive_provider = Aura::Context::Prompt::DirectiveProvider.new(@project_path, @options)
+        @workspace_provider = Aura::Context::Prompt::WorkspaceProvider.new(@project_path)
+        @task_provider = Aura::Context::Prompt::TaskProvider.new(@project_path)
+
+        @environment_provider = Aura::Context::EnvProvider::EnvironmentProvider.new(@project_path, env_path: @env_path)
+        @lsp_provider = Aura::Context::EnvProvider::LSPProvider.new(@project_path, @options[:lsp_manager])
+        @knowledge_provider = Aura::Context::EnvProvider::KnowledgeProvider.new(@project_path)
+        @tool_provider = Aura::Context::EnvProvider::ToolProvider.new(@env_path, @options.merge(state: db))
+
+        @state_provider = Aura::Context::Memory::StateProvider.new(db, @options)
       end
 
       def assemble
-        content = @providers.map(&:provide).compact.join("\n\n")
+        raw_sections = {
+          directive: @directive_provider.provide,
+          workspace: @workspace_provider.provide,
+          task: @task_provider.provide,
+          env: @environment_provider.provide,
+          lsp: @lsp_provider.provide,
+          knowledge: @knowledge_provider.provide,
+          state: @state_provider.provide
+        }
+
+        tool_content = @tool_provider.provide
+        tool_secs = split_tool_sections(tool_content)
+        raw_sections[:active] = tool_secs[:active]
+        raw_sections[:index] = tool_secs[:index]
+
+        total_len = raw_sections.values.compact.join("\n\n").length
         limit = fetch_max_chars(@project_path)
-        final_content = if limit&.to_i&.positive? && content.length > limit
-                          compress_content(content, limit)
-                        else
-                          content
-                        end
 
-        tool_provider = @providers.find { |p| p.is_a?(ToolProvider) }
-        tools = tool_provider ? tool_provider.provide_structured : []
+        sections = if limit&.to_i&.positive? && total_len > limit
+                     compress_sections(raw_sections, limit)
+                   else
+                     raw_sections
+                   end
 
-        sections = split_sections(final_content)
-        Aura::Context::Payload.new(sections, tools, @options)
+        tools = @tool_provider.provide_structured
+
+        prompt = Aura::Context::Prompt.new(
+          sections[:directive],
+          sections[:workspace],
+          sections[:task]
+        )
+
+        env_provider = Aura::Context::EnvProvider.new(
+          overview: sections[:env],
+          lsp: sections[:lsp],
+          knowledge: sections[:knowledge]
+        )
+
+        memory = Aura::Context::Memory.new(
+          state: sections[:state]
+        )
+
+        Aura::Context::Payload.new(prompt, env_provider, memory, tools, @options, sections)
       end
 
       private
+
+      def split_tool_sections(content)
+        active_tag = "# ACTIVE TOOLS (Ready to use)"
+        index_tag = "# TOOL INDEX (Use 'inspect_tool' to see details)"
+
+        active_idx = content.to_s.index(active_tag)
+        index_idx = content.to_s.index(index_tag)
+
+        active_part = nil
+        index_part = nil
+
+        if active_idx && index_idx
+          if active_idx < index_idx
+            active_part = content[active_idx...index_idx].strip
+            index_part = content[index_idx..].strip
+          else
+            index_part = content[index_idx...active_idx].strip
+            active_part = content[active_idx..].strip
+          end
+        elsif active_idx
+          active_part = content[active_idx..].strip
+        elsif index_idx
+          index_part = content[index_idx..].strip
+        end
+
+        { active: active_part, index: index_part }
+      end
 
       def fetch_max_chars(path)
         env_path = Aura::PathResolver.environment_path(path)
@@ -56,8 +119,8 @@ module Aura
         nil
       end
 
-      def compress_content(content, limit)
-        sections = split_sections(content)
+      def compress_sections(sections, limit)
+        sections = sections.dup
         sections = state_priority_compress(sections, limit)
         order = headers_map.keys
 
@@ -76,13 +139,13 @@ module Aura
           raise Aura::Context::ContextOverflowError, "Compressed context length #{out.length} exceeds max_state_chars #{limit}"
         end
 
-        out
+        sections
       end
 
       def headers_map
         {
           directive: "# AURA OS OPERATING PROTOCOL",
-          workspace: "# OPERATING INSTRUCTIONS", # Map for MarkdownWorkspaceProvider content (heuristic)
+          workspace: "# OPERATING INSTRUCTIONS",
           task: "# LONG-RUN TASK",
           active: "# ACTIVE TOOLS (Ready to use)",
           index: "# TOOL INDEX (Use 'inspect_tool' to see details)",
@@ -104,8 +167,6 @@ module Aura
         end
         out
       end
-
-      # other strategies removed; we only apply state_priority_compress, then hard-limit cut
 
       def state_priority_compress(sections, limit)
         return sections unless sections[:state]
@@ -160,28 +221,26 @@ module Aura
 
         # Rebuild state section and check length
         new_history_block = ([header] + events).join("\n")
-        new_state = [pre, new_history_block, av_block].compact.join("")
+        new_state = [pre, new_history_block, av_block].compact.join
         sections[:state] = new_state
 
-        def calc_total(sects)
-          sects.values.compact.join("\n\n").length
-        end
+        calc_total = ->(sects) { sects.values.compact.join("\n\n").length }
 
-        return sections if calc_total(sections) <= limit
+        return sections if calc_total.call(sections) <= limit
 
         # Step 2: reduce number of events kept (drop older first) until threshold
-        while calc_total(sections) > limit && events.size > min_event_threshold
+        while calc_total.call(sections) > limit && events.size > min_event_threshold
           events.shift
           new_history_block = ([header] + events).join("\n")
-          sections[:state] = [pre, new_history_block, av_block].compact.join("")
+          sections[:state] = [pre, new_history_block, av_block].compact.join
         end
 
-        if calc_total(sections) > limit && summary_trim_step.positive?
-          while calc_total(sections) > limit && events.size.positive?
+        if calc_total.call(sections) > limit && summary_trim_step.positive?
+          while calc_total.call(sections) > limit && events.size.positive?
             drop = [summary_trim_step, events.size].min
             events.shift(drop)
             new_history_block = ([header] + events).join("\n")
-            sections[:state] = [pre, new_history_block, av_block].compact.join("")
+            sections[:state] = [pre, new_history_block, av_block].compact.join
           end
         end
 
@@ -234,7 +293,7 @@ module Aura
         while sections.values.compact.join("\n\n").length > limit && events.size > 1
           events.shift
           new_history_block = ([header] + events).join("\n")
-          sections[:state] = [pre, new_history_block, av_block].compact.join("")
+          sections[:state] = [pre, new_history_block, av_block].compact.join
         end
 
         sections

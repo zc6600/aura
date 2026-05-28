@@ -3,7 +3,7 @@
 require "minitest/autorun"
 require "fileutils"
 require "tmpdir"
-require "aura/context/environment_provider"
+require "aura/context/env_provider/environment_provider"
 
 class TestEnvironmentProviderSafety < Minitest::Test
   def setup
@@ -37,7 +37,7 @@ class TestEnvironmentProviderSafety < Minitest::Test
   def test_pruning_and_depth_default
     # Default depth limit for regular workspaces is 5, so all depths (0 to 3) should be loaded.
     # node_modules should be pruned entirely.
-    provider = Aura::Context::EnvironmentProvider.new(@tmp_dir)
+    provider = Aura::Context::EnvProvider::EnvironmentProvider.new(@tmp_dir)
     hints = provider.send(:scan_all_magic_hints)
     
     assert_match(/depth 0 hint/, hints)
@@ -54,7 +54,7 @@ class TestEnvironmentProviderSafety < Minitest::Test
     # - Depth 1 (dir1/file1.py) is loaded (depth 1)
     # - Depth 2 (dir1/dir2/file2.sh) is pruned (depth 2 >= max_depth 2)
     # - Depth 3 is pruned
-    provider = Aura::Context::EnvironmentProvider.new(@tmp_dir)
+    provider = Aura::Context::EnvProvider::EnvironmentProvider.new(@tmp_dir)
     
     # Stub @path check to simulate home directory
     original_path = provider.instance_variable_get(:@path)
@@ -81,7 +81,7 @@ class TestEnvironmentProviderSafety < Minitest::Test
   end
 
   def test_max_files_limit
-    provider = Aura::Context::EnvironmentProvider.new(@tmp_dir)
+    provider = Aura::Context::EnvProvider::EnvironmentProvider.new(@tmp_dir)
     
     # Stub max_files_limit to 2 inside scan_all_magic_hints
     # We can inspect the returned hints count

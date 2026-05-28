@@ -1,12 +1,12 @@
 require "minitest/autorun"
-require "aura/context/lsp_provider"
+require "aura/context/env_provider/lsp_provider"
 require "aura/ext/lsp/manager"
 
 class TestLSPProvider < Minitest::Test
   def setup
     @project_path = "/tmp/aura_lsp_test"
     @manager = Aura::LSP::Manager.new(@project_path)
-    @provider = Aura::Context::LSPProvider.new(@project_path, @manager)
+    @provider = Aura::Context::EnvProvider::LSPProvider.new(@project_path, @manager)
   end
 
   def test_provide_empty_diagnostics

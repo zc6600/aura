@@ -98,7 +98,7 @@ module Aura
 
       def save_contexts(contexts)
         dir = File.dirname(@state_file)
-        FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
+        FileUtils.mkdir_p(dir)
         File.write(@state_file, JSON.pretty_generate({ contexts: contexts }))
       end
 

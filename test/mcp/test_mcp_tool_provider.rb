@@ -53,10 +53,10 @@ class TestMcpToolProvider < Minitest::Test
   end
 
   def test_tool_provider_includes_mcp_tools
-    require "aura/context/tool_provider"
+    require "aura/context/env_provider/tool_provider"
     require "aura/kernel/state"
     db = Aura::Kernel::State.new(@app)
-    provider = Aura::Context::ToolProvider.new(@app, state: db)
+    provider = Aura::Context::EnvProvider::ToolProvider.new(@app, state: db)
     text = provider.provide
     assert_includes text, "mcp.test.ping"
   end

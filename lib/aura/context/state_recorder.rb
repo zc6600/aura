@@ -122,7 +122,7 @@ module Aura
                            reason: event[:reason]
                          )
                        else
-                         record_custom(type, event.reject { |k, _| [:type].include?(k) })
+                         record_custom(type, event.except(:type))
                        end
         end
         event_ids

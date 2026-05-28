@@ -188,7 +188,7 @@ module Aura
         db_path = db_path_for(name)
 
         # Delete database file
-        File.delete(db_path) if File.exist?(db_path)
+        FileUtils.rm_f(db_path)
 
         # Remove from metadata
         sessions = load_metadata

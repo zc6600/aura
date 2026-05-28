@@ -3,12 +3,37 @@
 module Aura
   module Context
     class Payload
-      attr_reader :sections, :tools
+      attr_reader :prompt, :env_provider, :memory, :sections, :tools
 
-      def initialize(sections, tools = [], options = {})
-        @sections = sections || {}
-        @tools = tools || []
-        @options = options || {}
+      def initialize(prompt_or_sections, env_provider = nil, memory = nil, tools = [], options = {}, sections = {})
+        if prompt_or_sections.is_a?(Hash)
+          # Old signature: initialize(sections, tools = [], options = {})
+          @sections = prompt_or_sections || {}
+          @tools = env_provider || []
+          @options = memory || {}
+
+          @prompt = Aura::Context::Prompt.new(
+            @sections[:directive],
+            @sections[:workspace],
+            @sections[:task]
+          )
+          @env_provider = Aura::Context::EnvProvider.new(
+            overview: @sections[:env],
+            lsp: @sections[:lsp],
+            knowledge: @sections[:knowledge]
+          )
+          @memory = Aura::Context::Memory.new(
+            state: @sections[:state]
+          )
+        else
+          # New signature: initialize(prompt, env_provider, memory, tools = [], options = {}, sections = {})
+          @prompt = prompt_or_sections
+          @env_provider = env_provider
+          @memory = memory
+          @tools = tools || []
+          @options = options || {}
+          @sections = sections || {}
+        end
       end
 
       # Backward compatibility: behaves like a string
@@ -58,8 +83,8 @@ module Aura
       # @return [Array<Hash>] Array of message hashes
       def to_messages(goal: nil)
         mode = @options[:directive_mode]
-        if mode == :ralph_developer || mode == :ralph_critic
-          system_prompt = @sections[:directive] || ""
+        if %i[ralph_developer ralph_critic].include?(mode)
+          system_prompt = @prompt.kernel_prompt
           user_content = build_user_content(goal)
           [
             { role: "system", content: system_prompt },

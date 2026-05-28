@@ -1,6 +1,6 @@
 require "minitest/autorun"
 require "aura"
-require "aura/context/knowledge_provider"
+require "aura/context/env_provider/knowledge_provider"
 require "aura/context/base"
 require "fileutils"
 require "json"
@@ -26,7 +26,7 @@ class TestKnowledgeRobustness < Minitest::Test
     }
     File.write(@knowledge_file, JSON.pretty_generate(knowledge))
 
-    provider = Aura::Context::KnowledgeProvider.new(@project_path)
+    provider = Aura::Context::EnvProvider::KnowledgeProvider.new(@project_path)
     out = provider.provide
 
     assert_includes out, "# PROJECT KNOWLEDGE BASE"
@@ -43,7 +43,7 @@ class TestKnowledgeRobustness < Minitest::Test
     large_knowledge = { "facts" => (1..100).map { |i| "Fact number #{i} which is quite a long string to consume context space." } }
     File.write(@knowledge_file, JSON.pretty_generate(large_knowledge))
 
-    provider = Aura::Context::KnowledgeProvider.new(@project_path)
+    provider = Aura::Context::EnvProvider::KnowledgeProvider.new(@project_path)
     out = provider.provide
     
     assert_includes out, "Fact number 100"

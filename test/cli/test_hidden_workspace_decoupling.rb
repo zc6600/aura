@@ -6,6 +6,8 @@ require "tmpdir"
 require "yaml"
 require "aura"
 require "aura/cli/commands/application_command"
+require "aura/context/env_provider/environment_provider"
+require "aura/context/prompt/directive_provider"
 
 class TestHiddenWorkspaceDecoupling < Minitest::Test
   def setup
@@ -576,7 +578,7 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     assert_includes registry.all_tools, "env_tool"
 
     # 5. Verify EnvironmentProvider compiles context including both tools and skills
-    provider = Aura::Context::EnvironmentProvider.new(@test_workspace)
+    provider = Aura::Context::EnvProvider::EnvironmentProvider.new(@test_workspace)
     output = provider.provide
     assert_includes output, "Skill: workspace_skill"
     assert_includes output, "Skill: env_skill"
@@ -587,10 +589,10 @@ class TestHiddenWorkspaceDecoupling < Minitest::Test
     deep_dir = File.join(@test_workspace, "src", "components")
     FileUtils.mkdir_p(deep_dir)
 
-    dp_sys = Aura::Context::DirectiveProvider.new(deep_dir)
+    dp_sys = Aura::Context::Prompt::DirectiveProvider.new(deep_dir)
     assert_equal "System Prompt Content", dp_sys.provide.strip
 
-    dp_skill = Aura::Context::DirectiveProvider.new(deep_dir, active_skill: "env_skill")
+    dp_skill = Aura::Context::Prompt::DirectiveProvider.new(deep_dir, active_skill: "env_skill")
     assert_equal "Env Skill Body", dp_skill.provide.strip
 
     # 7. Verify InfoCommand reports all workspace skills/tools

@@ -8,37 +8,40 @@ How Aura OS assembles the "Agent Mind" (the context) and manages runtime memory 
 
 ---
 
-## Mental Model: Memory vs. Prompt
+## Mental Model: Prompt, EnvProvider, & Memory
 
-Aura OS conceptualizes the assembled agent context into two primary pillars:
+Aura OS conceptualizes the assembled agent context into three primary pillars to structure the agent's mind and state:
 
 ```
-┌────────────────────────────────────────────────────────┐
-│                      Agent Context                     │
-└───────────────┬────────────────────────┬───────────────┘
-                │                        │
-                ▼                        ▼
-      ┌──────────────────┐     ┌──────────────────┐
-      │      Memory      │     │      Prompt      │
-      │  (Dynamic State) │     │  (Directives)    │
-      └──────────────────┘     └────────┬─────────┘
-                                        │
-                             ┌──────────┴──────────┐
-                             ▼                     ▼
-                    ┌──────────────────┐  ┌──────────────────┐
-                    │   Kernel Prompt  │  │ Workspace Prompt │
-                    │ (System Protocol)│  │ (User Guidelines)│
-                    └──────────────────┘  └──────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                              Agent Context                             │
+└───────────────┬───────────────────────┼────────────────────────┬───────┘
+                │                       │                        │
+                ▼                       ▼                        ▼
+      ┌──────────────────┐    ┌──────────────────┐     ┌──────────────────┐
+      │      Prompt      │    │   EnvProvider    │     │      Memory      │
+      │  (Directives/    │    │   (Objective     │     │ (Runtime state & │
+      │   instructions)  │    │  workspace facts)│     │ SQLite database) │
+      └────────┬─────────┘    └────────┬─────────┘     └────────┬─────────┘
+               │                       │                        │
+     ┌─────────┼─────────┐   ┌─────────┼─────────┐              │
+     ▼         ▼         ▼   ▼         ▼         ▼              ▼
+  Kernel   Workspace   Task Env      LSP     Knowledge        State
+  Prompt    Prompt    Prompt Overview Details  Database       History
 ```
 
-1. **Memory (动态记忆与状态)**:
-   - Contains runtime state updates, including tool execution logs, events, active variables, and metabolic summaries stored in SQLite databases.
-   - It updates dynamically as the agent takes actions.
-
-2. **Prompt (静态/半静态提示词指令)**:
-   - Contains instruction sets and operational parameters that govern the agent's behavior.
-   - **Kernel Prompt (内核级提示词)**: Core protocols defined by the Aura Gem or the system `~/.aura` workspace. These enforce format constraints (such as strict JSON output rules) and cannot be modified by the agent project.
+1. **Prompt (指令性提示词)**:
+   - **Kernel Prompt (内核级提示词)**: Core system protocols and constraints defined by the Aura Gem or the system `~/.aura` workspace. These enforce format constraints (such as strict JSON output rules) and cannot be modified by the agent project.
    - **Workspace Prompt (工作区级提示词)**: Custom instructions and guidelines defined within the user's workspace (such as `SOUL.md`, `AGENTS.md`, and specific workflow `SKILL.md` configurations). These are fully editable by the user.
+   - **Task Prompt (任务目标提示词)**: Current action plan and checkpoint goals (derived from `task.md` checklists).
+
+2. **EnvProvider (客观环境与事实)**:
+   - **Env Overview**: Current directory listing, ignored patterns, and active tag hints (`@aura-hint`).
+   - **LSP Diagnostics**: Live code health statistics and compilation issues returned by the language server.
+   - **Knowledge Base**: Persistent facts extracted from the `.aura_knowledge.json` asset list.
+
+3. **Memory (动态运行时记忆)**:
+   - **State**: Runtime active variables, tool execution logs, SQLite event history, and metabolic context summaries.
 
 ---
 

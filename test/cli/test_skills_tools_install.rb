@@ -6,7 +6,7 @@ require "yaml"
 require "aura"
 require "aura/cli/commands/skills_command"
 require "aura/cli/commands/tools_command"
-require "aura/context/environment_provider"
+require "aura/context/env_provider/environment_provider"
 
 class TestSkillsToolsInstall < Minitest::Test
   def setup
@@ -131,7 +131,7 @@ class TestSkillsToolsInstall < Minitest::Test
       mhome
     end
 
-    provider = Aura::Context::EnvironmentProvider.new(@project)
+    provider = Aura::Context::EnvProvider::EnvironmentProvider.new(@project)
     output = provider.provide
 
     assert_includes output, "GLOBAL_RULE_PREFERENCE_INJECTED"

@@ -3,7 +3,7 @@
 require "minitest/autorun"
 require "fileutils"
 require "aura"
-require "aura/context/directive_provider"
+require "aura/context/prompt/directive_provider"
 require "aura/cli/commands/skills_command"
 
 class TestSkills < Minitest::Test
@@ -30,7 +30,7 @@ class TestSkills < Minitest::Test
   end
 
   def test_directive_provider_resolves_active_skill
-    provider = Aura::Context::DirectiveProvider.new(@tmp_dir, { active_skill: "test-skill" })
+    provider = Aura::Context::Prompt::DirectiveProvider.new(@tmp_dir, { active_skill: "test-skill" })
     provided = provider.provide
     
     # Verify front-matter is stripped
@@ -46,7 +46,7 @@ class TestSkills < Minitest::Test
     # Create system.md
     File.write(File.join(@tmp_dir, "skills", "system.md"), "Standard System Instructions")
     
-    provider = Aura::Context::DirectiveProvider.new(@tmp_dir)
+    provider = Aura::Context::Prompt::DirectiveProvider.new(@tmp_dir)
     provided = provider.provide
     
     assert_equal "Standard System Instructions\n", provided
@@ -66,7 +66,7 @@ class TestSkills < Minitest::Test
   def test_directive_provider_resolves_framework_default_skill
     require "tmpdir"
     Dir.mktmpdir("aura_outside_") do |outside_dir|
-      provider = Aura::Context::DirectiveProvider.new(outside_dir, { active_skill: "find-skills" })
+      provider = Aura::Context::Prompt::DirectiveProvider.new(outside_dir, { active_skill: "find-skills" })
       provided = provider.provide
       
       assert_match(/Find Skills/, provided)

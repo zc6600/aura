@@ -89,7 +89,7 @@ class TestContextEngineering < Minitest::Test
     # Create a large python file (>100KB) with a hint
     File.write(File.join(@project, "large.py"), "# @aura-hint: Large Hint Should Not Show\n" + ("#" * 110000))
 
-    provider = Aura::Context::EnvironmentProvider.new(@project)
+    provider = Aura::Context::EnvProvider::EnvironmentProvider.new(@project)
     out = provider.provide
 
     assert_includes out, "Valid Hint Here"
@@ -101,7 +101,7 @@ class TestContextEngineering < Minitest::Test
     long_hint_content = "X" * 1200
     File.write(File.join(@project, "long_hint.py"), "# @aura-hint: #{long_hint_content}")
 
-    provider = Aura::Context::EnvironmentProvider.new(@project)
+    provider = Aura::Context::EnvProvider::EnvironmentProvider.new(@project)
 
     # Capture stderr to verify warning output for default 1000 characters limit
     old_stderr = $stderr
@@ -126,7 +126,7 @@ class TestContextEngineering < Minitest::Test
         max_hint_chars: 50
     YAML
 
-    provider2 = Aura::Context::EnvironmentProvider.new(@project)
+    provider2 = Aura::Context::EnvProvider::EnvironmentProvider.new(@project)
 
     old_stderr = $stderr
     $stderr = StringIO.new
@@ -162,7 +162,7 @@ class TestContextEngineering < Minitest::Test
     File.write(File.join(@project, "AURA_README.md"), "WORKSPACE_RULE_README_CONTENT")
 
     # 1. Test default behavior (injects by default)
-    provider = Aura::Context::EnvironmentProvider.new(@project)
+    provider = Aura::Context::EnvProvider::EnvironmentProvider.new(@project)
     out1 = provider.provide
     assert_includes out1, "WORKSPACE_RULE_README_CONTENT"
 
@@ -174,7 +174,7 @@ class TestContextEngineering < Minitest::Test
         auto_inject_readme: false
     YAML
 
-    provider2 = Aura::Context::EnvironmentProvider.new(@project)
+    provider2 = Aura::Context::EnvProvider::EnvironmentProvider.new(@project)
     out2 = provider2.provide
     refute_includes out2, "WORKSPACE_RULE_README_CONTENT"
   end
@@ -200,7 +200,7 @@ class TestContextEngineering < Minitest::Test
     YAML
 
     # Verify EnvironmentProvider truncations
-    ep = Aura::Context::EnvironmentProvider.new(@project)
+    ep = Aura::Context::EnvProvider::EnvironmentProvider.new(@project)
     out = ep.provide
     assert_includes out, "R" * 10000
     assert_includes out, "... [truncated: exceeds 10000 character limit]"
@@ -211,7 +211,7 @@ class TestContextEngineering < Minitest::Test
     refute_includes out, "K" * 12000
 
     # Verify ToolProvider truncations
-    tp = Aura::Context::ToolProvider.new(@project)
+    tp = Aura::Context::EnvProvider::ToolProvider.new(@project)
     tool_out = tp.provide
     assert_includes tool_out, "T" * 10000
     assert_includes tool_out, "... [truncated]"
@@ -224,7 +224,7 @@ class TestContextEngineering < Minitest::Test
         max_file_chars: 50
     YAML
 
-    ep_custom = Aura::Context::EnvironmentProvider.new(@project)
+    ep_custom = Aura::Context::EnvProvider::EnvironmentProvider.new(@project)
     out_custom = ep_custom.provide
     assert_includes out_custom, "R" * 50
     assert_includes out_custom, "... [truncated: exceeds 50 character limit]"
@@ -234,7 +234,7 @@ class TestContextEngineering < Minitest::Test
     assert_includes out_custom, "... [truncated]"
     refute_includes out_custom, "K" * 51
 
-    tp_custom = Aura::Context::ToolProvider.new(@project)
+    tp_custom = Aura::Context::EnvProvider::ToolProvider.new(@project)
     tool_out_custom = tp_custom.provide
     assert_includes tool_out_custom, "T" * 50
     assert_includes tool_out_custom, "... [truncated]"
@@ -264,13 +264,13 @@ class TestContextEngineering < Minitest::Test
           - "magic.py"
     YAML
 
-    ep = Aura::Context::EnvironmentProvider.new(@project)
+    ep = Aura::Context::EnvProvider::EnvironmentProvider.new(@project)
     out = ep.provide
     refute_includes out, "README_RULE"
     refute_includes out, "KNOWLEDGE_HINT"
     refute_includes out, "MAGIC_HINT_HERE"
 
-    tp = Aura::Context::ToolProvider.new(@project)
+    tp = Aura::Context::EnvProvider::ToolProvider.new(@project)
     tool_out = tp.provide
     refute_includes tool_out, "TOOL_HINT"
   end
