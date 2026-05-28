@@ -2,7 +2,7 @@
 
 require "yaml"
 require "fileutils"
-require "aura/context/session_manager"
+require "aura/memory/session_manager"
 
 module Aura
   module CLI
@@ -42,7 +42,7 @@ module Aura
         private
 
         def handle_session(args)
-          session_mgr = Aura::Context::SessionManager.new(@project_path)
+          session_mgr = Aura::Memory::SessionManager.new(@project_path)
 
           if args.nil? || args.empty? || args.strip.downcase == "list"
             sessions = session_mgr.list

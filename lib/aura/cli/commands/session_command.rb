@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "thor"
-require "aura/context/session_manager"
+require "aura/memory/session_manager"
 
 module Aura
   module Commands
@@ -187,7 +187,7 @@ module Aura
 
       def resolve_session_mgr
         resolved_path = Aura::PathResolver.resolve_project_path!(nil)
-        Aura::Context::SessionManager.new(resolved_path)
+        Aura::Memory::SessionManager.new(resolved_path)
       rescue SystemExit
         exit 1
       end

@@ -8,7 +8,7 @@ require "aura/llm/client"
 require "aura/cli/commands/dashboard"
 require "aura/cli/shell/executor"
 require "aura/cli/shell/slash_command_manager"
-require "aura/context/session_manager"
+require "aura/memory/session_manager"
 require "aura/config_loader"
 
 module Aura
@@ -107,7 +107,7 @@ module Aura
           Aura::LLM::Env.load_from(@project_path)
 
           # Initialize session management
-          @session_mgr = Aura::Context::SessionManager.new(@project_path)
+          @session_mgr = Aura::Memory::SessionManager.new(@project_path)
           current_session = @session_mgr.current_name
           puts "\e[33m📝 Session: #{current_session}\e[0m" if current_session && @options[:verbose]
 

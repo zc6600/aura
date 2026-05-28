@@ -265,9 +265,9 @@ This is a **concise, practical, and easily extensible** design!
 
 ## Code References
 
-- **SessionManager**: `lib/aura/context/session_manager.rb`
+- **SessionManager**: `lib/aura/memory/session_manager.rb`
 - **State**: `lib/aura/kernel/state.rb`
-- **Tests**: `test/context/test_session_manager.rb`
+- **Tests**: `test/memory/test_session_manager.rb`
 
 ---
 

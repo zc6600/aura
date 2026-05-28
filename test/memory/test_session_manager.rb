@@ -2,14 +2,14 @@
 
 require "minitest/autorun"
 require "fileutils"
-require "aura/context/session_manager"
+require "aura/memory/session_manager"
 
 class TestSessionManager < Minitest::Test
   def setup
     @test_dir = File.expand_path("tmp_test_session_manager", __dir__)
     FileUtils.rm_rf(@test_dir)
     FileUtils.mkdir_p(@test_dir)
-    @manager = Aura::Context::SessionManager.new(@test_dir)
+    @manager = Aura::Memory::SessionManager.new(@test_dir)
   end
 
   def teardown

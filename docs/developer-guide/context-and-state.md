@@ -2,7 +2,7 @@
 
 How Aura OS assembles the "Agent Mind" (the context) and manages runtime memory and instruction prompts.
 
-**Framework Code**: `lib/aura/context/` (Base, DirectiveProvider, TaskProvider, MarkdownWorkspaceProvider, EnvironmentProvider, KnowledgeProvider, LSPProvider, ToolProvider, StateProvider, Manager, Payload, SessionManager, StateRecorder)  
+**Framework Code**: `lib/aura/context/` (Base, prompt/directive_provider, prompt/workspace_provider, prompt/task_provider, env_provider/environment_provider, env_provider/knowledge_provider, env_provider/lsp_provider, env_provider/tool_provider, memory/state_provider, manager, payload), `lib/aura/memory/session_manager.rb` (SessionManager)  
 **Project Context**: `state/sessions/*.db` (SQLite, session-isolated), `.aura_knowledge.json`, `SOUL.md`, `AGENTS.md`, `USER.md`, `TOOLS.md`, `IDENTITY.md`, `MEMORY.md`, `memory/*.md`, `task.md` and `config/config.yml`  
 **Memory Metabolism**: `lib/aura/memory/metabolizer.rb`
 
@@ -53,14 +53,14 @@ The pipeline comprises 8 distinct providers:
 
 ```mermaid
 graph TD
-    Base[Aura::Context::Base] --> DP[DirectiveProvider]
-    Base --> WP[MarkdownWorkspaceProvider]
-    Base --> EP[EnvironmentProvider]
-    Base --> KP[KnowledgeProvider]
-    Base --> LSP[LSPProvider]
-    Base --> TP[ToolProvider]
-    Base --> TK[TaskProvider]
-    Base --> SP[StateProvider]
+    Base[Aura::Context::Base] --> DP[Prompt::DirectiveProvider]
+    Base --> WP[Prompt::WorkspaceProvider]
+    Base --> EP[EnvProvider::EnvironmentProvider]
+    Base --> KP[EnvProvider::KnowledgeProvider]
+    Base --> LSP[EnvProvider::LSPProvider]
+    Base --> TP[EnvProvider::ToolProvider]
+    Base --> TK[Prompt::TaskProvider]
+    Base --> SP[Memory::StateProvider]
     
     DP --> Payload[Aura::Context::Payload]
     WP --> Payload
@@ -72,7 +72,7 @@ graph TD
     SP --> Payload
 ```
 
-### 1. Directive Provider (`Aura::Context::DirectiveProvider`)
+### 1. Directive Provider (`Aura::Context::Prompt::DirectiveProvider`)
 
 Resolves the core system instructions and guidelines that govern the agent's behavior.
 
@@ -83,7 +83,7 @@ Resolves the core system instructions and guidelines that govern the agent's beh
 - **Ralph Loop Support**: Resolves specialized prompts for Ralph developer (`:ralph_developer`) and critic (`:ralph_critic`) execution modes, loading corresponding workspace rules or falling back to default loop instructions. It forwards option hashes (including `critic_mode` options) directly to the prompt registry.
 - **Template Substitution**: Automatically interpolates `{{project_path}}` in instructions.
 
-### 2. Markdown Workspace Provider (`Aura::Context::MarkdownWorkspaceProvider`)
+### 2. Workspace Provider (`Aura::Context::Prompt::WorkspaceProvider`)
 
 Loads OpenClaw-style markdown configuration files from the project workspace or `.aura/instructions/` / `instructions/` subdirectories to guide agent persona, rules, and long-term memory.
 
@@ -96,7 +96,7 @@ Loads OpenClaw-style markdown configuration files from the project workspace or 
 - **`MEMORY.md`** (`# LONG-TERM MEMORY`): Retains curated, high-level, persistent memories.
 - **`memory/*.md`** (`# RECENT MEMORY LOGS`): Loads the contents of the last two daily memory log files.
 
-### 3. Environment Provider (`Aura::Context::EnvironmentProvider`)
+### 3. Environment Provider (`Aura::Context::EnvProvider::EnvironmentProvider`)
 
 Provides comprehensive environmental, workspace structure, and tag-sensing capabilities.
 
@@ -108,15 +108,15 @@ Provides comprehensive environmental, workspace structure, and tag-sensing capab
 - **Skills Knowledge**: Parses YAML metadata from `SKILL.md` files (in `skills/` or `.aura/skills/`) to display skill name, description, requirements, and missing workspace tools, plus lists related scripts, references, and assets.
 - **User Task View**: Extracts the current plan stored as active variables in the SQLite database and summarizes node actions from `anchors/*.json` or `anchors/*.yaml` / `anchors/*.yml` files.
 
-### 4. Knowledge Provider (`Aura::Context::KnowledgeProvider`)
+### 4. Knowledge Provider (`Aura::Context::EnvProvider::KnowledgeProvider`)
 
 Pulls persistent facts and global assertions from the `.aura_knowledge.json` manifest. These are injected under the `# PROJECT KNOWLEDGE BASE (Persistent Facts)` header.
 
-### 5. LSP Provider (`Aura::Context::LSPProvider`)
+### 5. LSP Provider (`Aura::Context::EnvProvider::LSPProvider`)
 
 Retrieves compiler and linter warnings or errors from the LSP Manager. It lists active diagnostics under `# CODE HEALTH (LSP Diagnostics)` and displays the line number and message of the first three errors in affected source files to prevent agent logic degradation.
 
-### 6. Tool Provider (`Aura::Context::ToolProvider`)
+### 6. Tool Provider (`Aura::Context::EnvProvider::ToolProvider`)
 
 Exposes local, MCP, and LSP diagnostic tools under `# ACTIVE TOOLS` and `# TOOL INDEX`.
 
@@ -125,11 +125,11 @@ Exposes local, MCP, and LSP diagnostic tools under `# ACTIVE TOOLS` and `# TOOL 
 - **JSON Schema Construction**: Collects input schema definitions, descriptions, hints, and required fields.
 - **Integration**: Appends MCP tools (`mcp.<server>.<tool>`) and LSP diagnostic execution hooks.
 
-### 7. Task Provider (`Aura::Context::TaskProvider` / `TaskProvider`)
+### 7. Task Provider (`Aura::Context::Prompt::TaskProvider`)
 
 Resolves the `task.md` file from the workspace path, placing it under the `# LONG-RUN TASK` header to track current goals and sub-steps during long-duration runs.
 
-### 8. State Provider (`Aura::Context::StateProvider`)
+### 8. State Provider (`Aura::Context::Memory::StateProvider`)
 
 Pulls session history and system variables from the active session SQLite database.
 
@@ -237,12 +237,16 @@ client.complete(messages, tools: tools)
 
 - **Context Base**: `lib/aura/context/base.rb`
 - **Payload Module**: `lib/aura/context/payload.rb`
-- **Environment Provider**: `lib/aura/context/environment_provider.rb`
-- **Markdown Workspace Provider**: `lib/aura/context/markdown_workspace_provider.rb`
-- **State Recorder**: `lib/aura/context/state_recorder.rb`
-- **State Provider**: `lib/aura/context/state_provider.rb`
+- **Directive Provider**: `lib/aura/context/prompt/directive_provider.rb`
+- **Workspace Provider**: `lib/aura/context/prompt/workspace_provider.rb`
+- **Task Provider**: `lib/aura/context/prompt/task_provider.rb`
+- **Environment Provider**: `lib/aura/context/env_provider/environment_provider.rb`
+- **Knowledge Provider**: `lib/aura/context/env_provider/knowledge_provider.rb`
+- **LSP Provider**: `lib/aura/context/env_provider/lsp_provider.rb`
+- **Tool Provider**: `lib/aura/context/env_provider/tool_provider.rb`
+- **State Provider**: `lib/aura/context/memory/state_provider.rb`
 - **Context Manager**: `lib/aura/context/manager.rb`
-- **Session Manager**: `lib/aura/context/session_manager.rb`
+- **Session Manager**: `lib/aura/memory/session_manager.rb`
 
 ---
 
