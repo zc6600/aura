@@ -60,6 +60,10 @@ class TestRalphLoop < Minitest::Test
         }
       }
     end
+
+    def db
+      nil
+    end
     
     def reconnect_session!(session_name)
       # Simulate physical SQLite DB and journal file creations to test cleanup logic
@@ -230,6 +234,22 @@ class TestRalphLoop < Minitest::Test
     assert_match(/PASSING/, audit_content)
     assert_match(/perfect/, audit_content)
   end
+
+  # Test 3.1: Critic LLM in heavy mode runs AgentLoop
+  def test_critic_mode_heavy_runs_agent_loop
+    @mock_client.responses = [
+      { content: '{"tool": "read_file", "args": {"path": "a.txt"}, "summary": "reading"}', finish_reason: "tool_calls" },
+      { content: '{"completed": false, "critique": "not fixed yet", "advice": "edit file"}', finish_reason: "stop" },
+      { content: '{"tool": "read_file", "args": {"path": "b.txt"}, "summary": "reading critique"}', finish_reason: "tool_calls" },
+      { content: '{"completed": true, "critique": "perfect now", "advice": ""}', finish_reason: "stop" }
+    ]
+
+    loop_inst = Aura::Kernel::RalphLoop.new(@mock_runner, "fix code", critic: true, critic_mode: "heavy")
+    result = loop_inst.run
+    
+    assert_equal :completed, result
+  end
+
 
   # Test 4: Aborts when max steps limit is exceeded
   def test_aborts_on_max_steps

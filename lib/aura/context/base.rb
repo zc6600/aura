@@ -17,6 +17,7 @@ module Aura
         @project_path = File.expand_path(project_path)
         @env_path = Aura::PathResolver.environment_path(@project_path)
         @db = db
+        @options = options || {}
         @providers = [
           DirectiveProvider.new(@project_path, options),
           MarkdownWorkspaceProvider.new(@project_path), # Added Markdown Workspace support
@@ -42,7 +43,7 @@ module Aura
         tools = tool_provider ? tool_provider.provide_structured : []
 
         sections = split_sections(final_content)
-        Aura::Context::Payload.new(sections, tools)
+        Aura::Context::Payload.new(sections, tools, @options)
       end
 
       private

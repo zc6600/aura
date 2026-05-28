@@ -62,4 +62,15 @@ class TestSkills < Minitest::Test
     assert_match(/\* test-skill/, out)
     assert_match(/This is a verified test skill/, out)
   end
+
+  def test_directive_provider_resolves_framework_default_skill
+    require "tmpdir"
+    Dir.mktmpdir("aura_outside_") do |outside_dir|
+      provider = Aura::Context::DirectiveProvider.new(outside_dir, { active_skill: "find-skills" })
+      provided = provider.provide
+      
+      assert_match(/Find Skills/, provided)
+      assert_match(/The Skills CLI/, provided)
+    end
+  end
 end

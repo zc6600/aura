@@ -77,7 +77,8 @@ module Aura
         # Setup Ralph Loop parameters
         @max_steps = (@options[:max_steps] || @config.dig("ralph", "max_steps") || DEFAULT_MAX_STEPS).to_i
         @verify_command = @options[:verify_command] || @config.dig("ralph", "verify_command")
-        @use_critic = @options[:critic] || @config.dig("ralph", "use_critic") || false
+        @critic_mode = (@options[:critic_mode] || @config.dig("ralph", "critic_mode") || "light").to_s.downcase
+        @use_critic = @options[:critic] || @config.dig("ralph", "use_critic") || (@critic_mode == "heavy") || false
 
         # Set up state variables for persistent prompt injection
         reset_state_variables
@@ -216,49 +217,14 @@ module Aura
         end
       end
 
-      def build_audit_content(changes, previous_audit, test_output)
-        task_content = ""
-        task_path = File.join(@project_path, "task.md")
-        if File.exist?(task_path)
-          begin
-            task_content = "### task.md Checklist:\n```markdown\n#{File.read(task_path, encoding: 'utf-8')}\n```"
-          rescue StandardError
-            task_content = "### task.md Checklist:\n[Error reading task.md]"
-          end
-        end
-
-        <<~AUDIT
-          # INITIAL GOAL
-          #{@goal}
-
-          # PREVIOUS CRITIC AUDIT
-          #{previous_audit}
-
-          # CURRENT WORKSPACE CHANGES
-          #{changes}
-
-          # PHYSICAL TEST EXECUTION VERIFICATION LOG
-          #{test_output}
-
-          # TASK CHECKLIST
-          #{task_content}
-
-          Please audit these changes. Are they complete and correct according to the Goal?
-          Does it address the previous critique and satisfy all acceptance criteria?
-        AUDIT
-      end
-
       def setup_planning_hook
         @planning_hook_proc = lambda do |payload|
           ctx = payload[:context]
 
-          # Skip wrapper if it is already a custom RalphPayload
-          next if ctx.is_a?(RalphPayload)
+          # Skip if already wrapped or structured via standard Payload with ralph options
+          next if ctx.is_a?(RalphPayload) || (ctx.is_a?(Aura::Context::Payload) && ctx.instance_variable_get(:@options)&.dig(:directive_mode))
 
-          # Dynamically wrap context observations with Ralph system prompts
           if @current_mode == :critic
-            # Critical optimization: In critic mode, the physical tests and git diff have
-            # ALREADY been run and cached. We do NOT run them again!
             changes = get_git_diff_with_untracked
             previous_audit = load_previous_critique
 
@@ -268,64 +234,42 @@ module Aura
                             "No physical verification command configured."
                           end
 
-            audit_content = build_audit_content(changes, previous_audit, test_output)
+            task_content = ""
+            task_path = File.join(@project_path, "task.md")
+            if File.exist?(task_path)
+              begin
+                task_content = "### task.md Checklist:\n```markdown\n#{File.read(task_path, encoding: 'utf-8')}\n```"
+              rescue StandardError
+                task_content = "### task.md Checklist:\n[Error reading task.md]"
+              end
+            end
 
-            critic_system_prompt = Aura::LLM::Prompts::Registry.resolve(:ralph_critic, @project_path)
-
-            messages = [
-              { role: "system", content: critic_system_prompt },
-              { role: "user", content: audit_content }
-            ]
-
-            payload[:context] = RalphPayload.new(messages, [])
+            payload[:context] = Aura::Context.assemble(
+              @project_path,
+              @runner.db,
+              directive_mode: :ralph_critic,
+              critic_mode: @critic_mode,
+              ralph_audit: {
+                changes: changes,
+                previous_audit: previous_audit,
+                test_output: test_output,
+                task_content: task_content
+              }
+            )
           else
-            system_prompt = Aura::LLM::Prompts::Registry.resolve(:ralph_developer, @project_path)
-            user_content = build_user_prompt_content(ctx, @last_tool_name, @last_tool_output, @last_test_feedback)
-
-            messages = [
-              { role: "system", content: system_prompt },
-              { role: "user", content: user_content }
-            ]
-
-            payload[:context] = RalphPayload.new(messages, ctx.respond_to?(:to_tool_schemas) ? ctx.to_tool_schemas : [])
+            payload[:context] = Aura::Context.assemble(
+              @project_path,
+              @runner.db,
+              directive_mode: :ralph_developer,
+              ralph_recap: {
+                last_tool: @last_tool_name,
+                last_output: @last_tool_output,
+                last_test: @last_test_feedback,
+                verifier_mode: @use_critic ? "Critic LLM Audit" : "Physical Command"
+              }
+            )
           end
         end
-      end
-
-      def build_user_prompt_content(context_payload, last_tool, last_output, last_test)
-        parts = if context_payload.nil?
-                  "No workspace context payload."
-                else
-                  # Exclude directive (old system.md), active tools index, and state (which is empty anyway)
-                  if context_payload.respond_to?(:to_markdown_excluding)
-                    context_payload.to_markdown_excluding(%i[directive active index state])
-                  else
-                    context_payload.to_s
-                  end
-                end
-
-        recap = <<~RECAP
-          # LAST ITERATION RECAP
-          - **Last Tool Executed**: `#{last_tool}`
-          - **Last Tool Result**:
-          ```
-          #{last_output}
-          ```
-
-          # CURRENT VERIFICATION STATUS
-          - **Verifier Mode**: #{@use_critic ? 'Critic LLM Audit' : 'Physical Command'}
-          - **Verification Feedback**:
-          ```
-          #{last_test}
-          ```
-        RECAP
-
-        [
-          parts,
-          recap,
-          "## CURRENT USER TASK",
-          @goal.strip
-        ].compact.join("\n\n")
       end
 
       def run_verification
@@ -380,35 +324,60 @@ module Aura
                           "No physical verification command configured."
                         end
 
-          audit_content = build_audit_content(changes, previous_audit, test_output)
-
-          critic_system_prompt = Aura::LLM::Prompts::Registry.resolve(:ralph_critic, @project_path)
-
-          messages = [
-            { role: "system", content: critic_system_prompt },
-            { role: "user", content: audit_content }
-          ]
-
-          critic_payload = RalphPayload.new(messages, []) # Critic has no tools
-
-          # Rotate to critic session to keep audit database amnesia separate
-          critic_session = "ralph_critic_audit_#{@run_id}_step_#{@iteration_count}"
-          @temp_sessions << critic_session
-          @runner.reconnect_session!(critic_session)
-
-          # Run Critic Agent via AgentLoop
-          @event_bus.emit(:thought, content: "Starting Critic AgentLoop...")
-          critic_loop = AgentLoop.new(@runner, event_bus: @inner_event_bus)
-
-          result = begin
-            critic_loop.run("Audit changes", ctx: critic_payload)
-          rescue StandardError => e
-            @event_bus.emit(:thought, content: "Critic AgentLoop raised an exception: #{e.message}")
-            @event_bus.emit(:thought, content: "Stacktrace: #{e.backtrace&.first(5)&.join("\n")}")
-            return { passed: false, output: "Critic LLM loop execution error: #{e.class} - #{e.message}" }
+          task_content = ""
+          task_path = File.join(@project_path, "task.md")
+          if File.exist?(task_path)
+            begin
+              task_content = "### task.md Checklist:\n```markdown\n#{File.read(task_path, encoding: 'utf-8')}\n```"
+            rescue StandardError
+              task_content = "### task.md Checklist:\n[Error reading task.md]"
+            end
           end
 
-          content = result.final_content.to_s
+          critic_payload = Aura::Context.assemble(
+            @project_path,
+            @runner.db,
+            directive_mode: :ralph_critic,
+            critic_mode: @critic_mode,
+            ralph_audit: {
+              changes: changes,
+              previous_audit: previous_audit,
+              test_output: test_output,
+              task_content: task_content
+            }
+          )
+
+          content = if @critic_mode == "heavy"
+                      # Rotate to critic session to keep audit database amnesia separate
+                      critic_session = "ralph_critic_audit_#{@run_id}_step_#{@iteration_count}"
+                      @temp_sessions << critic_session
+                      @runner.reconnect_session!(critic_session)
+
+                      # Run Critic Agent via AgentLoop
+                      @event_bus.emit(:thought, content: "Starting Critic AgentLoop (heavy mode)...")
+                      critic_loop = AgentLoop.new(@runner, event_bus: @inner_event_bus)
+
+                      result = begin
+                        critic_loop.run("Audit changes", ctx: critic_payload)
+                      rescue StandardError => e
+                        @event_bus.emit(:thought, content: "Critic AgentLoop raised an exception: #{e.message}")
+                        @event_bus.emit(:thought, content: "Stacktrace: #{e.backtrace&.first(5)&.join("\n")}")
+                        return { passed: false, output: "Critic LLM loop execution error: #{e.class} - #{e.message}" }
+                      end
+
+                      result.final_content.to_s
+                    else
+                      # Light mode: direct single LLM call
+                      @event_bus.emit(:thought, content: "Calling Critic LLM in light mode (single-turn)...")
+                      messages = critic_payload.to_messages(goal: "Audit changes")
+                      options = {
+                        temperature: @runner.planner.temp,
+                        max_tokens: @runner.planner.max_tokens
+                      }
+                      res = @runner.planner.client.complete(messages, options)
+                      res[:content] || res["content"] || res[:raw] || ""
+                    end
+
           parsed = Aura::LLM::Parsers::ResponseParser.safe_json_parse(content)
 
           if parsed.is_a?(Hash)

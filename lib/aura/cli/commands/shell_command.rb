@@ -17,6 +17,7 @@ module Aura
       method_option :mode, type: :string, default: "classic", desc: "Run loop mode: classic or ralph"
       method_option :verify, type: :string, desc: "Verify test command for Ralph Loop"
       method_option :critic, type: :boolean, default: false, desc: "Use Critic LLM instead of test command for Ralph Loop"
+      method_option :critic_mode, type: :string, default: "light", desc: "Critic mode: light or heavy"
       method_option :max_steps, type: :numeric, desc: "Maximum steps/calls in Ralph Loop"
       def start(project_path, external_opts = {})
         merged_opts = options.to_h.merge(external_opts.to_h)

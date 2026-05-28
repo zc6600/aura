@@ -52,7 +52,7 @@ module Aura
           end
 
           # Resolve prompts by mode and priority
-          def resolve(mode, project_path, _options = {})
+          def resolve(mode, project_path, options = {})
             case mode.to_sym
             when :standard
               # Check for legacy single-file override
@@ -104,7 +104,12 @@ module Aura
 
             when :ralph_critic
               # Critic base protocol
-              base = Aura::LLM::Prompts::CRITIC_PROTOCOL_PROMPT
+              critic_mode = (options[:critic_mode] || "light").to_s.downcase
+              base = if critic_mode == "heavy"
+                       Aura::LLM::Prompts::CRITIC_HEAVY_PROTOCOL_PROMPT
+                     else
+                       Aura::LLM::Prompts::CRITIC_PROTOCOL_PROMPT
+                     end
 
               # Critic rules override
               critic_path = find_file_in_workspace(project_path, [

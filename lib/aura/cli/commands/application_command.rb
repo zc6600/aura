@@ -151,6 +151,7 @@ module Aura
                            }
       method_option :verify, type: :string, desc: "Verify test command for Ralph Loop"
       method_option :critic, type: :boolean, default: false, desc: "Use Critic LLM instead of test command for Ralph Loop"
+      method_option :critic_mode, type: :string, default: "light", desc: "Critic mode: light or heavy"
       method_option :max_steps, type: :numeric, desc: "Maximum steps/calls in Ralph Loop"
       def chat(project_path = nil)
         resolved_path = Aura::PathResolver.resolve_project_path!(project_path)

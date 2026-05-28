@@ -1,3 +1,4 @@
+---
 name: figure-evaluation
 description: Evaluates scientific figures for publication quality using VLM-as-a-judge. Use when user uploads a figure and asks for "critique", "review", "scoring against academic standards", or asks "is this figure publication-ready?".
 ---

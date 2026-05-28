@@ -1,3 +1,4 @@
+---
 name: multi-agent-simulation
 description: Orchestrates multi-agent collaboration workflows (e.g., Debate, Refine, Swarm). Use when user asks to "simulate a debate between agents", "run a multi-agent simulation", "have agents discuss this topic", or "assign roles to solve this task".
 ---

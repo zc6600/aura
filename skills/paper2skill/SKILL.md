@@ -1,3 +1,4 @@
+---
 name: paper2skill
 description: Converts academic papers (especially on agents/multi-agent systems) into executable Aura skills. Use when user provides a paper/PDF and asks to "learn this method", "implement this paper as a skill", or "turn this research into code".
 ---

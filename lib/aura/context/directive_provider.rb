@@ -15,7 +15,8 @@ module Aura
         content = if active_skill_path
                     Aura::LLM::Prompts::Registry.read_file_cached(active_skill_path)
                   else
-                    Aura::LLM::Prompts::Registry.resolve(:standard, @project_path)
+                    mode = @options[:directive_mode] || :standard
+                    Aura::LLM::Prompts::Registry.resolve(mode.to_sym, @project_path, @options)
                   end
 
         return "" if content.nil? || content.empty?
@@ -36,9 +37,11 @@ module Aura
         while dir && dir != File.dirname(dir)
           candidates << File.join(dir, "skills", active.to_s, "SKILL.md")
           candidates << File.join(dir, ".aura", "skills", active.to_s, "SKILL.md") if File.directory?(File.join(dir, ".aura"))
-          candidates << File.join(dir, "lib", "aura", "generators", "aura", "app", "templates", "skills", active.to_s, "SKILL.md")
           dir = File.dirname(dir)
         end
+        # Also check inside the gem templates directory
+        candidates << File.join(File.expand_path("../generators/aura/app/templates/skills", __dir__), active.to_s, "SKILL.md")
+        
         candidates.find { |path| File.exist?(path) }
       end
 
@@ -48,9 +51,11 @@ module Aura
         while dir && dir != File.dirname(dir)
           candidates << File.join(dir, "skills", "system.md")
           candidates << File.join(dir, ".aura", "skills", "system.md") if File.directory?(File.join(dir, ".aura"))
-          candidates << File.join(dir, "lib", "aura", "generators", "aura", "app", "templates", "skills", "system.md")
           dir = File.dirname(dir)
         end
+        # Also check inside the gem templates directory
+        candidates << File.join(File.expand_path("../generators/aura/app/templates/skills", __dir__), "system.md")
+        
         candidates.find { |path| File.exist?(path) } || ""
       end
     end

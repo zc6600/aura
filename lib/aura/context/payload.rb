@@ -5,9 +5,10 @@ module Aura
     class Payload
       attr_reader :sections, :tools
 
-      def initialize(sections, tools = [])
+      def initialize(sections, tools = [], options = {})
         @sections = sections || {}
         @tools = tools || []
+        @options = options || {}
       end
 
       # Backward compatibility: behaves like a string
@@ -56,10 +57,20 @@ module Aura
       # @param goal [String, nil] Current user task
       # @return [Array<Hash>] Array of message hashes
       def to_messages(goal: nil)
-        user_content = build_user_content(goal)
-        return [] if user_content.nil? || user_content.empty?
+        mode = @options[:directive_mode]
+        if mode == :ralph_developer || mode == :ralph_critic
+          system_prompt = @sections[:directive] || ""
+          user_content = build_user_content(goal)
+          [
+            { role: "system", content: system_prompt },
+            { role: "user", content: user_content }
+          ]
+        else
+          user_content = build_user_content(goal)
+          return [] if user_content.nil? || user_content.empty?
 
-        [{ role: "user", content: user_content }]
+          [{ role: "user", content: user_content }]
+        end
       end
 
       # Extract tool schemas for native tool calling
@@ -89,13 +100,67 @@ module Aura
 
       # Build user message content from context sections
       def build_user_content(goal)
-        # Exclude tool sections (:active, :index) since tools are passed separately
-        parts = to_markdown_excluding(%i[active index])
+        mode = @options[:directive_mode]
+        if mode == :ralph_critic
+          audit = @options[:ralph_audit] || {}
+          changes = audit[:changes] || ""
+          previous_audit = audit[:previous_audit] || ""
+          test_output = audit[:test_output] || ""
+          task_content = audit[:task_content] || ""
 
-        # Add goal if present
-        parts = [parts, "## CURRENT USER TASK", goal.strip].compact.join("\n\n") if goal && !goal.strip.empty?
+          critic_mode = (@options[:critic_mode] || "light").to_s.downcase
+          parts = critic_mode == "heavy" ? to_markdown_excluding(%i[directive active index state]) : nil
 
-        parts
+          [
+            parts,
+            "# INITIAL GOAL\n#{goal}",
+            "# PREVIOUS CRITIC AUDIT\n#{previous_audit}",
+            "# CURRENT WORKSPACE CHANGES\n#{changes}",
+            "# PHYSICAL TEST EXECUTION VERIFICATION LOG\n#{test_output}",
+            "# TASK CHECKLIST\n#{task_content}",
+            "Please audit these changes. Are they complete and correct according to the Goal?\n" \
+            "Does it address the previous critique and satisfy all acceptance criteria?"
+          ].compact.join("\n\n")
+        elsif mode == :ralph_developer
+          parts = to_markdown_excluding(%i[directive active index state])
+
+          recap = @options[:ralph_recap] || {}
+          last_tool = recap[:last_tool] || "None"
+          last_output = recap[:last_output] || "No tools executed yet."
+          last_test = recap[:last_test] || "Not run yet."
+          verifier_mode = recap[:verifier_mode] || "Physical Command"
+
+          recap_text = <<~RECAP
+            # LAST ITERATION RECAP
+            - **Last Tool Executed**: `#{last_tool}`
+            - **Last Tool Result**:
+            ```
+            #{last_output}
+            ```
+
+            # CURRENT VERIFICATION STATUS
+            - **Verifier Mode**: #{verifier_mode}
+            - **Verification Feedback**:
+            ```
+            #{last_test}
+            ```
+          RECAP
+
+          [
+            parts,
+            recap_text,
+            "## CURRENT USER TASK",
+            goal.to_s.strip
+          ].compact.join("\n\n")
+        else
+          # Exclude tool sections (:active, :index) since tools are passed separately
+          parts = to_markdown_excluding(%i[active index])
+
+          # Add goal if present
+          parts = [parts, "## CURRENT USER TASK", goal.strip].compact.join("\n\n") if goal && !goal.strip.empty?
+
+          parts
+        end
       end
 
       # Normalize tool schema to ensure proper structure

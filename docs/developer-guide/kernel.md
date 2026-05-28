@@ -28,8 +28,26 @@ A meta-loop orchestrator that wraps and executes standard `AgentLoop` instances 
 **Responsibilities:**
 - **Session DB Rotation**: Generates fresh session names per step and hot-swaps memory SQLite databases via `Runner#reconnect_session!` to achieve database history amnesia.
 - **Planning Hook Injection**: Registers a `:before_planning` hook on the `Runner` to persistently wrap standard payload observations, ensuring that the `RALPH_PROTOCOL_PROMPT` and verification error recaps are never forgotten during multi-step executions.
-- **Dual Verification**: Supports physical command suite runs (succeeding on exit code `0`) or Critic LLM auditing (running audits via a secondary zero-tool `AgentLoop` and parsing JSON outcomes).
-- **Critique Persistence**: Persists auditing feedback reports under `.aura/state/critic_audit.md` inside the workspace.
+  - **Dual Verification**: Supports physical command suite runs (succeeding on exit code `0`) or Critic LLM auditing:
+    - **Light Critic Mode**: Directly calls the LLM in a single-turn verification to evaluate the implementation (using `CRITIC_PROTOCOL_PROMPT`). No tool access or global workspace context is provided.
+    - **Heavy Critic Mode**: Runs a full Critic `AgentLoop` (using `CRITIC_HEAVY_PROTOCOL_PROMPT`) with access to all native tools and global workspace context/awareness.
+    - Configured via CLI `--critic-mode` (`light` or `heavy`) or `critic_mode` in `config.yml`.
+  - **Critique Persistence**: Persists auditing feedback reports under `state/critic_audit_[run_id]_step_[step].md` inside the environment/workspace path.
+
+**Ralph Loop Prompts & Workspace Overrides:**
+The Ralph Loop swaps standard system prompts with specialized, loop-compliant instructions resolved through the `Aura::LLM::Prompts::Registry`:
+
+- **Ralph Developer Prompt (`:ralph_developer`)**
+  - **Base Protocol (`RALPH_PROTOCOL_PROMPT`)**: Tells the LLM that there is no session history, instructions are read from files, troubleshooting must be persistent, and outputs must strictly be a single valid tool-calling JSON block (or raw plain text when completing).
+  - **Custom Override**: Scans the workspace for `prompts/ralph_system.md` (or `.aura/prompts/ralph_system.md` / `skills/ralph_system.md` / `.aura/skills/ralph_system.md`).
+  - **Fallback**: Falls back to `DEFAULT_RALPH_USER_DIRECTIVES` (general coding quality guidelines).
+
+- **Ralph Critic Prompt (`:ralph_critic`)**
+  - **Base Protocol**:
+    - **Light Mode (`CRITIC_PROTOCOL_PROMPT`)**: Instructs a secondary critic LLM to audit changes, set `"completed": true/false`, and provide a structured JSON containing a `critique` and actionable `advice`.
+    - **Heavy Mode (`CRITIC_HEAVY_PROTOCOL_PROMPT`)**: Instructs the critic to execute tools as needed in a Critic Agent Loop and output ONLY a final audit JSON block upon completion.
+  - **Custom Override**: Scans the workspace for `prompts/critic_rules.md` (or `.aura/prompts/critic_rules.md` / `skills/critic_rules.md` / `.aura/skills/critic_rules.md`).
+  - **Fallback**: Falls back to `DEFAULT_CRIC_AUDIT_RULES` (general code quality criteria checklist).
 
 ### 3. The Runner (`Aura::Kernel::Runner`)
 

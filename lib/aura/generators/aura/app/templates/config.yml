@@ -129,6 +129,7 @@ ralph:
   max_steps: 100                # Ralph 循环中调用 Agent 的最大次数上限
   verify_command: ""            # 物理校验测试指令 (e.g. "bundle exec rspec")
   use_critic: false             # 是否使用 Critic LLM 审计代替物理测试命令
+  critic_mode: "light"          # Critic 运行模式: light (单次LLM调用判断) 或 heavy (Agent Loop + 全局感知)
 
 # ----------------------------------------------------------------
 # 语言模型 (LLM)

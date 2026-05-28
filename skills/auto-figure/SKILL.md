@@ -1,3 +1,4 @@
+---
 name: auto-figure
 description: Generates publication-ready scientific illustrations (AutoFigure mode). Use when user asks to "draw a figure for this paper", "visualize this algorithm", "create an architecture diagram", or "illustrate this concept".
 ---

@@ -1,44 +1,139 @@
 # Context & State Management
 
-How Aura OS assembles the "Agent Mind" (the prompt) and manages long-term memory.
+How Aura OS assembles the "Agent Mind" (the context) and manages runtime memory and instruction prompts.
 
-**Framework Code**: `lib/aura/context/` (EnvironmentProvider, ToolProvider, StateProvider, StateRecorder, SessionManager, Payload)  
-**Project Context**: `state/sessions/*.db` (SQLite, session-isolated) and `config/config.yml`  
+**Framework Code**: `lib/aura/context/` (Base, DirectiveProvider, TaskProvider, MarkdownWorkspaceProvider, EnvironmentProvider, KnowledgeProvider, LSPProvider, ToolProvider, StateProvider, Manager, Payload, SessionManager, StateRecorder)  
+**Project Context**: `state/sessions/*.db` (SQLite, session-isolated), `.aura_knowledge.json`, `SOUL.md`, `AGENTS.md`, `USER.md`, `TOOLS.md`, `IDENTITY.md`, `MEMORY.md`, `memory/*.md`, `task.md` and `config/config.yml`  
 **Memory Metabolism**: `lib/aura/memory/metabolizer.rb`
+
+---
+
+## Mental Model: Memory vs. Prompt
+
+Aura OS conceptualizes the assembled agent context into two primary pillars:
+
+```
+┌────────────────────────────────────────────────────────┐
+│                      Agent Context                     │
+└───────────────┬────────────────────────┬───────────────┘
+                │                        │
+                ▼                        ▼
+      ┌──────────────────┐     ┌──────────────────┐
+      │      Memory      │     │      Prompt      │
+      │  (Dynamic State) │     │  (Directives)    │
+      └──────────────────┘     └────────┬─────────┘
+                                        │
+                             ┌──────────┴──────────┐
+                             ▼                     ▼
+                    ┌──────────────────┐  ┌──────────────────┐
+                    │   Kernel Prompt  │  │ Workspace Prompt │
+                    │ (System Protocol)│  │ (User Guidelines)│
+                    └──────────────────┘  └──────────────────┘
+```
+
+1. **Memory (动态记忆与状态)**:
+   - Contains runtime state updates, including tool execution logs, events, active variables, and metabolic summaries stored in SQLite databases.
+   - It updates dynamically as the agent takes actions.
+
+2. **Prompt (静态/半静态提示词指令)**:
+   - Contains instruction sets and operational parameters that govern the agent's behavior.
+   - **Kernel Prompt (内核级提示词)**: Core protocols defined by the Aura Gem or the system `~/.aura` workspace. These enforce format constraints (such as strict JSON output rules) and cannot be modified by the agent project.
+   - **Workspace Prompt (工作区级提示词)**: Custom instructions and guidelines defined within the user's workspace (such as `SOUL.md`, `AGENTS.md`, and specific workflow `SKILL.md` configurations). These are fully editable by the user.
 
 ---
 
 ## Context Assembly Pipeline
 
-The `Aura::Context::Manager` orchestrates three providers to build the prompt:
+The `Aura::Context::Base` orchestrates multiple providers to build the prompt. Each provider has a single responsibility and generates a specific section of the markdown context payload.
 
-### A. Environment Provider (`Aura::Context::EnvironmentProvider`)
+The pipeline comprises 8 distinct providers:
 
-Scans the project structure to give the agent situational awareness.
+```mermaid
+graph TD
+    Base[Aura::Context::Base] --> DP[DirectiveProvider]
+    Base --> WP[MarkdownWorkspaceProvider]
+    Base --> EP[EnvironmentProvider]
+    Base --> KP[KnowledgeProvider]
+    Base --> LSP[LSPProvider]
+    Base --> TP[ToolProvider]
+    Base --> TK[TaskProvider]
+    Base --> SP[StateProvider]
+    
+    DP --> Payload[Aura::Context::Payload]
+    WP --> Payload
+    EP --> Payload
+    KP --> Payload
+    LSP --> Payload
+    TP --> Payload
+    TK --> Payload
+    SP --> Payload
+```
+
+### 1. Directive Provider (`Aura::Context::DirectiveProvider`)
+
+Resolves the core system instructions and guidelines that govern the agent's behavior.
 
 **Features:**
-- **Workspace Overview**: Lists files and directories (excluding hidden ones)
-- **Global Rules**: Injects `AURA_README.md` if present
-- **Skills**: Scans `skills/*.md` frontmatter to list available workflows
+- **Modular System Prompts**: Combines modular default files (`01_mission.md`, `02_workspace.md`, `03_operational_rules.md`, `04_tool_spec.md`, `05_skill_spec.md`, `06_constraints.md`) from the framework.
+- **Skill-Based Operating Protocol**: If an active workflow skill is specified (via the `AURA_ACTIVE_SKILL` environment variable or options), loads its corresponding `SKILL.md` template.
+- **Legacy Single-File Directives**: Detects and loads workspace overrides like `skills/system.md` or `.aura/skills/system.md`.
+- **Ralph Loop Support**: Resolves specialized prompts for Ralph developer (`:ralph_developer`) and critic (`:ralph_critic`) execution modes, loading corresponding workspace rules or falling back to default loop instructions. It forwards option hashes (including `critic_mode` options) directly to the prompt registry.
+- **Template Substitution**: Automatically interpolates `{{project_path}}` in instructions.
 
-### B. Tool Provider (`Aura::Context::ToolProvider`)
+### 2. Markdown Workspace Provider (`Aura::Context::MarkdownWorkspaceProvider`)
 
-Manages the "Tool Box".
+Loads OpenClaw-style markdown configuration files from the project workspace or `.aura/instructions/` / `instructions/` subdirectories to guide agent persona, rules, and long-term memory.
+
+**Files Scanned:**
+- **`SOUL.md`** (`# AGENT PERSONA (SOUL)`): Defines the persona, tone, style guidelines, and boundaries.
+- **`AGENTS.md`** (`# OPERATING INSTRUCTIONS`): Lists developer-defined operating rules and constraints.
+- **`USER.md`** (`# USER CONTEXT`): Tailors interactions according to user profile and preferences.
+- **`TOOLS.md`** (`# TOOL GUIDELINES`): Outlines custom instructions or tips for tool execution.
+- **`IDENTITY.md`** (`# AGENT IDENTITY`): Defines self-concept, agent name, and preferred emojis.
+- **`MEMORY.md`** (`# LONG-TERM MEMORY`): Retains curated, high-level, persistent memories.
+- **`memory/*.md`** (`# RECENT MEMORY LOGS`): Loads the contents of the last two daily memory log files.
+
+### 3. Environment Provider (`Aura::Context::EnvironmentProvider`)
+
+Provides comprehensive environmental, workspace structure, and tag-sensing capabilities.
+
+**Subsections:**
+- **Global Rules**: Injects project-specific `AURA_README.md` instructions and user-global guidelines from `~/.aura/global_hint.md`.
+- **Workspace Overview**: Displays a list of top-level files and directories (excluding hidden paths).
+- **Active Tags & Guidance (`@aura-hint`)**: Scans workspace files ending in `.py`, `.rb`, `.sh`, `.md`, or `.txt` (up to 100KB in size and 1000 files total) up to 15 lines deep for comments matching the `@aura-hint:` pattern. These comments are aggregated under `## Active Tags & Guidance` to give the agent inline semantic cues.
+- **Knowledge Assets**: Lists files within the `knowledge/` directory along with descriptions from corresponding `<file>.hint` documents.
+- **Skills Knowledge**: Parses YAML metadata from `SKILL.md` files (in `skills/` or `.aura/skills/`) to display skill name, description, requirements, and missing workspace tools, plus lists related scripts, references, and assets.
+- **User Task View**: Extracts the current plan stored as active variables in the SQLite database and summarizes node actions from `anchors/*.json` or `anchors/*.yaml` / `anchors/*.yml` files.
+
+### 4. Knowledge Provider (`Aura::Context::KnowledgeProvider`)
+
+Pulls persistent facts and global assertions from the `.aura_knowledge.json` manifest. These are injected under the `# PROJECT KNOWLEDGE BASE (Persistent Facts)` header.
+
+### 5. LSP Provider (`Aura::Context::LSPProvider`)
+
+Retrieves compiler and linter warnings or errors from the LSP Manager. It lists active diagnostics under `# CODE HEALTH (LSP Diagnostics)` and displays the line number and message of the first three errors in affected source files to prevent agent logic degradation.
+
+### 6. Tool Provider (`Aura::Context::ToolProvider`)
+
+Exposes local, MCP, and LSP diagnostic tools under `# ACTIVE TOOLS` and `# TOOL INDEX`.
 
 **Features:**
-- **Active Tools**: Fully expanded schemas for Core Tools + `auto_load: true` tools
-- **Tool Index**: Compact list (Name + Description) for other tools to save tokens
-- **MCP Integration**: Merges external tools (`mcp.*`) into the list
-- **Native Tool Calling**: Tool schemas are converted to JSON format for LLM native function calling (no text injection)
+- **Lifecycle & Context Isolation**: Performs sliding TTL maintenance on active contexts. Discovers subtools which specify `requires_context` and unlocks them only if corresponding instances exist in the context manager.
+- **JSON Schema Construction**: Collects input schema definitions, descriptions, hints, and required fields.
+- **Integration**: Appends MCP tools (`mcp.<server>.<tool>`) and LSP diagnostic execution hooks.
 
-### C. State Provider (`Aura::Context::StateProvider`)
+### 7. Task Provider (`Aura::Context::TaskProvider` / `TaskProvider`)
 
-Connects to SQLite (`state/sessions/*.db`) to retrieve history.
+Resolves the `task.md` file from the workspace path, placing it under the `# LONG-RUN TASK` header to track current goals and sub-steps during long-duration runs.
+
+### 8. State Provider (`Aura::Context::StateProvider`)
+
+Pulls session history and system variables from the active session SQLite database.
 
 **Features:**
-- **Recent Events**: The last N raw interactions in **chronological order** (Phase, Tool, Payload, Thought)
-- **Summaries**: High-level narrative of older history (both Call Summaries and Metabolism Summaries)
-- **Variables**: Persistent Key-Value store (e.g., user preferences)
+- **Active Variables**: Lists active variables and tool status/error flags (`tool_status:<name>`, `tool_error:<name>`).
+- **Chronological History**: Collects and formats history events (`user` inputs, `plan` decisions, and `execution` results) sequentially.
+- **Event Merging & Formatting**: Merges identical consecutive lines and flags repetition count (e.g. `(x5)` suffix). Adds timestamps selectively to events if the temporal gap between consecutive events exceeds a configurable threshold (default 60 seconds).
 
 ---
 
@@ -46,167 +141,50 @@ Connects to SQLite (`state/sessions/*.db`) to retrieve history.
 
 ### Payload LLM Methods
 
-The `Payload` class provides built-in methods for LLM consumption, eliminating the need for a separate context abstraction.
+The `Payload` class represents the aggregated sections and structured tool listings, supporting customizable prompt construction options.
 
 **Location**: `lib/aura/context/payload.rb`
 
-**Responsibilities:**
-- Convert context sections to LLM message format
-- Provide structured tool schemas for native tool calling
-- Exclude tool descriptions from prompt text (passed separately as JSON Schema)
-
-**Usage:**
-```ruby
-payload = Aura::Context.assemble(project_path, state)
-messages = payload.to_messages(goal: "Fix the bug")
-tools = payload.to_tool_schemas
-```
-
 **Key Methods:**
-- `to_messages(goal:)` - Convert to LLM message array format (excludes tool sections)
-- `to_tool_schemas` - Extract tool definitions as JSON Schema for native calling
-- `to_markdown` - Get full context as markdown (backward compatibility)
-- `to_markdown_excluding(keys)` - Exclude specific sections
+- `to_messages(goal:)` - Converts payload content to standard chat messages. Crucially, **excludes tool sections** (like `:active` and `:index`) because tools are passed separately.
+- `to_tool_schemas` - Converts active tool metadata, descriptions, permissions, and input parameters into standard OpenAI-compatible function-calling JSON schemas.
+- `to_markdown` - Generates a complete markdown representation of the context.
+- `to_markdown_excluding(keys)` - Excludes specific sections (e.g. active tools) from the markdown output.
 
-### Native Tool Calling (JSON Schema Injection)
-
-Aura OS uses **native tool calling** exclusively - tools are injected as JSON Schema objects, not as text descriptions in the prompt.
-
-**How it Works:**
-1. `ToolProvider` collects tool schemas (name, description, input_schema)
-2. `Payload.to_tool_schemas` converts them to OpenAI-compatible format:
-   ```json
-   {
-     "type": "function",
-     "function": {
-       "name": "read_file",
-       "description": "Read a file from the filesystem",
-       "parameters": {
-         "type": "object",
-         "properties": {
-           "file_path": { "type": "string" }
-         },
-         "required": ["file_path"]
-       }
-     }
-   }
-   ```
-3. Schemas are passed to LLM API via the `tools` parameter (not in prompt text)
-4. The prompt text **excludes** tool descriptions to avoid duplication
-
-**Benefits:**
-- **Reliability**: Native tool calling is more structured and less error-prone
-- **Token Efficiency**: No redundant tool text in prompts
-- **Standard Format**: Follows OpenAI/Anthropic function calling standards
-- **Better Parsing**: LLMs return structured tool calls, not text
-
-**Prompt Composition Flow:**
-```ruby
-# In Planner
-messages, tools = Aura::LLM::Prompts::Compose.messages_and_tools(context, goal)
-# messages = [{ role: "user", content: "..." }]  # Context WITHOUT tool text (from Payload.to_messages)
-# tools = [{ type: "function", function: {...} }]  # Tool schemas as JSON (from Payload.to_tool_schemas)
-
-client.complete(messages, { tools: tools })
-```
-
-### Legacy: Text Injection (Removed)
-
-**Note**: Earlier versions of Aura supported text-based tool injection where tool descriptions were embedded directly in the prompt text. This approach has been **completely removed** in favor of native JSON Schema tool calling, which is more reliable and follows modern LLM API standards.
-
----
-
-## Read-Write Separation Pattern
-
-Aura implements a clean separation between state reading and writing:
-
-### StateRecorder (Write Side)
-
-**Location**: `lib/aura/context/state_recorder.rb`  
-**Purpose**: Type-safe event recording interface
-
-**Methods:**
-- `record_user(input)` - Record user input
-- `record_plan(plan_hash)` - Record LLM plan with tool, args, summary, thought
-- `record_execution(tool, result)` - Record tool execution results
-- `record_interception(tool, advice)` - Record tool halts
-- `record_custom(phase, payload)` - Record custom events
-
-### StateProvider (Read Side)
-
-**Location**: `lib/aura/context/state_provider.rb`  
-**Purpose**: Format events for LLM context
-
-**Features:**
-- Returns events in **chronological order** (not grouped by layers)
-- Extracts and prioritizes `thought` field from plan events
-- Includes both call summaries and metabolism summaries
-- Applies context compression if needed
-
----
-
-## Event Structure Specification
-
-### 1. User Event
-
-```ruby
-{
-  phase: "user",
-  content: "List all Ruby files",
-  call_seq: nil  # Optional, for correlation
-}
-```
-
-### 2. Plan Event
-
-```ruby
-{
-  phase: "plan",
-  tool: "bash_command",
-  args: { "command" => "find . -name '*.rb'" },
-  thought: "I'll use find to search for Ruby files",
-  summary: "Finding Ruby files"
-}
-```
-
-### 3. Execution Event
-
-```ruby
-{
-  phase: "execution",
-  tool: "bash_command",
-  result: {
-    status: "ok",
-    output: "file1.rb\nfile2.rb",
-    success: true
-  },
-  call_seq: 42  # Correlates to user event ID
-}
-```
-
-### 4. Interception Event
-
-```ruby
-{
-  phase: "interception",
-  tool: "dangerous_tool",
-  advice: "Tool is not safe to run",
-  reason: "Security check failed"  # Optional
-}
-```
+**Critic Modes Context Wrapping:**
+- In `:ralph_critic` mode, `Payload#build_user_content` behaves differently based on `critic_mode` options:
+  - **`heavy` mode**: Automatically prepends global context (`parts = to_markdown_excluding(%i[directive active index state])` containing workspace, env, task, knowledge, lsp) to provide the Critic Agent with full workspace/environmental awareness.
+  - **`light` mode**: Only outputs the audit-specific fields (git diff, test output logs, task checklist) to remain highly cost-efficient.
 
 ---
 
 ## Context Compression
 
-When assembling the prompt at runtime, if total length exceeds `max_state_chars`, Aura applies multi-tiered compression:
+If the assembled prompt context exceeds the configured `state_management.max_state_chars` limit (from `config.yml`), the system applies multi-tiered compression strategies during `Base#assemble`:
 
-1. **Event-level Payload Truncation**: Truncates raw event payloads > `event_max_chars` (default 800)
-2. **Event Count Reduction**: Trims older events down to `event_min_count_threshold` (default 10)
-3. **Section Discarding**: Drops less critical sections based on `drop_order`
-4. **Extreme History Trim**: Drops history down to single latest event
+1. **Event Payload Truncation**: Truncates individual history event payloads to a maximum character size defined by `context_compression.event_max_chars` (default 800).
+2. **History Event Count Reduction**: Sequentially drops older events until the context fits or the remaining events count hits `context_compression.event_min_count_threshold` (default 10).
+3. **Step-wise History Trim**: Trims history events in steps of `context_compression.summary_trim_step` (default 5).
+4. **Section Discarding**: Drops entire context sections one by one in the following drop order priority until the length is under the limit:
+   ```ruby
+   %i[lsp workspace env index active task directive]
+   ```
+5. **Aggressive History Trim**: Drops history events down to a single latest event.
+6. **Failure Guard**: If the compressed context still exceeds the limit, records the error in the session summaries table and raises a `ContextOverflowError`.
 
-**Note**: Persistent Facts (`:knowledge`) and core Agent Memory structures are preserved.
+---
+
+## Tool Context Lifecycle Manager
+
+The `Aura::Context::Manager` handles temporary context environments.
+
+**Location**: `lib/aura/context/manager.rb`  
+**Purpose**: Registers, updates, and expires sliding tool contexts in `state/tool_contexts.json`.
+
+Tools can dynamically request or register context structures:
+- **`creates_context`**: Creates a temporary state/context identifier.
+- **`requires_context`**: Restricts tool visibility so the tool is only usable when a specific context is active.
+- **TTL Expiration**: Expired contexts are pruned automatically on each turn based on sliding window definitions (turns elapsed or seconds elapsed, using "any" or "all" TTL policies).
 
 ---
 
@@ -234,192 +212,34 @@ Each session database contains:
 - `key` - Primary key (string)
 - `value` - JSON/Text value
 
-### undone_events & undone_summaries tables
-
-- Support undo/redo functionality
-- Mirror structure of events and summaries tables
-
-**Note**: Database uses WAL (Write-Ahead Logging) mode for better concurrent access performance.
-
 ---
 
 ## Usage Example
 
-### In Runner
+### Assembling Context and Triggering LLM
 
 ```ruby
-class Runner
-  def initialize(project_path)
-    # Expose and configure the native memory module
-    @memory = Aura::Memory::Base.new(
-      config: Aura::Memory::Config.new(store: { project_path: project_path })
-    )
-  end
+# In the Runner
+payload = Aura::Context.assemble(project_path, db_adapter, { lsp_manager: @lsp_manager })
+messages = payload.to_messages(goal: "Compile this code")
+tools = payload.to_tool_schemas
 
-  def record_user_input(input)
-    @last_user_event_id = @memory.recorder.record_user(input)
-  end
-
-  def plan(goal, context)
-    res = @planner.plan(context, goal)
-    @memory.recorder.record_plan(res)
-    res
-  end
-
-  def run_call(call)
-    res = @engine.execute(call["tool"], call["args"])
-    @memory.recorder.record_execution(call["tool"], res, call_seq: @last_user_event_id)
-    res
-  end
-end
+# Send to LLM
+client.complete(messages, tools: tools)
 ```
-
-### In StateProvider
-
-```ruby
-class StateProvider
-  def provide
-    # get_recent_events_structured is private, accessed via send()
-    items = @db.send(:get_recent_events_structured, phases: ["user", "plan", "execution"])
-    
-    items.each do |e|
-      case e["phase"]
-      when "user"
-        # Display user message
-      when "plan"
-        # Prefer thought, then summary
-        thought = e["payload"]["thought"]
-        summary = e["payload"]["summary"]
-        body = thought || summary || "Calling #{e['tool']}"
-      when "execution"
-        # Display tool result
-      end
-    end
-  end
-end
-```
-
----
-
-## Configuration Reference
-
-### state_management (config.yml)
-
-```yaml
-state_management:
-  max_state_chars: 100000           # Trigger metabolism at this char count
-  recent_events_n: 20               # Keep this many recent events
-  keep_last_summary_n_steps: 20     # Keep this many recent summaries
-  
-  summarization:
-    enabled: true
-    max_chars: 500                  # Max length for metabolism summaries
-    model: "gpt-4o"                 # Optional: specific model for summaries
-    focus_on:                       # Summary focus areas
-      - "key_files_modified"
-      - "critical_test_results"
-      - "blockers_encountered"
-      - "cumulative_result"
-  
-  retention:
-    execution: { max_steps: 5, summarize: true }
-    observe: { max_steps: 3, summarize: false }
-    plan: { max_steps: 50, summarize: false }
-    user: { max_steps: 100, summarize: false }
-    learn: { max_steps: 200, summarize: true }
-    interception: { max_steps: 100, summarize: false }
-    milestone: { permanent: true }
-```
-
-### tool_protocol.call_summary (config.yml)
-
-```yaml
-tool_protocol:
-  call_summary:
-    suggested_chars: 120            # Suggested summary length for LLM
-    max_chars: 256                  # Max summary length (truncate if exceeded)
-```
-
----
-
-## Design Advantages
-
-### 1. Separation of Concerns
-
-- **StateRecorder**: Focuses on write logic, ensures data consistency
-- **StateProvider**: Focuses on read logic, optimizes display format
-- **State**: Focuses on database operations and transaction management
-
-### 2. Type Safety
-
-```ruby
-# Old way: Error-prone, inconsistent structure
-@state.record_event({ phase: "plan", plan: res })
-@state.record_event({ phase: "execution", tool: tool, result: res })
-
-# New way: Structured interface, automatic validation
-@recorder.record_plan(res)
-@recorder.record_execution(tool, res, call_seq: id)
-```
-
-### 3. Testability
-
-```ruby
-# Can test Recorder and Provider independently
-recorder = StateRecorder.new(mock_state)
-recorder.record_plan({ tool: "test", args: {} })
-assert_called_with(mock_state, :record_event, expected_payload)
-```
-
-### 4. Backward Compatibility
-
-- State's底层 API (`record_event`) remains unchanged
-- StateRecorder provides higher-level abstraction
-- Existing code can migrate gradually
-
-### 5. Extensibility
-
-```ruby
-# Easily add new event types
-def record_custom_event(type, data)
-  @recorder.record_custom(type, data)
-end
-
-# Batch operations with transaction support
-@recorder.record_batch([
-  { type: "user", content: "..." },
-  { type: "plan", plan: {...} },
-  { type: "execution", tool: "...", result: {...} }
-])
-```
-
----
-
-## Migration Guide
-
-If you're calling `@state.record_event` directly elsewhere, migrate to `@recorder`:
-
-```ruby
-# Before
-@state.record_event({ phase: "plan", plan: result })
-@state.record_event({ phase: "execution", tool: name, result: res })
-
-# After
-@recorder.record_plan(result)
-@recorder.record_execution(name, res)
-```
-
-This makes code clearer, type-safe, and symmetric with StateProvider.
 
 ---
 
 ## Code References
 
-- **StateRecorder**: `lib/aura/context/state_recorder.rb`
-- **StateProvider**: `lib/aura/context/state_provider.rb`
-- **State**: `lib/aura/kernel/state.rb`
-- **Runner**: `lib/aura/kernel/runner.rb`
-- **Tests**: `test/context/test_state_recorder.rb`
+- **Context Base**: `lib/aura/context/base.rb`
+- **Payload Module**: `lib/aura/context/payload.rb`
+- **Environment Provider**: `lib/aura/context/environment_provider.rb`
+- **Markdown Workspace Provider**: `lib/aura/context/markdown_workspace_provider.rb`
+- **State Recorder**: `lib/aura/context/state_recorder.rb`
+- **State Provider**: `lib/aura/context/state_provider.rb`
+- **Context Manager**: `lib/aura/context/manager.rb`
+- **Session Manager**: `lib/aura/context/session_manager.rb`
 
 ---
 
@@ -428,3 +248,4 @@ This makes code clearer, type-safe, and symmetric with StateProvider.
 - [Memory Management](memory-management.md) - Metabolism and retention
 - [Session Architecture](session-architecture.md) - Session isolation
 - [Architecture Overview](architecture.md) - System design
+- [Skills and Tools](../user-guide/skills-and-tools.md) - Tool manifest & @aura-hint usage
