@@ -18,13 +18,30 @@ Optional:
 
 ## Installation
 
-### Method 1: Global NPM Installation (Once Published)
+### Method 1: One-Click Setup (Recommended)
+
+Run the automated setup script to check dependencies, install packages, compile the project, configure environment templates, and link the CLI globally:
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/zc6600/aura/main/bin/setup.sh?t=$(date +%s)" | bash
+```
+
+The setup script will:
+1. Check system requirements (Node.js, npm, Git)
+2. Install npm packages via `npm install`
+3. Create a workspace `.env` template and prompt for API keys
+4. Compile the CLI via `npm run build`
+5. Link the CLI globally via `npm link`
+6. Run `aura doctor` to verify the installation
+
+### Method 2: Global NPM Installation (Once Published)
+
 Once published, you can install the CLI globally:
 ```bash
 npm install -g aura-cli
 ```
 
-### Method 2: Manual Installation (From Source)
+### Method 3: Manual Installation (From Source)
 
 If you prefer manual control:
 

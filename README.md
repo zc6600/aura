@@ -63,13 +63,19 @@ See [CHANGELOG.md](CHANGELOG.md) for a complete list of changes, features, and r
 
 Aura OS requires **Node.js 18+** and **Git** installed on your system.
 
-#### Method A: Global NPM Installation
+#### Method A: One-Click Setup (Recommended)
+You can run the setup script directly in a single command (bypassing caching via a query timestamp) to check dependencies, install npm packages, compile the project, configure environment templates, and link the CLI globally:
+```bash
+curl -fsSL "https://raw.githubusercontent.com/zc6600/aura/main/bin/setup.sh?t=$(date +%s)" | bash
+```
+
+#### Method B: Global NPM Installation
 Once published, you can install the CLI globally:
 ```bash
 npm install -g aura-cli
 ```
 
-#### Method B: Local Source Installation
+#### Method C: Local Source Installation
 Alternatively, you can build and link the CLI locally:
 ```bash
 # Clone the repository
