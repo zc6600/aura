@@ -22,7 +22,9 @@ my_project/                 <-- Clean User Workspace (Files visible to LLM)
     ├── tools/
     │   └── read_file/      <-- Custom tools, manifests, and unit tests
     └── skills/
-        └── custom.rb       <-- Dynamic ruby procedural skills
+        └── example/        <-- Subagent workflow playbooks
+            ├── SKILL.md    <-- Core instructions & YAML metadata
+            └── scripts/    <-- Optional helper scripts
 ```
 
 * **Clean User Workspace**: The host workspace is kept pristine. Transient files, sqlite databases, memory summaries, and test runs are completely isolated within `.aura/`.
@@ -33,7 +35,7 @@ my_project/                 <-- Clean User Workspace (Files visible to LLM)
 ## 🚀 Key Features
 
 * **Folder-as-a-Workspace**: Organizes context, memory summaries, and tools as standard directory items.
-* **Global CLI Packaging**: Packageable as a standard Ruby Gem with global system-wide commands.
+* **Global CLI Packaging**: Packageable as a standard npm package with global system-wide commands.
 * **Git-under-the-hood VCS**: Features a powerful local version control pipeline mapping standard git flows to clean, branded CLI operations.
 * **Metabolism & SQLite Memory**: Persists event histories and memories in SQLite, with automatic summaries generated once context windows are saturated.
 * **Hierarchical Configurations**: Get and set deeply nested parameters (e.g. `llm.model`) in local or global configs using simple dot-notation.

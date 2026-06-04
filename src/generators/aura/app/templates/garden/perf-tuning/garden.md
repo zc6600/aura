@@ -52,7 +52,7 @@ Before making any optimizations, establish a reliable, noise-isolated baseline:
     {
       "subagent_id": "cache_optimization",
       "persona": "coder",
-      "goal": "Implement caching in lib/core/parser.rb and run src/benchmark.py. Log the median execution time and memory usage to blackboard key: opt_cache_results",
+      "goal": "Implement caching in src/core/parser.ts and run src/benchmark.ts. Log the median execution time and memory usage to blackboard key: opt_cache_results",
       "async_mode": true,
       "max_steps": 45
     }

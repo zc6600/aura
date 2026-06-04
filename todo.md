@@ -19,7 +19,7 @@ This document outlines the deferred features for the Agent Gardening integration
     - **Harvest**: Display output datasets, models, or report files in `data/` or target directories (e.g., checking for deliverables like `submission.csv` or `report.pdf` dynamically).
   - Add a code-viewer/markdown-renderer in the GUI to allow the user to read/edit playbook markdown and active source code files.
 
-## 2. API Endpoints (`lib/aura/cli/shell/web_server.rb`)
+## 2. API Endpoints (`src/cli/shell/webServer.ts`)
 
 ### 2.1 Filesystem Information & Operations APIs
 - [ ] **GET `/api/filesystem/tree`**:
