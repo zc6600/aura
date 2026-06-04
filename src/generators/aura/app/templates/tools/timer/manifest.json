@@ -1,0 +1,39 @@
+{
+  "name": "timer",
+  "description": "Delay execution or block/wait until a background process has finished.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "permissions": {
+    "file_system": "full-access"
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "seconds": {
+        "type": "number",
+        "description": "Number of seconds to pause/sleep."
+      },
+      "wait_pid": {
+        "type": "number",
+        "description": "Background process PID to wait for."
+      },
+      "poll_interval": {
+        "type": "number",
+        "description": "Polling interval in seconds when waiting for a PID (default: 2)."
+      },
+      "timeout_seconds": {
+        "type": "number",
+        "description": "Maximum time to wait for a background PID in seconds (default: 300)."
+      },
+      "max_output_chars": {
+        "type": "integer",
+        "description": "Maximum characters of stdout/stderr to return (default: 30000)."
+      }
+    }
+  },
+  "memory": {
+    "retention": "ephemeral",
+    "summarize": true,
+    "description": "Timer updates are ephemeral"
+  }
+}

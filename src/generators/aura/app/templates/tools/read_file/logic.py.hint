@@ -1,0 +1,6 @@
+# Read File Tool Hint
+- **Purpose**: Primary way to retrieve knowledge from workspace files.
+- **Limits**:
+  - Text files only (no binary files like images or executables).
+  - For very large files, prefer targeted reads or use hints first.
+- **Tip**: Use `inspect_tool` or `bash_command` to locate files before reading.

@@ -1,0 +1,4 @@
+# Walkthrough Generator Tool Hint
+- **Purpose**: Generate task completion reports with targeted git diffs on files modified in this run.
+- **Traceability**: Analyzes local SQLite logs to identify files modified *only* by this Agent, avoiding workspace git noise.
+- **Safety**: Diffs returned to context are safely truncated, while complete diffs are stored on disk.

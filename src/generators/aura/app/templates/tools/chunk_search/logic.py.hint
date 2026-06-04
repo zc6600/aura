@@ -1,0 +1,4 @@
+# Chunk Search Tool Hint
+- **Purpose**: Search and rank text chunks of files under a target workspace path.
+- **Modes**: Supports semantic `embedding`, statistical `tfidf`, or simple substring `keyword` scoring.
+- **Ceilings**: If not specified, returns a default maximum of 20 chunks to prevent context overflow.

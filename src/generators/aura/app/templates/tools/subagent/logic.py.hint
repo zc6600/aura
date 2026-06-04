@@ -1,0 +1,32 @@
+用于启动一个隔离 state 的子 Agent 处理独立任务，避免污染主任务上下文。传入 goal，可选 subagent_id、async_mode 以及 persona 等参数。
+
+什么时候应该用 subagent：
+- 完整独立的子任务：不希望频繁的文件读写/探索污染主任务的上下文与 Plan。
+- 并行/多专家分片：需要并发执行多项同级任务（如多通道代码扫描、机器学习并行扫参、多视角辩论）。
+- 本地质量控制：让子智能体扮演 coder/debugger 并强制在子进程内跑通测试（Self-Verification）。
+
+协同与通信佳作：
+- 【数据回传】：在 goal 中要求子智能体将最终输出/元数据写入 blackboard（例如："...写入黑板 key=result_summary"）。
+- 【异步轮询】：使用 "async_mode": true 并行派发后，记录返回的 job_id，使用 {"action": "status", "job_id": "..."} 检查进度。
+- 【轨迹追溯】：子智能体执行失败时，可直接读取 state/subagents/{parent_id}/{child_id}/trajectory.txt 追溯原因。
+
+子智能体报错处理与诊断：
+- 【轨迹定位】：直接读取轨迹文件 `state/subagents/{parent_id}/{child_id}/trajectory.txt` 分析失败根源。
+- 【重编排】：主进程不直接下场调试，可派发 `persona: "diagnostician"` 的子智能体分析报错并产出修复 SOP。
+- 【状态回滚】：代码改乱时用 Git 回滚工作区；黑板写入脏数据时使用 `delete` 动作及时清理。
+- 【预算与拆分】：超时则增大 `timeout` 参数；死循环或深度超限则将 Goal 拆细，并限定文件范围。
+
+示例：
+{"goal":"在沙箱内运行 Optuna 对 LightGBM 调参，使用 validate.py 评估，将最佳参数与 CV 分数分别写入黑板 key=lgb_best_params 和 lgb_best_cv","subagent_id":"optuna_lgb_sweep","async_mode":true}
+{"goal":"修复 lib/core/ 里的 Bug，并在沙箱中运行 bundle exec rspec 验证，确保测试全部通过后再返回。若有复杂修复，写入黑板 key=core_fix_notes","subagent_id":"fix_core"}
+{"goal":"围绕 RAG 系统做一次系统性调研：关键 benchmark、常见评测指标、主流基线方法，以及近两年代表性论文","subagent_id":"rag_landscape"}
+{"goal":"进行深度 RAG 技术调研，并整理引用文献至 knowledge/rag_paper 目录。要求：针对筛选出的重要文献，按论文英文简称建立子文件夹（如 rag-survey-2024），并在其中分别写入描述核心贡献的 .hint 摘要文件以及提供引文信息的 .bibtex 文件，最后产出调研总结。","subagent_id":"rag_deep_research"}
+{"goal":"通读并提炼项目 README.md 的核心设计点，并评估可能的架构风险清单","subagent_id":"doc_reader"}
+{"goal":"为 docs/architecture.md 生成结构化目录与要点摘要，并标注需要补充的空白条目","subagent_id":"doc_outline"}
+{"goal":"检查 src/ 目录下哪些 Python 模块缺少对应的单元测试文件，并给出修复优先级排序","subagent_id":"test_coverage_audit"}
+{"goal":"拟定实验复现SOP草案（含步骤、依赖、可复现实验记录模板）","subagent_id":"sop_draft"}
+{"goal":"从 logs/error.log 最近的事件中提取错误模式，并总结可复用的修复策略清单","subagent_id":"debug_patterns"}
+{"goal":"为一个新模型设计评测计划：数据集、基线、消融维度、预期失败模式","subagent_id":"eval_plan"}
+{"goal":"对当前项目做技术债巡检：识别高风险文件、缺失测试、潜在安全风险","subagent_id":"tech_debt_scan"}
+{"goal":"把一份长文草稿重写成IMRaD结构，并给出每部分要点","subagent_id":"paper_rewrite"}
+{"goal":"为一个新算法模块设计流程图的文字版（步骤、输入输出与状态流转）","subagent_id":"workflow_writer"}

@@ -1,0 +1,15 @@
+# TOOL DEVELOPMENT SPEC (PRACTICAL)
+- Location: `/tools/<tool_name>/` (a tool is executable code callable by the Kernel).
+- Files: `manifest.json`, entry script (default `logic.py`), optional `logic.py.hint`, optional `scripts/`.
+- Entrypoint: the Kernel passes args as JSON string in `sys.argv[1]`; print exactly one JSON object.
+- Result shape (recommended):
+  - success: `{ "status": "ok", ... }` (Kernel defaults to `"ok"` if missing)
+  - failure: `{ "status": "failed", "error": "...", "code": "..." }`
+- `manifest.json` common fields: `name`, `description`, `runtime`, `entry` (defaults to `logic.py`), `auto_load`, `input_schema`, `permissions`.
+- `permissions` common keys:
+  - `file_system`: `"read-only" | "read-write" | "full-access"`
+  - `allow_paths`: extra allowed path prefixes (relative)
+  - `self_edit`: whether tool may edit its own directory
+  - `shell`: allow shell execution (usually only `bash_command`)
+  - `state_access`: `"read-only" | "read-write"` intent for `/state`
+- See `tools/README.md` for project-facing guidance. See `docs/internals/KERNEL.md` in the framework repo for the full protocol spec.

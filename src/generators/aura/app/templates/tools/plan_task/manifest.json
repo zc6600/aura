@@ -1,0 +1,56 @@
+{
+  "name": "plan_task",
+  "description": "Store a long-term plan or manage a real-time task checklist isolated by session run.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "permissions": {
+    "file_system": "read-write",
+    "allow_paths": [
+      "./state"
+    ]
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "plan": {
+        "type": "string",
+        "description": "Raw text plan to update (optional, backward compatible)."
+      },
+      "action": {
+        "type": "string",
+        "enum": [
+          "create",
+          "update",
+          "get"
+        ],
+        "description": "Action to perform: 'create' a checklist, 'update' progress, or 'get' status.",
+        "default": "update"
+      },
+      "tasks": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Ordered task list items (used for 'create' or 'update')."
+      },
+      "completed_indices": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "description": "Indices of tasks that are completed (0-indexed)."
+      },
+      "in_progress_indices": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "description": "Indices of tasks currently in progress (0-indexed)."
+      },
+      "run_id": {
+        "type": "string",
+        "description": "Session run id (optional)."
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "walkthrough_generator",
+  "description": "Generate task verification walkthroughs by isolating git changes made solely by the Agent.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "permissions": {
+    "file_system": "read-write",
+    "allow_paths": [
+      "./state"
+    ]
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "generate"
+        ],
+        "description": "Action to perform. Currently only 'generate' is supported.",
+        "default": "generate"
+      },
+      "summary": {
+        "type": "string",
+        "description": "A high-level summary of what was accomplished (required)."
+      },
+      "run_id": {
+        "type": "string",
+        "description": "Session run id (optional, resolves active run id if not specified)."
+      }
+    },
+    "required": [
+      "action",
+      "summary"
+    ]
+  }
+}

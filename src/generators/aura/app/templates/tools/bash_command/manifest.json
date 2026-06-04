@@ -1,0 +1,61 @@
+{
+  "name": "bash_command",
+  "description": "Run shell commands inside the Aura workspace. Powerful and dangerous; use minimal, safe commands.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "permissions": {
+    "file_system": "full-access",
+    "shell": true
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string",
+        "description": "Full bash command to execute"
+      },
+      "timeout_seconds": {
+        "type": "number",
+        "description": "Base timeout in seconds; returns pid on timeout"
+      },
+      "max_output_chars": {
+        "type": "number",
+        "description": "Maximum output chars (head + tail)"
+      },
+      "head_ratio": {
+        "type": "number",
+        "description": "Head ratio (0-1)"
+      },
+      "pid": {
+        "type": "number",
+        "description": "Process pid to fetch status/output"
+      },
+      "fetch": {
+        "type": "boolean",
+        "description": "When true, fetch snapshot for pid"
+      },
+      "fetch_all": {
+        "type": "boolean",
+        "description": "List all tracked processes"
+      },
+      "wait_seconds": {
+        "type": "number",
+        "description": "Block for N seconds before returning (fetch/fetch_all)"
+      },
+      "terminate_pid": {
+        "type": "number",
+        "description": "Terminate a process by pid"
+      },
+      "signal": {
+        "type": "string",
+        "description": "Terminate signal: TERM/INT/KILL (default TERM)"
+      }
+    },
+    "required": []
+  },
+  "memory": {
+    "retention": "ephemeral",
+    "summarize": true,
+    "description": "Shell command results are ephemeral - summarize quickly"
+  }
+}

@@ -1,0 +1,176 @@
+# Aura OS - Global Configuration
+# 核心配置文件：定义 Agent 的运行边界与代谢规则
+
+system:
+  name: "Aura-Alpha"
+  version: "1.0.0"
+  workspace_root: "./projects" # 所有 Agent 项目的根目录
+  default_language: "python3"
+  log_level: "INFO"
+  max_steps: 30                # 智能体单轮运行的最大步数限制，防死循环
+  max_format_errors: 5         # 智能体单轮运行可容忍的最大 JSON 格式错误重试次数
+  max_tool_errors: 3           # 智能体单轮运行可容忍的最大工具执行阻断错误次数
+
+# ----------------------------------------------------------------
+# 记忆与代谢系统 (State Metabolism)
+# ----------------------------------------------------------------
+state_management:
+  database_type: "sqlite"
+  db_path: "state/aura.db"
+  
+  # 触发代谢的阈值（字符数）
+  max_state_chars: 100000 
+  keep_last_summary_n_steps: 20
+  recent_events_n: 20
+  
+  # 代谢总结策略 (Metabolism Summarization)
+  # 当旧事件被清理时，调用 LLM 生成叙事性总结
+  summarization:
+    enabled: true
+    max_chars: 500              # 代谢总结的最大字符数
+    model: "gpt-4o"             # 总结使用的模型（可选，默认用 llm.model）
+    focus_on:                   # 总结时关注的重点
+      - "key_files_modified"
+      - "critical_test_results"
+      - "blockers_encountered"
+      - "cumulative_result"
+    
+  # 记忆分层保留策略 (Retention Tiers)
+  # 不同类型的事件有不同的保留时间
+  retention:
+    execution:                  # Tier 1: 瞬态 - 工具执行结果
+      max_steps: 5              # 保留最近 5 步
+      summarize: true           # 可以被代谢总结替代
+    observe:                    # Tier 1: 瞬态 - 观察事件
+      max_steps: 3
+      summarize: false
+    plan:                       # Tier 2: 工作记忆 - 计划/决策
+      max_steps: 50             # 保留整个会话
+      summarize: false
+    user:                       # Tier 2: 工作记忆 - 用户输入
+      max_steps: 100
+      summarize: false
+    interception:               # Tier 3: 洞察 - 工具拦截/错误
+      max_steps: 100
+      summarize: false
+    milestone:                  # Tier 4: 永久 - 关键里程碑
+      permanent: true           # 永不删除
+
+# ----------------------------------------------------------------
+# 工具进化协议 (Tool Evolution Protocol)
+# ----------------------------------------------------------------
+tool_protocol:
+  allow_dependency_install: true
+  test_timeout: 30
+  default_timeout_seconds: 300
+  max_timeout_seconds: 1200
+  agent_can_modify_timeout: true
+  runtimes:
+    python: "python3"
+    ruby: "ruby"
+    shell: "bash"
+    nodejs: "node"
+  core_tools:
+    - "read_file"
+    - "inspect_tool"
+    - "write_file"
+  auto_verify:
+    - "write_file"
+    - "bash_command"
+    - "plan_task"
+  required_files:
+    - "logic.py"
+    - "manifest.json"
+  call_summary:
+    suggested_chars: 120
+    max_chars: 256
+    attach_max_chars: 1024
+
+# ----------------------------------------------------------------
+# 权限与安全控制 (Unix-style Permissions)
+# ----------------------------------------------------------------
+security:
+  # 严格模式：如果为 true，Agent 只能在 manifest 明确授权的目录下读写
+  strict_path_isolation: true
+  
+  # 禁止 Agent 访问的文件后缀
+  forbidden_extensions:
+    - ".env"
+    - ".key"
+    - ".db-journal"
+
+  # 系统级只读目录
+  read_only_directories:
+    - "system_tools"
+    - "core_protocols"
+
+  # 沙箱配置：通过容器或受限环境运行工具
+  sandbox:
+    enabled: false
+    provider: "docker" # 选项: docker, local
+    image: "aura-sandbox:latest"
+
+# ----------------------------------------------------------------
+# 感知引导系统 (Hint System)
+# ----------------------------------------------------------------
+hints:
+  auto_inject_readme: true   # 是否自动注入 AURA_README.md
+  scan_dot_hint_files: true  # 是否扫描 .hint 结尾的文件
+  include_error_traceback: true # 测试失败时是否将完整 stderr 返回给 Agent
+  max_hint_chars: 1000       # @aura-hint 提示信息的最大字符数上限，超出截断并报警
+  max_file_chars: 10000      # AURA_README.md 和 .hint 文件的最大字数上限，超出截断
+  ignore_list: []            # 忽略 hint 注入的文件/路径/模式列表 (例如: [\"magic.py\", \"tools/my_tool/my_tool.hint\"])
+
+# ----------------------------------------------------------------
+# Ralph Loop 运行配置 (Autonomous Ralph Loop)
+# ----------------------------------------------------------------
+ralph:
+  max_steps: 100                # Ralph 循环中调用 Agent 的最大次数上限
+  verify_command: ""            # 物理校验测试指令 (e.g. "bundle exec rspec")
+  use_critic: false             # 是否使用 Critic LLM 审计代替物理测试命令
+  critic_mode: "light"          # Critic 运行模式: light (单次LLM调用判断) 或 heavy (Agent Loop + 全局感知)
+
+# ----------------------------------------------------------------
+# 语言模型 (LLM)
+# ----------------------------------------------------------------
+llm:
+  provider: "openrouter"
+  model: "google/gemini-3.1-flash-lite"
+  api_base: ""
+  temperature: 0.2
+  max_tokens: 20000
+  max_retries: 2            # 每个 LLM 配置请求出错时重试的最大次数
+  
+  # 备份/备用 LLM 链 (按顺序尝试，当主 LLM 请求多次失败后自动切换)
+  # fallbacks:
+  #   - provider: "openai"
+  #     model: "gpt-4o-mini"
+  #     temperature: 0.2
+  #     max_tokens: 20000
+  #   - provider: "anthropic"
+  #     model: "claude-3-5-haiku-20241022"
+
+embedding:
+  provider: "openrouter"
+  model: "qwen/qwen3-embedding-8b"
+  api_base: ""
+  api_key_env: "OPENROUTER_API_KEY"
+
+# ----------------------------------------------------------------
+# 图像生成 (Image Generation)
+# 用于 render_image 工具
+# ----------------------------------------------------------------
+image_generation:
+  provider: "openai" # 选项: openai, stability
+  model: "dall-e-3"
+  size: "1024x1024"
+  api_key_env: "OPENAI_API_KEY" # 对应 .env 中的环境变量名
+
+knowledge_db:
+  storage: "local"
+
+context_compression:
+  # State-aware compression policy (主策略)
+  event_max_chars: 800          # 单条事件在上下文中的最大展示长度
+  event_min_count_threshold: 10 # 事件保留条数降到该阈值后，开始裁剪摘要
+  summary_trim_step: 5          # 每次裁剪的摘要行数（近似按行处理）

@@ -1,0 +1,40 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { execa } from 'execa';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const auraBinPath = path.resolve(__dirname, '../../src/bin/aura.ts');
+
+describe('CLI new Subcommand Integration', { timeout: 30000 }, () => {
+  let tempWorkspace: string;
+
+  beforeEach(() => {
+    tempWorkspace = path.resolve(__dirname, `temp-cli-new-${Date.now()}`);
+    fs.mkdirSync(tempWorkspace, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(tempWorkspace)) {
+      fs.rmSync(tempWorkspace, { recursive: true, force: true });
+    }
+  });
+
+  it('test_new_project_lifecycle', async () => {
+    const projectPath = path.join(tempWorkspace, 'my_project');
+
+    const res = await execa('npx', ['tsx', auraBinPath, 'new', projectPath]);
+    expect(res.exitCode).toBe(0);
+
+    expect(fs.existsSync(projectPath)).toBe(true);
+    expect(fs.existsSync(path.join(projectPath, '.aura'))).toBe(true);
+    expect(fs.existsSync(path.join(projectPath, '.aura', 'config'))).toBe(true);
+    expect(fs.existsSync(path.join(projectPath, '.aura', 'config', 'config.yml'))).toBe(true);
+    expect(fs.existsSync(path.join(projectPath, '.gitignore'))).toBe(true);
+
+    const gitignore = fs.readFileSync(path.join(projectPath, '.gitignore'), 'utf-8');
+    expect(gitignore).toContain('.aura/');
+  });
+});

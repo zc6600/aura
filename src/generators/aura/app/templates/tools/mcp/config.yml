@@ -1,0 +1,9 @@
+# MCP server configuration
+#
+# Tools from these servers are surfaced as:
+#   mcp.<server_name>.<tool_name>
+#
+# See also: tools/mcp/README.md
+
+servers: []
+

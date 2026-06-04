@@ -1,0 +1,33 @@
+{
+  "name": "anchor_submit",
+  "description": "Submit anchor summary and next-step suggestion; attaches summary to history.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": true,
+  "attach_output_to_summary": true,
+  "permissions": {
+    "file_system": "read-only",
+    "self_edit": false
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "anchor_id": {
+        "type": "string"
+      },
+      "summary": {
+        "type": "string"
+      },
+      "selected_next": {
+        "type": "string"
+      },
+      "notes": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "anchor_id",
+      "summary"
+    ]
+  }
+}

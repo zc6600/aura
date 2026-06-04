@@ -1,0 +1,34 @@
+{
+  "name": "workspace_grep",
+  "description": "Perform fast regex or text searches across files in the workspace, excluding temporary/build folders.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "permissions": {
+    "file_system": "full-access"
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "The exact string or regular expression to search for."
+      },
+      "is_regex": {
+        "type": "boolean",
+        "description": "If true, treat query as a regular expression pattern. Default false."
+      },
+      "file_pattern": {
+        "type": "string",
+        "description": "Optional glob pattern to restrict searched files (e.g. '*.rb', 'app/**/*.py')."
+      }
+    },
+    "required": [
+      "query"
+    ]
+  },
+  "memory": {
+    "retention": "ephemeral",
+    "summarize": true,
+    "description": "Search results are ephemeral"
+  }
+}

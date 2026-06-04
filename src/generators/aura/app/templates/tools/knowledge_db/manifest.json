@@ -1,0 +1,86 @@
+{
+  "name": "knowledge_db",
+  "description": "Create, save, search, update, get, and delete documents in a knowledge database.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "dependencies": {
+    "pip": []
+  },
+  "permissions": {
+    "file_system": "read-write",
+    "self_edit": false,
+    "allow_paths": [
+      "./knowledge"
+    ]
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "description": "create | save | search | update | get | delete"
+      },
+      "db_name": {
+        "type": "string",
+        "description": "Database name without extension"
+      },
+      "text": {
+        "type": "string",
+        "description": "Text content to save"
+      },
+      "tag": {
+        "type": "string",
+        "description": "Tag associated with saved documents"
+      },
+      "query": {
+        "type": "string",
+        "description": "Query for searching documents"
+      },
+      "retrieval_mode": {
+        "type": "string",
+        "description": "Retrieval mode: embedding | tfidf | keyword"
+      },
+      "top_k": {
+        "type": "integer",
+        "description": "Top-k documents to return"
+      },
+      "embedding_provider": {
+        "type": "string",
+        "description": "Embedding provider: openai | openrouter | tfidf"
+      },
+      "embedding_model": {
+        "type": "string",
+        "description": "Embedding model name"
+      },
+      "embedding_api_base": {
+        "type": "string",
+        "description": "Embedding API base URL"
+      },
+      "embedding_api_key": {
+        "type": "string",
+        "description": "Embedding API key"
+      },
+      "embedding_api_key_env": {
+        "type": "string",
+        "description": "Env var name for embedding API key"
+      },
+      "embedding_batch_size": {
+        "type": "integer",
+        "description": "Embedding batch size"
+      },
+      "embedding_max_doc_chars": {
+        "type": "integer",
+        "description": "Skip embedding for documents exceeding this character count"
+      },
+      "id": {
+        "type": "integer",
+        "description": "Document id for update/get/delete"
+      }
+    },
+    "required": [
+      "action",
+      "db_name"
+    ]
+  },
+  "attach_output_to_summary": false
+}

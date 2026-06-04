@@ -1,0 +1,41 @@
+{
+  "name": "read_file",
+  "description": "Read text files within allowed paths. Use hints for large files.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "dependencies": {
+    "pip": []
+  },
+  "permissions": {
+    "file_system": "read-only",
+    "self_edit": false
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "file_path": {
+        "type": "string",
+        "description": "Workspace-relative file path"
+      },
+      "start_line": {
+        "type": "integer",
+        "description": "Optional starting line number (1-indexed, inclusive) to read a specific range."
+      },
+      "end_line": {
+        "type": "integer",
+        "description": "Optional ending line number (1-indexed, inclusive) to read a specific range."
+      },
+      "context_permissions": {
+        "type": "array",
+        "description": "Allowed path prefixes"
+      }
+    },
+    "required": [
+      "file_path"
+    ]
+  },
+  "memory": {
+    "retention": "working",
+    "description": "File read operations are working memory - keep for session"
+  }
+}

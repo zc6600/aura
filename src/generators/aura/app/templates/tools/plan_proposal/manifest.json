@@ -1,0 +1,59 @@
+{
+  "name": "plan_proposal",
+  "description": "Propose, approve, or retrieve task implementation plans isolated by session run.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "permissions": {
+    "file_system": "read-write",
+    "allow_paths": [
+      "./state"
+    ]
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "create",
+          "approve",
+          "get"
+        ],
+        "description": "Action to perform: 'create' a new plan, 'approve' the active plan, or 'get' the current plan.",
+        "default": "create"
+      },
+      "goal": {
+        "type": "string",
+        "description": "Overall task goal (required for 'create')."
+      },
+      "steps": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Ordered steps for task execution (optional)."
+      },
+      "files_to_modify": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "List of files intended to be modified (optional)."
+      },
+      "verification_commands": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "List of commands to run for task verification (optional)."
+      },
+      "run_id": {
+        "type": "string",
+        "description": "Session run id (optional, auto-generated if not provided)."
+      }
+    },
+    "required": [
+      "action"
+    ]
+  }
+}

@@ -1,0 +1,3 @@
+# OCR and Verify Tool Hint
+- **Purpose**: Extract text from an image via Tesseract OCR and verify if expected substrings are present.
+- **Verification**: Provide a list of key expected text snippets to double-check their presence in the image output.

@@ -1,0 +1,8 @@
+# Knowledge DB Tool Hint
+- **数据库位置**: knowledge/<db_name>.db
+- **db_name 约束**: 仅允许字母/数字/下划线/短横线
+- **数据库类型**: SQLite
+- **表结构**: documents(id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT, tag TEXT, created_at INTEGER)
+- **tag 含义**: 与原文关联的标记，等同于 hint
+- **检索模式**: keyword | tfidf | embedding
+- **搜索输出**: 仅返回 tag 与 get_args（用于查询原文）

@@ -1,0 +1,67 @@
+{
+  "name": "subagent",
+  "description": "Run an isolated subagent to produce a focused report.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": false,
+  "permissions": {
+    "file_system": "read-write",
+    "self_edit": false,
+    "allow_paths": [
+      "./state",
+      "./state/bus",
+      "./.aura/state",
+      "./.aura/state/bus"
+    ]
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "goal": {
+        "type": "string",
+        "description": "Subtask goal for the subagent."
+      },
+      "subagent_id": {
+        "type": "string",
+        "description": "Optional subagent session id."
+      },
+      "name": {
+        "type": "string",
+        "description": "Alias for subagent_id."
+      },
+      "max_steps": {
+        "type": "integer",
+        "description": "Maximum tool loop steps for the subagent.",
+        "default": 200
+      },
+      "timeout": {
+        "type": "integer",
+        "description": "Timeout in seconds for the subagent execution.",
+        "default": 600
+      },
+      "persona": {
+        "type": "string",
+        "description": "The name of a persona to use (e.g., 'architect', 'reviewer'). instructions will be loaded from state/personas/{persona}.json"
+      },
+      "async_mode": {
+        "type": "boolean",
+        "description": "If true, run the subagent in background and return immediately with a job_id for polling via action='status'.",
+        "default": false
+      },
+      "action": {
+        "type": "string",
+        "enum": [
+          "run",
+          "status"
+        ],
+        "description": "The action to perform. 'run' starts a subagent, 'status' checks progress.",
+        "default": "run"
+      },
+      "job_id": {
+        "type": "string",
+        "description": "The job_id to check (used with action='status')."
+      }
+    },
+    "required": []
+  }
+}
