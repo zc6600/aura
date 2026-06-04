@@ -1,7 +1,8 @@
 node_modules/
 dist/
 .env
-.env.local
+.env.*
+!.env.example
 .aura/
 *.db
 *.db-journal
@@ -9,5 +10,8 @@ dist/
 *.db-shm
 .DS_Store
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+coverage/
+.nyc_output/
 tests/**/temp-*/
