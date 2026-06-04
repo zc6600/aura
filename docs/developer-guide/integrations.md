@@ -2,7 +2,7 @@
 
 How Aura OS connects to external tool ecosystems and protocols.
 
-**Framework Code**: `lib/aura/ext/` (MCP, LSP) and `lib/aura/context/` (Hint system)  
+**Framework Code**: `src/core/ext/` (mcp, lsp) and `src/core/context/providers/` (hintProvider)  
 **Project Context**: Integrations configured in `tools/mcp/` or via environment variables
 
 ---
@@ -13,10 +13,10 @@ Aura integrates the [Model Context Protocol](https://modelcontextprotocol.io/) t
 
 ### Integration Points
 
-1. **Config Loading**: `Aura::MCP::Manager` loads `tools/mcp/config.yml` (relative to project root)
-2. **Discovery**: `Aura::Context::ToolProvider` collects MCP tool schemas and converts them to JSON Schema format
+1. **Config Loading**: `MCPManager` loads `tools/mcp/config.yml` (relative to project root)
+2. **Discovery**: `ToolProvider` collects MCP tool schemas and converts them to JSON Schema format
 3. **Native Tool Calling**: MCP tools are passed to LLM as structured tool definitions (not text descriptions in prompt)
-4. **Execution**: `Aura::Kernel::ExecutionEngine` routes `mcp.*` calls to `Aura::MCP::Manager`
+4. **Execution**: `ExecutionEngine` routes `mcp.*` calls to `MCPManager`
 
 ### Configuration (`tools/mcp/config.yml`)
 
@@ -53,9 +53,9 @@ Aura supports connecting to Language Servers for code intelligence.
 
 ### Usage
 
-- The Kernel can launch an LSP client (e.g., for Ruby/Solargraph or Python/Pyright)
+- The Kernel can launch an LSP client (e.g., Solargraph for Ruby, Pyright for Python, or typescript-language-server for TS/JS)
 - **Tool**: `lsp_diagnostics` is a built-in tool that queries the active LSP server for errors/warnings in a file
-- **Configuration**: LSP settings are currently passed via `Aura::Kernel::ExecutionEngine` options (not fully exposed in `config.yml` yet)
+- **Configuration**: LSP settings are currently passed via `ExecutionEngine` options (not fully exposed in `config.yml` yet)
 
 ---
 
@@ -101,10 +101,10 @@ def login(username, password):
 
 ## Code References
 
-- **MCP Manager**: `lib/aura/mcp/manager.rb`
-- **ToolProvider**: `lib/aura/context/tool_provider.rb`
-- **ExecutionEngine**: `lib/aura/kernel/execution_engine.rb`
-- **Hint System**: `lib/aura/context/env_provider/hint_provider.rb`
+- **MCP Manager**: `src/core/ext/mcp/manager.ts`
+- **ToolProvider**: `src/core/context/providers/toolProvider.ts`
+- **ExecutionEngine**: `src/core/kernel/executionEngine.ts`
+- **Hint System**: `src/core/context/providers/hintProvider.ts`
 
 ---
 

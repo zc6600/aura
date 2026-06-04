@@ -31,11 +31,11 @@ Returns the shell command to bootstrap a new Aura workspace.
 
 #### `get_run_loop_command(goal: str, max_steps: int = 30) -> str`
 Returns the shell command to launch the autonomous agent's loop solver.
-*   **Command**: `aura kernel loop --goal <escaped_goal> --max_steps <max_steps>`
+*   **Command**: `aura kernel loop --goal <escaped_goal> --max-steps <max_steps>`
 
 #### `get_config_update_command(provider: str, model: str) -> str`
-Returns an inline Ruby command string that modifies `.aura/config/config.yml` inside the sandbox to route LLM queries to the target provider/model.
-*   **Command**: `ruby -ryaml -e '...'`
+Returns an inline Node.js command string that modifies `.aura/config/config.yml` inside the sandbox to route LLM queries to the target provider/model.
+*   **Command**: `node -e '...'`
 
 ---
 
@@ -49,32 +49,32 @@ Invokes the initialization command locally in the target workspace context.
 
 #### `run_loop(goal: str, max_steps: int = 30) -> subprocess.CompletedProcess`
 Executes the solver loop locally on the host machine.
-*   **Action**: Runs `aura kernel loop` with the requested goal.
+*   **Action**: Runs `aura kernel loop` (which maps to `aura chat --goal` in the TS implementation) with the requested goal.
 
 #### `update_config(provider: str, model: str)`
 Directly parses, updates, and serializes the YAML configuration file (`.aura/config/config.yml`) under the workspace.
 
 ---
 
-## 2. Integration with Terminal Bench
+## 2. Integration with Terminal Bench (Ruby Reference)
 
-The evaluation harness in [test_terminal_bench_cli.rb](file:///Users/frank/Desktop/Towards%20AGI/aura/aura/test/eval/test_terminal_bench_cli.rb) utilizes the Python SDK through an adapter class.
+The Python SDK is also utilized for automated agent evaluation. The evaluation harness `test_terminal_bench_cli.rb` (located in the Ruby implementation repository `aura-rb`) utilizes the Python SDK through an adapter class.
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│                   test_terminal_bench_cli.rb           │
+│             test_terminal_bench_cli.rb (Ruby)          │
 └───────────────────────────┬────────────────────────────┘
                             │ (Runs Minitest on Host)
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │               Docker / Terminal Bench                  │
-│  - Executes test/eval/aura_setup.sh to compile &       │
-│    install aura.gem inside Docker container            │
+│  - Executes setup.sh to compile & install              │
+│    the Aura package inside Docker container            │
 └───────────────────────────┬────────────────────────────┘
                             │ (Launches Container)
                             ▼
 ┌────────────────────────────────────────────────────────┐
-│                 test/eval/aura_agent.py                │
+│                      aura_agent.py                     │
 │  - Appends sdk/python to PYTHONPATH                    │
 │  - Imports AuraClient                                  │
 │  - Configures workspace using client.update_config     │
@@ -85,7 +85,7 @@ The evaluation harness in [test_terminal_bench_cli.rb](file:///Users/frank/Deskt
 ### Module Mapping & PYTHONPATH
 When running `terminal-bench`, python modules must be resolved properly within the container:
 1.  Both `test/eval` and `sdk/python` are appended to the container's `PYTHONPATH`.
-2.  The benchmark agent runner identifies the wrapper module as `aura_agent:AuraAgent` rather than passing full absolute paths (which might fail under `importlib`).
+2.  The benchmark agent runner identifies the wrapper module as `aura_agent:AuraAgent` rather than passing full absolute paths.
 
 ---
 
@@ -94,46 +94,10 @@ When running `terminal-bench`, python modules must be resolved properly within t
 Because evaluation runs inside isolated Docker container sandboxes, host environment variables do not map automatically.
 
 ### Mapped Environment Keys
-The adapter class [AuraAgent](file:///Users/frank/Desktop/Towards%20AGI/aura/aura/test/eval/aura_agent.py) extracts key variables from the host's `.env` configuration and passes them downstream to the container runner environment:
+The adapter class `AuraAgent` extracts key variables from the host's `.env` configuration and passes them downstream to the container runner environment:
 *   `AURA_LLM_API_KEY`: Aura's unified API key mapping.
-*   `OPENROUTER_API_KEY`: OpenRouter gateway authentication (the default provider for integration tests).
+*   `OPENROUTER_API_KEY`: OpenRouter gateway authentication.
 *   `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`: Model provider keys.
-
-### Rakefile & Minitest Environment Loading
-The Ruby runner [test_terminal_bench_cli.rb](file:///Users/frank/Desktop/Towards%20AGI/aura/aura/test/eval/test_terminal_bench_cli.rb) loads environmental variables on startup via [env.rb](file:///Users/frank/Desktop/Towards%20AGI/aura/aura/lib/aura/llm/env.rb):
-```ruby
-require 'aura/llm/env'
-Aura::LLM::Env.load!
-```
-This guarantees that keys stored in your root `.env` file propagate seamlessly.
-
----
-
-## 4. Developer Tasks & CLI Invocation
-
-### Simple Evaluation Command
-Evaluate the Aura agent on `hello-world` with the default model/dataset:
-```bash
-bundle exec rake test:eval:aura
-```
-
-### Customize Parameters
-Run a specific benchmark task by passing positional parameters:
-```bash
-bundle exec rake test:eval:aura[task_id,dataset,model]
-```
-Example:
-```bash
-bundle exec rake test:eval:aura[blind-maze-explorer-5x5,terminal-bench-core==0.1.1,openrouter/poolside/laguna-m.1:free]
-```
-
-### Configured via `.env`
-Specify default evaluation targets in your local `.env` file:
-```env
-TB_TASK_ID=hello-world
-TB_DATASET=terminal-bench-core==0.1.1
-TB_MODEL=openrouter/poolside/laguna-m.1:free
-```
 
 ---
 

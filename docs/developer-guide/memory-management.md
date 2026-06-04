@@ -42,7 +42,7 @@ state_management:
     execution: { max_steps: 10, summarize: true }
 ```
 
-### 3. Code Defaults (`Memory::Policy::DEFAULT_RETENTION`)
+### 3. Code Defaults (`src/core/memory/policy.ts`)
 
 ---
 
@@ -57,10 +57,10 @@ graph LR
     D -->|summarize=true| E[NarrativeService.synthesize]
     D -->|summarize=false| F[Mark for deletion]
     D -->|permanent=true| G[Keep forever]
-    E --> H[commit_summary]
+    E --> H[commitSummary]
     H --> F
     F --> I[Delete old events]
-    I --> J[Emit events to Bridge]
+    I --> J[Emit events to Subscriber]
     
     style A fill:#e1f5ff
     style E fill:#ffe1cc
@@ -70,38 +70,36 @@ graph LR
 
 ## Memory Architecture
 
-The memory module is decoupled from the Kernel layer and is divided into modular classes managed under the `Aura::Memory` namespace:
+The memory module is decoupled from the Kernel layer and is divided into modular classes managed under `src/core/memory/`:
 
-### 1. Aura::Memory::Base (Core Hub)
-- **Location**: `lib/aura/memory/base.rb`
+### 1. MemoryBase (Core Hub)
+- **Location**: `src/core/memory/base.ts`
 - Orchestrates and holds references to all memory components: `recorder`, `provider`, `metabolizer`, and `store`.
 - Exposes direct delegate methods like `undo` and `redo` to simplify Kernel access.
 
-### 2. Aura::Memory::Recorder (Write Side)
-- **Location**: `lib/aura/memory/recorder.rb`
-- Provides structured methods to record events for various phases (`record_user`, `record_plan`, `record_execution`, `record_interception`, `record_custom`) and summaries (`record_summary`).
-- Support atomic transaction recording of batch events (`record_batch`).
+### 2. Recorder (Write Side)
+- **Location**: `src/core/memory/recorder.ts`
+- Provides structured methods to record events for various phases (`recordUser`, `recordPlan`, `recordExecution`, `recordInterception`, `recordCustom`) and summaries (`recordSummary`).
+- Supports atomic transaction recording of batch events (`recordBatch`).
 
-### 3. Aura::Memory::Provider (Read Side)
-- **Location**: `lib/aura/memory/provider.rb`
+### 3. Provider (Read Side)
+- **Location**: `src/core/memory/provider.ts`
 - Reads recent events, summaries, and variables from the memory store.
-- Formats active variables and converts chronological histories into markdown prompts for LLM consumption (`to_markdown`).
+- Formats active variables and converts chronological histories into markdown prompts for LLM consumption.
 
-### 4. Memory::Metabolizer Class (Event Lifecycle)
-- **Location**: `lib/aura/memory/metabolizer.rb`  
-- **Called from**: `Runner#observe` before context assembly.
+### 4. Metabolizer Class (Event Lifecycle)
+- **Location**: `src/core/memory/metabolizer.ts`  
+- **Called from**: `Runner.observe` before context assembly.
 - Triggers periodically when event threshold is reached, applying the retention policy, calling the summarizer, and deleting expired events.
 - **Event Bus Emits:**
-  - `:metabolism_start` - Metabolism begins
-  - `:metabolism_summary` - Summary generated
-  - `:metabolism_complete` - Metabolism finishes
+  - `metabolism_start` - Metabolism begins
+  - `metabolism_summary` - Summary generated
+  - `metabolism_complete` - Metabolism finishes
 
-### 5. Aura::Memory::Stores::SQLiteStore (Persistence)
-- **Location**: `lib/aura/memory/stores/sqlite_store.rb`
-- Implements thread-safe, transaction-supported persistence using SQLite3 database connections with WAL enabled.
+### 5. SQLiteStore (Persistence)
+- **Location**: `src/core/memory/sqliteStore.ts`
+- Implements thread-safe, transaction-supported persistence using SQLite3 database connections via `better-sqlite3`.
 - Manages `events`, `summaries`, `variables`, and `undone_` tables for rollback control.
-
----
 
 ---
 
@@ -123,7 +121,7 @@ Aura uses two distinct summary mechanisms:
 **Timing**: When metabolism is triggered (events exceed threshold)  
 **Config**: `state_management.summarization.*`  
 **Purpose**: Compress old events into concise narrative  
-**Example**: `"Agent read config.yml, attempted to write test.rb but failed due to syntax error, then fixed and verified."`
+**Example**: `"Agent read config.yml, attempted to write test.ts but failed due to syntax error, then fixed and verified."`
 
 ---
 
@@ -137,7 +135,7 @@ Aura uses two distinct summary mechanisms:
 | **Content** | "What was done" | "What progress happened" |
 | **Config** | `tool_protocol.call_summary.*` | `state_management.summarization.*` |
 | **Retention** | Unaffected | Based on retention tiers |
-| **Events** | None | :metabolism_start/complete |
+| **Events** | None | metabolism_start/complete |
 | **LLM Call** | Included in plan | Additional LLM call |
 
 ---
@@ -151,7 +149,7 @@ Plan (LLM returns tool call + summary)
   ↓
 Execute Tool
   ↓
-Call Summary → commit_summary()  ← First summary type
+Call Summary → commitSummary()  ← First summary type
   ↓
 Metabolizer checks if metabolism needed
   ↓
@@ -159,7 +157,7 @@ If needed:
   ├─ Select old events
   ├─ Apply retention policy
   ├─ NarrativeService.synthesize()
-  ├─ Metabolism Summary → commit_summary()  ← Second summary type
+  ├─ Metabolism Summary → commitSummary()  ← Second summary type
   └─ Delete old events
   ↓
 Provider reads:
@@ -214,7 +212,7 @@ state_management:
 ```yaml
 state_management:
   max_state_chars: 1000000        # Almost never triggers
-  recent_events_n: 200            # Keep大量 events
+  recent_events_n: 200            # Keep large amount of events
   
   summarization:
     enabled: false                # Disable metabolism summaries
@@ -286,11 +284,11 @@ tool_protocol:
 
 ### 1. Intelligent Retention Policy
 
-```ruby
-# AI marks important events as milestone
-if event_is_critical?(event)
-  tag_as_milestone(event)  # Never deleted
-end
+```typescript
+// AI marks important events as milestone
+if (eventIsCritical(event)) {
+  tagAsMilestone(event);  // Never deleted
+}
 ```
 
 ### 2. Multi-Level Metabolism
@@ -303,19 +301,19 @@ Level 3: One-line summary (50 chars)  - Permanent retention
 
 ### 3. Cross-Session Memory
 
-```ruby
-# Important insights stored in variables table, retained across sessions
-@state.set_variable("insight:auth_bug", "JWT token needs refresh")
+```typescript
+// Important insights stored in variables table, retained across sessions
+state.setVariable("insight:auth_bug", "JWT token needs refresh");
 ```
 
 ---
 
 ## Code References
 
-- **Memory::Metabolizer**: `lib/aura/memory/metabolizer.rb`
-- **NarrativeService**: `lib/aura/kernel/narrative_service.rb`
-- **StateProvider**: `lib/aura/context/state_provider.rb`
-- **Tests**: `test/integration/kernel/test_call_summary_persist.rb`
+- **Memory::Metabolizer**: `src/core/memory/metabolizer.ts`
+- **NarrativeService**: `src/core/kernel/narrativeService.ts`
+- **StateProvider**: `src/core/context/providers/stateProvider.ts`
+- **Tests**: `tests/integration/kernel.test.ts`
 
 ---
 

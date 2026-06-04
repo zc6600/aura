@@ -42,10 +42,10 @@ Technical design of Aura's session isolation system.
 ┌─────────────────────────────────────────────────────────┐
 │              Runner API (Session-Unaware)                 │
 │                                                         │
-│  runner = Runner.new(project_path)                      │
+│  runner = new Runner(projectPath)                       │
 │  - Runner knows which DB to operate via env vars        │
-│  - ENV["AURA_SESSION_NAME"] = "research-task"           │
-│  - or ENV["AURA_STATE_DB_PATH"] = "/path/to/db"         │
+│  - process.env.AURA_SESSION_NAME = "research-task"      │
+│  - or process.env.AURA_STATE_DB_PATH = "/path/to/db"    │
 │                                                         │
 │  Runner responsibilities:                                │
 │  - observe() → read context from current DB              │
@@ -57,15 +57,15 @@ Technical design of Aura's session isolation system.
 ┌─────────────────────────────────────────────────────────┐
 │              State (Database Layer)                       │
 │                                                         │
-│  State.new(project_path)                                │
-│  - Reads ENV["AURA_STATE_DB_PATH"] or                    │
-│    ENV["AURA_SESSION_NAME"] to determine DB path         │
+│  sqliteStore = new SQLiteStore(dbPath)                  │
+│  - Reads process.env.AURA_STATE_DB_PATH or               │
+│    process.env.AURA_SESSION_NAME to determine DB path   │
 │  - state/sessions/{session_name}.db                     │
 │                                                         │
 │  Provided API:                                           │
-│  - record_event(payload)                                │
-│  - get_recent_events_structured                         │
-│  - metabolize_if_needed                                 │
+│  - recordEvent(payload)                                 │
+│  - getRecentEvents()                                    │
+│  - metabolizeIfNeeded()                                 │
 └────────────────────┬────────────────────────────────────┘
                      │
                      ▼
@@ -88,10 +88,10 @@ Technical design of Aura's session isolation system.
 
 Sessions work through environment variables:
 
-```ruby
-ENV["AURA_SESSION_NAME"] = "research-task"
-# or
-ENV["AURA_STATE_DB_PATH"] = "/path/to/custom.db"
+```typescript
+process.env.AURA_SESSION_NAME = "research-task";
+// or
+process.env.AURA_STATE_DB_PATH = "/path/to/custom.db";
 ```
 
 The Runner automatically detects and uses the active session via these variables, keeping layers decoupled.
@@ -102,38 +102,38 @@ The Runner automatically detects and uses the active session via these variables
 
 ### Complete Session Isolation
 
-```ruby
-# Session A
-sessions.activate("session-a")
-runner_a = Runner.new(project_path)
-runner_a.run("Analyze the codebase")
-# → All events stored in state/sessions/session-a.db
+```typescript
+// Session A
+sessions.activate("session-a");
+const runnerA = new Runner(projectPath);
+await runnerA.run("Analyze the codebase");
+// → All events stored in state/sessions/session-a.db
 
-# Session B
-sessions.activate("session-b")
-runner_b = Runner.new(project_path)
-runner_b.run("Write documentation")
-# → All events stored in state/sessions/session-b.db
+// Session B
+sessions.activate("session-b");
+const runnerB = new Runner(projectPath);
+await runnerB.run("Write documentation");
+// → All events stored in state/sessions/session-b.db
 
-# Two sessions' data are completely independent
-# Session A cannot see Session B's events
-# Session B cannot see Session A's events
+// Two sessions' data are completely independent
+// Session A cannot see Session B's events
+// Session B cannot see Session A's events
 ```
 
 ### Verification
 
-```ruby
-require "sqlite3"
+```typescript
+import Database from 'better-sqlite3';
 
-db_a = SQLite3::Database.new("state/sessions/session-a.db")
-db_b = SQLite3::Database.new("state/sessions/session-b.db")
+const dbA = new Database("state/sessions/session-a.db");
+const dbB = new Database("state/sessions/session-b.db");
 
-count_a = db_a.get_first_value("SELECT COUNT(*) FROM events")
-count_b = db_b.get_first_value("SELECT COUNT(*) FROM events")
+const countA = dbA.prepare("SELECT COUNT(*) as count FROM events").get().count;
+const countB = dbB.prepare("SELECT COUNT(*) as count FROM events").get().count;
 
-puts "Session A: #{count_a} events"
-puts "Session B: #{count_b} events"
-# Two counts are independent
+console.log(`Session A: ${countA} events`);
+console.log(`Session B: ${countB} events`);
+// Two counts are independent
 ```
 
 ---
@@ -149,37 +149,36 @@ puts "Session B: #{count_b} events"
 
 ### Multi-Session Overhead
 
-```ruby
-# 10 sessions total size
-10 * 5MB = 50MB  # Completely acceptable
+```typescript
+// 10 sessions total size
+10 * 5MB = 50MB  // Completely acceptable
 
-# Session switch time
-< 10ms  # SQLite file opening is very fast
+// Session switch time
+< 10ms  // SQLite file opening is very fast
 ```
 
 ---
 
-## Relationship with StateRecorder
+## Relationship with Recorder & Provider
 
 ```
 SessionManager (Session Management)
   ↓ Sets environment variable
-  ↓ ENV["AURA_SESSION_NAME"] = "my-session"
+  ↓ process.env.AURA_SESSION_NAME = "my-session"
   
 Runner (Orchestration)
-  ↓ Creates State
-  ↓ @state = State.new(project_path)
-  ↓ State reads ENV to determine DB path
+  ↓ Creates SQLiteStore connection
+  ↓ SQLiteStore reads env to determine DB path
   
-StateRecorder (Write)
-  ↓ @recorder = StateRecorder.new(@state)
-  ↓ @recorder.record_plan(plan)
-  ↓ @recorder.record_execution(tool, result)
+Recorder (Write)
+  ↓ const recorder = new Recorder(db)
+  ↓ recorder.recordPlan(plan)
+  ↓ recorder.recordExecution(tool, result)
   
-State (Database)
+SQLiteStore (Database)
   ↓ Writes to state/sessions/my-session.db
   
-StateProvider (Read)
+Provider (Read)
   ↓ Reads from state/sessions/my-session.db
   ↓ Formats for LLM Context
 ```
@@ -213,29 +212,26 @@ project/
 
 ### 1. Session Tags and Search
 
-```ruby
-sessions.create("bug-fix", tags: ["bug", "auth"])
-sessions.create("feature", tags: ["feature", "payment"])
+```typescript
+sessions.create("bug-fix", { tags: ["bug", "auth"] });
+sessions.create("feature", { tags: ["feature", "payment"] });
 
-# Search by tag
-bug_sessions = sessions.list.select { |s| 
-  s[:tags].include?("bug") 
-}
+// Search by tag
+const bugSessions = sessions.list().filter(s => s.tags.includes("bug"));
 ```
 
 ### 2. Session Merging (Advanced)
 
-```ruby
-# Merge insights from two related sessions
-sessions.merge("experiment-a", "experiment-b", "merged-insights")
+```typescript
+// Merge insights from two related sessions
+sessions.merge("experiment-a", "experiment-b", "merged-insights");
 ```
 
 ### 3. Session Templates
 
-```ruby
-# Create session from template (preset configuration)
-sessions.create_from_template("new-feature", 
-  template: "standard-dev-workflow")
+```typescript
+// Create session from template (preset configuration)
+sessions.createFromTemplate("new-feature", { template: "standard-dev-workflow" });
 ```
 
 ---
@@ -265,9 +261,9 @@ This is a **concise, practical, and easily extensible** design!
 
 ## Code References
 
-- **SessionManager**: `lib/aura/memory/session_manager.rb`
-- **State**: `lib/aura/kernel/state.rb`
-- **Tests**: `test/integration/memory/test_session_manager.rb`
+- **SessionManager**: `src/core/memory/sessionManager.ts`
+- **SQLiteStore**: `src/core/memory/sqliteStore.ts`
+- **Tests**: `tests/integration/memory.test.ts`
 
 ---
 
