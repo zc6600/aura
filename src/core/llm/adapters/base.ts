@@ -4,9 +4,44 @@ export interface AdapterConfig {
   model?: string;
 }
 
+export interface LLMMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  name?: string;
+  tool_call_id?: string;
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }>;
+}
+
+export interface CompletionOptions {
+  temperature?: number;
+  max_tokens?: number;
+  timeout?: number;
+  tools?: Array<{
+    type: 'function';
+    function: {
+      name: string;
+      description?: string;
+      parameters: Record<string, unknown>;
+    };
+  }>;
+  tool_choice?:
+    | 'auto'
+    | 'none'
+    | { type: 'function'; function: { name: string } };
+  stream?: boolean;
+  [key: string]: unknown;
+}
+
 export interface CompletionResult {
   content: string;
-  raw: any;
+  raw: Record<string, unknown> | null;
   finish_reason?: string | null;
 }
 
@@ -31,14 +66,17 @@ export abstract class BaseAdapter {
   /**
    * Executes a standard non-streaming completion.
    */
-  public abstract complete(messages: any[], options?: any): Promise<CompletionResult>;
+  public abstract complete(
+    messages: LLMMessage[],
+    options?: CompletionOptions,
+  ): Promise<CompletionResult>;
 
   /**
    * Executes a streaming completion.
    */
   public abstract completeStream(
-    messages: any[],
-    options?: any,
-    onChunk?: (delta: string) => void
+    messages: LLMMessage[],
+    options?: CompletionOptions,
+    onChunk?: (delta: string) => void,
   ): Promise<CompletionResult>;
 }

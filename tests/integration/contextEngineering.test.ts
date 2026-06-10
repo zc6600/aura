@@ -1,33 +1,41 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import yaml from 'yaml';
 import { fileURLToPath } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import yaml from 'yaml';
+import { Hints } from '../../src/cli/commands/hints.js';
 import { ContextAssembler } from '../../src/core/context/assembler.js';
 import { ContextBase } from '../../src/core/context/base.js';
 import { KnowledgeProvider } from '../../src/core/context/providers/knowledgeProvider.js';
 import { ToolProvider } from '../../src/core/context/providers/toolProvider.js';
-import { Hints } from '../../src/cli/commands/hints.js';
+
+import type {
+  EventRecord,
+  SummaryRecord,
+} from '../../src/core/memory/sqliteStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 class DummyContextDb {
-  public variables: Record<string, any> = {};
-  public summaries: any[] = [];
-  public events: any[] = [];
+  public variables: Record<string, string> = {};
+  public summaries: SummaryRecord[] = [];
+  public events: EventRecord[] = [];
 
-  public allVariables(): Record<string, any> {
+  public allVariables(): Record<string, string> {
     return this.variables;
   }
 
-  public fetchEvents(options: any = {}): any[] {
+  public fetchEvents(options: {
+    limit?: number;
+    offset?: number;
+  }): EventRecord[] {
     const limit = options.limit ?? this.events.length;
     const offset = options.offset ?? 0;
     return this.events.slice(offset, offset + limit);
   }
 
-  public fetchSummaries(options: any = {}): any[] {
+  public fetchSummaries(options: { limit?: number }): SummaryRecord[] {
     const limit = options.limit ?? this.summaries.length;
     return this.summaries.slice(0, limit);
   }
@@ -52,7 +60,7 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
         state_management: {
           max_state_chars: 50000,
         },
-      })
+      }),
     );
   });
 
@@ -71,19 +79,25 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
         state_management: {
           max_state_chars: 1000,
         },
-      })
+      }),
     );
 
     // Create directive and task.md
     fs.mkdirSync(path.join(projectPath, 'skills'), { recursive: true });
-    fs.writeFileSync(path.join(projectPath, 'skills', 'system.md'), '# AURA OS OPERATING PROTOCOL\nCORE_AURA_DIRECTIVE_RULE');
+    fs.writeFileSync(
+      path.join(projectPath, 'skills', 'system.md'),
+      '# AURA OS OPERATING PROTOCOL\nCORE_AURA_DIRECTIVE_RULE',
+    );
     fs.writeFileSync(path.join(projectPath, 'task.md'), 'URGENT_TASK_NAME');
 
     // Create massive workspace file
-    fs.writeFileSync(path.join(projectPath, 'AURA_README.md'), 'A'.repeat(5000));
+    fs.writeFileSync(
+      path.join(projectPath, 'AURA_README.md'),
+      'A'.repeat(5000),
+    );
 
     const db = new DummyContextDb();
-    const payload = ContextAssembler.assemble(projectPath, db);
+    const payload = ContextAssembler.assemble(projectPath, db as any);
     const out = payload.toMarkdown();
 
     expect(out).toContain('CORE_AURA_DIRECTIVE_RULE');
@@ -92,14 +106,18 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
   });
 
   it('test_magic_hint_scanning_skips_large_files', () => {
-    fs.writeFileSync(path.join(projectPath, 'small.py'), '# @aura-hint: Valid Hint Here');
+    fs.writeFileSync(
+      path.join(projectPath, 'small.py'),
+      '# @aura-hint: Valid Hint Here',
+    );
     fs.writeFileSync(
       path.join(projectPath, 'large.py'),
-      '# @aura-hint: Large Hint Should Not Show\n' + '#'.repeat(110000)
+      `# @aura-hint: Large Hint Should Not Show
+${'#'.repeat(110000)}`,
     );
 
-    const base = new ContextBase(projectPath, null);
-    const out = (base as any).buildEnvironmentContent();
+    const base = new ContextBase(projectPath, null as any);
+    const out = base.buildEnvironmentContent();
 
     expect(out).toContain('Valid Hint Here');
     expect(out).not.toContain('Large Hint Should Not Show');
@@ -107,15 +125,22 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
 
   it('test_magic_hint_scanning_truncates_and_warns_on_long_hints', () => {
     const longHint = 'X'.repeat(1200);
-    fs.writeFileSync(path.join(projectPath, 'long_hint.py'), `# @aura-hint: ${longHint}`);
+    fs.writeFileSync(
+      path.join(projectPath, 'long_hint.py'),
+      `# @aura-hint: ${longHint}`,
+    );
 
-    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const consoleWarnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => {});
 
-    const base = new ContextBase(projectPath, null);
-    const out = (base as any).buildEnvironmentContent();
+    const base = new ContextBase(projectPath, null as any);
+    const out = base.buildEnvironmentContent();
 
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[WARNING] Aura-hint in long_hint.py was truncated because it exceeds the 1000 character limit')
+      expect.stringContaining(
+        '[WARNING] Aura-hint in long_hint.py was truncated because it exceeds the 1000 character limit',
+      ),
     );
     expect(out).toContain('X'.repeat(1000));
     expect(out).toContain('... [truncated: hint exceeds 1000 character limit]');
@@ -127,16 +152,18 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
       yaml.stringify({
         state_management: { max_state_chars: 50000 },
         hints: { max_hint_chars: 50 },
-      })
+      }),
     );
 
     consoleWarnSpy.mockClear();
 
-    const base2 = new ContextBase(projectPath, null);
-    const out2 = (base2 as any).buildEnvironmentContent();
+    const base2 = new ContextBase(projectPath, null as any);
+    const out2 = base2.buildEnvironmentContent();
 
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[WARNING] Aura-hint in long_hint.py was truncated because it exceeds the 50 character limit')
+      expect.stringContaining(
+        '[WARNING] Aura-hint in long_hint.py was truncated because it exceeds the 50 character limit',
+      ),
     );
     expect(out2).toContain('X'.repeat(50));
     expect(out2).toContain('... [truncated: hint exceeds 50 character limit]');
@@ -150,7 +177,7 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
       small_var: 'short',
     };
 
-    const payload = ContextAssembler.assemble(projectPath, db);
+    const payload = ContextAssembler.assemble(projectPath, db as any);
     const out = payload.toMarkdown();
 
     expect(out).toContain('huge_var');
@@ -161,11 +188,14 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
   });
 
   it('test_aura_readme_auto_inject_configuration', () => {
-    fs.writeFileSync(path.join(projectPath, 'AURA_README.md'), 'WORKSPACE_RULE_README_CONTENT');
+    fs.writeFileSync(
+      path.join(projectPath, 'AURA_README.md'),
+      'WORKSPACE_RULE_README_CONTENT',
+    );
 
     // Default: auto injects
-    const base = new ContextBase(projectPath, null);
-    const out1 = (base as any).buildEnvironmentContent();
+    const base = new ContextBase(projectPath, null as any);
+    const out1 = base.buildEnvironmentContent();
     expect(out1).toContain('WORKSPACE_RULE_README_CONTENT');
 
     // Disable auto inject
@@ -174,37 +204,53 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
       yaml.stringify({
         state_management: { max_state_chars: 50000 },
         hints: { auto_inject_readme: false },
-      })
+      }),
     );
 
-    const base2 = new ContextBase(projectPath, null);
-    const out2 = (base2 as any).buildEnvironmentContent();
+    const base2 = new ContextBase(projectPath, null as any);
+    const out2 = base2.buildEnvironmentContent();
     expect(out2).not.toContain('WORKSPACE_RULE_README_CONTENT');
   });
 
   it('test_readme_and_hint_10000_char_limits', () => {
-    fs.writeFileSync(path.join(projectPath, 'AURA_README.md'), 'R'.repeat(12000));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    fs.writeFileSync(
+      path.join(projectPath, 'AURA_README.md'),
+      'R'.repeat(12000),
+    );
 
     fs.mkdirSync(path.join(projectPath, 'knowledge'), { recursive: true });
-    fs.writeFileSync(path.join(projectPath, 'knowledge', 'doc.txt'), 'some content');
-    fs.writeFileSync(path.join(projectPath, 'knowledge', 'doc.txt.hint'), 'K'.repeat(12000));
+    fs.writeFileSync(
+      path.join(projectPath, 'knowledge', 'doc.txt'),
+      'some content',
+    );
+    fs.writeFileSync(
+      path.join(projectPath, 'knowledge', 'doc.txt.hint'),
+      'K'.repeat(12000),
+    );
 
-    fs.mkdirSync(path.join(projectPath, 'tools', 'my_tool'), { recursive: true });
+    fs.mkdirSync(path.join(projectPath, 'tools', 'my_tool'), {
+      recursive: true,
+    });
     fs.writeFileSync(
       path.join(projectPath, 'tools', 'my_tool', 'manifest.json'),
-      JSON.stringify({ name: 'my_tool', auto_load: true })
+      JSON.stringify({ name: 'my_tool', auto_load: true }),
     );
-    fs.writeFileSync(path.join(projectPath, 'tools', 'my_tool', 'my_tool.hint'), 'T'.repeat(12000));
+    fs.writeFileSync(
+      path.join(projectPath, 'tools', 'my_tool', 'my_tool.hint'),
+      'T'.repeat(12000),
+    );
 
     fs.writeFileSync(
       path.join(projectPath, 'config', 'config.yml'),
       yaml.stringify({
         hints: { auto_inject_readme: true },
-      })
+      }),
     );
 
-    const base = new ContextBase(projectPath, null);
-    const out = (base as any).buildEnvironmentContent();
+    const base = new ContextBase(projectPath, null as any);
+    const out = base.buildEnvironmentContent();
 
     expect(out).toContain('R'.repeat(10000));
     expect(out).toContain('... [truncated: exceeds 10000 character limit]');
@@ -230,11 +276,11 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
           auto_inject_readme: true,
           max_file_chars: 50,
         },
-      })
+      }),
     );
 
-    const baseCustom = new ContextBase(projectPath, null);
-    const outCustom = (baseCustom as any).buildEnvironmentContent();
+    const baseCustom = new ContextBase(projectPath, null as any);
+    const outCustom = baseCustom.buildEnvironmentContent();
     expect(outCustom).toContain('R'.repeat(50));
     expect(outCustom).toContain('... [truncated: exceeds 50 character limit]');
     expect(outCustom).not.toContain('R'.repeat(51));
@@ -257,29 +303,45 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
 
     fs.mkdirSync(path.join(projectPath, 'knowledge'), { recursive: true });
     fs.writeFileSync(path.join(projectPath, 'knowledge', 'doc.txt'), 'content');
-    fs.writeFileSync(path.join(projectPath, 'knowledge', 'doc.txt.hint'), 'KNOWLEDGE_HINT');
+    fs.writeFileSync(
+      path.join(projectPath, 'knowledge', 'doc.txt.hint'),
+      'KNOWLEDGE_HINT',
+    );
 
-    fs.mkdirSync(path.join(projectPath, 'tools', 'my_tool'), { recursive: true });
+    fs.mkdirSync(path.join(projectPath, 'tools', 'my_tool'), {
+      recursive: true,
+    });
     fs.writeFileSync(
       path.join(projectPath, 'tools', 'my_tool', 'manifest.json'),
-      JSON.stringify({ name: 'my_tool', auto_load: true })
+      JSON.stringify({ name: 'my_tool', auto_load: true }),
     );
-    fs.writeFileSync(path.join(projectPath, 'tools', 'my_tool', 'my_tool.hint'), 'TOOL_HINT');
+    fs.writeFileSync(
+      path.join(projectPath, 'tools', 'my_tool', 'my_tool.hint'),
+      'TOOL_HINT',
+    );
 
-    fs.writeFileSync(path.join(projectPath, 'magic.py'), '# @aura-hint: MAGIC_HINT_HERE\npass');
+    fs.writeFileSync(
+      path.join(projectPath, 'magic.py'),
+      '# @aura-hint: MAGIC_HINT_HERE\npass',
+    );
 
     // Ignore everything
     fs.writeFileSync(
       path.join(projectPath, 'config', 'config.yml'),
       yaml.stringify({
         hints: {
-          ignore_list: ['AURA_README.md', 'knowledge/doc.txt.hint', 'tools/my_tool/my_tool.hint', 'magic.py'],
+          ignore_list: [
+            'AURA_README.md',
+            'knowledge/doc.txt.hint',
+            'tools/my_tool/my_tool.hint',
+            'magic.py',
+          ],
         },
-      })
+      }),
     );
 
-    const base = new ContextBase(projectPath, null);
-    const out = (base as any).buildEnvironmentContent();
+    const base = new ContextBase(projectPath, null as any);
+    const out = base.buildEnvironmentContent();
 
     expect(out).not.toContain('README_RULE');
     expect(out).not.toContain('KNOWLEDGE_HINT');
@@ -290,7 +352,7 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
     expect(toolOut).not.toContain('TOOL_HINT');
   });
 
-  it('test_hints_cli_command', () => {
+  it('test_hints_cli_command', async () => {
     const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     // Create workspace directory config
@@ -301,12 +363,14 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
       path.join(auraDir, 'config', 'config.yml'),
       yaml.stringify({
         hints: { auto_inject_readme: true },
-      })
+      }),
     );
 
     // List command
-    Hints.list(projectPath);
-    const listOutput = consoleLogSpy.mock.calls.map(c => c.join(' ')).join('\n');
+    await Hints.list(projectPath);
+    const listOutput = consoleLogSpy.mock.calls
+      .map((c) => c.join(' '))
+      .join('\n');
     expect(listOutput).toContain('AURA_README.md');
     expect(listOutput).toContain('INJECTED');
 
@@ -314,12 +378,16 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
     consoleLogSpy.mockClear();
     Hints.toggle('AURA_README.md', projectPath);
 
-    const cfg = yaml.parse(fs.readFileSync(path.join(auraDir, 'config', 'config.yml'), 'utf-8'));
+    const cfg = yaml.parse(
+      fs.readFileSync(path.join(auraDir, 'config', 'config.yml'), 'utf-8'),
+    );
     expect(cfg.hints?.auto_inject_readme).toBe(false);
 
     // Toggle on
     Hints.toggle('AURA_README.md', projectPath);
-    const cfgAfter = yaml.parse(fs.readFileSync(path.join(auraDir, 'config', 'config.yml'), 'utf-8'));
+    const cfgAfter = yaml.parse(
+      fs.readFileSync(path.join(auraDir, 'config', 'config.yml'), 'utf-8'),
+    );
     expect(cfgAfter.hints?.auto_inject_readme).toBe(true);
   });
 });

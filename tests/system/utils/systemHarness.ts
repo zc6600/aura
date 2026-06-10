@@ -10,10 +10,10 @@ import { rmRetry } from '../../utils/rmRetry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const systemDir = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(__dirname, '../../..');
 
-loadDotenv({ path: path.join(systemDir, '.env'), override: false });
-loadDotenv({ path: path.join(systemDir, '.env.local'), override: false });
+loadDotenv({ path: path.join(repoRoot, '.env'), override: false });
+loadDotenv({ path: path.join(repoRoot, '.env.local'), override: false });
 
 export const auraBinPath = path.resolve(__dirname, '../../../src/bin/aura.ts');
 export const runSystemTests = process.env.RUN_SYSTEM_TESTS === '1';

@@ -26,7 +26,7 @@ export class ToolBlockedError extends ToolError {
   constructor(
     message: string,
     public readonly toolName?: string | null,
-    public readonly advice?: string | null
+    public readonly advice?: string | null,
   ) {
     super(message);
   }

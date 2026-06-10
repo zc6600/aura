@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
-import { execa } from 'execa';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { Runner } from '../../src/core/kernel/runner.js';
 
@@ -16,7 +16,9 @@ describe('Hierarchical Lifecycle Integration', { timeout: 30000 }, () => {
   let runner: Runner;
 
   beforeEach(async () => {
-    projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-lifecycle-integration-'));
+    projectPath = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'aura-lifecycle-integration-'),
+    );
 
     // Initialize workspace via CLI
     const res = await execa('npx', ['tsx', auraBinPath, 'new', projectPath]);
@@ -31,20 +33,24 @@ describe('Hierarchical Lifecycle Integration', { timeout: 30000 }, () => {
     // 1. group_manifest.json
     fs.writeFileSync(
       path.join(browserDir, 'group_manifest.json'),
-      JSON.stringify({
-        group_name: 'browser',
-        entry_tool: 'open',
-        context: {
-          name: 'browser_session',
-          multi_instance: true,
-          lifecycle: {
-            created_by: 'open',
-            destroyed_by: ['close'],
-            ttl: { seconds: 10 },
+      JSON.stringify(
+        {
+          group_name: 'browser',
+          entry_tool: 'open',
+          context: {
+            name: 'browser_session',
+            multi_instance: true,
+            lifecycle: {
+              created_by: 'open',
+              destroyed_by: ['close'],
+              ttl: { seconds: 10 },
+            },
           },
+          subtools: ['click', 'close'],
         },
-        subtools: ['click', 'close'],
-      }, null, 2)
+        null,
+        2,
+      ),
     );
 
     // 2. browser_open
@@ -52,17 +58,21 @@ describe('Hierarchical Lifecycle Integration', { timeout: 30000 }, () => {
     fs.mkdirSync(openDir, { recursive: true });
     fs.writeFileSync(
       path.join(openDir, 'manifest.json'),
-      JSON.stringify({
-        name: 'browser_open',
-        creates_context: 'browser_session',
-        runtime: 'python',
-        entry: 'logic.py',
-      }, null, 2)
+      JSON.stringify(
+        {
+          name: 'browser_open',
+          creates_context: 'browser_session',
+          runtime: 'python',
+          entry: 'logic.py',
+        },
+        null,
+        2,
+      ),
     );
     fs.writeFileSync(
       path.join(openDir, 'logic.py'),
       `import json
-print(json.dumps({"success": True, "context_id": "session_123", "data": {"url": "http://example.com"}}))`
+print(json.dumps({"success": True, "context_id": "session_123", "data": {"url": "http://example.com"}}))`,
     );
 
     // 3. browser_click
@@ -70,12 +80,16 @@ print(json.dumps({"success": True, "context_id": "session_123", "data": {"url": 
     fs.mkdirSync(clickDir, { recursive: true });
     fs.writeFileSync(
       path.join(clickDir, 'manifest.json'),
-      JSON.stringify({
-        name: 'browser_click',
-        requires_context: 'browser_session',
-        runtime: 'python',
-        entry: 'logic.py',
-      }, null, 2)
+      JSON.stringify(
+        {
+          name: 'browser_click',
+          requires_context: 'browser_session',
+          runtime: 'python',
+          entry: 'logic.py',
+        },
+        null,
+        2,
+      ),
     );
     fs.writeFileSync(
       path.join(clickDir, 'logic.py'),
@@ -84,7 +98,7 @@ args = json.loads(sys.stdin.read())
 if args.get("context_id") == "session_123":
     print(json.dumps({"success": True, "message": "Clicked with session_123"}))
 else:
-    print(json.dumps({"success": False, "error": "Wrong context_id"}))`
+    print(json.dumps({"success": False, "error": "Wrong context_id"}))`,
     );
 
     // 4. browser_close
@@ -92,19 +106,23 @@ else:
     fs.mkdirSync(closeDir, { recursive: true });
     fs.writeFileSync(
       path.join(closeDir, 'manifest.json'),
-      JSON.stringify({
-        name: 'browser_close',
-        requires_context: 'browser_session',
-        destroys_context: true,
-        runtime: 'python',
-        entry: 'logic.py',
-      }, null, 2)
+      JSON.stringify(
+        {
+          name: 'browser_close',
+          requires_context: 'browser_session',
+          destroys_context: true,
+          runtime: 'python',
+          entry: 'logic.py',
+        },
+        null,
+        2,
+      ),
     );
     fs.writeFileSync(
       path.join(closeDir, 'logic.py'),
       `import sys, json
 args = json.loads(sys.stdin.read())
-print(json.dumps({"success": True, "context_destroyed": args.get("context_id")}))`
+print(json.dumps({"success": True, "context_destroyed": args.get("context_id")}))`,
     );
 
     // Set configuration
@@ -114,15 +132,15 @@ print(json.dumps({"success": True, "context_destroyed": args.get("context_id")})
 
   afterEach(() => {
     try {
-      if (runner && runner.memory && runner.memory.store) {
+      if (runner?.memory?.store) {
         runner.memory.store.close();
       }
-    } catch (e) {}
+    } catch (_e) {}
     try {
       if (fs.existsSync(projectPath)) {
         fs.rmSync(projectPath, { recursive: true, force: true });
       }
-    } catch (e) {}
+    } catch (_e) {}
   });
 
   it('test_lifecycle_flow', async () => {
@@ -142,7 +160,12 @@ print(json.dumps({"success": True, "context_destroyed": args.get("context_id")})
     expect(resOpen.context_id).toBe('session_123');
 
     // Step C: Verify context was stored in tool_contexts.json
-    const stateFile = path.join(projectPath, '.aura', 'state', 'tool_contexts.json');
+    const stateFile = path.join(
+      projectPath,
+      '.aura',
+      'state',
+      'tool_contexts.json',
+    );
     expect(fs.existsSync(stateFile)).toBe(true);
     let stateData = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
     expect(stateData.contexts.session_123).toBeDefined();
@@ -169,7 +192,9 @@ print(json.dumps({"success": True, "context_destroyed": args.get("context_id")})
     // Verify sliding TTL update
     stateData = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
     const updatedLastUsed = stateData.contexts.session_123.last_used_at;
-    expect(new Date(updatedLastUsed).getTime()).toBeGreaterThan(new Date(initialLastUsed).getTime());
+    expect(new Date(updatedLastUsed).getTime()).toBeGreaterThan(
+      new Date(initialLastUsed).getTime(),
+    );
 
     // Step F: Close browser
     const resClose = await runner.runCall({

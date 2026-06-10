@@ -1,11 +1,15 @@
-import { describe, it, expect } from 'vitest';
-import { EventBus, CallbackEventBus, NullEventBus } from '../../src/core/memory/eventBus.js';
+import { describe, expect, it } from 'vitest';
+import {
+  CallbackEventBus,
+  EventBus,
+  NullEventBus,
+} from '../../src/core/memory/eventBus.js';
 
 describe('EventBus (MemoryEventBus)', () => {
   it('test_basic_subscribe_and_emit', () => {
     const bus = new EventBus();
-    const received: any[] = [];
-    bus.subscribe('test_event', (payload) => {
+    const received: { message: string; value: number }[] = [];
+    bus.subscribe('test_event', (payload: any) => {
       received.push(payload);
     });
 
@@ -18,8 +22,12 @@ describe('EventBus (MemoryEventBus)', () => {
   it('test_multiple_listeners_for_same_event', () => {
     const bus = new EventBus();
     const results: string[] = [];
-    bus.subscribe('event', (payload: any) => results.push(`listener1: ${payload.msg}`));
-    bus.subscribe('event', (payload: any) => results.push(`listener2: ${payload.msg}`));
+    bus.subscribe('event', (payload: any) =>
+      results.push(`listener1: ${payload.msg}`),
+    );
+    bus.subscribe('event', (payload: any) =>
+      results.push(`listener2: ${payload.msg}`),
+    );
 
     bus.emit('event', { msg: 'test' });
 
@@ -36,9 +44,10 @@ describe('EventBus (MemoryEventBus)', () => {
 
   it('test_method_chaining', () => {
     const bus = new EventBus();
-    const received: any[] = [];
-    bus.subscribe('event1', (p) => received.push(['event1', p]))
-       .subscribe('event2', (p) => received.push(['event2', p]));
+    const received: [string, { data: string }][] = [];
+    bus
+      .subscribe('event1', (p: any) => received.push(['event1', p]))
+      .subscribe('event2', (p: any) => received.push(['event2', p]));
 
     bus.emit('event1', { data: 'a' });
     bus.emit('event2', { data: 'b' });
@@ -50,8 +59,8 @@ describe('EventBus (MemoryEventBus)', () => {
 
   it('test_wildcard_listener_receives_all_events', () => {
     const bus = new EventBus();
-    const all_events: any[] = [];
-    bus.subscribe('*', (event, payload) => {
+    const all_events: [string, Record<string, number>][] = [];
+    bus.subscribe('*', (event: any, payload: any) => {
       all_events.push([event, payload]);
     });
 
@@ -67,11 +76,13 @@ describe('EventBus (MemoryEventBus)', () => {
 
   it('test_wildcard_and_specific_listeners_both_triggered', () => {
     const bus = new EventBus();
-    const specific: any[] = [];
-    const wildcard: any[] = [];
+    const specific: { data: string }[] = [];
+    const wildcard: [string, { data: string }][] = [];
 
-    bus.subscribe('my_event', (payload) => specific.push(payload));
-    bus.subscribe('*', (event, payload) => wildcard.push([event, payload]));
+    bus.subscribe('my_event', (payload: any) => specific.push(payload));
+    bus.subscribe('*', (event: any, payload: any) =>
+      wildcard.push([event, payload]),
+    );
 
     bus.emit('my_event', { data: 'test' });
 
@@ -83,10 +94,12 @@ describe('EventBus (MemoryEventBus)', () => {
 
   it('test_listener_error_doesnt_stop_other_listeners', () => {
     const bus = new EventBus();
-    const results: any[] = [];
+    const results: { msg: string }[] = [];
 
-    bus.subscribe('event', () => { throw new Error('boom!'); });
-    bus.subscribe('event', (payload) => results.push(payload));
+    bus.subscribe('event', () => {
+      throw new Error('boom!');
+    });
+    bus.subscribe('event', (payload: any) => results.push(payload));
 
     // Should not throw
     expect(() => bus.emit('event', { msg: 'should still work' })).not.toThrow();
@@ -97,12 +110,16 @@ describe('EventBus (MemoryEventBus)', () => {
 
   it('test_wildcard_listener_error_doesnt_stop_others', () => {
     const bus = new EventBus();
-    const specific: any[] = [];
-    const wildcard: any[] = [];
+    const specific: { data: string }[] = [];
+    const wildcard: [string, { data: string }][] = [];
 
-    bus.subscribe('*', () => { throw new Error('wildcard error'); });
-    bus.subscribe('*', (event, payload) => wildcard.push([event, payload]));
-    bus.subscribe('event', (payload) => specific.push(payload));
+    bus.subscribe('*', () => {
+      throw new Error('wildcard error');
+    });
+    bus.subscribe('*', (event: any, payload: any) =>
+      wildcard.push([event, payload]),
+    );
+    bus.subscribe('event', (payload: any) => specific.push(payload));
 
     // Should not throw
     expect(() => bus.emit('event', { data: 'test' })).not.toThrow();
@@ -113,13 +130,15 @@ describe('EventBus (MemoryEventBus)', () => {
 
   it('test_emit_with_no_listeners_is_safe', () => {
     const bus = new EventBus();
-    expect(() => bus.emit('nonexistent_event', { data: 'anything' })).not.toThrow();
+    expect(() => bus.emit('nonexistent_event', { data: 'test' })).not.toThrow();
   });
 
   it('test_multiple_emits_accumulate', () => {
     const bus = new EventBus();
     let counter = 0;
-    bus.subscribe('increment', () => { counter += 1; });
+    bus.subscribe('increment', () => {
+      counter += 1;
+    });
 
     for (let i = 0; i < 5; i++) {
       bus.emit('increment');
@@ -133,8 +152,12 @@ describe('EventBus (MemoryEventBus)', () => {
     let event_a_count = 0;
     let event_b_count = 0;
 
-    bus.subscribe('event_a', () => { event_a_count += 1; });
-    bus.subscribe('event_b', () => { event_b_count += 1; });
+    bus.subscribe('event_a', () => {
+      event_a_count += 1;
+    });
+    bus.subscribe('event_b', () => {
+      event_b_count += 1;
+    });
 
     for (let i = 0; i < 3; i++) bus.emit('event_a');
     for (let i = 0; i < 2; i++) bus.emit('event_b');
@@ -145,8 +168,15 @@ describe('EventBus (MemoryEventBus)', () => {
 
   it('test_payload_with_various_data_types', () => {
     const bus = new EventBus();
-    const received: any[] = [];
-    bus.subscribe('complex', (payload) => received.push(payload));
+    const received: {
+      string: string;
+      number: number;
+      array: number[];
+      hash: { nested: boolean };
+      boolean: boolean;
+      nil_value: null;
+    }[] = [];
+    bus.subscribe('complex', (payload: any) => received.push(payload));
 
     const payload = {
       string: 'hello',
@@ -165,7 +195,9 @@ describe('EventBus (MemoryEventBus)', () => {
   it('test_listener_receives_keys', () => {
     const bus = new EventBus();
     const received_args: string[][] = [];
-    bus.subscribe('test', (payload) => received_args.push(Object.keys(payload)));
+    bus.subscribe('test', (payload: any) =>
+      received_args.push(Object.keys(payload)),
+    );
 
     bus.emit('test', { foo: 'bar', baz: 'qux' });
 
@@ -176,8 +208,8 @@ describe('EventBus (MemoryEventBus)', () => {
 
   it('test_empty_payload', () => {
     const bus = new EventBus();
-    const received: any[] = [];
-    bus.subscribe('empty', (payload) => received.push(payload));
+    const received: Record<string, never>[] = [];
+    bus.subscribe('empty', (payload: any) => received.push(payload));
 
     bus.emit('empty');
 
@@ -220,10 +252,16 @@ describe('CallbackEventBus', () => {
     };
     const bus = new CallbackEventBus(callbacks);
 
-    bus.emit('tool_halted', { tool: 'bash', status: 'failed', advice: 'Permission denied' });
+    bus.emit('tool_halted', {
+      tool: 'bash',
+      status: 'failed',
+      advice: 'Permission denied',
+    });
 
     expect(warnings.length).toBe(1);
-    expect(warnings[0]).toMatch(/Tool 'bash' halted \(failed\): Permission denied/);
+    expect(warnings[0]).toMatch(
+      /Tool 'bash' halted \(failed\): Permission denied/,
+    );
   });
 
   it('test_loop_aborted_triggers_on_warning', () => {
@@ -243,7 +281,11 @@ describe('CallbackEventBus', () => {
     const bus = new CallbackEventBus({});
     expect(() => {
       bus.emit('final_answer', { content: 'test' });
-      bus.emit('tool_halted', { tool: 'bash', status: 'failed', advice: 'error' });
+      bus.emit('tool_halted', {
+        tool: 'bash',
+        status: 'failed',
+        advice: 'error',
+      });
       bus.emit('loop_aborted', { reason: 'test' });
     }).not.toThrow();
   });
@@ -277,7 +319,11 @@ describe('CallbackEventBus', () => {
 
     bus.emit('plan_event', { type: 'delta', text: 'thinking' });
     bus.emit('final_answer', { content: 'done' });
-    bus.emit('tool_halted', { tool: 'read', status: 'blocked', advice: 'not allowed' });
+    bus.emit('tool_halted', {
+      tool: 'read',
+      status: 'blocked',
+      advice: 'not allowed',
+    });
 
     expect(tokens).toEqual(['thinking']);
     expect(answers).toEqual(['done']);
@@ -291,7 +337,7 @@ describe('CallbackEventBus', () => {
   });
 
   it('test_initialize_with_nil_callbacks', () => {
-    const bus = new CallbackEventBus(null);
+    const bus = new CallbackEventBus(null as any);
     expect(() => bus.emit('final_answer', { content: 'test' })).not.toThrow();
   });
 });
@@ -306,7 +352,7 @@ describe('NullEventBus', () => {
     }).not.toThrow();
   });
 
-  it('test_null_event_bus_with_any_arguments', () => {
+  it('test_null_event_bus_with_specific_arguments', () => {
     const bus = new NullEventBus();
     expect(() => {
       bus.emit('test');

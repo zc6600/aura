@@ -1,20 +1,20 @@
 import picocolors from 'picocolors';
-import * as PathResolver from '../../utils/pathResolver.js';
 import * as GlobalConfig from '../../utils/globalConfig.js';
+import * as PathResolver from '../../utils/pathResolver.js';
 import * as UI from '../ui.js';
 
-export class Branch {
-  public static async run(profileName?: string): Promise<void> {
-    const auraDir = this.ensureWorkspace();
+export const Branch = {
+  async run(profileName?: string): Promise<void> {
+    const auraDir = Branch.ensureWorkspace();
 
     if (!profileName) {
-      await this.listBranches(auraDir);
+      await Branch.listBranches(auraDir);
     } else {
-      await this.switchOrCreateBranch(auraDir, profileName);
+      await Branch.switchOrCreateBranch(auraDir, profileName);
     }
-  }
+  },
 
-  private static async listBranches(auraDir: string): Promise<void> {
+  async listBranches(auraDir: string): Promise<void> {
     const res = await GlobalConfig.gitRun(auraDir, 'branch');
     if (res.success) {
       console.log('Customized Agent Profiles (Branches):');
@@ -22,55 +22,92 @@ export class Branch {
       console.log(res.stdout);
       console.log('-'.repeat(60));
     } else {
-      console.error(picocolors.red(`Failed to list agent profiles: ${res.stderr}`));
+      console.error(
+        picocolors.red(`Failed to list agent profiles: ${res.stderr}`),
+      );
     }
-  }
+  },
 
-  private static async switchOrCreateBranch(auraDir: string, profileName: string): Promise<void> {
-    const res = await GlobalConfig.gitRun(auraDir, 'branch', '--list', profileName);
+  async switchOrCreateBranch(
+    auraDir: string,
+    profileName: string,
+  ): Promise<void> {
+    const res = await GlobalConfig.gitRun(
+      auraDir,
+      'branch',
+      '--list',
+      profileName,
+    );
     const exists = res.success && res.stdout.trim().length > 0;
 
     if (exists) {
-      await this.switchBranch(auraDir, profileName);
+      await Branch.switchBranch(auraDir, profileName);
     } else {
-      await this.promptCreateBranch(auraDir, profileName);
+      await Branch.promptCreateBranch(auraDir, profileName);
     }
-  }
+  },
 
-  private static async switchBranch(auraDir: string, profileName: string): Promise<void> {
-    const checkoutRes = await GlobalConfig.gitRun(auraDir, 'checkout', profileName);
+  async switchBranch(auraDir: string, profileName: string): Promise<void> {
+    const checkoutRes = await GlobalConfig.gitRun(
+      auraDir,
+      'checkout',
+      profileName,
+    );
     if (checkoutRes.success) {
-      console.log(picocolors.green(`Successfully switched active agent profile to '${profileName}'!`));
+      console.log(
+        picocolors.green(
+          `Successfully switched active agent profile to '${profileName}'!`,
+        ),
+      );
     } else {
-      console.error(picocolors.red(`Failed to switch agent profile:\n${checkoutRes.stderr}`));
+      console.error(
+        picocolors.red(
+          `Failed to switch agent profile:\n${checkoutRes.stderr}`,
+        ),
+      );
     }
-  }
+  },
 
-  private static async promptCreateBranch(auraDir: string, profileName: string): Promise<void> {
+  async promptCreateBranch(
+    auraDir: string,
+    profileName: string,
+  ): Promise<void> {
     console.log(`❓ Agent profile '${profileName}' does not exist.`);
-    const answer = await UI.confirm('   Do you want to create a new profile from the current active?');
+    const answer = await UI.confirm(
+      '   Do you want to create a new profile from the current active?',
+    );
     if (answer) {
-      await this.createBranch(auraDir, profileName);
+      await Branch.createBranch(auraDir, profileName);
     } else {
       console.log('Cancelled.');
     }
-  }
+  },
 
-  private static async createBranch(auraDir: string, profileName: string): Promise<void> {
-    const createRes = await GlobalConfig.gitRun(auraDir, 'checkout', '-b', profileName);
+  async createBranch(auraDir: string, profileName: string): Promise<void> {
+    const createRes = await GlobalConfig.gitRun(
+      auraDir,
+      'checkout',
+      '-b',
+      profileName,
+    );
     if (createRes.success) {
-      console.log(picocolors.green(`Successfully created and switched to new agent profile '${profileName}'!`));
+      console.log(
+        picocolors.green(
+          `Successfully created and switched to new agent profile '${profileName}'!`,
+        ),
+      );
     } else {
-      console.error(picocolors.red(`Failed to create agent profile:\n${createRes.stderr}`));
+      console.error(
+        picocolors.red(`Failed to create agent profile:\n${createRes.stderr}`),
+      );
     }
-  }
+  },
 
-  private static ensureWorkspace(): string {
+  ensureWorkspace(): string {
     try {
       return PathResolver.ensureWorkspace(process.cwd());
     } catch {
-      console.error(picocolors.red('⛔️ Error: Not in an Aura workspace.'));
-      process.exit(1);
+      throw new UI.WorkspaceError('Not in an Aura workspace.');
     }
-  }
-}
+  },
+};

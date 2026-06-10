@@ -1,8 +1,8 @@
-import path from 'path';
+import path from 'node:path';
 
 export interface LSPDiagnosticRange {
   start: { line: number; character: number };
-  end: { line: number; character: number };
+  end?: { line: number; character: number };
 }
 
 export interface LSPDiagnosticItem {
@@ -12,7 +12,9 @@ export interface LSPDiagnosticItem {
 }
 
 export interface LSPManagerLike {
-  getDiagnostics(filePath?: string): Record<string, LSPDiagnosticItem[]> | LSPDiagnosticItem[];
+  getDiagnostics(
+    filePath?: string,
+  ): Record<string, LSPDiagnosticItem[]> | LSPDiagnosticItem[];
 }
 
 export class LSPProvider {
@@ -41,7 +43,7 @@ export class LSPProvider {
           diagnostics = res as Record<string, LSPDiagnosticItem[]>;
         }
       }
-    } catch (e) {
+    } catch (_e) {
       return '';
     }
 
@@ -52,18 +54,26 @@ export class LSPProvider {
     const section: string[] = ['# CODE HEALTH (LSP Diagnostics)'];
     const errorFiles: string[] = [];
 
-    const projectUriPrefix = `file://${this.projectPath.replace(/\\/g, '/')}`;
+    const _projectUriPrefix = `file://${this.projectPath.replace(/\\/g, '/')}`;
 
     for (const [uri, diags] of Object.entries(diagnostics)) {
       if (!Array.isArray(diags) || diags.length === 0) continue;
 
-      const relPath = uri.replace(new RegExp(`^file://(localhost)?${this.projectPath.replace(/\\/g, '/')}/?`, 'i'), '');
-      const errors = diags.filter(d => d.severity === 1);
-      const warnings = diags.filter(d => d.severity === 2);
+      const relPath = uri.replace(
+        new RegExp(
+          `^file://(localhost)?${this.projectPath.replace(/\\/g, '/')}/?`,
+          'i',
+        ),
+        '',
+      );
+      const errors = diags.filter((d) => d.severity === 1);
+      const warnings = diags.filter((d) => d.severity === 2);
 
       if (errors.length === 0 && warnings.length === 0) continue;
 
-      errorFiles.push(`- ${relPath}: ${errors.length} errors, ${warnings.length} warnings`);
+      errorFiles.push(
+        `- ${relPath}: ${errors.length} errors, ${warnings.length} warnings`,
+      );
 
       // Show top 3 errors for context
       const topErrors = errors.slice(0, 3);

@@ -9,9 +9,7 @@
   "permissions": {
     "file_system": "read-write",
     "self_edit": false,
-    "allow_paths": [
-      "./knowledge"
-    ]
+    "allow_paths": ["./knowledge"]
   },
   "input_schema": {
     "type": "object",
@@ -77,10 +75,7 @@
         "description": "Document id for update/get/delete"
       }
     },
-    "required": [
-      "action",
-      "db_name"
-    ]
+    "required": ["action", "db_name"]
   },
   "attach_output_to_summary": false
 }

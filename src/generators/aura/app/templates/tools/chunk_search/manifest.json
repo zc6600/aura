@@ -9,9 +9,7 @@
   "permissions": {
     "file_system": "read-only",
     "self_edit": false,
-    "allow_paths": [
-      "./knowledge"
-    ]
+    "allow_paths": ["./knowledge"]
   },
   "input_schema": {
     "type": "object",
@@ -97,10 +95,7 @@
         "description": "Allowed path prefixes"
       }
     },
-    "required": [
-      "path",
-      "order"
-    ]
+    "required": ["path", "order"]
   },
   "attach_output_to_summary": false
 }

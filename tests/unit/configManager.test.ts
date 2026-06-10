@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as ConfigManager from '../../src/utils/configManager.js';
 
 describe('ConfigManager', () => {
@@ -23,8 +23,8 @@ describe('ConfigManager', () => {
       const config = {
         llm: {
           provider: 'openai',
-          temperature: 0.7
-        }
+          temperature: 0.7,
+        },
       };
 
       expect(ConfigManager.get(config, 'llm.provider')).toBe('openai');
@@ -34,26 +34,28 @@ describe('ConfigManager', () => {
     });
 
     it('should set and coerce nested values correctly', () => {
-      const config: any = {};
+      const config: Record<string, unknown> = {};
 
       // String setting
       ConfigManager.set(config, 'llm.provider', 'anthropic');
-      expect(config.llm.provider).toBe('anthropic');
+      expect((config.llm as Record<string, unknown>).provider).toBe(
+        'anthropic',
+      );
 
       // Boolean coercion
       ConfigManager.set(config, 'llm.stream', 'true');
-      expect(config.llm.stream).toBe(true);
+      expect((config.llm as Record<string, unknown>).stream).toBe(true);
 
       ConfigManager.set(config, 'llm.stream', 'false');
-      expect(config.llm.stream).toBe(false);
+      expect((config.llm as Record<string, unknown>).stream).toBe(false);
 
       // Number coercion (integer)
       ConfigManager.set(config, 'llm.max_tokens', '4096');
-      expect(config.llm.max_tokens).toBe(4096);
+      expect((config.llm as Record<string, unknown>).max_tokens).toBe(4096);
 
       // Float coercion
       ConfigManager.set(config, 'llm.temperature', '0.5');
-      expect(config.llm.temperature).toBe(0.5);
+      expect((config.llm as Record<string, unknown>).temperature).toBe(0.5);
     });
   });
 
@@ -63,14 +65,14 @@ describe('ConfigManager', () => {
       const testConfig = {
         project_name: 'test-agent',
         llm: {
-          provider: 'openai'
-        }
+          provider: 'openai',
+        },
       };
 
       ConfigManager.write(configPath, testConfig);
       expect(fs.existsSync(configPath)).toBe(true);
 
-      const loaded = ConfigManager.load(tempDir);
+      const loaded = ConfigManager.load(tempDir) as any;
       expect(loaded.project_name).toBe('test-agent');
       expect(loaded.llm.provider).toBe('openai');
     });
@@ -81,7 +83,7 @@ describe('ConfigManager', () => {
       const fallbackPath = path.join(fallbackDir, 'config', 'config.yml');
 
       const testConfig = {
-        project_name: 'fallback-agent'
+        project_name: 'fallback-agent',
       };
 
       ConfigManager.write(fallbackPath, testConfig);

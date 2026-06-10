@@ -1,8 +1,11 @@
-import { LLMClient } from '../llm/client.js';
-import { PromptsCompose } from '../llm/prompts/compose.js';
-import { ResponseParser, ParseResult } from '../llm/parsers/responseParser.js';
-import { ConfigManager } from '../../utils/configManager.js';
+import * as ConfigManager from '../../utils/configManager.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { LLMClient } from '../llm/client.js';
+import {
+  type ParseResult,
+  ResponseParser,
+} from '../llm/parsers/responseParser.js';
+import * as PromptsCompose from '../llm/prompts/compose.js';
 import type { PlanEvent } from './interfaces.js';
 
 export class Planner {
@@ -12,22 +15,28 @@ export class Planner {
   private projectPath: string;
   private envPath: string;
 
-  constructor(projectPath: string, options: any = {}) {
+  constructor(projectPath: string, options: Record<string, unknown> = {}) {
     this.projectPath = pathResolve(projectPath);
-    this.envPath = options.envPath || PathResolver.environmentPath(this.projectPath) || this.projectPath;
+    this.envPath =
+      (options.envPath as string) ||
+      PathResolver.environmentPath(this.projectPath) ||
+      this.projectPath;
 
     const cfg = this.loadConfig();
-    const llmCfg = cfg.llm || {};
-    this.temp = llmCfg.temperature;
-    this.maxTokens = llmCfg.max_tokens;
+    const llmCfg = (cfg.llm as Record<string, unknown>) || {};
+    this.temp = llmCfg.temperature as number;
+    this.maxTokens = llmCfg.max_tokens as number;
 
     this.client = LLMClient.fromConfig(llmCfg, this.projectPath);
   }
 
-  public async plan(context: any, goal?: string | null): Promise<ParseResult & { finish_reason?: string | null }> {
+  public async plan(
+    context: PromptsCompose.ContextPayload | string,
+    goal?: string | null,
+  ): Promise<ParseResult & { finish_reason?: string | null }> {
     const [messages, tools] = PromptsCompose.messagesAndTools(context, goal);
 
-    const options: Record<string, any> = {
+    const options: Record<string, unknown> = {
       temperature: this.temp,
       max_tokens: this.maxTokens,
     };
@@ -40,20 +49,21 @@ export class Planner {
 
     this.validateParsedPlan(parsed, out.content);
 
-    return {
-      ...parsed,
+    const result: ParseResult & { finish_reason?: string | null } = {
+      ...(parsed as any),
       finish_reason: out.finish_reason || null,
     };
+    return result;
   }
 
   public async planStream(
-    context: any,
+    context: PromptsCompose.ContextPayload | string,
     goal: string | null,
-    onEvent?: (ev: PlanEvent) => void
+    onEvent?: (ev: PlanEvent) => void,
   ): Promise<ParseResult & { finish_reason?: string | null }> {
     const [messages, tools] = PromptsCompose.messagesAndTools(context, goal);
 
-    const options: Record<string, any> = {
+    const options: Record<string, unknown> = {
       temperature: this.temp,
       max_tokens: this.maxTokens,
     };
@@ -63,7 +73,7 @@ export class Planner {
 
     let buf = '';
     let yieldedPlan = false;
-    let finalParsed: any = null;
+    let finalParsed: ParseResult | null = null;
 
     const res = await this.client.completeStream(messages, options, (delta) => {
       if (onEvent) {
@@ -84,10 +94,11 @@ export class Planner {
     });
 
     if (finalParsed) {
-      return {
-        ...finalParsed,
+      const result: ParseResult & { finish_reason?: string | null } = {
+        ...(finalParsed as any),
         finish_reason: res.finish_reason || null,
       };
+      return result;
     }
 
     const parsed = ResponseParser.parse(res.raw || res.content || buf);
@@ -95,10 +106,11 @@ export class Planner {
       onEvent({ type: 'plan', plan: parsed });
     }
 
-    return {
-      ...parsed,
+    const result: ParseResult & { finish_reason?: string | null } = {
+      ...(parsed as any),
       finish_reason: res.finish_reason || null,
     };
+    return result;
   }
 
   private validateParsedPlan(parsed: ParseResult, rawBody: string): void {
@@ -107,16 +119,22 @@ export class Planner {
     }
 
     if (parsed.type === 'tool_call') {
-      if (!parsed.tool || !parsed.tool.trim()) {
-        console.warn('\x1b[33m⚠️ Warning: Parsed tool call missing tool name\x1b[0m');
+      if (!parsed.tool?.trim()) {
+        console.warn(
+          '\x1b[33m⚠️ Warning: Parsed tool call missing tool name\x1b[0m',
+        );
         console.warn(`   Raw: ${rawBody.substring(0, 200)}...`);
       }
       if (!parsed.args || typeof parsed.args !== 'object') {
-        console.warn(`\x1b[33m⚠️ Warning: Tool args is not an object: ${typeof parsed.args}\x1b[0m`);
+        console.warn(
+          `\x1b[33m⚠️ Warning: Tool args is not an object: ${typeof parsed.args}\x1b[0m`,
+        );
         console.warn(`   Raw: ${rawBody.substring(0, 200)}...`);
       }
     } else if (parsed.type === 'text') {
-      console.warn('\x1b[33m⚠️ Warning: LLM returned text instead of JSON\x1b[0m');
+      console.warn(
+        '\x1b[33m⚠️ Warning: LLM returned text instead of JSON\x1b[0m',
+      );
       console.warn(`   Raw: ${rawBody.substring(0, 300)}...`);
     }
   }
@@ -126,10 +144,10 @@ export class Planner {
     return process.env.NODE_ENV === 'test';
   }
 
-  private loadConfig(): any {
+  private loadConfig(): Record<string, unknown> {
     try {
       return ConfigManager.load(this.envPath) || {};
-    } catch (e) {
+    } catch (_e) {
       return {};
     }
   }

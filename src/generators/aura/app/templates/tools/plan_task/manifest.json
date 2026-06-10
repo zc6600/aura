@@ -5,9 +5,7 @@
   "entry": "logic.py",
   "permissions": {
     "file_system": "read-write",
-    "allow_paths": [
-      "./state"
-    ]
+    "allow_paths": ["./state"]
   },
   "input_schema": {
     "type": "object",
@@ -18,11 +16,7 @@
       },
       "action": {
         "type": "string",
-        "enum": [
-          "create",
-          "update",
-          "get"
-        ],
+        "enum": ["create", "update", "get"],
         "description": "Action to perform: 'create' a checklist, 'update' progress, or 'get' status.",
         "default": "update"
       },

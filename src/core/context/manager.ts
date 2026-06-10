@@ -1,7 +1,13 @@
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import * as PathResolver from '../../utils/pathResolver.js';
+
+export interface TtlConfig {
+  turns?: number;
+  seconds?: number;
+  policy?: 'any' | 'all';
+}
 
 export interface ContextItem {
   type: string;
@@ -9,7 +15,7 @@ export interface ContextItem {
   created_turn: number;
   last_used_at: string;
   last_used_turn: number;
-  data: any;
+  data: Record<string, unknown>;
 }
 
 export class ContextManager {
@@ -18,11 +24,12 @@ export class ContextManager {
   private currentTurnVal = 0;
 
   constructor(projectPath: string) {
-    const resolvedEnv = PathResolver.environmentPath(projectPath) || projectPath;
+    const resolvedEnv =
+      PathResolver.environmentPath(projectPath) || projectPath;
     this.envPath = path.resolve(resolvedEnv);
 
     const overridePath = process.env.AURA_TOOL_CONTEXTS_PATH;
-    if (overridePath && overridePath.trim()) {
+    if (overridePath?.trim()) {
       this.stateFile = path.resolve(overridePath, this.envPath);
     } else {
       this.stateFile = path.join(this.envPath, 'state', 'tool_contexts.json');
@@ -33,7 +40,11 @@ export class ContextManager {
     return this.envPath;
   }
 
-  public addContext(type: string, data: any = {}, id?: string | null): string {
+  public addContext(
+    type: string,
+    data: Record<string, unknown> = {},
+    id?: string | null,
+  ): string {
     const contexts = this.loadContexts();
     const actualId = id || `${type}_${crypto.randomBytes(4).toString('hex')}`;
 
@@ -89,7 +100,10 @@ export class ContextManager {
     return contexts;
   }
 
-  public maintenance(currentTurn: number, ttlConfigs: Record<string, any> = {}): Record<string, ContextItem> {
+  public maintenance(
+    currentTurn: number,
+    ttlConfigs: Record<string, TtlConfig> = {},
+  ): Record<string, ContextItem> {
     this.currentTurnVal = currentTurn;
     const contexts = this.loadContexts();
     const initialCount = Object.keys(contexts).length;
@@ -114,9 +128,9 @@ export class ContextManager {
     }
     try {
       const raw = fs.readFileSync(this.stateFile, 'utf-8');
-      const data = JSON.parse(raw);
+      const data = JSON.parse(raw) as { contexts: Record<string, ContextItem> };
       return data.contexts || {};
-    } catch (e) {
+    } catch (_e) {
       return {};
     }
   }
@@ -125,9 +139,15 @@ export class ContextManager {
     const dir = path.dirname(this.stateFile);
     fs.mkdirSync(dir, { recursive: true });
     try {
-      fs.writeFileSync(this.stateFile, JSON.stringify({ contexts }, null, 2), 'utf-8');
-    } catch (e: any) {
-      console.warn(`[ContextManager] Failed to save contexts: ${e.message}`);
+      fs.writeFileSync(
+        this.stateFile,
+        JSON.stringify({ contexts }, null, 2),
+        'utf-8',
+      );
+    } catch (e: unknown) {
+      console.warn(
+        `[ContextManager] Failed to save contexts: ${(e as Error).message}`,
+      );
     }
   }
 
@@ -135,7 +155,7 @@ export class ContextManager {
     return this.currentTurnVal;
   }
 
-  private isContextActive(ctx: ContextItem, ttlConfig?: any): boolean {
+  private isContextActive(ctx: ContextItem, ttlConfig?: TtlConfig): boolean {
     if (!ttlConfig || typeof ttlConfig !== 'object') {
       return true;
     }
@@ -144,7 +164,8 @@ export class ContextManager {
     let passTime = true;
 
     if (ttlConfig.turns !== undefined && ttlConfig.turns !== null) {
-      const ageTurns = this.currentTurn - (ctx.last_used_turn ?? ctx.created_turn ?? 0);
+      const ageTurns =
+        this.currentTurn - (ctx.last_used_turn ?? ctx.created_turn ?? 0);
       passTurns = ageTurns < Number(ttlConfig.turns);
     }
 

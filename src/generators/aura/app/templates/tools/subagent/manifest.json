@@ -50,10 +50,7 @@
       },
       "action": {
         "type": "string",
-        "enum": [
-          "run",
-          "status"
-        ],
+        "enum": ["run", "status"],
         "description": "The action to perform. 'run' starts a subagent, 'status' checks progress.",
         "default": "run"
       },

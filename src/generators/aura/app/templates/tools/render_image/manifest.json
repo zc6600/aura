@@ -23,9 +23,6 @@
         "description": "Image size (e.g., '1024x1024'). Optional, defaults to global config."
       }
     },
-    "required": [
-      "prompt",
-      "output_path"
-    ]
+    "required": ["prompt", "output_path"]
   }
 }

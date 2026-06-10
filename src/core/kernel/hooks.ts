@@ -1,4 +1,4 @@
-import type { IHooks, HookFn } from './interfaces.js';
+import type { HookFn, IHooks } from './interfaces.js';
 
 export class Hooks implements IHooks {
   private hookMap: Record<string, HookFn[]> = {};

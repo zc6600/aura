@@ -25,9 +25,6 @@
         "type": "string"
       }
     },
-    "required": [
-      "anchor_id",
-      "summary"
-    ]
+    "required": ["anchor_id", "summary"]
   }
 }

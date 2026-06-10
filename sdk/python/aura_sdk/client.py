@@ -40,7 +40,9 @@ class AuraClient:
 
     def run_loop(self, goal: str, max_steps: int = 30) -> subprocess.CompletedProcess:
         """Run agent loop locally on the host"""
-        return subprocess.run(self.get_run_loop_command(goal, max_steps), shell=True, cwd=str(self.workspace), check=True)
+        env = os.environ.copy()
+        env["AURA_SESSION_NAME"] = self.session_name
+        return subprocess.run(self.get_run_loop_command(goal, max_steps), shell=True, cwd=str(self.workspace), env=env, check=True)
 
     def update_config(self, provider: str, model: str):
         """Update workspace configuration file directly on the host"""

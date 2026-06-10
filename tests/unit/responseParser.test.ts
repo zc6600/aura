@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { ResponseParser } from '../../src/core/llm/parsers/responseParser.js';
 
 describe('ResponseParser', () => {
@@ -7,7 +7,7 @@ describe('ResponseParser', () => {
       tool: 'alpha',
       args: { param1: 'val1' },
       summary: '简述：调用alpha',
-      thought: 'Let us run alpha'
+      thought: 'Let us run alpha',
     });
 
     const res = ResponseParser.parse(body);
@@ -26,11 +26,11 @@ describe('ResponseParser', () => {
         {
           function: {
             name: 'beta',
-            arguments: JSON.stringify({ x: 10 })
-          }
-        }
+            arguments: JSON.stringify({ x: 10 }),
+          },
+        },
       ],
-      summary: 'Run beta'
+      summary: 'Run beta',
     };
 
     const res = ResponseParser.parse(body);
@@ -52,13 +52,13 @@ describe('ResponseParser', () => {
               {
                 function: {
                   name: 'gamma',
-                  arguments: { y: 'hello' }
-                }
-              }
-            ]
-          }
-        }
-      ]
+                  arguments: { y: 'hello' },
+                },
+              },
+            ],
+          },
+        },
+      ],
     };
 
     const res = ResponseParser.parse(body);
@@ -80,7 +80,8 @@ describe('ResponseParser', () => {
   });
 
   it('should extract JSON block from markdown code blocks', () => {
-    const markdown = 'Here is the JSON:\n```json\n{\n  "tool": "delta",\n  "args": {"val": true}\n}\n```\nAnd some trailing text.';
+    const markdown =
+      'Here is the JSON:\n```json\n{\n  "tool": "delta",\n  "args": {"val": true}\n}\n```\nAnd some trailing text.';
     const res = ResponseParser.parse(markdown);
     expect(res.type).toBe('tool_call');
     if (res.type === 'tool_call') {
@@ -91,8 +92,14 @@ describe('ResponseParser', () => {
 
   it('should normalize different argument shapes', () => {
     expect(ResponseParser.normalizeArgs(null)).toEqual({});
-    expect(ResponseParser.normalizeArgs('string_arg')).toEqual({ value: 'string_arg' });
-    expect(ResponseParser.normalizeArgs('{"foo": "bar"}')).toEqual({ foo: 'bar' });
-    expect(ResponseParser.normalizeArgs({ a: 1, summary: 'ignore' })).toEqual({ a: 1 });
+    expect(ResponseParser.normalizeArgs('string_arg')).toEqual({
+      value: 'string_arg',
+    });
+    expect(ResponseParser.normalizeArgs('{"foo": "bar"}')).toEqual({
+      foo: 'bar',
+    });
+    expect(ResponseParser.normalizeArgs({ a: 1, summary: 'ignore' })).toEqual({
+      a: 1,
+    });
   });
 });

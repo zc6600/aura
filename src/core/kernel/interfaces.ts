@@ -6,6 +6,8 @@
  * better IDE support, and true mockability in tests.
  */
 
+import type { ContextPayload } from '../context/payload.js';
+import type { CompletionOptions, LLMMessage } from '../llm/adapters/base.js';
 import type { ParseResult } from '../llm/parsers/responseParser.js';
 
 // ---------------------------------------------------------------------------
@@ -53,7 +55,9 @@ export interface IEventBus {
 // Hook system interface
 // ---------------------------------------------------------------------------
 
-export type HookFn = (...args: unknown[]) => boolean | void | Promise<boolean | void>;
+export type HookFn = (
+  ...args: unknown[]
+) => boolean | undefined | Promise<boolean | undefined>;
 
 export interface IHooks {
   register(name: string, fn: HookFn): void;
@@ -79,8 +83,8 @@ export interface IRunner {
 
   loadConfig(): Record<string, unknown>;
 
-  /** Assembles the current context (memory + workspace state) as a markdown string. */
-  observe(): Promise<any>;
+  /** Assembles the current context (memory + workspace state) as a ContextPayload. */
+  observe(): Promise<ContextPayload>;
 
   /** Single-shot planning call. */
   plan(goal?: string | null, context?: unknown): Promise<PlanResult>;
@@ -89,7 +93,7 @@ export interface IRunner {
   planStream(
     goal: string | null,
     context: unknown,
-    onEvent?: (ev: PlanEvent) => void
+    onEvent?: (ev: PlanEvent) => void,
   ): Promise<PlanResult>;
 
   /** Records a user-initiated input into memory and returns the event ID. */
@@ -109,16 +113,23 @@ export interface IRalphRunner extends IRunner {
   reconnectSession(sessionName: string): void;
   /** Access to the raw memory store (for context assembly). */
   readonly memory: {
-    store?: { dbPath?: string; close?(): void };
+    store?: {
+      db?: import('better-sqlite3').Database | null;
+      dbPath?: string;
+      close?(): void;
+    };
     recorder: { recordCustom(phase: string, payload: unknown): void };
-    metabolizeIfNeeded?(): Promise<void>;
+    metabolizeIfNeeded?(): Promise<unknown>;
   };
   /** Direct access to the LLM planner for critic single-turn calls. */
   readonly planner: {
     readonly temp?: number;
     readonly maxTokens?: number;
     readonly client: {
-      complete(messages: unknown[], options: unknown): Promise<{ content?: string; raw?: string }>;
+      complete(
+        messages: LLMMessage[],
+        options: CompletionOptions,
+      ): Promise<{ content?: string; raw?: any }>;
     };
   };
 }

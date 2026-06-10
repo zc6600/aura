@@ -1,8 +1,8 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
+import Database from 'better-sqlite3';
 import * as PathResolver from '../../utils/pathResolver.js';
 import { SQLiteStore } from './sqliteStore.js';
-import Database from 'better-sqlite3';
 
 export interface SessionInfo {
   name: string;
@@ -24,7 +24,8 @@ export class SessionManager {
   private readonly metadataFile: string;
 
   constructor(projectPath: string) {
-    const resolvedEnv = PathResolver.environmentPath(projectPath) || projectPath;
+    const resolvedEnv =
+      PathResolver.environmentPath(projectPath) || projectPath;
     this.envPath = path.resolve(resolvedEnv);
     this.stateDir = path.join(this.envPath, 'state');
     this.sessionsDir = path.join(this.stateDir, 'sessions');
@@ -36,7 +37,10 @@ export class SessionManager {
     return this.envPath;
   }
 
-  public create(name: string, metadata: { description?: string; tags?: string[] } = {}): SessionInfo {
+  public create(
+    name: string,
+    metadata: { description?: string; tags?: string[] } = {},
+  ): SessionInfo {
     this.validateSessionName(name);
 
     const dbPath = this.dbPathFor(name);
@@ -49,8 +53,7 @@ export class SessionManager {
       const store = new SQLiteStore({ dbPath });
       store.close();
     } catch (e: any) {
-      console.warn(`[SessionManager] Failed to initialize session DB: ${e.message}`);
-      fs.writeFileSync(dbPath, '');
+      throw new Error(`Failed to initialize session DB: ${e.message}`);
     }
 
     const sessionInfo: SessionInfo = {
@@ -73,7 +76,7 @@ export class SessionManager {
 
   public exists(name: string): boolean {
     const dbPath = this.dbPathFor(name);
-    return fs.existsSync(dbPath) || Object.prototype.hasOwnProperty.call(this.loadMetadata(), name);
+    return fs.existsSync(dbPath) || Object.hasOwn(this.loadMetadata(), name);
   }
 
   public activate(name: string): string {
@@ -82,7 +85,9 @@ export class SessionManager {
     }
 
     const activeFile = path.join(this.stateDir, 'active_session.txt');
-    fs.writeFileSync(activeFile, name, 'utf-8');
+    const tempPath = `${activeFile}.tmp`;
+    fs.writeFileSync(tempPath, name, 'utf-8');
+    fs.renameSync(tempPath, activeFile);
 
     const sessions = this.loadMetadata();
     if (sessions[name]) {
@@ -103,7 +108,7 @@ export class SessionManager {
     }
     try {
       return fs.readFileSync(activeFile, 'utf-8').trim();
-    } catch (e) {
+    } catch (_e) {
       return null;
     }
   }
@@ -127,7 +132,7 @@ export class SessionManager {
             let stat: fs.Stats;
             try {
               stat = fs.statSync(dbPath);
-            } catch (e) {
+            } catch (_e) {
               continue;
             }
             sessionsMap[name] = {
@@ -135,7 +140,10 @@ export class SessionManager {
               db_path: dbPath,
               created_at: stat.birthtime.toISOString(),
               last_active_at: stat.mtime.toISOString(),
-              description: name === 'default' ? 'Default session' : 'Auto-discovered session',
+              description:
+                name === 'default'
+                  ? 'Default session'
+                  : 'Auto-discovered session',
               tags: [],
               turn_count: 0,
               event_count: 0,
@@ -148,12 +156,12 @@ export class SessionManager {
 
     const sessions = Object.values(sessionsMap);
 
-    const enriched = sessions.map(info => {
+    const enriched = sessions.map((info) => {
       if (fs.existsSync(info.db_path)) {
         try {
           const stats = this.getSessionStats(info.db_path);
           return { ...info, ...stats };
-        } catch (e) {
+        } catch (_e) {
           return info;
         }
       }
@@ -163,7 +171,7 @@ export class SessionManager {
     if (options.includeMissing) {
       return enriched;
     }
-    return enriched.filter(s => fs.existsSync(s.db_path));
+    return enriched.filter((s) => fs.existsSync(s.db_path));
   }
 
   public delete(name: string): boolean {
@@ -183,7 +191,7 @@ export class SessionManager {
           fs.unlinkSync(sidecar);
         }
       }
-    } catch (e) {
+    } catch (_e) {
       // Ignore filesystem errors
     }
 
@@ -234,16 +242,18 @@ export class SessionManager {
       this.activate(newName);
     }
 
-    return info || {
-      name: newName,
-      db_path: newDb,
-      created_at: new Date().toISOString(),
-      last_active_at: new Date().toISOString(),
-      description: 'Renamed session',
-      tags: [],
-      turn_count: 0,
-      event_count: 0,
-    };
+    return (
+      info || {
+        name: newName,
+        db_path: newDb,
+        created_at: new Date().toISOString(),
+        last_active_at: new Date().toISOString(),
+        description: 'Renamed session',
+        tags: [],
+        turn_count: 0,
+        event_count: 0,
+      }
+    );
   }
 
   public duplicate(sourceName: string, newName: string): SessionInfo {
@@ -315,12 +325,23 @@ export class SessionManager {
     return sessionInfo;
   }
 
-  private dbPathFor(name: string): string {
+  public dbPathFor(name: string): string {
     return path.join(this.sessionsDir, `${name}.db`);
   }
 
+  public loadMetadata(): Record<string, SessionInfo> {
+    if (!fs.existsSync(this.metadataFile)) {
+      return {};
+    }
+    try {
+      return JSON.parse(fs.readFileSync(this.metadataFile, 'utf-8')) || {};
+    } catch (_e) {
+      return {};
+    }
+  }
+
   private validateSessionName(name: string): void {
-    if (!name || !name.trim()) {
+    if (!name?.trim()) {
       throw new Error('Session name cannot be empty');
     }
     if (name.includes('/') || name.includes('\\')) {
@@ -331,39 +352,42 @@ export class SessionManager {
     }
   }
 
-  private loadMetadata(): Record<string, SessionInfo> {
-    if (!fs.existsSync(this.metadataFile)) {
-      return {};
-    }
-    try {
-      return JSON.parse(fs.readFileSync(this.metadataFile, 'utf-8')) || {};
-    } catch (e) {
-      return {};
-    }
-  }
-
   private saveMetadata(sessions: Record<string, SessionInfo>): void {
     try {
-      fs.writeFileSync(this.metadataFile, JSON.stringify(sessions, null, 2), 'utf-8');
-    } catch (e: any) {
-      console.warn(`[SessionManager] Failed to save metadata: ${e.message}`);
+      const tempPath = `${this.metadataFile}.tmp`;
+      fs.writeFileSync(tempPath, JSON.stringify(sessions, null, 2), 'utf-8');
+      fs.renameSync(tempPath, this.metadataFile);
+    } catch (e: unknown) {
+      console.warn(
+        `[SessionManager] Failed to save metadata: ${(e as Error).message}`,
+      );
     }
   }
 
   private getSessionStats(dbPath: string): Partial<SessionInfo> {
-    let db: any;
+    let db: Database.Database | undefined;
     try {
       db = new Database(dbPath);
       // check tables exist
-      const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'").get();
+      const tableCheck = db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='events'",
+        )
+        .get() as { name: string } | undefined;
       if (!tableCheck) {
         db.close();
         return {};
       }
 
-      const eventCountRow = db.prepare('SELECT COUNT(*) as count FROM events').get();
-      const summaryCountRow = db.prepare('SELECT COUNT(*) as count FROM summaries').get();
-      const lastTimeRow = db.prepare('SELECT MAX(timestamp) as max_ts FROM events').get();
+      const eventCountRow = db
+        .prepare('SELECT COUNT(*) as count FROM events')
+        .get() as { count: number };
+      const summaryCountRow = db
+        .prepare('SELECT COUNT(*) as count FROM summaries')
+        .get() as { count: number };
+      const lastTimeRow = db
+        .prepare('SELECT MAX(timestamp) as max_ts FROM events')
+        .get() as { max_ts: number } | undefined;
 
       const event_count = Number(eventCountRow?.count || 0);
       const summary_count = Number(summaryCountRow?.count || 0);
@@ -375,13 +399,15 @@ export class SessionManager {
         event_count,
         summary_count,
         turn_count: Math.ceil(event_count / 3.0),
-        last_event_at: last_ts ? new Date(Number(last_ts) * 1000).toISOString() : null,
+        last_event_at: last_ts
+          ? new Date(Number(last_ts) * 1000).toISOString()
+          : null,
       };
-    } catch (e) {
+    } catch (_e) {
       if (db) {
         try {
           db.close();
-        } catch (err) {}
+        } catch (_err) {}
       }
       return {};
     }

@@ -1,17 +1,37 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  BaseAdapter,
+  type CompletionResult,
+} from '../../src/core/llm/adapters/base.js';
 import { Client } from '../../src/core/llm/client.js';
-import { BaseAdapter, CompletionResult } from '../../src/core/llm/adapters/base.js';
-import { LLMError, LLMAuthError, LLMBadRequestError, LLMTimeoutError } from '../../src/core/llm/errors.js';
+import {
+  LLMAuthError,
+  LLMBadRequestError,
+  LLMError,
+} from '../../src/core/llm/errors.js';
+
+import type {
+  ChatMessage,
+  CompletionOptions,
+  ProviderConfig,
+} from '../../src/core/llm/types.js';
 
 class MockSuccessAdapter extends BaseAdapter {
-  public async complete(_messages: any[], _options?: any): Promise<CompletionResult> {
-    return { content: `Success (key: ${this.apiKey}, model: ${this.model})`, raw: null, finish_reason: 'stop' };
+  public async complete(
+    _messages: ChatMessage[],
+    _options?: CompletionOptions,
+  ): Promise<CompletionResult> {
+    return {
+      content: `Success (key: ${this.apiKey}, model: ${this.model})`,
+      raw: null,
+      finish_reason: 'stop',
+    };
   }
 
   public async completeStream(
-    _messages: any[],
-    _options?: any,
-    onChunk?: (delta: string) => void
+    _messages: ChatMessage[],
+    _options?: CompletionOptions,
+    onChunk?: (delta: string) => void,
   ): Promise<CompletionResult> {
     onChunk?.(`Stream Success (key: ${this.apiKey}, model: ${this.model})`);
     return { content: 'Full Content', raw: null, finish_reason: 'stop' };
@@ -21,7 +41,10 @@ class MockSuccessAdapter extends BaseAdapter {
 class MockFailAdapter extends BaseAdapter {
   public calls = 0;
 
-  public async complete(_messages: any[], _options?: any): Promise<CompletionResult> {
+  public async complete(
+    _messages: ChatMessage[],
+    _options?: CompletionOptions,
+  ): Promise<CompletionResult> {
     this.calls++;
     if (this.model === 'auth_fail') {
       throw new LLMAuthError('Auth fail');
@@ -35,9 +58,9 @@ class MockFailAdapter extends BaseAdapter {
   }
 
   public async completeStream(
-    _messages: any[],
-    _options?: any,
-    _onChunk?: (delta: string) => void
+    _messages: ChatMessage[],
+    _options?: CompletionOptions,
+    _onChunk?: (delta: string) => void,
   ): Promise<CompletionResult> {
     this.calls++;
     throw new LLMError(`API Error on ${this.model}`);
@@ -48,28 +71,50 @@ class MockTransientAdapter extends BaseAdapter {
   public failCount = 2;
   public callCount = 0;
 
-  public async complete(_messages: any[], _options?: any): Promise<CompletionResult> {
+  public async complete(
+    _messages: ChatMessage[],
+    _options?: CompletionOptions,
+  ): Promise<CompletionResult> {
     this.callCount++;
     if (this.callCount <= this.failCount) {
       throw new LLMError(`Transient API Error (attempt ${this.callCount})`);
     } else {
-      return { content: `Recovered (key: ${this.apiKey}, model: ${this.model})`, raw: null, finish_reason: 'stop' };
+      return {
+        content: `Recovered (key: ${this.apiKey}, model: ${this.model})`,
+        raw: null,
+        finish_reason: 'stop',
+      };
     }
+  }
+
+  public async completeStream(
+    _messages: ChatMessage[],
+    _options?: CompletionOptions,
+    _onChunk?: (delta: string) => void,
+  ): Promise<CompletionResult> {
+    throw new Error('Not implemented');
   }
 }
 
 class MockStreamAdapter extends BaseAdapter {
   public yieldThenFail = false;
 
-  constructor(config: any) {
+  constructor(config: ProviderConfig) {
     super(config);
     this.yieldThenFail = config.model === 'yield_then_fail';
   }
 
+  public async complete(
+    _messages: ChatMessage[],
+    _options?: CompletionOptions,
+  ): Promise<CompletionResult> {
+    throw new Error('Not implemented');
+  }
+
   public async completeStream(
-    _messages: any[],
-    _options?: any,
-    onChunk?: (delta: string) => void
+    _messages: ChatMessage[],
+    _options?: CompletionOptions,
+    onChunk?: (delta: string) => void,
   ): Promise<CompletionResult> {
     if (this.yieldThenFail) {
       onChunk?.('Part 1');
@@ -96,8 +141,17 @@ describe('LLM Client Failover & Retries', () => {
       api_key: 'primary-key',
       max_retries: 3,
       fallbacks: [
-        { provider: 'mock_success', model: 'fallback-model-1', api_key: 'key-1', max_retries: 0 },
-        { provider: 'mock_success', model: 'fallback-model-2', api_key: 'key-2' },
+        {
+          provider: 'mock_success',
+          model: 'fallback-model-1',
+          api_key: 'key-1',
+          max_retries: 0,
+        },
+        {
+          provider: 'mock_success',
+          model: 'fallback-model-2',
+          api_key: 'key-2',
+        },
       ],
     };
 
@@ -116,7 +170,11 @@ describe('LLM Client Failover & Retries', () => {
       provider: 'mock_success',
       model: 'primary-model',
       api_key: 'primary-key',
-      backup: { provider: 'mock_success', model: 'backup-model', api_key: 'backup-key' },
+      backup: {
+        provider: 'mock_success',
+        model: 'backup-model',
+        api_key: 'backup-key',
+      },
     };
 
     const client = Client.fromConfig(config);
@@ -138,13 +196,16 @@ describe('LLM Client Failover & Retries', () => {
     const client = Client.fromConfig(config);
 
     const sleeps: number[] = [];
-    vi.spyOn(client as any, 'sleep').mockImplementation((sec: number) => {
+
+    vi.spyOn(client, 'getSleep').mockImplementation((sec: number) => {
       sleeps.push(sec);
       return Promise.resolve();
     });
 
     const res = await client.complete([{ role: 'user', content: 'hello' }]);
-    expect(res.content).toBe('Recovered (key: some-key, model: transient-model)');
+    expect(res.content).toBe(
+      'Recovered (key: some-key, model: transient-model)',
+    );
     expect(sleeps).toEqual([1, 2]);
   });
 
@@ -155,12 +216,16 @@ describe('LLM Client Failover & Retries', () => {
       api_key: 'primary-key',
       max_retries: 1,
       fallbacks: [
-        { provider: 'mock_success', model: 'good-backup', api_key: 'backup-key' },
+        {
+          provider: 'mock_success',
+          model: 'good-backup',
+          api_key: 'backup-key',
+        },
       ],
     };
 
     const client = Client.fromConfig(config);
-    vi.spyOn(client as any, 'sleep').mockResolvedValue(undefined);
+    vi.spyOn(client, 'getSleep').mockResolvedValue(undefined);
 
     const res = await client.complete([{ role: 'user', content: 'hello' }]);
     expect(res.content).toBe('Success (key: backup-key, model: good-backup)');
@@ -173,19 +238,29 @@ describe('LLM Client Failover & Retries', () => {
       api_key: 'primary-key',
       max_retries: 1,
       fallbacks: [
-        { provider: 'mock_stream', model: 'good-backup', api_key: 'backup-key' },
+        {
+          provider: 'mock_stream',
+          model: 'good-backup',
+          api_key: 'backup-key',
+        },
       ],
     };
 
     const client = Client.fromConfig(config);
-    vi.spyOn(client as any, 'sleep').mockResolvedValue(undefined);
+    vi.spyOn(client, 'getSleep').mockResolvedValue(undefined);
 
     const yieldedChunks: string[] = [];
-    await client.completeStream([{ role: 'user', content: 'hello' }], {}, (delta) => {
-      yieldedChunks.push(delta);
-    });
+    await client.completeStream(
+      [{ role: 'user', content: 'hello' }],
+      {},
+      (delta) => {
+        yieldedChunks.push(delta);
+      },
+    );
 
-    expect(yieldedChunks).toEqual(['Stream Success (key: backup-key, model: good-backup)']);
+    expect(yieldedChunks).toEqual([
+      'Stream Success (key: backup-key, model: good-backup)',
+    ]);
   });
 
   it('test_stream_error_raised_immediately_if_already_yielded', async () => {
@@ -195,19 +270,27 @@ describe('LLM Client Failover & Retries', () => {
       api_key: 'some-key',
       max_retries: 1,
       fallbacks: [
-        { provider: 'mock_stream', model: 'should-not-be-reached', api_key: 'backup-key' },
+        {
+          provider: 'mock_stream',
+          model: 'should-not-be-reached',
+          api_key: 'backup-key',
+        },
       ],
     };
 
     const client = Client.fromConfig(config);
-    vi.spyOn(client as any, 'sleep').mockResolvedValue(undefined);
+    vi.spyOn(client, 'getSleep').mockResolvedValue(undefined);
 
     const yieldedChunks: string[] = [];
-    
+
     await expect(
-      client.completeStream([{ role: 'user', content: 'hello' }], {}, (delta) => {
-        yieldedChunks.push(delta);
-      })
+      client.completeStream(
+        [{ role: 'user', content: 'hello' }],
+        {},
+        (delta) => {
+          yieldedChunks.push(delta);
+        },
+      ),
     ).rejects.toThrow('Mid-stream error');
 
     expect(yieldedChunks).toEqual(['Part 1']);
@@ -220,20 +303,24 @@ describe('LLM Client Failover & Retries', () => {
       api_key: 'some-key',
       max_retries: 3,
       fallbacks: [
-        { provider: 'mock_success', model: 'good-backup', api_key: 'backup-key' },
+        {
+          provider: 'mock_success',
+          model: 'good-backup',
+          api_key: 'backup-key',
+        },
       ],
     };
 
     const client = Client.fromConfig(config);
-    
+
     const sleeps: number[] = [];
-    vi.spyOn(client as any, 'sleep').mockImplementation((sec: number) => {
+    vi.spyOn(client, 'getSleep').mockImplementation((sec: number) => {
       sleeps.push(sec);
       return Promise.resolve();
     });
 
     const res = await client.complete([{ role: 'user', content: 'hello' }]);
-    
+
     expect(res.content).toBe('Success (key: backup-key, model: good-backup)');
     expect(sleeps).toEqual([]);
   });
@@ -245,19 +332,23 @@ describe('LLM Client Failover & Retries', () => {
       api_key: 'some-key',
       max_retries: 3,
       fallbacks: [
-        { provider: 'mock_success', model: 'good-backup', api_key: 'backup-key' },
+        {
+          provider: 'mock_success',
+          model: 'good-backup',
+          api_key: 'backup-key',
+        },
       ],
     };
 
     const client = Client.fromConfig(config);
     const sleeps: number[] = [];
-    vi.spyOn(client as any, 'sleep').mockImplementation((sec: number) => {
+    vi.spyOn(client, 'getSleep').mockImplementation((sec: number) => {
       sleeps.push(sec);
       return Promise.resolve();
     });
 
     const res = await client.complete([{ role: 'user', content: 'hello' }]);
-    
+
     expect(res.content).toBe('Success (key: backup-key, model: good-backup)');
     expect(sleeps).toEqual([]);
   });
@@ -269,19 +360,23 @@ describe('LLM Client Failover & Retries', () => {
       api_key: 'some-key',
       max_retries: 1,
       fallbacks: [
-        { provider: 'mock_success', model: 'good-backup', api_key: 'backup-key' },
+        {
+          provider: 'mock_success',
+          model: 'good-backup',
+          api_key: 'backup-key',
+        },
       ],
     };
 
     const client = Client.fromConfig(config);
     const sleeps: number[] = [];
-    vi.spyOn(client as any, 'sleep').mockImplementation((sec: number) => {
+    vi.spyOn(client, 'getSleep').mockImplementation((sec: number) => {
       sleeps.push(sec);
       return Promise.resolve();
     });
 
     const res = await client.complete([{ role: 'user', content: 'hello' }]);
-    
+
     expect(res.content).toBe('Success (key: backup-key, model: good-backup)');
     expect(sleeps).toEqual([1]);
   });
@@ -293,34 +388,40 @@ describe('LLM Client Failover & Retries', () => {
       api_key: 'some-key',
       max_retries: 0,
       fallbacks: [
-        { provider: 'mock_success', model: 'good-backup', api_key: 'backup-key' },
+        {
+          provider: 'mock_success',
+          model: 'good-backup',
+          api_key: 'backup-key',
+        },
       ],
     };
 
     const client = Client.fromConfig(config);
-    vi.spyOn(client as any, 'sleep').mockResolvedValue(undefined);
+    vi.spyOn(client, 'getSleep').mockResolvedValue(undefined);
 
     // Fail the primary 3 times
     await client.complete([{ role: 'user', content: 'hello' }]);
     await client.complete([{ role: 'user', content: 'hello' }]);
     await client.complete([{ role: 'user', content: 'hello' }]);
 
-    expect((client as any).currentConfig.model).toBe('good-backup');
+    expect(client.getCurrentConfig().model).toBe('good-backup');
 
     // Reset current config back to primary to test cooldown filtering
     (client as any).currentConfig = (client as any).configsChain()[0];
 
-    const builtConfigs: any[] = [];
-    vi.spyOn(client as any, 'buildAdapter').mockImplementation((cfg: any) => {
-      builtConfigs.push(cfg);
-      return (client as any).buildAdapter.mock.calls.length > 0
-        ? new MockSuccessAdapter(cfg)
-        : new MockFailAdapter(cfg);
-    });
+    const builtConfigs: ProviderConfig[] = [];
+    const _buildSpy = vi
+      .spyOn(client as any, 'buildAdapter')
+      .mockImplementation((cfg: any) => {
+        builtConfigs.push(cfg);
+        return cfg.provider === 'mock_success'
+          ? new MockSuccessAdapter(cfg)
+          : new MockFailAdapter(cfg);
+      });
 
     await client.complete([{ role: 'user', content: 'hello' }]);
 
-    expect(builtConfigs.map(c => c.model)).not.toContain('always_fail');
+    expect(builtConfigs.map((c) => c.model)).not.toContain('always_fail');
   });
 
   it('test_per_fallback_max_retries', async () => {
@@ -330,21 +431,30 @@ describe('LLM Client Failover & Retries', () => {
       api_key: 'some-key',
       max_retries: 0,
       fallbacks: [
-        { provider: 'mock_fail', model: 'fallback-1', api_key: 'some-key', max_retries: 2 },
-        { provider: 'mock_success', model: 'good-backup', api_key: 'backup-key' },
+        {
+          provider: 'mock_fail',
+          model: 'fallback-1',
+          api_key: 'some-key',
+          max_retries: 2,
+        },
+        {
+          provider: 'mock_success',
+          model: 'good-backup',
+          api_key: 'backup-key',
+        },
       ],
     };
 
     const client = Client.fromConfig(config);
-    
+
     const sleeps: number[] = [];
-    vi.spyOn(client as any, 'sleep').mockImplementation((sec: number) => {
+    vi.spyOn(client, 'getSleep').mockImplementation((sec: number) => {
       sleeps.push(sec);
       return Promise.resolve();
     });
 
     const res = await client.complete([{ role: 'user', content: 'hello' }]);
-    
+
     expect(res.content).toBe('Success (key: backup-key, model: good-backup)');
     expect(sleeps).toEqual([1, 2]);
   });

@@ -1,35 +1,67 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import yaml from 'yaml';
 import { fileURLToPath } from 'node:url';
-import { RalphLoop, RalphPayload } from '../../src/core/kernel/ralphLoop.js';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import yaml from 'yaml';
 import { Hooks } from '../../src/core/kernel/hooks.js';
+import { RalphLoop, RalphPayload } from '../../src/core/kernel/ralphLoop.js';
+import type { CompletionResult } from '../../src/core/llm/adapters/base.js';
 import { ResponseParser } from '../../src/core/llm/parsers/responseParser.js';
+import type {
+  ChatMessage,
+  CompletionOptions,
+} from '../../src/core/llm/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+interface MockLLMCall {
+  method: 'complete' | 'completeStream';
+  messages: ChatMessage[];
+  options: CompletionOptions;
+}
+
 class MockLLMClient {
   public responses: any[] = [];
-  public calls: any[] = [];
+  public calls: MockLLMCall[] = [];
   public responseIndex = 0;
 
-  public async complete(messages: any[], options: any = {}): Promise<any> {
+  public async complete(
+    messages: ChatMessage[],
+    options: CompletionOptions = {},
+  ): Promise<CompletionResult> {
     this.calls.push({ method: 'complete', messages, options });
-    const response = this.responses[this.responseIndex] || this.responses[this.responses.length - 1];
+    const response =
+      this.responses[this.responseIndex] ||
+      this.responses[this.responses.length - 1];
     this.responseIndex++;
-    return response || { content: '', finish_reason: 'stop' };
+    return (
+      (response as CompletionResult) || {
+        content: '',
+        raw: null,
+        finish_reason: 'stop',
+      }
+    );
   }
 
-  public async completeStream(messages: any[], options: any = {}, onChunk?: (chunk: string) => void): Promise<any> {
+  public async completeStream(
+    messages: ChatMessage[],
+    options: CompletionOptions = {},
+    onChunk?: (chunk: string) => void,
+  ): Promise<CompletionResult> {
     this.calls.push({ method: 'completeStream', messages, options });
-    const response = this.responses[this.responseIndex] || this.responses[this.responses.length - 1];
+    const response =
+      this.responses[this.responseIndex] ||
+      this.responses[this.responses.length - 1];
     this.responseIndex++;
     if (response && onChunk) {
       onChunk(response.content || '');
     }
-    return { content: response?.content || '', finish_reason: response?.finish_reason || 'stop' };
+    return {
+      content: response?.content || '',
+      raw: null,
+      finish_reason: response?.finish_reason || 'stop',
+    };
   }
 }
 
@@ -38,12 +70,20 @@ class MockRunner {
   public envPath: string;
   public planner: { client: MockLLMClient };
   public hooks = new Hooks();
-  public config: any = {};
-  public planCalls: any[] = [];
-  public toolCalls: any[] = [];
-  public observeCalls: any[] = [];
+  public config: Record<string, unknown> = {};
+  public planCalls: { goal: string; ctx: string }[] = [];
+  public toolCalls: ResponseParser[] = [];
+  public observeCalls: boolean[] = [];
   public sessionConnected: string | null = null;
-  public memory: any = null;
+  public memory: {
+    store: { db: any; dbPath?: string; close?(): void };
+    recorder: { recordCustom(phase: string, payload: unknown): void };
+    metabolizeIfNeeded?(): Promise<void>;
+  } = {
+    store: { db: null as unknown as import('better-sqlite3').Database },
+    recorder: { recordCustom: () => {} },
+    metabolizeIfNeeded: async () => {},
+  };
 
   constructor(client: MockLLMClient, projectPath: string) {
     this.projectPath = projectPath;
@@ -68,31 +108,43 @@ class MockRunner {
       fs.mkdirSync(dbDir, { recursive: true });
     }
     fs.writeFileSync(path.join(dbDir, `${sessionName}.db`), 'mock_sqlite_data');
-    fs.writeFileSync(path.join(dbDir, `${sessionName}.db-journal`), 'mock_sqlite_journal');
+    fs.writeFileSync(
+      path.join(dbDir, `${sessionName}.db-journal`),
+      'mock_sqlite_journal',
+    );
   }
 
-  public async planStream(goal: string, ctx: string, onEvent?: (ev: any) => void): Promise<any> {
+  public async planStream(
+    goal: string,
+    ctx: string,
+    onEvent?: (ev: { type: string; text: string }) => void,
+  ): Promise<ResponseParser> {
     this.planCalls.push({ goal, ctx });
     const res = await this.planner.client.complete([], {});
     const parsed = ResponseParser.parse(res.raw || res.content);
     parsed.finish_reason = res.finish_reason;
     if (onEvent) {
-      onEvent({ type: 'delta', text: res.content });
+      onEvent({ type: 'delta', text: res.content as string });
     }
     return parsed;
   }
 
-  public async runCall(call: any): Promise<any> {
+  public async runCall(call: ResponseParser): Promise<{
+    status: string;
+    output: string;
+  }> {
     this.toolCalls.push(call);
     return { status: 'ok', output: 'mock tool run ok' };
   }
 
-  public async observe(): Promise<any> {
+  public async observe(): Promise<RalphPayload> {
     this.observeCalls.push(true);
-    return new RalphPayload([{ role: 'user', content: 'mock_workspace_state' }]);
+    return new RalphPayload([
+      { role: 'user', content: 'mock_workspace_state' },
+    ]);
   }
 
-  public loadConfig(): any {
+  public loadConfig(): Record<string, unknown> {
     return this.config;
   }
 }
@@ -101,7 +153,7 @@ describe('RalphLoop', () => {
   const tempDir = path.resolve(__dirname, 'temp-ralph-test');
   const envPath = path.join(tempDir, '.aura');
   let mockClient: MockLLMClient;
-  let mockRunner: MockRunner;
+  let mockRunner: any;
 
   beforeAll(() => {
     if (!fs.existsSync(tempDir)) {
@@ -132,7 +184,10 @@ describe('RalphLoop', () => {
         provider: 'local',
       },
     };
-    fs.writeFileSync(path.join(envPath, 'config', 'config.yml'), yaml.stringify(baseConfig));
+    fs.writeFileSync(
+      path.join(envPath, 'config', 'config.yml'),
+      yaml.stringify(baseConfig),
+    );
 
     mockClient = new MockLLMClient();
     mockRunner = new MockRunner(mockClient, tempDir);
@@ -140,7 +195,10 @@ describe('RalphLoop', () => {
 
   it('test_physical_verify_passes_immediately', async () => {
     mockClient.responses = [
-      { content: 'Task completed successfully summarizing all modifications.', finish_reason: 'stop' },
+      {
+        content: 'Task completed successfully summarizing all modifications.',
+        finish_reason: 'stop',
+      },
     ];
 
     const loopInst = new RalphLoop(mockRunner, 'fix bug');
@@ -171,10 +229,19 @@ describe('RalphLoop', () => {
 
   it('test_critic_rejects_first_then_accepts', async () => {
     mockClient.responses = [
-      { raw: '{"tool": "read_file", "args": {"path": "a.txt"}, "summary": "reading"}', finish_reason: 'tool_calls' },
-      { raw: '{"completed": false, "critique": "not fixed yet", "advice": "edit file"}', finish_reason: 'stop' },
+      {
+        raw: '{"tool": "read_file", "args": {"path": "a.txt"}, "summary": "reading"}',
+        finish_reason: 'tool_calls',
+      },
+      {
+        raw: '{"completed": false, "critique": "not fixed yet", "advice": "edit file"}',
+        finish_reason: 'stop',
+      },
       { raw: 'fixed content', finish_reason: 'stop' },
-      { raw: '{"completed": true, "critique": "perfect", "advice": ""}', finish_reason: 'stop' },
+      {
+        raw: '{"completed": true, "critique": "perfect", "advice": ""}',
+        finish_reason: 'stop',
+      },
     ];
 
     const loopInst = new RalphLoop(mockRunner, 'fix code', { critic: true });
@@ -182,8 +249,12 @@ describe('RalphLoop', () => {
 
     expect(result).toBe('completed');
 
-    const runId = (loopInst as any).runId;
-    const auditFile = path.join(envPath, 'state', `critic_audit_${runId}_step_2.md`);
+    const runId = loopInst.getRunId();
+    const auditFile = path.join(
+      envPath,
+      'state',
+      `critic_audit_${runId}_step_2.md`,
+    );
     expect(fs.existsSync(auditFile)).toBe(true);
     const auditContent = fs.readFileSync(auditFile, 'utf-8');
     expect(auditContent).toContain('PASSING');
@@ -192,13 +263,28 @@ describe('RalphLoop', () => {
 
   it('test_critic_mode_heavy_runs_agent_loop', async () => {
     mockClient.responses = [
-      { raw: '{"tool": "read_file", "args": {"path": "a.txt"}, "summary": "reading"}', finish_reason: 'tool_calls' },
-      { raw: '{"completed": false, "critique": "not fixed yet", "advice": "edit file"}', finish_reason: 'stop' },
-      { raw: '{"tool": "read_file", "args": {"path": "b.txt"}, "summary": "reading critique"}', finish_reason: 'tool_calls' },
-      { raw: '{"completed": true, "critique": "perfect now", "advice": ""}', finish_reason: 'stop' },
+      {
+        raw: '{"tool": "read_file", "args": {"path": "a.txt"}, "summary": "reading"}',
+        finish_reason: 'tool_calls',
+      },
+      {
+        raw: '{"completed": false, "critique": "not fixed yet", "advice": "edit file"}',
+        finish_reason: 'stop',
+      },
+      {
+        raw: '{"tool": "read_file", "args": {"path": "b.txt"}, "summary": "reading critique"}',
+        finish_reason: 'tool_calls',
+      },
+      {
+        raw: '{"completed": true, "critique": "perfect now", "advice": ""}',
+        finish_reason: 'stop',
+      },
     ];
 
-    const loopInst = new RalphLoop(mockRunner, 'fix code', { critic: true, critic_mode: 'heavy' });
+    const loopInst = new RalphLoop(mockRunner, 'fix code', {
+      critic: true,
+      critic_mode: 'heavy',
+    });
     const result = await loopInst.run();
 
     expect(result).toBe('completed');
@@ -210,7 +296,9 @@ describe('RalphLoop', () => {
       finish_reason: 'tool_calls',
     });
 
-    const loopInst = new RalphLoop(mockRunner, 'endless goal', { max_steps: 3 });
+    const loopInst = new RalphLoop(mockRunner, 'endless goal', {
+      max_steps: 3,
+    });
     const result = await loopInst.run();
 
     expect(result).toBe('failed');
@@ -224,42 +312,43 @@ describe('RalphLoop', () => {
     const loopInst = new RalphLoop(mockRunner, 'fix bug');
 
     const hooksBefore = (mockRunner.hooks as any).hookMap.before_planning;
-    expect(hooksBefore).toContain((loopInst as any).planningHookProc);
+    expect(hooksBefore).toContain(loopInst.getPlanningHookProc());
 
     const result = await loopInst.run();
     expect(result).toBe('completed');
 
     const hooksAfter = (mockRunner.hooks as any).hookMap.before_planning;
-    expect(hooksAfter).not.toContain((loopInst as any).planningHookProc);
-    expect((loopInst as any).currentMode).toBe('developer');
+    expect(hooksAfter).not.toContain(loopInst.getPlanningHookProc());
+    expect(loopInst.getCurrentMode()).toBe('developer');
   });
 
   it('test_verification_command_timeout', async () => {
-    mockClient.responses = [
-      { content: 'Finished', finish_reason: 'stop' },
-    ];
+    mockClient.responses = [{ content: 'Finished', finish_reason: 'stop' }];
 
     // Configure verify_command to a command that takes 500ms
     mockRunner.config.ralph.verify_command = `node -e "setTimeout(() => {}, 500)"`;
 
     // Timeout of 0.05 seconds (50ms)
-    const loopInst = new RalphLoop(mockRunner, 'fix bug', { max_steps: 1, timeout: 0.05 });
+    const loopInst = new RalphLoop(mockRunner, 'fix bug', {
+      max_steps: 1,
+      timeout: 0.05,
+    });
     const result = await loopInst.run();
 
     expect(result).toBe('failed');
-    expect((loopInst as any).lastTestFeedback).toContain('timed out after');
+    expect(loopInst.getLastTestFeedback()).toContain('timed out after');
   });
 
   it('test_session_db_cleanup', async () => {
-    mockClient.responses = [
-      { content: 'Finished', finish_reason: 'stop' },
-    ];
+    mockClient.responses = [{ content: 'Finished', finish_reason: 'stop' }];
 
     const loopInst = new RalphLoop(mockRunner, 'fix bug', { max_steps: 2 });
     await loopInst.run();
 
     const dbDir = path.join(envPath, 'state', 'sessions');
-    const tempDbs = fs.readdirSync(dbDir).filter(f => f.startsWith('ralph_run_'));
+    const tempDbs = fs
+      .readdirSync(dbDir)
+      .filter((f) => f.startsWith('ralph_run_'));
     expect(tempDbs).toEqual([]);
   });
 
@@ -267,16 +356,32 @@ describe('RalphLoop', () => {
     const loopInst1 = new RalphLoop(mockRunner, 'run 1');
     const loopInst2 = new RalphLoop(mockRunner, 'run 2');
 
-    (loopInst1 as any).runId = 'RUN1_HEX';
-    (loopInst2 as any).runId = 'RUN2_HEX';
-    (loopInst1 as any).iterationCount = 1;
-    (loopInst2 as any).iterationCount = 1;
+    loopInst1.setRunId('RUN1_HEX');
+    loopInst2.setRunId('RUN2_HEX');
+    loopInst1.setIterationCount(1);
+    loopInst2.setIterationCount(1);
 
-    await (loopInst1 as any).writeCriticAuditFile('critique 1', 'advice 1', false);
-    await (loopInst2 as any).writeCriticAuditFile('critique 2', 'advice 2', false);
+    await (loopInst1 as any).writeCriticAuditFile(
+      'critique 1',
+      'advice 1',
+      false,
+    );
+    await (loopInst2 as any).writeCriticAuditFile(
+      'critique 2',
+      'advice 2',
+      false,
+    );
 
-    const file1 = path.join(envPath, 'state', 'critic_audit_RUN1_HEX_step_1.md');
-    const file2 = path.join(envPath, 'state', 'critic_audit_RUN2_HEX_step_1.md');
+    const file1 = path.join(
+      envPath,
+      'state',
+      'critic_audit_RUN1_HEX_step_1.md',
+    );
+    const file2 = path.join(
+      envPath,
+      'state',
+      'critic_audit_RUN2_HEX_step_1.md',
+    );
 
     expect(fs.existsSync(file1)).toBe(true);
     expect(fs.existsSync(file2)).toBe(true);
@@ -285,12 +390,14 @@ describe('RalphLoop', () => {
   });
 
   it('test_loop_resilience_to_developer_loop_exceptions', async () => {
-    mockClient.responses = [
-      { content: 'Attempt 2', finish_reason: 'stop' },
-    ];
+    mockClient.responses = [{ content: 'Attempt 2', finish_reason: 'stop' }];
 
     let callCount = 0;
-    mockRunner.planStream = async (goal: string, ctx: string, onEvent?: (ev: any) => void) => {
+    mockRunner.planStream = async (
+      _goal: string,
+      _ctx: string,
+      onEvent?: (ev: { type: string; text: string }) => void,
+    ) => {
       callCount++;
       if (callCount === 1) {
         throw new Error('Transient LLM error');
@@ -299,7 +406,7 @@ describe('RalphLoop', () => {
         const parsed = ResponseParser.parse(res.raw || res.content);
         parsed.finish_reason = res.finish_reason;
         if (onEvent) {
-          onEvent({ type: 'delta', text: res.content });
+          onEvent({ type: 'delta', text: res.content as string });
         }
         return parsed;
       }

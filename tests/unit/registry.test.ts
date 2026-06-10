@@ -1,11 +1,24 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ToolRegistry } from '../../src/core/kernel/registry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+interface ToolManifest {
+  name?: string;
+  description?: string;
+  parameters?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface GroupManifest {
+  group_name: string;
+  subtools: string[];
+  entry_tool?: string;
+}
 
 describe('ToolRegistry', () => {
   const tempDir = path.resolve(__dirname, 'temp-registry-test');
@@ -31,17 +44,25 @@ describe('ToolRegistry', () => {
     fs.mkdirSync(toolsPath, { recursive: true });
   });
 
-  const createTool = (name: string, manifest: any) => {
+  const createTool = (name: string, manifest: ToolManifest) => {
     const toolDir = path.join(toolsPath, name);
     fs.mkdirSync(toolDir, { recursive: true });
-    fs.writeFileSync(path.join(toolDir, 'manifest.json'), JSON.stringify(manifest));
+    fs.writeFileSync(
+      path.join(toolDir, 'manifest.json'),
+      JSON.stringify(manifest),
+    );
   };
 
-  const createToolGroup = (dirName: string, groupName: string, entryTool: string | null, subtools: string[]) => {
+  const createToolGroup = (
+    dirName: string,
+    groupName: string,
+    entryTool: string | null,
+    subtools: string[],
+  ) => {
     const groupDir = path.join(toolsPath, dirName);
     fs.mkdirSync(groupDir, { recursive: true });
 
-    const manifest: any = {
+    const manifest: Partial<GroupManifest> = {
       group_name: groupName,
       subtools,
     };
@@ -50,17 +71,27 @@ describe('ToolRegistry', () => {
       createToolInGroup(dirName, entryTool, { name: entryTool });
     }
 
-    fs.writeFileSync(path.join(groupDir, 'group_manifest.json'), JSON.stringify(manifest));
+    fs.writeFileSync(
+      path.join(groupDir, 'group_manifest.json'),
+      JSON.stringify(manifest),
+    );
 
     for (const subtool of subtools) {
       createToolInGroup(dirName, subtool, { name: subtool });
     }
   };
 
-  const createToolInGroup = (groupDirName: string, toolName: string, manifest: any) => {
+  const createToolInGroup = (
+    groupDirName: string,
+    toolName: string,
+    manifest: ToolManifest,
+  ) => {
     const toolDir = path.join(toolsPath, groupDirName, toolName);
     fs.mkdirSync(toolDir, { recursive: true });
-    fs.writeFileSync(path.join(toolDir, 'manifest.json'), JSON.stringify(manifest));
+    fs.writeFileSync(
+      path.join(toolDir, 'manifest.json'),
+      JSON.stringify(manifest),
+    );
   };
 
   it('test_empty_registry_when_no_tools', () => {
@@ -81,8 +112,8 @@ describe('ToolRegistry', () => {
     expect(registry.allTools()).toContain('bash');
     const tool = registry.find('bash');
     expect(tool).not.toBeNull();
-    expect(tool!.manifest.name).toBe('bash');
-    expect(tool!.group).toBeNull();
+    expect(tool?.manifest.name).toBe('bash');
+    expect(tool?.group).toBeNull();
   });
 
   it('test_multiple_standalone_tools', () => {
@@ -118,7 +149,11 @@ describe('ToolRegistry', () => {
   });
 
   it('test_register_tool_group', () => {
-    createToolGroup('browser', 'browser', 'navigate', ['click', 'type', 'screenshot']);
+    createToolGroup('browser', 'browser', 'navigate', [
+      'click',
+      'type',
+      'screenshot',
+    ]);
 
     const registry = new ToolRegistry(tempDir);
 
@@ -147,7 +182,10 @@ describe('ToolRegistry', () => {
   it('test_invalid_group_manifest_skipped', () => {
     const groupDir = path.join(toolsPath, 'broken_group');
     fs.mkdirSync(groupDir, { recursive: true });
-    fs.writeFileSync(path.join(groupDir, 'group_manifest.json'), 'invalid json {{{');
+    fs.writeFileSync(
+      path.join(groupDir, 'group_manifest.json'),
+      'invalid json {{{',
+    );
 
     expect(() => {
       const registry = new ToolRegistry(tempDir);
@@ -225,9 +263,9 @@ describe('ToolRegistry', () => {
     const tool = registry.find('test_tool');
 
     expect(tool).not.toBeNull();
-    expect(path.dirname(tool!.path)).toBe(toolsPath);
-    expect(tool!.manifest).toEqual(manifest);
-    expect(tool!.manifest.name).toBe('test_tool');
+    expect(path.dirname(tool?.path || '')).toBe(toolsPath);
+    expect(tool?.manifest).toEqual(manifest);
+    expect(tool?.manifest.name).toBe('test_tool');
   });
 
   it('test_scan_forces_rescan', () => {
@@ -276,9 +314,9 @@ describe('ToolRegistry', () => {
     const tool = registry.find('complex_tool');
 
     expect(tool).not.toBeNull();
-    expect(tool!.manifest).toEqual(complexManifest);
-    expect(tool!.manifest.version).toBe('1.0.0');
-    expect(tool!.manifest.metadata.tags).toEqual(['test', 'example']);
+    expect(tool?.manifest).toEqual(complexManifest);
+    expect((tool?.manifest as any).version).toBe('1.0.0');
+    expect((tool?.manifest as any).metadata.tags).toEqual(['test', 'example']);
   });
 
   it('test_group_name_from_manifest', () => {
@@ -293,10 +331,13 @@ describe('ToolRegistry', () => {
   it('test_empty_subtools_list', () => {
     const groupDir = path.join(toolsPath, 'minimal_group');
     fs.mkdirSync(groupDir, { recursive: true });
-    fs.writeFileSync(path.join(groupDir, 'group_manifest.json'), JSON.stringify({
-      group_name: 'minimal',
-      entry_tool: 'entry',
-    }));
+    fs.writeFileSync(
+      path.join(groupDir, 'group_manifest.json'),
+      JSON.stringify({
+        group_name: 'minimal',
+        entry_tool: 'entry',
+      }),
+    );
 
     createToolInGroup('minimal_group', 'entry', { name: 'entry' });
 
@@ -307,40 +348,57 @@ describe('ToolRegistry', () => {
   });
 
   it('test_nested_standalone_tool', () => {
-    const nestedDir = path.join(toolsPath, 'category', 'subcategory', 'my_nested_tool');
+    const nestedDir = path.join(
+      toolsPath,
+      'category',
+      'subcategory',
+      'my_nested_tool',
+    );
     fs.mkdirSync(nestedDir, { recursive: true });
-    fs.writeFileSync(path.join(nestedDir, 'manifest.json'), JSON.stringify({
-      name: 'my_nested_tool',
-      description: 'A nested tool',
-    }));
+    fs.writeFileSync(
+      path.join(nestedDir, 'manifest.json'),
+      JSON.stringify({
+        name: 'my_nested_tool',
+        description: 'A nested tool',
+      }),
+    );
 
     const registry = new ToolRegistry(tempDir);
 
     expect(registry.allTools()).toContain('my_nested_tool');
     const tool = registry.find('my_nested_tool');
     expect(tool).not.toBeNull();
-    expect(tool!.manifest.name).toBe('my_nested_tool');
-    expect(tool!.group).toBeNull();
+    expect(tool?.manifest.name).toBe('my_nested_tool');
+    expect(tool?.group).toBeNull();
   });
 
   it('test_nested_group_tool', () => {
     const nestedGroupDir = path.join(toolsPath, 'category', 'my_group');
     fs.mkdirSync(nestedGroupDir, { recursive: true });
-    fs.writeFileSync(path.join(nestedGroupDir, 'group_manifest.json'), JSON.stringify({
-      group_name: 'nested_group',
-      entry_tool: 'open',
-      subtools: ['click'],
-    }));
+    fs.writeFileSync(
+      path.join(nestedGroupDir, 'group_manifest.json'),
+      JSON.stringify({
+        group_name: 'nested_group',
+        entry_tool: 'open',
+        subtools: ['click'],
+      }),
+    );
 
     // Create entry tool
     const openDir = path.join(nestedGroupDir, 'open');
     fs.mkdirSync(openDir, { recursive: true });
-    fs.writeFileSync(path.join(openDir, 'manifest.json'), JSON.stringify({ name: 'nested_open' }));
+    fs.writeFileSync(
+      path.join(openDir, 'manifest.json'),
+      JSON.stringify({ name: 'nested_open' }),
+    );
 
     // Create subtool
     const clickDir = path.join(nestedGroupDir, 'click');
     fs.mkdirSync(clickDir, { recursive: true });
-    fs.writeFileSync(path.join(clickDir, 'manifest.json'), JSON.stringify({ name: 'nested_click' }));
+    fs.writeFileSync(
+      path.join(clickDir, 'manifest.json'),
+      JSON.stringify({ name: 'nested_click' }),
+    );
 
     const registry = new ToolRegistry(tempDir);
 
@@ -356,9 +414,17 @@ describe('ToolRegistry', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    const nestedDir = path.join(toolsPath, 'category', 'subcategory', 'new_nested_tool');
+    const nestedDir = path.join(
+      toolsPath,
+      'category',
+      'subcategory',
+      'new_nested_tool',
+    );
     fs.mkdirSync(nestedDir, { recursive: true });
-    fs.writeFileSync(path.join(nestedDir, 'manifest.json'), JSON.stringify({ name: 'new_nested_tool' }));
+    fs.writeFileSync(
+      path.join(nestedDir, 'manifest.json'),
+      JSON.stringify({ name: 'new_nested_tool' }),
+    );
 
     expect(registry.allTools()).toContain('new_nested_tool');
   });

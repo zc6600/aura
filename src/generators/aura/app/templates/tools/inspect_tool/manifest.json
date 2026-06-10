@@ -16,8 +16,6 @@
         "description": "Tool name under /tools"
       }
     },
-    "required": [
-      "tool_name"
-    ]
+    "required": ["tool_name"]
   }
 }

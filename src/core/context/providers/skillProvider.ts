@@ -1,14 +1,18 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import yaml from 'yaml';
 import { ToolRegistry } from '../../kernel/registry.js';
+
+interface SkillProviderOptions {
+  envPath?: string;
+}
 
 export class SkillProvider {
   private projectPath: string;
   private envPath: string;
   private skillsPath: string;
 
-  constructor(projectPath: string, options: any = {}) {
+  constructor(projectPath: string, options: SkillProviderOptions = {}) {
     this.projectPath = path.resolve(projectPath);
     this.envPath = options.envPath || this.projectPath;
     this.skillsPath = path.join(this.envPath, 'skills');
@@ -19,7 +23,7 @@ export class SkillProvider {
     try {
       const registry = new ToolRegistry(this.envPath);
       availableTools = registry.allTools();
-    } catch (e) {}
+    } catch (_e) {}
 
     let content = '';
 
@@ -38,12 +42,14 @@ export class SkillProvider {
           if (c) {
             content += `${c}\n\n`;
           }
-        } catch (e) {}
+        } catch (_e) {}
       }
     }
 
     // 2. Scan individual SKILL.md files
-    const baseDirs = Array.from(new Set([path.join(this.projectPath, 'skills'), this.skillsPath]));
+    const baseDirs = Array.from(
+      new Set([path.join(this.projectPath, 'skills'), this.skillsPath]),
+    );
     const skillFiles: string[] = [];
 
     for (const baseDir of baseDirs) {
@@ -56,7 +62,7 @@ export class SkillProvider {
               skillFiles.push(skillFile);
             }
           }
-        } catch (e) {}
+        } catch (_e) {}
       }
     }
 
@@ -67,7 +73,7 @@ export class SkillProvider {
       try {
         const raw = fs.readFileSync(skillFile, 'utf-8');
         // Parse frontmatter
-        const fmMatch = raw.match(/\A---\s+([\s\S]+?)\s+---/);
+        const fmMatch = raw.match(/A---\s+([\s\S]+?)\s+---/);
         if (fmMatch) {
           const frontmatter = fmMatch[1];
           const meta = yaml.parse(frontmatter) || {};
@@ -75,11 +81,13 @@ export class SkillProvider {
           const name = String(meta.name || '').trim();
           const desc = String(meta.description || '').trim();
           const requires: string[] = Array.isArray(meta.requires)
-            ? meta.requires.map((x: any) => String(x).trim()).filter(Boolean)
+            ? meta.requires.map((x: string) => String(x).trim()).filter(Boolean)
             : [];
 
           // Parse requirements from body (Anthropic style)
-          const reqHeaderMatch = raw.match(/^##\s+(?:Requirements|Dependencies)\s*\n([\s\S]*?)(?=\n##|\Z)/m);
+          const reqHeaderMatch = raw.match(
+            /^##\s+(?:Requirements|Dependencies)\s*\n([\s\S]*?)(?=\n##|Z)/m,
+          );
           if (reqHeaderMatch) {
             const lines = reqHeaderMatch[1].split('\n');
             for (const line of lines) {
@@ -94,7 +102,9 @@ export class SkillProvider {
           const uniqueRequires = Array.from(new Set(requires));
 
           if (name) {
-            const missing = uniqueRequires.filter(t => !availableTools.includes(t));
+            const missing = uniqueRequires.filter(
+              (t) => !availableTools.includes(t),
+            );
 
             content += `\n\n### Skill: ${name}`;
             if (desc) {
@@ -106,7 +116,9 @@ export class SkillProvider {
             if (missing.length > 0) {
               content += `\nMissing Requires: ${missing.join(', ')}`;
             }
-            const relPath = path.relative(this.projectPath, skillFile).replace(/\\/g, '/');
+            const relPath = path
+              .relative(this.projectPath, skillFile)
+              .replace(/\\/g, '/');
             content += `\nPath: ${relPath}`;
 
             // Scan subfolders
@@ -114,17 +126,24 @@ export class SkillProvider {
             const subfolders = ['scripts', 'references', 'assets'];
             for (const sub of subfolders) {
               const folderPath = path.join(skillDir, sub);
-              if (fs.existsSync(folderPath) && fs.statSync(folderPath).isDirectory()) {
-                const files = fs.readdirSync(folderPath).map(f => path.basename(f)).join(', ');
+              if (
+                fs.existsSync(folderPath) &&
+                fs.statSync(folderPath).isDirectory()
+              ) {
+                const files = fs
+                  .readdirSync(folderPath)
+                  .map((f) => path.basename(f))
+                  .join(', ');
                 if (files) {
-                  const capitalized = sub.charAt(0).toUpperCase() + sub.slice(1);
+                  const capitalized =
+                    sub.charAt(0).toUpperCase() + sub.slice(1);
                   content += `\n${capitalized}: ${files}`;
                 }
               }
             }
           }
         }
-      } catch (e) {}
+      } catch (_e) {}
     }
 
     return content.trim() ? content.trim() : null;

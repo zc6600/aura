@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
-import yaml from 'yaml';
-import { execa } from 'execa';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import yaml from 'yaml';
 
 import { ExecutionEngine } from '../../src/core/kernel/executionEngine.js';
 import { Runner } from '../../src/core/kernel/runner.js';
@@ -12,6 +12,24 @@ import { Runner } from '../../src/core/kernel/runner.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const auraBinPath = path.resolve(__dirname, '../../src/bin/aura.ts');
+
+interface ManifestContent {
+  name?: string;
+  runtime?: string;
+  entry?: string;
+  timeout?: number;
+}
+
+interface Config {
+  tool_protocol?: {
+    default_timeout_seconds?: number;
+    max_timeout_seconds?: number;
+    agent_can_modify_timeout?: boolean;
+    call_summary?: {
+      max_chars?: number;
+    };
+  };
+}
 
 describe('Kernel Integration', { timeout: 30000 }, () => {
   let projectPath: string;
@@ -21,7 +39,9 @@ describe('Kernel Integration', { timeout: 30000 }, () => {
   let runner: Runner;
 
   beforeEach(async () => {
-    projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-kernel-integration-'));
+    projectPath = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'aura-kernel-integration-'),
+    );
 
     // Initialize workspace scaffolding
     const res = await execa('npx', ['tsx', auraBinPath, 'new', projectPath]);
@@ -36,35 +56,42 @@ describe('Kernel Integration', { timeout: 30000 }, () => {
 
   afterEach(() => {
     try {
-      if (runner && runner.memory && runner.memory.store) {
+      if (runner?.memory?.store) {
         runner.memory.store.close();
       }
-    } catch (e) {}
+    } catch (_e) {}
     try {
       if (fs.existsSync(projectPath)) {
         fs.rmSync(projectPath, { recursive: true, force: true });
       }
-    } catch (e) {}
+    } catch (_e) {}
   });
 
-  function writeTool(toolName: string, logicContent: string, manifestContent: any = {}) {
+  function writeTool(
+    toolName: string,
+    logicContent: string,
+    manifestContent: ManifestContent = {},
+  ) {
     const dir = path.join(toolsPath, toolName);
     fs.mkdirSync(dir, { recursive: true });
-    
+
     const manifest = {
       name: toolName,
       runtime: 'python',
       entry: 'logic.py',
       ...manifestContent,
     };
-    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+    fs.writeFileSync(
+      path.join(dir, 'manifest.json'),
+      JSON.stringify(manifest, null, 2),
+    );
     fs.writeFileSync(path.join(dir, 'logic.py'), logicContent);
   }
 
-  function writeConfig(cfgObj: any) {
+  function writeConfig(cfgObj: Config) {
     fs.writeFileSync(configPath, yaml.stringify(cfgObj));
     if (runner) {
-      (runner as any).configCache = null;
+      runner.clearConfigCache();
     }
   }
 
@@ -79,7 +106,10 @@ describe('Kernel Integration', { timeout: 30000 }, () => {
     });
 
     it('handles success JSON output', async () => {
-      writeTool('json_output', `import json\nprint(json.dumps({"status": "ok", "content": "world"}))`);
+      writeTool(
+        'json_output',
+        `import json\nprint(json.dumps({"status": "ok", "content": "world"}))`,
+      );
       const engine = new ExecutionEngine(projectPath);
       const res = await engine.execute('json_output', {});
       expect(res.status).toBe('ok');
@@ -87,7 +117,10 @@ describe('Kernel Integration', { timeout: 30000 }, () => {
     });
 
     it('handles failure nonzero exit codes', async () => {
-      writeTool('bad_output', `import sys\nsys.stderr.write("boom")\nsys.exit(1)`);
+      writeTool(
+        'bad_output',
+        `import sys\nsys.stderr.write("boom")\nsys.exit(1)`,
+      );
       const engine = new ExecutionEngine(projectPath);
       const res = await engine.execute('bad_output', {});
       expect(res.status).toBe('failed');
@@ -125,7 +158,9 @@ describe('Kernel Integration', { timeout: 30000 }, () => {
           agent_can_modify_timeout: true,
         },
       });
-      writeTool('t2', `import time\ntime.sleep(5)\nprint("finished")`, { timeout: 1 });
+      writeTool('t2', `import time\ntime.sleep(5)\nprint("finished")`, {
+        timeout: 1,
+      });
 
       const engine = new ExecutionEngine(projectPath);
       const start = Date.now();
@@ -216,11 +251,15 @@ describe('Kernel Integration', { timeout: 30000 }, () => {
 
       const summaries = runner.memory.store.fetchSummaries();
       const latestSummaryRecord = summaries[summaries.length - 1];
-      const latestSummary = latestSummaryRecord ? latestSummaryRecord.content : null;
+      const latestSummary = latestSummaryRecord
+        ? latestSummaryRecord.content
+        : null;
 
-      expect(latestSummary).toBeDefined();
-      expect(latestSummary!.length).toBeLessThanOrEqual(20);
-      expect(longSummary.startsWith(latestSummary!)).toBe(true);
+      expect(latestSummary).not.toBeNull();
+      if (latestSummary) {
+        expect(latestSummary.length).toBeLessThanOrEqual(20);
+        expect(longSummary.startsWith(latestSummary)).toBe(true);
+      }
 
       const ctx = (await runner.observe()).toMarkdown();
       expect(ctx).toContain('History');

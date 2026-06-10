@@ -1,30 +1,59 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import yaml from 'yaml';
 import { fileURLToPath } from 'node:url';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import yaml from 'yaml';
+import type { PlanEvent } from '../../src/core/kernel/interfaces.js';
 import { Planner } from '../../src/core/kernel/planner.js';
+import type { CompletionResult } from '../../src/core/llm/adapters/base.js';
+import type {
+  ChatMessage,
+  CompletionOptions,
+} from '../../src/core/llm/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+interface MockCall {
+  method: 'complete' | 'completeStream';
+  messages: ChatMessage[];
+  options: CompletionOptions;
+}
+
 class MockLLMClient {
   public responses: any[] = [];
   public streamResponses: any[][] = [];
-  public calls: any[] = [];
+  public calls: MockCall[] = [];
   private responseIndex = 0;
   private streamIndex = 0;
 
-  public async complete(messages: any[], options: any = {}): Promise<any> {
+  public async complete(
+    messages: ChatMessage[],
+    options: CompletionOptions = {},
+  ): Promise<CompletionResult> {
     this.calls.push({ method: 'complete', messages, options });
-    const response = this.responses[this.responseIndex] || this.responses[this.responses.length - 1];
+    const response =
+      this.responses[this.responseIndex] ||
+      this.responses[this.responses.length - 1];
     this.responseIndex++;
-    return response || { content: '', finish_reason: 'stop' };
+    return (
+      (response as CompletionResult) || {
+        content: '',
+        raw: null,
+        finish_reason: 'stop',
+      }
+    );
   }
 
-  public async completeStream(messages: any[], options: any = {}, onChunk?: (chunk: string) => void): Promise<any> {
+  public async completeStream(
+    messages: ChatMessage[],
+    options: CompletionOptions = {},
+    onChunk?: (chunk: string) => void,
+  ): Promise<CompletionResult> {
     this.calls.push({ method: 'completeStream', messages, options });
-    const streamData = this.streamResponses[this.streamIndex] || this.streamResponses[this.streamResponses.length - 1];
+    const streamData =
+      this.streamResponses[this.streamIndex] ||
+      this.streamResponses[this.streamResponses.length - 1];
     this.streamIndex++;
 
     if (streamData && onChunk) {
@@ -33,9 +62,14 @@ class MockLLMClient {
       }
     }
 
-    const finalContent = streamData ? streamData.map(c => c.content || '').join('') : '';
-    const finalReason = streamData && streamData.length > 0 ? streamData[streamData.length - 1].finish_reason : 'stop';
-    return { content: finalContent, finish_reason: finalReason };
+    const finalContent = streamData
+      ? streamData.map((c) => c.content || '').join('')
+      : '';
+    const finalReason =
+      streamData && streamData.length > 0
+        ? streamData[streamData.length - 1].finish_reason
+        : 'stop';
+    return { content: finalContent, raw: null, finish_reason: finalReason };
   }
 }
 
@@ -77,7 +111,10 @@ describe('Planner', () => {
         },
       },
     };
-    fs.writeFileSync(path.join(configDir, 'config.yml'), yaml.stringify(config));
+    fs.writeFileSync(
+      path.join(configDir, 'config.yml'),
+      yaml.stringify(config),
+    );
 
     process.env.OPENAI_API_KEY = 'sk-test-key-12345';
     mockClient = new MockLLMClient();
@@ -90,13 +127,15 @@ describe('Planner', () => {
   };
 
   it('test_plan_returns_parsed_response', async () => {
-    mockClient.responses = [{
-      raw: '{"tool": "bash", "args": {"command": "ls"}}',
-      finish_reason: 'tool_calls',
-    }];
+    mockClient.responses = [
+      {
+        raw: '{"tool": "bash", "args": {"command": "ls"}}',
+        finish_reason: 'tool_calls',
+      },
+    ];
 
     const planner = createPlanner();
-    const result = await planner.plan('List files', 'Current context');
+    const result = (await planner.plan('List files', 'Current context')) as any;
 
     expect(result.type).toBe('tool_call');
     expect(result.tool).toBe('bash');
@@ -105,23 +144,27 @@ describe('Planner', () => {
   });
 
   it('test_plan_with_stop_finish', async () => {
-    mockClient.responses = [{
-      raw: '{"content": "Task completed"}',
-      finish_reason: 'stop',
-    }];
+    mockClient.responses = [
+      {
+        raw: '{"content": "Task completed"}',
+        finish_reason: 'stop',
+      },
+    ];
 
     const planner = createPlanner();
-    const result = await planner.plan('Simple question');
+    const result = (await planner.plan('Simple question')) as any;
 
     expect(result.finish_reason).toBe('stop');
     expect(result.content).toBe('Task completed');
   });
 
   it('test_plan_passes_context_and_goal', async () => {
-    mockClient.responses = [{
-      raw: '{"content": "response"}',
-      finish_reason: 'stop',
-    }];
+    mockClient.responses = [
+      {
+        raw: '{"content": "response"}',
+        finish_reason: 'stop',
+      },
+    ];
 
     const planner = createPlanner();
     await planner.plan('My goal', 'Context with details');
@@ -130,14 +173,18 @@ describe('Planner', () => {
     const call = mockClient.calls[0];
     expect(call.method).toBe('complete');
     const messages = call.messages;
-    expect(messages.some((m: any) => m.content.includes('My goal'))).toBe(true);
+    expect(
+      messages.some((m: ChatMessage) => m.content.includes('My goal')),
+    ).toBe(true);
   });
 
   it('test_plan_uses_configured_temperature_and_max_tokens', async () => {
-    mockClient.responses = [{
-      raw: '{"content": "ok"}',
-      finish_reason: 'stop',
-    }];
+    mockClient.responses = [
+      {
+        raw: '{"content": "ok"}',
+        finish_reason: 'stop',
+      },
+    ];
 
     const planner = createPlanner();
     await planner.plan('test');
@@ -148,12 +195,14 @@ describe('Planner', () => {
   });
 
   it('test_plan_stream_yields_delta_events', async () => {
-    const deltas: any[] = [];
-    mockClient.streamResponses = [[
-      { content: '{"tool":', finish_reason: null },
-      { content: ' "bash"', finish_reason: null },
-      { content: ', "args": {}}', finish_reason: 'tool_calls' },
-    ]];
+    const deltas: PlanEvent[] = [];
+    mockClient.streamResponses = [
+      [
+        { content: '{"tool":', finish_reason: null },
+        { content: ' "bash"', finish_reason: null },
+        { content: ', "args": {}}', finish_reason: 'tool_calls' },
+      ],
+    ];
 
     const planner = createPlanner();
     await planner.planStream('context', 'test goal', (event) => {
@@ -165,22 +214,32 @@ describe('Planner', () => {
   });
 
   it('test_plan_stream_returns_tool_call_plan', async () => {
-    mockClient.streamResponses = [[
-      { content: '{"tool": "bash", "args": {}}', finish_reason: 'tool_calls' },
-    ]];
+    mockClient.streamResponses = [
+      [
+        {
+          content: '{"tool": "bash", "args": {}}',
+          finish_reason: 'tool_calls',
+        },
+      ],
+    ];
 
     const planner = createPlanner();
-    const result = await planner.planStream('context', 'test');
+    const result = (await planner.planStream('context', 'test')) as any;
 
     expect(result.type).toBe('tool_call');
     expect(result.tool).toBe('bash');
   });
 
   it('test_plan_stream_yields_plan_event', async () => {
-    const planEvents: any[] = [];
-    mockClient.streamResponses = [[
-      { content: '{"tool": "read_file", "args": {"path": "test.rb"}}', finish_reason: 'tool_calls' },
-    ]];
+    const planEvents: PlanEvent[] = [];
+    mockClient.streamResponses = [
+      [
+        {
+          content: '{"tool": "read_file", "args": {"path": "test.rb"}}',
+          finish_reason: 'tool_calls',
+        },
+      ],
+    ];
 
     const planner = createPlanner();
     await planner.planStream('context', 'test', (event) => {
@@ -191,16 +250,16 @@ describe('Planner', () => {
 
     expect(planEvents.length).toBe(1);
     expect(planEvents[0].type).toBe('plan');
-    expect(planEvents[0].plan.tool).toBe('read_file');
+    expect((planEvents[0] as any).plan.tool).toBe('read_file');
   });
 
   it('test_plan_stream_with_text_response', async () => {
-    mockClient.streamResponses = [[
-      { content: '{"content": "Final answer"}', finish_reason: 'stop' },
-    ]];
+    mockClient.streamResponses = [
+      [{ content: '{"content": "Final answer"}', finish_reason: 'stop' }],
+    ];
 
     const planner = createPlanner();
-    const result = await planner.planStream('context', 'question');
+    const result = (await planner.planStream('context', 'question')) as any;
 
     expect(result.finish_reason).toBe('stop');
     expect(result.type).toBe('text');
@@ -208,10 +267,12 @@ describe('Planner', () => {
   });
 
   it('test_load_config_from_config_yml', async () => {
-    mockClient.responses = [{
-      raw: '{"content": "ok"}',
-      finish_reason: 'stop',
-    }];
+    mockClient.responses = [
+      {
+        raw: '{"content": "ok"}',
+        finish_reason: 'stop',
+      },
+    ];
 
     const planner = createPlanner();
     await planner.plan('test');
@@ -223,10 +284,12 @@ describe('Planner', () => {
   it('test_default_config_when_config_missing', async () => {
     fs.rmSync(configDir, { recursive: true, force: true });
 
-    mockClient.responses = [{
-      raw: '{"content": "ok"}',
-      finish_reason: 'stop',
-    }];
+    mockClient.responses = [
+      {
+        raw: '{"content": "ok"}',
+        finish_reason: 'stop',
+      },
+    ];
 
     const planner = createPlanner();
     await planner.plan('test');
@@ -241,49 +304,60 @@ describe('Planner', () => {
         provider: 'anthropic',
       },
     };
-    fs.writeFileSync(path.join(configDir, 'config.yml'), yaml.stringify(config));
+    fs.writeFileSync(
+      path.join(configDir, 'config.yml'),
+      yaml.stringify(config),
+    );
 
-    mockClient.responses = [{
-      raw: '{"tool": "test", "args": {}}',
-      finish_reason: 'stop',
-    }];
+    mockClient.responses = [
+      {
+        raw: '{"tool": "test", "args": {}}',
+        finish_reason: 'stop',
+      },
+    ];
 
     const planner = createPlanner();
-    const result = await planner.plan('test');
+    const result = (await planner.plan('test')) as any;
     expect(result.tool).toBe('test');
   });
 
   it('test_empty_response_handled_gracefully', async () => {
-    mockClient.responses = [{
-      raw: '',
-      finish_reason: 'stop',
-    }];
+    mockClient.responses = [
+      {
+        raw: '',
+        finish_reason: 'stop',
+      },
+    ];
 
     const planner = createPlanner();
-    const result = await planner.plan('test');
+    const result = (await planner.plan('test')) as any;
 
     expect(result).toBeTypeOf('object');
     expect(result.type).toBe('text');
   });
 
   it('test_malformed_json_response', async () => {
-    mockClient.responses = [{
-      raw: 'not valid json {{{',
-      finish_reason: 'stop',
-    }];
+    mockClient.responses = [
+      {
+        raw: 'not valid json {{{',
+        finish_reason: 'stop',
+      },
+    ];
 
     const planner = createPlanner();
-    const result = await planner.plan('test');
+    const result = (await planner.plan('test')) as any;
 
     expect(result).toBeTypeOf('object');
     expect(result.type).toBe('text');
   });
 
   it('test_plan_with_nil_goal', async () => {
-    mockClient.responses = [{
-      raw: '{"content": "response"}',
-      finish_reason: 'stop',
-    }];
+    mockClient.responses = [
+      {
+        raw: '{"content": "response"}',
+        finish_reason: 'stop',
+      },
+    ];
 
     const planner = createPlanner();
     const result = await planner.plan('context only', null);
@@ -292,13 +366,15 @@ describe('Planner', () => {
   });
 
   it('test_plan_with_empty_context', async () => {
-    mockClient.responses = [{
-      raw: '{"content": "ok"}',
-      finish_reason: 'stop',
-    }];
+    mockClient.responses = [
+      {
+        raw: '{"content": "ok"}',
+        finish_reason: 'stop',
+      },
+    ];
 
     const planner = createPlanner();
-    const result = await planner.plan('', 'goal');
+    const result = (await planner.plan('', 'goal')) as any;
 
     expect(result.type).toBe('text');
     expect(result.content).toContain('ok');
@@ -312,9 +388,9 @@ describe('Planner', () => {
     ];
 
     const planner = createPlanner();
-    const result1 = await planner.plan('step 1');
-    const result2 = await planner.plan('step 2');
-    const result3 = await planner.plan('step 3');
+    const result1 = (await planner.plan('step 1')) as any;
+    const result2 = (await planner.plan('step 2')) as any;
+    const result3 = (await planner.plan('step 3')) as any;
 
     expect(result1.tool).toBe('tool1');
     expect(result2.tool).toBe('tool2');
@@ -325,13 +401,15 @@ describe('Planner', () => {
   it('test_finish_reason_propagated', async () => {
     const reasons = ['stop', 'tool_calls', 'length', 'content_filter', 'error'];
     for (const reason of reasons) {
-      mockClient.responses = [{
-        raw: '{"tool": "test", "args": {}}',
-        finish_reason: reason,
-      }];
+      mockClient.responses = [
+        {
+          raw: '{"tool": "test", "args": {}}',
+          finish_reason: reason,
+        },
+      ];
 
       const planner = createPlanner();
-      const result = await planner.plan('test');
+      const result = (await planner.plan('test')) as any;
       expect(result.finish_reason).toBe(reason);
     }
   });
@@ -340,21 +418,29 @@ describe('Planner', () => {
     mockClient.streamResponses = [[]];
 
     const planner = createPlanner();
-    const result = await planner.planStream('test');
+    const result = (await planner.planStream('test', null)) as any;
 
     expect(result).toBeTypeOf('object');
   });
 
   it('test_plan_includes_tools_if_available', async () => {
-    mockClient.responses = [{
-      raw: '{"content": "ok"}',
-      finish_reason: 'stop',
-    }];
+    mockClient.responses = [
+      {
+        raw: '{"content": "ok"}',
+        finish_reason: 'stop',
+      },
+    ];
 
     const planner = createPlanner();
     const mockContext = {
-      toMessages: () => [{ role: 'user', content: 'test' }],
-      toToolSchemas: () => [{ name: 'dummy_tool' }],
+      toMessages: () => [{ role: 'user' as const, content: 'test' }],
+      toToolSchemas: () => [
+        {
+          name: 'dummy_tool',
+          description: 'dummy description',
+          input_schema: {},
+        },
+      ],
     };
     await planner.plan(mockContext);
 
@@ -365,10 +451,12 @@ describe('Planner', () => {
   it('test_config_error_tolerance', async () => {
     fs.writeFileSync(path.join(configDir, 'config.yml'), 'invalid: yaml: {{{');
 
-    mockClient.responses = [{
-      raw: '{"content": "ok"}',
-      finish_reason: 'stop',
-    }];
+    mockClient.responses = [
+      {
+        raw: '{"content": "ok"}',
+        finish_reason: 'stop',
+      },
+    ];
 
     const planner = createPlanner();
     const result = await planner.plan('test');

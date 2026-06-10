@@ -21,8 +21,6 @@
         "description": "List of text strings expected to be found in the image."
       }
     },
-    "required": [
-      "image_path"
-    ]
+    "required": ["image_path"]
   }
 }

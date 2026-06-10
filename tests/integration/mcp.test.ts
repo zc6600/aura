@@ -1,13 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
-import yaml from 'yaml';
-import { execa } from 'execa';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-import { Runner } from '../../src/core/kernel/runner.js';
+import { execa } from 'execa';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import yaml from 'yaml';
 import { ToolProvider } from '../../src/core/context/providers/toolProvider.js';
+import { Runner } from '../../src/core/kernel/runner.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,7 +17,9 @@ describe('MCP Integration', { timeout: 30000 }, () => {
   let runner: Runner;
 
   beforeEach(async () => {
-    projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-mcp-integration-'));
+    projectPath = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'aura-mcp-integration-'),
+    );
 
     // Initialize workspace scaffolding
     const res = await execa('npx', ['tsx', auraBinPath, 'new', projectPath]);
@@ -46,7 +47,7 @@ rl.on('line', (line) => {
     console.log(JSON.stringify({ jsonrpc: '2.0', id, result: { content: [ { type: 'text', text: 'pong' } ], isError: false } }));
   }
 });
-      `.trim()
+      `.trim(),
     );
 
     // Setup configuration
@@ -67,25 +68,30 @@ rl.on('line', (line) => {
         },
       ],
     };
-    fs.writeFileSync(path.join(mcpToolsDir, 'config.yml'), yaml.stringify(mcpConfig));
+    fs.writeFileSync(
+      path.join(mcpToolsDir, 'config.yml'),
+      yaml.stringify(mcpConfig),
+    );
   });
 
   afterEach(() => {
     try {
-      if (runner && runner.memory && runner.memory.store) {
+      if (runner?.memory?.store) {
         runner.memory.store.close();
       }
-    } catch (e) {}
+    } catch (_e) {}
     try {
       if (fs.existsSync(projectPath)) {
         fs.rmSync(projectPath, { recursive: true, force: true });
       }
-    } catch (e) {}
+    } catch (_e) {}
   });
 
   it('test_tool_provider_includes_mcp_tools_and_calls_successfully', async () => {
     // 1. Check ToolProvider lists the MCP tool
-    const provider = new ToolProvider(projectPath, { state: runner.memory.store });
+    const provider = new ToolProvider(projectPath, {
+      state: runner.memory.store,
+    });
     const text = provider.provide();
 
     expect(text).toContain('mcp.test.ping');

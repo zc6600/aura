@@ -1,6 +1,20 @@
+import type { IEventBus } from '../kernel/interfaces.js';
+import type { ToolRegistry } from '../kernel/registry.js';
 import { MemoryEventBus } from './eventBus.js';
+import type { MemoryPolicy } from './policy.js';
+import type { EventRecord as Event, SQLiteStore } from './sqliteStore.js';
+import type { MemorySummarizer } from './summarizer.js';
 
-export interface MetabolismStats {
+export interface MetabolismConfig {
+  max_chars?: number;
+  recent_events_n?: number;
+  summarization?: {
+    enabled?: boolean;
+    max_chars?: number;
+  };
+}
+
+export interface MetabolismResult {
   total_events: number;
   candidates_for_summary: number;
   summarized: number;
@@ -9,31 +23,33 @@ export interface MetabolismStats {
 }
 
 export class MemoryMetabolizer {
-  private store: any;
-  private policy: any;
-  private summarizer: any;
-  private metabolismConfig: any;
+  private store: SQLiteStore;
+  private policy: MemoryPolicy;
+  private summarizer: MemorySummarizer;
+  private metabolismConfig: MetabolismConfig;
   private eventBus?: MemoryEventBus;
-  private registry?: any;
+  private registry?: ToolRegistry;
 
   constructor(options: {
-    store: any;
-    policy: any;
-    summarizer: any;
-    metabolismConfig?: any;
-    eventBus?: any;
-    registry?: any;
+    store: SQLiteStore;
+    policy: MemoryPolicy;
+    summarizer: MemorySummarizer;
+    metabolismConfig?: MetabolismConfig;
+    eventBus?: IEventBus;
+    registry?: ToolRegistry;
   }) {
     this.store = options.store;
     this.policy = options.policy;
     this.summarizer = options.summarizer;
     this.metabolismConfig = options.metabolismConfig || {};
-    this.eventBus = options.eventBus ? this.wrapEventBus(options.eventBus) : undefined;
+    this.eventBus = options.eventBus
+      ? this.wrapEventBus(options.eventBus)
+      : undefined;
     this.registry = options.registry;
   }
 
-  public async runIfNeeded(): Promise<MetabolismStats> {
-    const stats: MetabolismStats = {
+  public async runIfNeeded(): Promise<MetabolismResult> {
+    const stats: MetabolismResult = {
       total_events: 0,
       candidates_for_summary: 0,
       summarized: 0,
@@ -44,7 +60,10 @@ export class MemoryMetabolizer {
     try {
       stats.total_events = this.store.countEvents();
 
-      if (!this.shouldMetabolize() || stats.total_events <= this.recentEventsN) {
+      if (
+        !this.shouldMetabolize() ||
+        stats.total_events <= this.recentEventsN
+      ) {
         return stats;
       }
 
@@ -62,8 +81,10 @@ export class MemoryMetabolizer {
       stats.candidates_for_summary = retentionResult.to_summarize.length;
 
       if (retentionResult.to_summarize.length > 0) {
-        const summary = await this.generateMetabolismSummary(retentionResult.to_summarize);
-        if (summary && summary.trim()) {
+        const summary = await this.generateMetabolismSummary(
+          retentionResult.to_summarize,
+        );
+        if (summary?.trim()) {
           this.store.insertSummary({
             content: `Metabolism: Narrative Summary - ${summary}`,
           });
@@ -72,25 +93,27 @@ export class MemoryMetabolizer {
         }
       }
 
-      const idsToDelete = retentionResult.to_delete.map((e: any) => e.id).filter(Boolean);
+      const idsToDelete = retentionResult.to_delete
+        .map((e: Event) => e.id)
+        .filter(Boolean);
       if (idsToDelete.length > 0) {
         this.store.deleteEvents(idsToDelete);
         stats.deleted = idsToDelete.length;
         this.emit('metabolism_complete', { deleted_count: stats.deleted });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       stats.errors += 1;
-      console.warn(`[Memory::Metabolizer] Error: ${e.message}`);
+      console.warn(`[Memory::Metabolizer] Error: ${(e as Error).message}`);
     }
 
     return stats;
   }
 
-  public async run(): Promise<MetabolismStats> {
+  public async run(): Promise<MetabolismResult> {
     return this.runIfNeeded();
   }
 
-  private wrapEventBus(bus: any): MemoryEventBus {
+  private wrapEventBus(bus: IEventBus): MemoryEventBus {
     if (bus instanceof MemoryEventBus) {
       return bus;
     }
@@ -110,12 +133,14 @@ export class MemoryMetabolizer {
     return this.metabolismConfig.recent_events_n || 20;
   }
 
-  private selectOldEvents(): any[] {
+  private selectOldEvents(): Event[] {
     const keepRecent = this.recentEventsN;
     return this.store.fetchEvents({ offset: keepRecent });
   }
 
-  private async generateMetabolismSummary(events: any[]): Promise<string | null> {
+  private async generateMetabolismSummary(
+    events: Event[],
+  ): Promise<string | null> {
     if (!this.summarizationEnabled) {
       return null;
     }
@@ -133,7 +158,7 @@ export class MemoryMetabolizer {
     return val === undefined || val === true;
   }
 
-  private emit(event: string, data: any = {}): void {
+  private emit(event: string, data: Record<string, unknown> = {}): void {
     this.eventBus?.emit(event, data);
   }
 }

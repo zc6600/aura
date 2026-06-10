@@ -211,7 +211,7 @@ Include:
 
 ## Steps to Reproduce
 1. Run `aura new test-project`
-2. Run `aura chat --goal "Create hello.txt"`
+2. Run `aura agent --goal "Create hello.txt"`
 3. Observe error
 
 ## Expected

@@ -4,24 +4,31 @@ import picocolors from 'picocolors';
 import yaml from 'yaml';
 import * as GlobalConfig from '../../utils/globalConfig.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import * as UI from '../ui.js';
 
-export class Config {
-  public static async run(key?: string, value?: string, options: { global?: boolean } = {}): Promise<void> {
+export const Config = {
+  async run(
+    key?: string,
+    value?: string,
+    options: { global?: boolean } = {},
+  ): Promise<void> {
     const isGlobal = !!options.global;
-    let cfgPath = '';
+    let cfgPath: string | null = null;
 
     if (isGlobal) {
       cfgPath = PathResolver.resolveConfigPath(GlobalConfig.repoPath());
     } else {
       const auraDir = PathResolver.findAuraDir(process.cwd());
       if (!auraDir) {
-        console.error(picocolors.red('⛔️ Error: Not in an Aura workspace.'));
-        console.log('To configure globally, use the --global flag.');
-        console.log('To initialize a workspace in the current directory, run:');
-        console.log('  $ aura new');
-        process.exit(1);
+        throw new UI.WorkspaceError(
+          'Not in an Aura workspace. To configure globally, use the --global flag. To initialize a workspace in the current directory, run: aura new',
+        );
       }
       cfgPath = PathResolver.resolveConfigPath(auraDir);
+    }
+
+    if (!cfgPath) {
+      throw new UI.CliError('Failed to resolve configuration path.');
     }
 
     const cfgDir = path.dirname(cfgPath);
@@ -29,10 +36,13 @@ export class Config {
       fs.mkdirSync(cfgDir, { recursive: true });
     }
 
-    let hash: any = {};
+    let hash: Record<string, unknown> = {};
     if (fs.existsSync(cfgPath)) {
       try {
-        hash = yaml.parse(fs.readFileSync(cfgPath, 'utf-8')) || {};
+        hash = (yaml.parse(fs.readFileSync(cfgPath, 'utf-8')) || {}) as Record<
+          string,
+          unknown
+        >;
       } catch {}
     }
 
@@ -41,7 +51,7 @@ export class Config {
       console.log(yaml.stringify(hash));
     } else if (value === undefined) {
       // Read a single key
-      const val = this.getHashValue(hash, key);
+      const val = Config.getHashValue(hash, key);
       if (val === undefined || val === null) {
         console.log(picocolors.yellow('(nil)'));
       } else {
@@ -49,28 +59,36 @@ export class Config {
       }
     } else {
       // Set key value
-      this.setHashValue(hash, key, value);
+      Config.setHashValue(hash, key, value);
       fs.writeFileSync(cfgPath, yaml.stringify(hash), 'utf-8');
-      console.log(picocolors.green(`Successfully updated ${key} to ${value} in ${isGlobal ? 'global' : 'local'} config.`));
+      console.log(
+        picocolors.green(
+          `Successfully updated ${key} to ${value} in ${isGlobal ? 'global' : 'local'} config.`,
+        ),
+      );
     }
-  }
+  },
 
-  private static getHashValue(hash: any, key: string): any {
+  getHashValue(hash: Record<string, unknown>, key: string): unknown {
     const parts = key.split('.');
-    let curr = hash;
+    let curr: unknown = hash;
     for (const p of parts) {
       if (curr && typeof curr === 'object') {
-        curr = curr[p];
+        curr = (curr as Record<string, unknown>)[p];
       } else {
         return undefined;
       }
     }
     return curr;
-  }
+  },
 
-  private static setHashValue(hash: any, key: string, value: string): void {
+  setHashValue(
+    hash: Record<string, unknown>,
+    key: string,
+    value: string,
+  ): void {
     const parts = key.split('.');
-    let curr = hash;
+    let curr: any = hash;
     for (let i = 0; i < parts.length - 1; i++) {
       const p = parts[i];
       if (!curr[p] || typeof curr[p] !== 'object') {
@@ -80,7 +98,7 @@ export class Config {
     }
 
     // Parse value type
-    let parsedVal: any = value;
+    let parsedVal: unknown = value;
     if (value === 'true') {
       parsedVal = true;
     } else if (value === 'false') {
@@ -92,5 +110,5 @@ export class Config {
     }
 
     curr[parts[parts.length - 1]] = parsedVal;
-  }
-}
+  },
+};

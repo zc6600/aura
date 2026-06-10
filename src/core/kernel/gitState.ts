@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import { execa } from 'execa';
 
 export class GitState {
@@ -25,14 +25,16 @@ export class GitState {
       await execa('git', ['add', '.'], { cwd: this.projectPath });
 
       // Check status
-      const { stdout } = await execa('git', ['status', '--porcelain'], { cwd: this.projectPath });
+      const { stdout } = await execa('git', ['status', '--porcelain'], {
+        cwd: this.projectPath,
+      });
       if (!stdout.trim()) {
         return;
       }
 
       // Commit
       await execa('git', ['commit', '-m', message], { cwd: this.projectPath });
-    } catch (e) {
+    } catch (_e) {
       // Fail-safe
     }
   }

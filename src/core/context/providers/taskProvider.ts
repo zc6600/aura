@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export class TaskProvider {
   private projectPath: string;
@@ -16,7 +16,7 @@ export class TaskProvider {
       const content = fs.readFileSync(file, 'utf-8').trim();
       if (!content) return null;
       return `# LONG-RUN TASK\n${content}`;
-    } catch (e) {
+    } catch (_e) {
       return null;
     }
   }

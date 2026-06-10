@@ -1,3 +1,5 @@
+import type { ChatMessage, ToolSchema } from '../types.js';
+
 export const SYSTEM_PROMPT = `You are Aura, an autonomous AI agent operating in an action-observation loop.
 
 ## Response Format
@@ -23,11 +25,14 @@ You can either call a tool or finish the task:
 - Prefer reading before writing. Verify changes after writing.`;
 
 export interface ContextPayload {
-  toMessages(options?: { goal?: string | null }): any[];
-  toToolSchemas(): any[];
+  toMessages(options?: { goal?: string | null }): ChatMessage[];
+  toToolSchemas(): ToolSchema[];
 }
 
-export function messagesAndTools(context: any, goal?: string | null): [any[], any[]] {
+export function messagesAndTools(
+  context: ContextPayload | string,
+  goal?: string | null,
+): [ChatMessage[], ToolSchema[]] {
   if (
     context &&
     typeof context === 'object' &&
@@ -40,12 +45,7 @@ export function messagesAndTools(context: any, goal?: string | null): [any[], an
   }
 
   // Fallback: treat as string context
-  const messages = [{ role: 'user', content: String(context) }];
-  const nativeTools: any[] = [];
+  const messages: ChatMessage[] = [{ role: 'user', content: String(context) }];
+  const nativeTools: ToolSchema[] = [];
   return [messages, nativeTools];
 }
-
-export const PromptsCompose = {
-  messagesAndTools,
-  SYSTEM_PROMPT,
-};

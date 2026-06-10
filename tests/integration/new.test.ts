@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execa } from 'execa';
 import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,10 +31,15 @@ describe('CLI new Subcommand Integration', { timeout: 30000 }, () => {
     expect(fs.existsSync(projectPath)).toBe(true);
     expect(fs.existsSync(path.join(projectPath, '.aura'))).toBe(true);
     expect(fs.existsSync(path.join(projectPath, '.aura', 'config'))).toBe(true);
-    expect(fs.existsSync(path.join(projectPath, '.aura', 'config', 'config.yml'))).toBe(true);
+    expect(
+      fs.existsSync(path.join(projectPath, '.aura', 'config', 'config.yml')),
+    ).toBe(true);
     expect(fs.existsSync(path.join(projectPath, '.gitignore'))).toBe(true);
 
-    const gitignore = fs.readFileSync(path.join(projectPath, '.gitignore'), 'utf-8');
+    const gitignore = fs.readFileSync(
+      path.join(projectPath, '.gitignore'),
+      'utf-8',
+    );
     expect(gitignore).toContain('.aura/');
   });
 });

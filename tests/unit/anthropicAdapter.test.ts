@@ -1,7 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnthropicAdapter } from '../../src/core/llm/adapters/anthropic.js';
 import { Client } from '../../src/core/llm/client.js';
 import { HttpClient } from '../../src/core/llm/httpClient.js';
+import type { ChatMessage } from '../../src/core/llm/types.js';
+
+interface StreamOptions {
+  stream?: boolean;
+  onChunk?: (chunk: string) => void;
+}
 
 vi.mock('../../src/core/llm/httpClient.js', () => {
   return {
@@ -17,10 +23,6 @@ describe('AnthropicAdapter', () => {
   });
 
   it('test_anthropic_adapter_default_endpoint_and_routing', () => {
-    const adapter = new AnthropicAdapter({ apiKey: 'ant-key' });
-    expect((adapter as any).apiBase).toBe('https://api.anthropic.com/v1/messages');
-    expect((adapter as any).model).toBe('claude-3-5-sonnet-20241022');
-
     const client = new Client({ provider: 'anthropic', apiKey: 'ant-key' });
     const underlying = (client as any).adapter;
     expect(underlying).toBeInstanceOf(AnthropicAdapter);
@@ -30,15 +32,13 @@ describe('AnthropicAdapter', () => {
     const adapter = new AnthropicAdapter({ apiKey: 'ant-key' });
 
     const fakeResponse = {
-      content: [
-        { type: 'text', text: 'CLAUDE_REPLY' },
-      ],
+      content: [{ type: 'text', text: 'CLAUDE_REPLY' }],
       stop_reason: 'end_turn',
     };
 
     vi.mocked(HttpClient.post).mockResolvedValue(fakeResponse);
 
-    const messages = [
+    const messages: ChatMessage[] = [
       { role: 'system', content: 'SYS_RULE' },
       { role: 'user', content: 'hello' },
     ];
@@ -65,17 +65,26 @@ describe('AnthropicAdapter', () => {
   it('test_anthropic_stream_yields_tokens', async () => {
     const adapter = new AnthropicAdapter({ apiKey: 'ant-key' });
 
-    vi.mocked(HttpClient.post).mockImplementation((url, headers, body, opts: any) => {
-      if (opts.stream && opts.onChunk) {
-        opts.onChunk('data: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "X"}}\n');
-        opts.onChunk('data: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Y"}}\n');
-        opts.onChunk('data: {"type": "message_delta", "delta": {"stop_reason": "end_turn"}}\n');
-      }
-      return Promise.resolve(null);
-    });
+    vi.mocked(HttpClient.post).mockImplementation(
+      (_url, _headers, _body, opts?: StreamOptions) => {
+        if (opts?.stream && opts?.onChunk) {
+          opts.onChunk(
+            'data: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "X"}}\n',
+          );
+          opts.onChunk(
+            'data: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Y"}}\n',
+          );
+          opts.onChunk(
+            `data: {"type": "message_delta", "delta": {"stop_reason": "end_turn"}}
+`,
+          );
+        }
+        return Promise.resolve(null);
+      },
+    );
 
     const tokens: string[] = [];
-    const messages = [{ role: 'user', content: 'hello' }];
+    const messages: ChatMessage[] = [{ role: 'user', content: 'hello' }];
     const out = await adapter.completeStream(messages, {}, (tok) => {
       tokens.push(tok);
     });

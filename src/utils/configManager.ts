@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
-import { resolveConfigPath } from './pathResolver.js';
-import { parseAuraConfig, type AuraConfig } from './configSchema.js';
+import { type AuraConfig, parseAuraConfig } from './configSchema.js';
+import * as PathResolver from './pathResolver.js';
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -30,9 +30,9 @@ export class ParseError extends ConfigError {
  */
 export function load(
   projectPathOrEnvPath: string,
-  options: { required?: boolean } = {}
+  options: { required?: boolean } = {},
 ): Record<string, unknown> {
-  const configPath = resolveConfigPath(projectPathOrEnvPath);
+  const configPath = PathResolver.resolveConfigPath(projectPathOrEnvPath);
 
   if (!configPath || configPath.trim().length === 0) {
     if (options.required) {
@@ -54,7 +54,9 @@ export function load(
   } catch (err: unknown) {
     const e = err as NodeJS.ErrnoException;
     if (err instanceof FileNotFoundError || e.code === 'ENOENT') {
-      throw new FileNotFoundError(`Cannot read config file: ${configPath} - ${e.message}`);
+      throw new FileNotFoundError(
+        `Cannot read config file: ${configPath} - ${e.message}`,
+      );
     }
     throw new ParseError(`Invalid YAML in ${configPath}: ${e.message}`);
   }
@@ -66,20 +68,19 @@ export function load(
  */
 export function loadTyped(
   projectPathOrEnvPath: string,
-  options: { required?: boolean } = {}
+  options: { required?: boolean } = {},
 ): AuraConfig {
   const raw = load(projectPathOrEnvPath, options);
   return parseAuraConfig(raw);
 }
-
 
 /**
  * Loads config with fallback path if the primary config is missing.
  */
 export function loadWithFallback(
   primaryPath: string,
-  fallbackPath?: string
-): Record<string, any> {
+  fallbackPath?: string,
+): Record<string, unknown> {
   try {
     return load(primaryPath, { required: true });
   } catch (err) {
@@ -97,17 +98,21 @@ export function loadWithFallback(
 /**
  * Gets a deeply nested value using a dot-notation key.
  */
-export function get(configObj: Record<string, any>, key: string): any {
+export function get(configObj: Record<string, unknown>, key: string): unknown {
   if (!configObj || !key) return undefined;
 
   const parts = key.split('.');
-  let current: any = configObj;
+  let current: unknown = configObj;
 
   for (const part of parts) {
-    if (current === null || current === undefined || typeof current !== 'object') {
+    if (
+      current === null ||
+      current === undefined ||
+      typeof current !== 'object'
+    ) {
       return undefined;
     }
-    current = current[part];
+    current = (current as Record<string, unknown>)[part];
   }
 
   return current;
@@ -116,15 +121,23 @@ export function get(configObj: Record<string, any>, key: string): any {
 /**
  * Sets a deeply nested value using a dot-notation key, coercing values to appropriate types.
  */
-export function set(configObj: Record<string, any>, key: string, value: string): void {
+export function set(
+  configObj: Record<string, unknown>,
+  key: string,
+  value: string,
+): void {
   if (!configObj || !key) return;
 
   const parts = key.split('.');
-  let current = configObj;
+  let current: any = configObj;
 
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
-    if (current[part] === null || current[part] === undefined || typeof current[part] !== 'object') {
+    if (
+      current[part] === null ||
+      current[part] === undefined ||
+      typeof current[part] !== 'object'
+    ) {
       current[part] = {};
     }
     current = current[part];
@@ -133,7 +146,7 @@ export function set(configObj: Record<string, any>, key: string, value: string):
   const lastPart = parts[parts.length - 1];
 
   // Coerce value type (matching Ruby's ConfigCommand type conversions)
-  let parsedValue: any = value;
+  let parsedValue: unknown = value;
   if (value === 'true') {
     parsedValue = true;
   } else if (value === 'false') {
@@ -150,7 +163,10 @@ export function set(configObj: Record<string, any>, key: string, value: string):
 /**
  * Writes the configuration object back to configPath.
  */
-export function write(configPath: string, configObj: Record<string, any>): void {
+export function write(
+  configPath: string,
+  configObj: Record<string, unknown>,
+): void {
   const dir = path.dirname(configPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -158,12 +174,3 @@ export function write(configPath: string, configObj: Record<string, any>): void 
   const content = YAML.stringify(configObj);
   fs.writeFileSync(configPath, content, 'utf-8');
 }
-
-export const ConfigManager = {
-  load,
-  loadTyped,
-  loadWithFallback,
-  get,
-  set,
-  write,
-};

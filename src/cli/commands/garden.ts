@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import Database from 'better-sqlite3';
 import picocolors from 'picocolors';
 import yaml from 'yaml';
-import Database from 'better-sqlite3';
-import * as PathResolver from '../../utils/pathResolver.js';
-import * as GlobalConfig from '../../utils/globalConfig.js';
 import { HintProvider } from '../../core/context/providers/hintProvider.js';
+import * as GlobalConfig from '../../utils/globalConfig.js';
+import * as PathResolver from '../../utils/pathResolver.js';
+import * as UI from '../ui.js';
 
 interface Playbook {
   name: string;
@@ -19,18 +20,23 @@ export class Garden {
   public static list(projectPath?: string): void {
     let resolvedPath = '';
     try {
-      resolvedPath = PathResolver.resolveProjectPath(projectPath || undefined) || process.cwd();
+      resolvedPath =
+        PathResolver.resolveProjectPath(projectPath || undefined) ||
+        process.cwd();
     } catch {
       resolvedPath = process.cwd();
     }
 
-    const localGardenPath = resolvedPath ? path.join(resolvedPath, 'garden') : null;
+    const localGardenPath = resolvedPath
+      ? path.join(resolvedPath, 'garden')
+      : null;
     const templateGardenPath = path.join(GlobalConfig.repoPath(), 'garden');
 
     const playbooks: Record<string, Playbook> = {};
 
     const scanPlaybooks = (dir: string | null, type: string) => {
-      if (!dir || !fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return;
+      if (!dir || !fs.existsSync(dir) || !fs.statSync(dir).isDirectory())
+        return;
 
       const subdirs = fs.readdirSync(dir);
       for (const subdir of subdirs) {
@@ -41,7 +47,9 @@ export class Garden {
         if (fs.existsSync(gardenMd)) {
           try {
             const raw = fs.readFileSync(gardenMd, 'utf-8');
-            const match = raw.match(/^\x2d\x2d\x2d\s+([\s\S]+?)\s+\x2d\x2d\x2d/);
+            const match = raw.match(
+              /^\x2d\x2d\x2d\s+([\s\S]+?)\s+\x2d\x2d\x2d/,
+            );
             if (match) {
               const meta = yaml.parse(match[1]) || {};
               playbooks[subdir] = playbooks[subdir] || {
@@ -79,13 +87,17 @@ export class Garden {
     console.log(picocolors.blue('=== Available Garden Playbooks ===\n'));
     for (const key of keys) {
       const details = playbooks[key];
-      const typeStr = details.type === 'local'
-        ? ` [${picocolors.cyan('local')}]`
-        : ` [${picocolors.gray('template')}]`;
-      const reqStr = details.requires && details.requires.length > 0
-        ? ` (Requires: ${details.requires.join(', ')})`
-        : '';
-      console.log(`🌱 ${picocolors.green(details.name)}${typeStr} - ${details.desc}${reqStr}`);
+      const typeStr =
+        details.type === 'local'
+          ? ` [${picocolors.cyan('local')}]`
+          : ` [${picocolors.gray('template')}]`;
+      const reqStr =
+        details.requires && details.requires.length > 0
+          ? ` (Requires: ${details.requires.join(', ')})`
+          : '';
+      console.log(
+        `🌱 ${picocolors.green(details.name)}${typeStr} - ${details.desc}${reqStr}`,
+      );
       console.log(`   Path: ${details.path}\n`);
     }
   }
@@ -93,7 +105,9 @@ export class Garden {
   public static status(projectPath?: string): void {
     let resolvedPath = '';
     try {
-      resolvedPath = PathResolver.resolveProjectPath(projectPath || undefined) || process.cwd();
+      resolvedPath =
+        PathResolver.resolveProjectPath(projectPath || undefined) ||
+        process.cwd();
     } catch {
       resolvedPath = process.cwd();
     }
@@ -105,51 +119,51 @@ export class Garden {
     const dbSize = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
     let totalEvents = 0;
 
-    if (fs.existsSync(dbPath)) {
-      let db: any;
-      try {
-        db = new Database(dbPath);
-        const row = db.prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='events'").get();
-        if (row && row.count > 0) {
-          const countRow = db.prepare('SELECT COUNT(*) as count FROM events').get();
-          totalEvents = countRow ? Number(countRow.count) : 0;
-        }
-      } catch (e: any) {
-        console.warn(`Error querying database: ${e.message}`);
-      } finally {
-        if (db) {
-          try {
-            db.close();
-          } catch {}
-        }
-      }
-    }
-
-    // 2. Seeds Info (Anchors)
+    // 2. Seeds Info (Anchors) - DB portion
     const anchorsDir = path.join(root, 'anchors');
     let totalAnchors = 0;
     let completedAnchors = 0;
     let completedIds: string[] = [];
     const pendingAnchors: string[] = [];
 
-    // Find completed anchors from database
+    // Open DB once to read all needed data
     if (fs.existsSync(dbPath)) {
-      let db: any;
+      let db: Database.Database | undefined;
       try {
         db = new Database(dbPath);
-        const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'").get();
-        if (row) {
-          const rows = db.prepare("SELECT payload FROM events WHERE tool = 'anchor_submit'").all();
-          completedIds = rows.map((r: any) => {
-            try {
-              const payload = JSON.parse(r.payload);
-              return payload.anchor_id;
-            } catch {
-              return null;
-            }
-          }).filter(Boolean);
+
+        // Check if events table exists
+        const tableRow = db
+          .prepare(
+            "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='events'",
+          )
+          .get() as { count: number } | undefined;
+        if (tableRow && tableRow.count > 0) {
+          // Total events count
+          const countRow = db
+            .prepare('SELECT COUNT(*) as count FROM events')
+            .get() as { count: number } | undefined;
+          totalEvents = countRow ? Number(countRow.count) : 0;
+
+          // Completed anchor IDs
+          const anchorRows = db
+            .prepare("SELECT payload FROM events WHERE tool = 'anchor_submit'")
+            .all();
+          completedIds = anchorRows
+            .map((r: unknown) => {
+              try {
+                const row = r as { payload: string };
+                const payload = JSON.parse(row.payload);
+                return payload.anchor_id;
+              } catch {
+                return null;
+              }
+            })
+            .filter(Boolean);
         }
-      } catch {} finally {
+      } catch (e: unknown) {
+        console.warn(`Error querying database: ${(e as Error).message}`);
+      } finally {
         if (db) {
           try {
             db.close();
@@ -168,7 +182,8 @@ export class Garden {
         totalAnchors++;
         try {
           const content = fs.readFileSync(full, 'utf-8');
-          const data = ext === '.json' ? JSON.parse(content) : yaml.parse(content);
+          const data =
+            ext === '.json' ? JSON.parse(content) : yaml.parse(content);
           const id = data.id || path.basename(file, ext);
           if (completedIds.includes(id)) {
             completedAnchors++;
@@ -189,7 +204,7 @@ export class Garden {
       try {
         const content = fs.readFileSync(taskMdPath, 'utf-8');
         content.split('\n').forEach((line) => {
-          const match = line.match(/-\s*\[([ xX\/])\]/);
+          const match = line.match(/-\s*\[([ xX/])\]/);
           if (match) {
             taskLinesCount++;
             if (['x', 'X'].includes(match[1])) {
@@ -223,16 +238,24 @@ export class Garden {
     console.log(picocolors.yellow('[Seeds - Task & Anchors Progress]'));
     if (totalAnchors > 0) {
       const ratio = ((completedAnchors / totalAnchors) * 100).toFixed(1);
-      console.log(`  Anchors Completed: ${completedAnchors} / ${totalAnchors} (${ratio}%)`);
+      console.log(
+        `  Anchors Completed: ${completedAnchors} / ${totalAnchors} (${ratio}%)`,
+      );
       if (pendingAnchors.length > 0) {
         console.log(`  Pending Anchors:   ${pendingAnchors.join(', ')}`);
       }
     } else {
-      console.log('  Anchors:           No step anchors found in anchors/ directory.');
+      console.log(
+        '  Anchors:           No step anchors found in anchors/ directory.',
+      );
     }
     if (taskLinesCount > 0) {
-      const taskRatio = ((completedTaskLines / taskLinesCount) * 100).toFixed(1);
-      console.log(`  task.md Todo Checklist: ${completedTaskLines} / ${taskLinesCount} tasks completed (${taskRatio}%)`);
+      const taskRatio = ((completedTaskLines / taskLinesCount) * 100).toFixed(
+        1,
+      );
+      console.log(
+        `  task.md Todo Checklist: ${completedTaskLines} / ${taskLinesCount} tasks completed (${taskRatio}%)`,
+      );
     } else {
       console.log('  task.md Checklist: No structured checklist items found.');
     }
@@ -251,7 +274,9 @@ export class Garden {
   public static init(playbookName: string, projectPath?: string): void {
     let resolvedPath = '';
     try {
-      resolvedPath = PathResolver.resolveProjectPath(projectPath || undefined) || process.cwd();
+      resolvedPath =
+        PathResolver.resolveProjectPath(projectPath || undefined) ||
+        process.cwd();
     } catch {
       resolvedPath = process.cwd();
     }
@@ -260,10 +285,13 @@ export class Garden {
     const templateGardenPath = path.join(GlobalConfig.repoPath(), 'garden');
     const playbookTmplDir = path.join(templateGardenPath, playbookName);
 
-    if (!fs.existsSync(playbookTmplDir) || !fs.statSync(playbookTmplDir).isDirectory()) {
-      console.error(picocolors.red(`⛔️ Error: Playbook '${playbookName}' not found in templates!`));
-      console.log("Run 'aura garden list' to see available templates.");
-      process.exit(1);
+    if (
+      !fs.existsSync(playbookTmplDir) ||
+      !fs.statSync(playbookTmplDir).isDirectory()
+    ) {
+      throw new UI.CliError(
+        `Playbook '${playbookName}' not found in templates!\nRun 'aura garden list' to see available templates.`,
+      );
     }
 
     const localGardenDir = path.join(root, 'garden');
@@ -282,10 +310,12 @@ export class Garden {
 
     // 2. Copy the playbook files to garden/<playbook>/
     if (fs.existsSync(localPlaybookDir)) {
-      console.log(`  Playbook directory already exists at garden/${playbookName}. Overwriting config files...`);
+      console.log(
+        `  Playbook directory already exists at garden/${playbookName}. Overwriting config files...`,
+      );
     }
     fs.mkdirSync(localPlaybookDir, { recursive: true });
-    this.copyFolderSync(playbookTmplDir, localPlaybookDir);
+    Garden.copyFolderSync(playbookTmplDir, localPlaybookDir);
     console.log(`  Created playbook workspace: garden/${playbookName}/`);
 
     // 3. Create key software directories
@@ -297,7 +327,11 @@ export class Garden {
       }
     });
 
-    console.log(picocolors.green(`✓ Playbook '${playbookName}' successfully initialized!`));
+    console.log(
+      picocolors.green(
+        `✓ Playbook '${playbookName}' successfully initialized!`,
+      ),
+    );
   }
 
   private static copyFolderSync(from: string, to: string) {
@@ -306,7 +340,7 @@ export class Garden {
       const fromPath = path.join(from, element);
       const toPath = path.join(to, element);
       if (fs.lstatSync(fromPath).isDirectory()) {
-        this.copyFolderSync(fromPath, toPath);
+        Garden.copyFolderSync(fromPath, toPath);
       } else {
         fs.copyFileSync(fromPath, toPath);
       }

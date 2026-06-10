@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execa } from 'execa';
 import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,7 +12,10 @@ describe('CLI tools inspect Integration', { timeout: 30000 }, () => {
   let tempWorkspace: string;
 
   beforeEach(async () => {
-    tempWorkspace = path.resolve(__dirname, `temp-cli-tools-inspect-${Date.now()}`);
+    tempWorkspace = path.resolve(
+      __dirname,
+      `temp-cli-tools-inspect-${Date.now()}`,
+    );
     fs.mkdirSync(tempWorkspace, { recursive: true });
 
     // Initialize workspace
@@ -30,7 +33,7 @@ describe('CLI tools inspect Integration', { timeout: 30000 }, () => {
     const res = await execa(
       'npx',
       ['tsx', auraBinPath, 'tools', 'inspect', 'inspect_tool', '--pretty'],
-      { cwd: tempWorkspace }
+      { cwd: tempWorkspace },
     );
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toContain('"tool":');
@@ -41,7 +44,7 @@ describe('CLI tools inspect Integration', { timeout: 30000 }, () => {
     const res = await execa(
       'npx',
       ['tsx', auraBinPath, 'tools', 'inspect', 'inspect_tool', '--human'],
-      { cwd: tempWorkspace }
+      { cwd: tempWorkspace },
     );
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toContain('Tool: inspect_tool');

@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import * as Registry from '../../src/core/llm/prompts/registry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -52,7 +52,10 @@ describe('Prompt Registry', () => {
     const skillsDir = path.join(tempDir, 'skills');
     fs.mkdirSync(skillsDir, { recursive: true });
     const legacyFile = path.join(skillsDir, 'system.md');
-    fs.writeFileSync(legacyFile, '# AURA OS OPERATING PROTOCOL\nLegacy Override');
+    fs.writeFileSync(
+      legacyFile,
+      '# AURA OS OPERATING PROTOCOL\nLegacy Override',
+    );
 
     const resolved = Registry.resolve('standard', tempDir);
     expect(resolved).toContain('Legacy Override');
@@ -76,8 +79,11 @@ describe('Prompt Registry', () => {
     const issuesTool = Registry.validatePrompt(noTool);
     expect(issuesTool.join(' ')).toContain('tool');
 
-    const badPlaceholder = 'Output JSON tool and args. {{unsupported_placeholder}}';
+    const badPlaceholder =
+      'Output JSON tool and args. {{unsupported_placeholder}}';
     const issuesPlaceholder = Registry.validatePrompt(badPlaceholder);
-    expect(issuesPlaceholder.join(' ')).toContain('Contains unresolved template placeholders');
+    expect(issuesPlaceholder.join(' ')).toContain(
+      'Contains unresolved template placeholders',
+    );
   });
 });

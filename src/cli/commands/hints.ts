@@ -1,9 +1,12 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
+import fg from 'fast-glob';
 import picocolors from 'picocolors';
-import yaml from 'yaml';
+import * as ConfigManager from '../../utils/configManager.js';
+import type { AuraConfig } from '../../utils/configSchema.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import * as UI from '../ui.js';
 
 interface Injectable {
   type: string;
@@ -13,21 +16,29 @@ interface Injectable {
 }
 
 export class Hints {
-  public static list(projectPath?: string): void {
+  public static async list(projectPath?: string): Promise<void> {
     let resolvedPath = '';
     try {
-      resolvedPath = PathResolver.resolveProjectPath(projectPath || undefined) || process.cwd();
+      resolvedPath =
+        PathResolver.resolveProjectPath(projectPath || undefined) ||
+        process.cwd();
     } catch {
       resolvedPath = process.cwd();
     }
 
     const auraDir = PathResolver.findAuraDir(resolvedPath);
     const cfgPath = auraDir ? PathResolver.resolveConfigPath(auraDir) : null;
-    let cfg: any = {};
+    let cfg: AuraConfig = {};
     if (cfgPath && fs.existsSync(cfgPath)) {
       try {
-        cfg = yaml.parse(fs.readFileSync(cfgPath, 'utf-8')) || {};
-      } catch {}
+        cfg = ConfigManager.loadTyped(auraDir || resolvedPath);
+      } catch (e: any) {
+        console.warn(
+          picocolors.yellow(
+            `⚠️ Warning: Failed to load configuration: ${e.message}`,
+          ),
+        );
+      }
     }
 
     const autoInjectReadme = cfg.hints?.auto_inject_readme !== false;
@@ -38,12 +49,13 @@ export class Hints {
     // 1. AURA_README.md
     const readmePath = path.join(resolvedPath, 'AURA_README.md');
     if (fs.existsSync(readmePath)) {
-      const ignored = !autoInjectReadme || ignoreList.includes('AURA_README.md');
+      const ignored =
+        !autoInjectReadme || ignoreList.includes('AURA_README.md');
       const reason = !autoInjectReadme
         ? 'auto_inject_readme: false'
         : ignoreList.includes('AURA_README.md')
-        ? 'in ignore_list'
-        : null;
+          ? 'in ignore_list'
+          : null;
       injectables.push({
         type: 'Global Rules',
         path: 'AURA_README.md',
@@ -53,12 +65,17 @@ export class Hints {
     }
 
     // 2. .hint files
-    const hintDirs = [path.join(resolvedPath, 'knowledge'), path.join(resolvedPath, 'tools')];
+    const hintDirs = [
+      path.join(resolvedPath, 'knowledge'),
+      path.join(resolvedPath, 'tools'),
+    ];
     for (const dir of hintDirs) {
       if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) continue;
-      this.globFiles(dir, '.hint').forEach((file) => {
+      Hints.globFiles(dir, '.hint').forEach((file) => {
         const rel = path.relative(resolvedPath, file);
-        const ignored = ignoreList.some((pat) => this.fnmatch(pat, rel) || rel === pat || rel.includes(pat));
+        const ignored = ignoreList.some(
+          (pat) => Hints.fnmatch(pat, rel) || rel === pat || rel.includes(pat),
+        );
         injectables.push({
           type: '.hint File',
           path: rel,
@@ -69,10 +86,13 @@ export class Hints {
     }
 
     // 3. Magic @aura-hint files
-    this.globAllWorkspaceFiles(resolvedPath).forEach((file) => {
+    const wsFiles = await Hints.globAllWorkspaceFiles(resolvedPath);
+    for (const file of wsFiles) {
       const rel = path.relative(resolvedPath, file);
-      if (this.hasMagicHint(file)) {
-        const ignored = ignoreList.some((pat) => this.fnmatch(pat, rel) || rel === pat || rel.includes(pat));
+      if (Hints.hasMagicHint(file)) {
+        const ignored = ignoreList.some(
+          (pat) => Hints.fnmatch(pat, rel) || rel === pat || rel.includes(pat),
+        );
         injectables.push({
           type: 'Magic Hint (@aura-hint)',
           path: rel,
@@ -80,7 +100,7 @@ export class Hints {
           reason: ignored ? 'in ignore_list' : null,
         });
       }
-    });
+    }
 
     if (injectables.length === 0) {
       console.log(`No files found for hint injection in ${resolvedPath}.`);
@@ -89,47 +109,62 @@ export class Hints {
 
     console.log('\n=== Hint & Guidance Injection Files ===');
     console.log(
-      this.padRight('TYPE', 28) +
-      this.padRight('FILE PATH', 50) +
-      this.padRight('STATUS', 12) +
-      'REASON'
+      Hints.padRight('TYPE', 28) +
+        Hints.padRight('FILE PATH', 50) +
+        Hints.padRight('STATUS', 12) +
+        'REASON',
     );
     console.log('-'.repeat(110));
 
     for (const item of injectables) {
-      const statusColor = item.status === 'INJECTED' ? picocolors.green('INJECTED') : picocolors.yellow('IGNORED');
+      const statusColor =
+        item.status === 'INJECTED'
+          ? picocolors.green('INJECTED')
+          : picocolors.yellow('IGNORED');
       const reasonStr = item.reason ? `(${picocolors.red(item.reason)})` : '';
       console.log(
-        this.padRight(item.type, 28) +
-        this.padRight(item.path, 50) +
-        this.padRight(statusColor, 20) + // padding with colors requires a bit more length
-        reasonStr
+        Hints.padRight(item.type, 28) +
+          Hints.padRight(item.path, 50) +
+          Hints.padRight(statusColor, 20) + // padding with colors requires a bit more length
+          reasonStr,
       );
     }
     console.log('-'.repeat(110));
-    console.log("\n💡 Use 'aura hints toggle <FILE_PATH>' to manually enable/disable injection for a file.");
+    console.log(
+      "\n💡 Use 'aura hints toggle <FILE_PATH>' to manually enable/disable injection for a file.",
+    );
   }
 
   public static toggle(filePath: string, projectPath?: string): void {
     let resolvedPath = '';
     try {
-      resolvedPath = PathResolver.resolveProjectPath(projectPath || undefined) || process.cwd();
+      resolvedPath =
+        PathResolver.resolveProjectPath(projectPath || undefined) ||
+        process.cwd();
     } catch {
       resolvedPath = process.cwd();
     }
 
     const auraDir = PathResolver.findAuraDir(resolvedPath);
     if (!auraDir) {
-      console.error(picocolors.red('⛔️ Error: Not in an Aura workspace.'));
-      process.exit(1);
+      throw new UI.WorkspaceError('Not in an Aura workspace.');
     }
 
     const cfgPath = PathResolver.resolveConfigPath(auraDir);
-    let cfg: any = {};
+    if (!cfgPath) {
+      throw new UI.WorkspaceError('Failed to resolve configuration path.');
+    }
+    let cfg: AuraConfig = {};
     if (fs.existsSync(cfgPath)) {
       try {
-        cfg = yaml.parse(fs.readFileSync(cfgPath, 'utf-8')) || {};
-      } catch {}
+        cfg = ConfigManager.load(auraDir) || {};
+      } catch (e: any) {
+        console.warn(
+          picocolors.yellow(
+            `⚠️ Warning: Failed to load configuration: ${e.message}`,
+          ),
+        );
+      }
     }
 
     cfg.hints = cfg.hints || {};
@@ -139,9 +174,13 @@ export class Hints {
       const current = cfg.hints.auto_inject_readme !== false;
       const newState = !current;
       cfg.hints.auto_inject_readme = newState;
-      fs.writeFileSync(cfgPath, yaml.stringify(cfg), 'utf-8');
-      const statusMsg = newState ? picocolors.green('ENABLED') : picocolors.yellow('DISABLED');
-      console.log(`Toggled AURA_README.md injection. Now: ${statusMsg} (via auto_inject_readme)`);
+      ConfigManager.write(cfgPath, cfg);
+      const statusMsg = newState
+        ? picocolors.green('ENABLED')
+        : picocolors.yellow('DISABLED');
+      console.log(
+        `Toggled AURA_README.md injection. Now: ${statusMsg} (via auto_inject_readme)`,
+      );
       return;
     }
 
@@ -149,12 +188,16 @@ export class Hints {
     const index = list.indexOf(filePath);
     if (index !== -1) {
       list.splice(index, 1);
-      fs.writeFileSync(cfgPath, yaml.stringify(cfg), 'utf-8');
-      console.log(`Removed '${filePath}' from ignore_list. Injection is now ${picocolors.green('ENABLED')}.`);
+      ConfigManager.write(cfgPath, cfg);
+      console.log(
+        `Removed '${filePath}' from ignore_list. Injection is now ${picocolors.green('ENABLED')}.`,
+      );
     } else {
       list.push(filePath);
-      fs.writeFileSync(cfgPath, yaml.stringify(cfg), 'utf-8');
-      console.log(`Added '${filePath}' to ignore_list. Injection is now ${picocolors.yellow('IGNORED')}.`);
+      ConfigManager.write(cfgPath, cfg);
+      console.log(
+        `Added '${filePath}' to ignore_list. Injection is now ${picocolors.yellow('IGNORED')}.`,
+      );
     }
   }
 
@@ -175,57 +218,49 @@ export class Hints {
       console.log(picocolors.yellow('(File does not exist yet)'));
       console.log('\n💡 To create it, run:');
       console.log('   mkdir -p ~/.aura && touch ~/.aura/global_hint.md');
-      console.log('   Then edit the file with your preferences, global instructions, or target models/rules.');
+      console.log(
+        '   Then edit the file with your preferences, global instructions, or target models/rules.',
+      );
     }
     console.log('-'.repeat(60));
   }
 
   private static globFiles(dir: string, ext: string): string[] {
-    const results: string[] = [];
-    const walk = (d: string) => {
-      const files = fs.readdirSync(d);
-      for (const f of files) {
-        if (f === 'node_modules' || f === '.git' || f === '.aura') continue;
-        const full = path.join(d, f);
-        const stat = fs.statSync(full);
-        if (stat.isDirectory()) {
-          walk(full);
-        } else if (f.endsWith(ext)) {
-          results.push(full);
-        }
-      }
-    };
-    walk(dir);
-    return results;
+    try {
+      return fg.sync(`**/*${ext}`, {
+        cwd: dir,
+        ignore: ['**/node_modules/**', '**/.git/**', '**/.aura/**'],
+        absolute: true,
+      });
+    } catch {
+      return [];
+    }
   }
 
-  private static globAllWorkspaceFiles(dir: string): string[] {
-    const results: string[] = [];
-    const walk = (d: string) => {
-      let files: string[] = [];
-      try {
-        files = fs.readdirSync(d);
-      } catch {
-        return;
-      }
-      for (const f of files) {
-        if (['node_modules', '.git', '.aura', 'state', 'dist', 'build'].includes(f)) continue;
-        const full = path.join(d, f);
-        try {
-          const stat = fs.statSync(full);
-          if (stat.isDirectory()) {
-            walk(full);
-          } else if (stat.isFile() && stat.size <= 102400) {
-            const ext = path.extname(f);
-            if (['.py', '.rb', '.sh', '.md', '.txt'].includes(ext)) {
-              results.push(full);
-            }
-          }
-        } catch {}
-      }
-    };
-    walk(dir);
-    return results;
+  private static async globAllWorkspaceFiles(dir: string): Promise<string[]> {
+    try {
+      // fast-glob is async and non-blocking, significantly faster on large projects
+      return await fg(
+        ['**/*.py', '**/*.rb', '**/*.sh', '**/*.md', '**/*.txt'],
+        {
+          cwd: dir,
+          ignore: [
+            'node_modules/**',
+            '.git/**',
+            '.aura/**',
+            'state/**',
+            'dist/**',
+            'build/**',
+          ],
+          absolute: true,
+          followSymbolicLinks: false,
+          // Exclude files larger than 100KB
+          stats: false,
+        },
+      );
+    } catch {
+      return [];
+    }
   }
 
   private static hasMagicHint(file: string): boolean {
@@ -240,7 +275,10 @@ export class Hints {
 
   private static fnmatch(pattern: string, file: string): boolean {
     // Simple wildcard translation
-    const regexStr = '^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*').replace(/\?/g, '.') + '$';
+    const regexStr =
+      '^' +
+      pattern.replace(/\./g, '\\.').replace(/\*/g, '.*').replace(/\?/g, '.') +
+      '$';
     try {
       const regex = new RegExp(regexStr);
       return regex.test(file);

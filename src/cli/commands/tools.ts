@@ -1,19 +1,50 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
 import { execa } from 'execa';
 import picocolors from 'picocolors';
 import yaml from 'yaml';
-import * as PathResolver from '../../utils/pathResolver.js';
-import * as GlobalConfig from '../../utils/globalConfig.js';
 import { ToolRegistry } from '../../core/kernel/registry.js';
+import * as GlobalConfig from '../../utils/globalConfig.js';
+import * as PathResolver from '../../utils/pathResolver.js';
+import * as UI from '../ui.js';
+
+interface ManifestOverrides {
+  name: string;
+  creates_context?: string;
+  requires_context?: string;
+  destroys_context?: boolean;
+  [key: string]: unknown;
+}
+
+interface InspectToolResult {
+  tool?: string;
+  status?: string;
+  error?: string;
+  code?: string;
+  manifest?: Record<string, any>;
+  files?: string[];
+  hint?: string;
+  magic_hints?: string[];
+  tree?: string[];
+}
 
 export class Tools {
-  public static list(projectPath?: string, options: { human?: boolean } = {}): void {
+  public static list(
+    projectPath?: string,
+    options: { human?: boolean } = {},
+  ): void {
     let resolvedPath = '';
     try {
-      resolvedPath = PathResolver.resolveProjectPath(projectPath || undefined) || process.cwd();
-    } catch {
+      resolvedPath =
+        PathResolver.resolveProjectPath(projectPath || undefined) ||
+        process.cwd();
+    } catch (e: unknown) {
+      console.warn(
+        picocolors.yellow(
+          `⚠️ Warning: Failed to resolve project path: ${(e as Error).message}`,
+        ),
+      );
       resolvedPath = process.cwd();
     }
 
@@ -32,32 +63,42 @@ export class Tools {
     }
   }
 
-  public static async inspect(name: string, options: { pretty?: boolean; human?: boolean } = {}): Promise<void> {
+  public static async inspect(
+    name: string,
+    options: { pretty?: boolean; human?: boolean } = {},
+  ): Promise<void> {
     let resolvedPath = '';
     try {
-      resolvedPath = PathResolver.resolveProjectPath(undefined) || process.cwd();
-    } catch {
+      resolvedPath =
+        PathResolver.resolveProjectPath(undefined) || process.cwd();
+    } catch (e: unknown) {
+      console.warn(
+        picocolors.yellow(
+          `⚠️ Warning: Failed to resolve project path: ${(e as Error).message}`,
+        ),
+      );
       resolvedPath = process.cwd();
     }
 
     const envPath = PathResolver.environmentPath(resolvedPath) || resolvedPath;
-    const python = this.runtimePython(envPath);
+    const python = Tools.runtimePython(envPath);
     const logic = path.join(envPath, 'tools', 'inspect_tool', 'logic.py');
 
     if (!fs.existsSync(logic)) {
-      console.error(`inspect_tool not found under ${logic}`);
-      return;
+      throw new UI.ToolError(`inspect_tool not found under ${logic}`);
     }
 
     const payload = JSON.stringify({ tool_name: name });
     try {
-      const { stdout, stderr } = await execa(python, [logic], { input: payload });
+      const { stdout, stderr } = await execa(python, [logic], {
+        input: payload,
+      });
       const text = stdout.trim() || stderr.trim();
 
       try {
-        const data = JSON.parse(text);
+        const data = JSON.parse(text) as InspectToolResult;
         if (options.human) {
-          console.log(this.humanToolInspect(data, name, envPath));
+          console.log(Tools.humanToolInspect(data, name, envPath));
         } else if (options.pretty) {
           console.log(JSON.stringify(data, null, 2));
         } else {
@@ -66,57 +107,72 @@ export class Tools {
       } catch {
         console.log(text);
       }
-    } catch (e: any) {
-      console.error(picocolors.red(`Error running inspect_tool: ${e.message}`));
+    } catch (e: unknown) {
+      throw new UI.ToolError(
+        `Error running inspect_tool: ${(e as Error).message}`,
+      );
     }
   }
 
   public static async add(toolNameOrUrl: string): Promise<void> {
-    const isUrlOrLocal = toolNameOrUrl.startsWith('http://') ||
-                         toolNameOrUrl.startsWith('https://') ||
-                         toolNameOrUrl.startsWith('git@') ||
-                         (fs.existsSync(toolNameOrUrl) && fs.statSync(toolNameOrUrl).isDirectory());
+    const isUrlOrLocal =
+      toolNameOrUrl.startsWith('http://') ||
+      toolNameOrUrl.startsWith('https://') ||
+      toolNameOrUrl.startsWith('git@') ||
+      (fs.existsSync(toolNameOrUrl) &&
+        fs.statSync(toolNameOrUrl).isDirectory());
 
     if (isUrlOrLocal) {
-      await this.install(toolNameOrUrl);
+      await Tools.install(toolNameOrUrl);
     } else {
       let resolvedPath = '';
       try {
-        resolvedPath = PathResolver.resolveProjectPath(undefined) || process.cwd();
-      } catch {
-        resolvedPath = process.cwd();
+        resolvedPath =
+          PathResolver.resolveProjectPath(undefined) || process.cwd();
+      } catch (e: unknown) {
+        throw new UI.ToolError(
+          `Failed to resolve project path: ${(e as Error).message}`,
+        );
       }
 
       const libraryToolsDir = path.join(GlobalConfig.repoPath(), 'tools');
       const srcDir = path.join(libraryToolsDir, toolNameOrUrl);
 
       if (!fs.existsSync(srcDir) || !fs.statSync(srcDir).isDirectory()) {
-        const available = this.availableLibraryTools(libraryToolsDir);
-        console.error(picocolors.red(`⛔️ Error: Tool '${toolNameOrUrl}' not found in library. Available tools: ${available.join(', ')}`));
-        process.exit(1);
+        const available = Tools.availableLibraryTools(libraryToolsDir);
+        throw new UI.ToolError(
+          `Tool '${toolNameOrUrl}' not found in library. Available tools: ${available.join(', ')}`,
+        );
       }
 
       const destDir = path.join(resolvedPath, 'tools', toolNameOrUrl);
       if (fs.existsSync(destDir)) {
-        console.error(picocolors.red(`⛔️ Error: Tool '${toolNameOrUrl}' already exists at: ${destDir}`));
-        process.exit(1);
+        throw new UI.ToolError(
+          `Tool '${toolNameOrUrl}' already exists at: ${destDir}`,
+        );
       }
 
       fs.mkdirSync(path.dirname(destDir), { recursive: true });
-      this.copyFolderSync(srcDir, destDir);
-      console.log(picocolors.green(`Tool '${toolNameOrUrl}' installed successfully!`));
+      Tools.copyFolderSync(srcDir, destDir);
+      UI.printSuccess(`Tool '${toolNameOrUrl}' installed successfully!`);
     }
   }
 
   public static async install(urlOrPath: string, name?: string): Promise<void> {
     let resolvedPath = '';
     try {
-      resolvedPath = PathResolver.resolveProjectPath(undefined) || process.cwd();
-    } catch {
-      resolvedPath = process.cwd();
+      resolvedPath =
+        PathResolver.resolveProjectPath(undefined) || process.cwd();
+    } catch (e: unknown) {
+      throw new UI.ToolError(
+        `Failed to resolve project path: ${(e as Error).message}`,
+      );
     }
 
-    const isGit = urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://') || urlOrPath.startsWith('git@');
+    const isGit =
+      urlOrPath.startsWith('http://') ||
+      urlOrPath.startsWith('https://') ||
+      urlOrPath.startsWith('git@');
     const tmpPrefix = path.join(os.tmpdir(), 'tool_install_');
     const tmpDir = fs.mkdtempSync(tmpPrefix);
 
@@ -127,56 +183,67 @@ export class Tools {
         try {
           await execa('git', ['clone', '--depth', '1', urlOrPath, tmpDir]);
           srcDir = tmpDir;
-        } catch (err: any) {
-          console.error(picocolors.red(`⛔️ Error: Failed to clone repository: ${err.message}`));
-          process.exit(1);
+        } catch (err: unknown) {
+          throw new UI.ToolError(
+            `Failed to clone repository: ${(err as Error).message}`,
+          );
         }
       } else {
         srcDir = path.resolve(urlOrPath);
         if (!fs.existsSync(srcDir) || !fs.statSync(srcDir).isDirectory()) {
-          console.error(picocolors.red(`⛔️ Error: Local path '${urlOrPath}' is not a directory.`));
-          process.exit(1);
+          throw new UI.ToolError(
+            `Local path '${urlOrPath}' is not a directory.`,
+          );
         }
       }
 
       let manifestPath = path.join(srcDir, 'manifest.json');
       if (!fs.existsSync(manifestPath)) {
-        const matches = this.globManifestJson(srcDir);
+        const matches = Tools.globManifestJson(srcDir);
         if (matches.length > 0) {
           manifestPath = matches[0];
           srcDir = path.dirname(manifestPath);
         } else {
-          console.error(picocolors.red('⛔️ Error: No manifest.json file found in the source directory.'));
-          process.exit(1);
+          throw new UI.ToolError(
+            'No manifest.json file found in the source directory.',
+          );
         }
       }
 
       let toolName = name;
       if (!toolName || toolName.trim().length === 0) {
         try {
-          const manifestData = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+          const manifestData = JSON.parse(
+            fs.readFileSync(manifestPath, 'utf-8'),
+          );
           toolName = manifestData.name;
         } catch {}
         if (!toolName) {
-          toolName = path.basename(srcDir).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+          toolName = path
+            .basename(srcDir)
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]/g, '');
         }
       }
 
       const destDir = path.join(resolvedPath, 'tools', toolName);
       if (fs.existsSync(destDir)) {
-        console.error(picocolors.red(`⛔️ Error: Tool '${toolName}' already exists at: ${destDir}`));
-        process.exit(1);
+        throw new UI.ToolError(
+          `Tool '${toolName}' already exists at: ${destDir}`,
+        );
       }
 
       fs.mkdirSync(path.dirname(destDir), { recursive: true });
-      this.copyFolderSync(srcDir, destDir);
+      Tools.copyFolderSync(srcDir, destDir);
 
       const innerGit = path.join(destDir, '.git');
       if (fs.existsSync(innerGit)) {
         fs.rmSync(innerGit, { recursive: true, force: true });
       }
 
-      console.log(picocolors.green(`✓ Tool '${toolName}' successfully installed to: ${destDir}`));
+      UI.printSuccess(
+        `Tool '${toolName}' successfully installed to: ${destDir}`,
+      );
     } finally {
       try {
         if (fs.existsSync(tmpDir)) {
@@ -189,15 +256,17 @@ export class Tools {
   public static generateGroup(name: string, subtools: string[]): void {
     let resolvedPath = '';
     try {
-      resolvedPath = PathResolver.resolveProjectPath(undefined) || process.cwd();
-    } catch {
-      resolvedPath = process.cwd();
+      resolvedPath =
+        PathResolver.resolveProjectPath(undefined) || process.cwd();
+    } catch (e: unknown) {
+      throw new UI.ToolError(
+        `Failed to resolve project path: ${(e as Error).message}`,
+      );
     }
 
     const groupDir = path.join(resolvedPath, 'tools', name);
     if (fs.existsSync(groupDir)) {
-      console.error(picocolors.red(`⛔️ Error: Tool group '${name}' already exists.`));
-      process.exit(1);
+      throw new UI.ToolError(`Tool group '${name}' already exists.`);
     }
 
     fs.mkdirSync(groupDir, { recursive: true });
@@ -222,16 +291,20 @@ export class Tools {
       subtools: ['close', ...subtools],
     };
 
-    fs.writeFileSync(path.join(groupDir, 'group_manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+    fs.writeFileSync(
+      path.join(groupDir, 'group_manifest.json'),
+      JSON.stringify(manifest, null, 2),
+      'utf-8',
+    );
 
     // Create open
-    this.createTool(path.join(groupDir, 'open'), {
+    Tools.createTool(path.join(groupDir, 'open'), {
       name: `${name}_open`,
       creates_context: `${name}_session`,
     });
 
     // Create close
-    this.createTool(path.join(groupDir, 'close'), {
+    Tools.createTool(path.join(groupDir, 'close'), {
       name: `${name}_close`,
       requires_context: `${name}_session`,
       destroys_context: true,
@@ -239,24 +312,28 @@ export class Tools {
 
     // Create subtools
     for (const st of subtools) {
-      this.createTool(path.join(groupDir, st), {
+      Tools.createTool(path.join(groupDir, st), {
         name: `${name}_${st}`,
         requires_context: `${name}_session`,
       });
     }
 
-    console.log(picocolors.green(`Tool group '${name}' generated successfully under tools/${name}`));
+    UI.printSuccess(
+      `Tool group '${name}' generated successfully under tools/${name}`,
+    );
   }
 
-  private static createTool(dir: string, manifestOverrides: any): void {
+  private static createTool(
+    dir: string,
+    manifestOverrides: ManifestOverrides,
+  ): void {
     fs.mkdirSync(dir, { recursive: true });
 
     const manifest = {
-      name: manifestOverrides.name,
       description: `Description for ${manifestOverrides.name}`,
       runtime: 'python3',
       entry: 'logic.py',
-      auto_load: manifestOverrides.creates_context ? true : false,
+      auto_load: !!manifestOverrides.creates_context,
       input_schema: {
         type: 'object',
         properties: {
@@ -267,11 +344,15 @@ export class Tools {
       ...manifestOverrides,
     };
 
-    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+    fs.writeFileSync(
+      path.join(dir, 'manifest.json'),
+      JSON.stringify(manifest, null, 2),
+      'utf-8',
+    );
     fs.writeFileSync(
       path.join(dir, 'logic.py'),
-      '#!/usr/bin/env python\nimport sys, json\n\nargs = json.loads(sys.stdin.read())\nprint(json.dumps({\'success\': True}))\n',
-      { mode: 0o755 }
+      "#!/usr/bin/env python\nimport sys, json\n\nargs = json.loads(sys.stdin.read())\nprint(json.dumps({'success': True}))\n",
+      { mode: 0o755 },
     );
   }
 
@@ -300,7 +381,11 @@ export class Tools {
     }
   }
 
-  private static humanToolInspect(data: any, requestedName: string, envPath: string): string {
+  private static humanToolInspect(
+    data: InspectToolResult,
+    requestedName: string,
+    envPath: string,
+  ): string {
     const lines: string[] = [];
     const tname = data.tool || requestedName;
     lines.push(`Tool: ${tname}`);
@@ -312,12 +397,13 @@ export class Tools {
     if (man.name) lines.push(`Name: ${man.name}`);
     if (man.description) lines.push(`Description: ${man.description}`);
     if (man.runtime) lines.push(`Runtime: ${man.runtime}`);
-    if (man.permissions) lines.push(`Permissions: ${JSON.stringify(man.permissions)}`);
+    if (man.permissions)
+      lines.push(`Permissions: ${JSON.stringify(man.permissions)}`);
 
     const files = data.files || [];
     if (files.length > 0) lines.push(`Files: ${files.join(', ')}`);
 
-    const hint = data.hint || (data.magic_hints && data.magic_hints[0]);
+    const hint = data.hint || data.magic_hints?.[0];
     if (hint) lines.push(`Hint: ${hint}`);
 
     if (man.input_schema && typeof man.input_schema === 'object') {
@@ -336,7 +422,7 @@ export class Tools {
       lines.push(...data.tree.slice(0, 30));
     }
 
-    const reqFiles = this.requiredFilesFromConfig(envPath);
+    const reqFiles = Tools.requiredFilesFromConfig(envPath);
     if (reqFiles.length > 0 && files.length > 0) {
       const missing = reqFiles.filter((rf) => !files.includes(rf));
       if (missing.length > 0) {
@@ -398,7 +484,7 @@ export class Tools {
       const fromPath = path.join(from, element);
       const toPath = path.join(to, element);
       if (fs.lstatSync(fromPath).isDirectory()) {
-        this.copyFolderSync(fromPath, toPath);
+        Tools.copyFolderSync(fromPath, toPath);
       } else {
         fs.copyFileSync(fromPath, toPath);
       }

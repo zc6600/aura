@@ -68,9 +68,9 @@ System tests are intentionally separate from unit/integration tests. They answer
 # Run only system tests with a real provider key
 RUN_SYSTEM_TESTS=1 OPENROUTER_API_KEY=... npx vitest run tests/system/
 
-# Or copy the local env template and run without exporting keys in the shell
-cp tests/system/.env.example tests/system/.env
-$EDITOR tests/system/.env
+# Or copy the root env template and run without exporting keys in the shell
+cp .env.example .env
+$EDITOR .env
 npx vitest run tests/system/
 
 # Override provider/model discovery
@@ -87,7 +87,7 @@ System tests should:
 - Avoid asserting exact natural-language output from the model.
 - Use tiny temporary workspaces and bounded `max_steps`, `max_tokens`, retries, and timeouts.
 - Stay opt-in with `RUN_SYSTEM_TESTS=1`; ordinary CI should not call real LLM APIs.
-- Keep real keys in shell environment variables or `tests/system/.env`, which is ignored by git.
+- Keep real keys in shell environment variables or the repository root `.env`, which is ignored by git.
 - Leave capability scoring, hard tasks, and model-to-model comparisons to `tests/benchmark/**`.
 
 ---

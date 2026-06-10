@@ -1,11 +1,11 @@
-import http from 'node:http';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { execa } from 'execa';
 import yaml from 'yaml';
-import * as PathResolver from '../../utils/pathResolver.js';
 import { VERSION } from '../../index.js';
+import * as PathResolver from '../../utils/pathResolver.js';
 
 export class WebServer {
   private projectPath: string;
@@ -21,171 +21,185 @@ export class WebServer {
     this.projectPath = path.resolve(projectPath);
     this.port = port;
     this.host = host;
-    this.envPath = PathResolver.environmentPath(this.projectPath) || this.projectPath;
+    this.envPath =
+      PathResolver.environmentPath(this.projectPath) || this.projectPath;
     this.dbPath = PathResolver.sessionDbPath(this.projectPath);
     this.projectName = this.extractProjectName();
   }
 
-  public start(): void {
-    this.setupSignalHandlers();
+  public start(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      this.setupSignalHandlers();
 
-    this.server = http.createServer(async (req, res) => {
-      const urlObj = new URL(req.url || '/', `http://${this.host}:${this.port}`);
-      const method = req.method || 'GET';
-      const pathname = urlObj.pathname;
+      this.server = http.createServer(async (req, res) => {
+        const urlObj = new URL(
+          req.url || '/',
+          `http://${this.host}:${this.port}`,
+        );
+        const method = req.method || 'GET';
+        const pathname = urlObj.pathname;
 
-      // Handle CORS preflight
-      if (method === 'OPTIONS') {
-        res.writeHead(200, {
+        // Handle CORS preflight
+        if (method === 'OPTIONS') {
+          res.writeHead(200, {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Max-Age': '86400',
+          });
+          res.end();
+          return;
+        }
+
+        // Add common CORS headers to all JSON API responses
+        const jsonHeaders = {
+          'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type',
-          'Access-Control-Max-Age': '86400',
-        });
-        res.end();
-        return;
-      }
+        };
 
-      // Add common CORS headers to all JSON API responses
-      const jsonHeaders = {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      };
+        console.log(
+          `[${new Date().toLocaleTimeString()}] ${method} ${pathname}`,
+        );
 
-      console.log(`[${new Date().toLocaleTimeString()}] ${method} ${pathname}`);
-
-      try {
-        if (pathname === '/events') {
-          let body = '';
-          if (fs.existsSync(this.dbPath)) {
-            const db = new Database(this.dbPath, { readonly: true });
-            try {
-              const rows = db.prepare('SELECT payload FROM events ORDER BY id DESC LIMIT 50').all() as { payload: string }[];
-              const lines = rows.map(r => r.payload);
-              body = lines.reverse().join('\n');
-            } catch (err) {
-              // ignore
-            } finally {
-              db.close();
-            }
-          }
-          res.writeHead(200, jsonHeaders);
-          res.end(JSON.stringify({ tail: body }));
-        } 
-        
-        else if (pathname === '/diff') {
-          const diff = await this.getDiff();
-          res.writeHead(200, jsonHeaders);
-          res.end(JSON.stringify({ diff }));
-        } 
-        
-        else if (pathname === '/sse') {
-          res.writeHead(200, {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'Access-Control-Allow-Origin': '*',
-          });
-          res.flushHeaders();
-
-          let lastId = 0;
-          const interval = setInterval(() => {
-            if (!this.running) {
-              clearInterval(interval);
-              res.end();
-              return;
-            }
+        try {
+          if (pathname === '/events') {
+            let body = '';
             if (fs.existsSync(this.dbPath)) {
-              let db: Database.Database | null = null;
+              const db = new Database(this.dbPath, { readonly: true });
               try {
-                db = new Database(this.dbPath, { readonly: true });
-                const rows = db.prepare('SELECT id, payload FROM events WHERE id > ? ORDER BY id ASC').all(lastId) as { id: number; payload: string }[];
-                for (const row of rows) {
-                  res.write(`data: ${row.payload}\n\n`);
-                  lastId = Number(row.id);
-                }
-              } catch (e: any) {
-                res.write(`event: error\ndata: ${e.message}\n\n`);
+                const rows = db
+                  .prepare(
+                    'SELECT payload FROM events ORDER BY id DESC LIMIT 50',
+                  )
+                  .all() as { payload: string }[];
+                const lines = rows.map((r) => r.payload);
+                body = lines.reverse().join('\n');
+              } catch (_err) {
+                // ignore
               } finally {
-                if (db) db.close();
+                db.close();
               }
             }
-          }, 500);
+            res.writeHead(200, jsonHeaders);
+            res.end(JSON.stringify({ tail: body }));
+          } else if (pathname === '/diff') {
+            const diff = await this.getDiff();
+            res.writeHead(200, jsonHeaders);
+            res.end(JSON.stringify({ diff }));
+          } else if (pathname === '/sse') {
+            res.writeHead(200, {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              Connection: 'keep-alive',
+              'Access-Control-Allow-Origin': '*',
+            });
+            res.flushHeaders();
 
-          req.on('close', () => {
-            clearInterval(interval);
-          });
-        } 
-        
-        else if (pathname === '/shutdown') {
-          res.writeHead(200, { 'Content-Type': 'text/plain' });
-          res.end('shutting down');
-          setTimeout(() => this.stop(), 200);
-        } 
-        
-        else if (pathname === '/api/sessions') {
-          let sessions: string[] = [];
-          if (fs.existsSync(this.dbPath)) {
-            const db = new Database(this.dbPath, { readonly: true });
-            try {
-              const rows = db.prepare("SELECT DISTINCT phase FROM events WHERE phase IS NOT NULL AND phase != '' ORDER BY phase DESC LIMIT 20").all() as { phase: string }[];
-              sessions = rows.map(r => r.phase);
-            } catch (err) {
-              // ignore
-            } finally {
-              db.close();
-            }
-          }
-          res.writeHead(200, jsonHeaders);
-          res.end(JSON.stringify({ sessions }));
-        } 
-        
-        else if (pathname.startsWith('/api/sessions/')) {
-          const sessionId = pathname.substring('/api/sessions/'.length);
-          let events: any[] = [];
-          if (fs.existsSync(this.dbPath)) {
-            const db = new Database(this.dbPath, { readonly: true });
-            try {
-              const rows = db.prepare('SELECT payload FROM events WHERE phase = ? ORDER BY id ASC').all(sessionId) as { payload: string }[];
-              events = rows.map(r => {
+            let lastId = 0;
+            const interval = setInterval(() => {
+              if (!this.running) {
+                clearInterval(interval);
+                res.end();
+                return;
+              }
+              if (fs.existsSync(this.dbPath)) {
+                let db: Database.Database | null = null;
                 try {
-                  return JSON.parse(r.payload);
-                } catch {
-                  return r.payload;
+                  db = new Database(this.dbPath, { readonly: true });
+                  const rows = db
+                    .prepare(
+                      'SELECT id, payload FROM events WHERE id > ? ORDER BY id ASC',
+                    )
+                    .all(lastId) as { id: number; payload: string }[];
+                  for (const row of rows) {
+                    res.write(`data: ${row.payload}\n\n`);
+                    lastId = Number(row.id);
+                  }
+                } catch (e: any) {
+                  res.write(`event: error\ndata: ${e.message}\n\n`);
+                } finally {
+                  if (db) db.close();
                 }
-              });
-            } catch (err) {
-              // ignore
-            } finally {
-              db.close();
-            }
-          }
-          res.writeHead(200, jsonHeaders);
-          res.end(JSON.stringify({ session_id: sessionId, events }));
-        } 
-        
-        else if (pathname === '/api/status') {
-          const status = this.getStatusInfo();
-          res.writeHead(200, jsonHeaders);
-          res.end(JSON.stringify(status));
-        } 
-        
-        else {
-          // Serve dashboard HTML
-          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(this.buildDashboardHtml());
-        }
-      } catch (e: any) {
-        console.error(`Error handling ${pathname}: ${e.message}`);
-        res.writeHead(500, jsonHeaders);
-        res.end(JSON.stringify({ error: e.message, timestamp: Date.now() }));
-      }
-    });
+              }
+            }, 500);
 
-    this.server.listen(this.port, this.host, () => {
-      console.log(`Aura Web listening at http://${this.host}:${this.port}/`);
+            req.on('close', () => {
+              clearInterval(interval);
+            });
+          } else if (pathname === '/shutdown') {
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('shutting down');
+            setTimeout(() => this.stop(), 200);
+          } else if (pathname === '/api/sessions') {
+            let sessions: string[] = [];
+            if (fs.existsSync(this.dbPath)) {
+              const db = new Database(this.dbPath, { readonly: true });
+              try {
+                const rows = db
+                  .prepare(
+                    "SELECT DISTINCT phase FROM events WHERE phase IS NOT NULL AND phase != '' ORDER BY phase DESC LIMIT 20",
+                  )
+                  .all() as { phase: string }[];
+                sessions = rows.map((r) => r.phase);
+              } catch (_err) {
+                // ignore
+              } finally {
+                db.close();
+              }
+            }
+            res.writeHead(200, jsonHeaders);
+            res.end(JSON.stringify({ sessions }));
+          } else if (pathname.startsWith('/api/sessions/')) {
+            const sessionId = pathname.substring('/api/sessions/'.length);
+            let events: any[] = [];
+            if (fs.existsSync(this.dbPath)) {
+              const db = new Database(this.dbPath, { readonly: true });
+              try {
+                const rows = db
+                  .prepare(
+                    'SELECT payload FROM events WHERE phase = ? ORDER BY id ASC',
+                  )
+                  .all(sessionId) as { payload: string }[];
+                events = rows.map((r) => {
+                  try {
+                    return JSON.parse(r.payload);
+                  } catch {
+                    return r.payload;
+                  }
+                });
+              } catch (_err) {
+                // ignore
+              } finally {
+                db.close();
+              }
+            }
+            res.writeHead(200, jsonHeaders);
+            res.end(JSON.stringify({ session_id: sessionId, events }));
+          } else if (pathname === '/api/status') {
+            const status = this.getStatusInfo();
+            res.writeHead(200, jsonHeaders);
+            res.end(JSON.stringify(status));
+          } else {
+            // Serve dashboard HTML
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(this.buildDashboardHtml());
+          }
+        } catch (e: any) {
+          console.error(`Error handling ${pathname}: ${e.message}`);
+          res.writeHead(500, jsonHeaders);
+          res.end(JSON.stringify({ error: e.message, timestamp: Date.now() }));
+        }
+      });
+
+      this.server.on('close', () => {
+        resolve();
+      });
+
+      this.server.listen(this.port, this.host, () => {
+        console.log(`Aura Web listening at http://${this.host}:${this.port}/`);
+      });
     });
   }
 
@@ -228,9 +242,15 @@ export class WebServer {
     if (fs.existsSync(this.dbPath)) {
       const db = new Database(this.dbPath, { readonly: true });
       try {
-        const countRow = db.prepare('SELECT COUNT(*) as count FROM events').get() as { count: number };
+        const countRow = db
+          .prepare('SELECT COUNT(*) as count FROM events')
+          .get() as { count: number };
         totalEvents = countRow?.count || 0;
-        const sessionsRow = db.prepare("SELECT DISTINCT phase FROM events WHERE phase IS NOT NULL AND phase != ''").all() as { phase: string }[];
+        const sessionsRow = db
+          .prepare(
+            "SELECT DISTINCT phase FROM events WHERE phase IS NOT NULL AND phase != ''",
+          )
+          .all() as { phase: string }[];
         totalSessions = sessionsRow.length;
       } catch {
         // ignore
@@ -246,7 +266,8 @@ export class WebServer {
       db_size: fs.existsSync(this.dbPath) ? fs.statSync(this.dbPath).size : 0,
       model: llmConfig.model || 'Unknown',
       provider: llmConfig.provider || 'Unknown',
-      temperature: llmConfig.temperature !== undefined ? llmConfig.temperature : 0.7,
+      temperature:
+        llmConfig.temperature !== undefined ? llmConfig.temperature : 0.7,
       total_events: totalEvents,
       total_sessions: totalSessions,
       node_version: process.version,
@@ -261,11 +282,16 @@ export class WebServer {
 
     if (fs.existsSync(path.join(shadowPath, '.git'))) {
       try {
-        const { stdout, exitCode } = await execa('git', ['diff', 'HEAD~1', 'HEAD'], { cwd: shadowPath, reject: false });
+        const { stdout, exitCode } = await execa(
+          'git',
+          ['diff', 'HEAD~1', 'HEAD'],
+          { cwd: shadowPath, reject: false },
+        );
         if (exitCode === 0 && stdout.trim().length > 0) {
           diffBody = stdout;
         } else {
-          const { stdout: stdoutUnstaged, exitCode: exitCodeUnstaged } = await execa('git', ['diff'], { cwd: shadowPath, reject: false });
+          const { stdout: stdoutUnstaged, exitCode: exitCodeUnstaged } =
+            await execa('git', ['diff'], { cwd: shadowPath, reject: false });
           if (exitCodeUnstaged === 0 && stdoutUnstaged.trim().length > 0) {
             diffBody = stdoutUnstaged;
           }
@@ -279,7 +305,9 @@ export class WebServer {
 
   private setupSignalHandlers(): void {
     const handler = () => {
-      console.log('\n\x1b[33mReceived shutdown signal. Shutting down gracefully...\x1b[0m');
+      console.log(
+        '\n\x1b[33mReceived shutdown signal. Shutting down gracefully...\x1b[0m',
+      );
       this.stop();
     };
     process.on('SIGINT', handler);

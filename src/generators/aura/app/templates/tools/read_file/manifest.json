@@ -30,9 +30,7 @@
         "description": "Allowed path prefixes"
       }
     },
-    "required": [
-      "file_path"
-    ]
+    "required": ["file_path"]
   },
   "memory": {
     "retention": "working",

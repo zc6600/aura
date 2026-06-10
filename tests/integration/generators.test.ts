@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
-import { execa } from 'execa';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Tools } from '../../src/cli/commands/tools.js';
 
@@ -15,7 +15,9 @@ describe('Generators Integration', { timeout: 30000 }, () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-generators-integration-'));
+    testDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'aura-generators-integration-'),
+    );
   });
 
   afterEach(() => {
@@ -24,7 +26,7 @@ describe('Generators Integration', { timeout: 30000 }, () => {
       if (fs.existsSync(testDir)) {
         fs.rmSync(testDir, { recursive: true, force: true });
       }
-    } catch (e) {}
+    } catch (_e) {}
   });
 
   // 1. Project Scaffolding
@@ -38,7 +40,9 @@ describe('Generators Integration', { timeout: 30000 }, () => {
 
     const requiredFiles = ['logic.py', 'manifest.json', 'logic.py.hint'];
     for (const f of requiredFiles) {
-      expect(fs.existsSync(path.join(hidden, 'tools', 'read_file', f))).toBe(true);
+      expect(fs.existsSync(path.join(hidden, 'tools', 'read_file', f))).toBe(
+        true,
+      );
     }
   });
 
@@ -52,9 +56,13 @@ describe('Generators Integration', { timeout: 30000 }, () => {
 
       const browserDir = path.join(testDir, 'tools', 'browser');
       expect(fs.existsSync(browserDir)).toBe(true);
-      expect(fs.existsSync(path.join(browserDir, 'group_manifest.json'))).toBe(true);
+      expect(fs.existsSync(path.join(browserDir, 'group_manifest.json'))).toBe(
+        true,
+      );
 
-      const groupManifest = JSON.parse(fs.readFileSync(path.join(browserDir, 'group_manifest.json'), 'utf-8'));
+      const groupManifest = JSON.parse(
+        fs.readFileSync(path.join(browserDir, 'group_manifest.json'), 'utf-8'),
+      );
       expect(groupManifest.group_name).toBe('browser');
       expect(groupManifest.entry_tool).toBe('open');
       expect(groupManifest.subtools).toContain('click');
@@ -65,7 +73,12 @@ describe('Generators Integration', { timeout: 30000 }, () => {
       expect(fs.existsSync(path.join(browserDir, 'click'))).toBe(true);
       expect(fs.existsSync(path.join(browserDir, 'close'))).toBe(true);
 
-      const clickManifest = JSON.parse(fs.readFileSync(path.join(browserDir, 'click', 'manifest.json'), 'utf-8'));
+      const clickManifest = JSON.parse(
+        fs.readFileSync(
+          path.join(browserDir, 'click', 'manifest.json'),
+          'utf-8',
+        ),
+      );
       expect(clickManifest.name).toBe('browser_click');
       expect(clickManifest.requires_context).toBe('browser_session');
       expect(clickManifest.input_schema.required).toContain('context_id');
@@ -78,7 +91,10 @@ describe('Generators Integration', { timeout: 30000 }, () => {
       Tools.generateGroup('search', []);
 
       const openManifest = JSON.parse(
-        fs.readFileSync(path.join(testDir, 'tools', 'search', 'open', 'manifest.json'), 'utf-8')
+        fs.readFileSync(
+          path.join(testDir, 'tools', 'search', 'open', 'manifest.json'),
+          'utf-8',
+        ),
       );
       expect(openManifest.auto_load).toBe(true);
       expect(openManifest.creates_context).toBe('search_session');
@@ -91,7 +107,10 @@ describe('Generators Integration', { timeout: 30000 }, () => {
       Tools.generateGroup('db', []);
 
       const closeManifest = JSON.parse(
-        fs.readFileSync(path.join(testDir, 'tools', 'db', 'close', 'manifest.json'), 'utf-8')
+        fs.readFileSync(
+          path.join(testDir, 'tools', 'db', 'close', 'manifest.json'),
+          'utf-8',
+        ),
       );
       expect(closeManifest.destroys_context).toBe(true);
     });
@@ -101,10 +120,12 @@ describe('Generators Integration', { timeout: 30000 }, () => {
   describe('Tools Generator (Add Tool)', () => {
     it('add tool success', async () => {
       const mockTemplateDir = path.join(testDir, 'templates');
-      fs.mkdirSync(path.join(mockTemplateDir, 'tools', 'dummy_tool'), { recursive: true });
+      fs.mkdirSync(path.join(mockTemplateDir, 'tools', 'dummy_tool'), {
+        recursive: true,
+      });
       fs.writeFileSync(
         path.join(mockTemplateDir, 'tools', 'dummy_tool', 'manifest.json'),
-        JSON.stringify({ name: 'dummy' })
+        JSON.stringify({ name: 'dummy' }),
       );
 
       process.env.AURA_GLOBAL_REPO_PATH = mockTemplateDir;
@@ -114,15 +135,21 @@ describe('Generators Integration', { timeout: 30000 }, () => {
       fs.mkdirSync(path.join(projectPath, '.aura'), { recursive: true });
 
       vi.spyOn(process, 'cwd').mockReturnValue(projectPath);
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleLogSpy = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => {});
 
       await Tools.add('dummy_tool');
 
-      expect(fs.existsSync(path.join(projectPath, 'tools', 'dummy_tool', 'manifest.json'))).toBe(true);
+      expect(
+        fs.existsSync(
+          path.join(projectPath, 'tools', 'dummy_tool', 'manifest.json'),
+        ),
+      ).toBe(true);
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Tool 'dummy_tool' installed successfully!")
+        expect.stringContaining("Tool 'dummy_tool' installed successfully!"),
       );
-      
+
       delete process.env.AURA_GLOBAL_REPO_PATH;
     });
 
@@ -136,15 +163,8 @@ describe('Generators Integration', { timeout: 30000 }, () => {
       fs.mkdirSync(path.join(projectPath, '.aura'), { recursive: true });
 
       vi.spyOn(process, 'cwd').mockReturnValue(projectPath);
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-        throw new Error('process.exit');
-      });
-
-      await expect(Tools.add('non_existent_tool')).rejects.toThrow('process.exit');
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Tool 'non_existent_tool' not found")
+      await expect(Tools.add('non_existent_tool')).rejects.toThrow(
+        "Tool 'non_existent_tool' not found",
       );
 
       delete process.env.AURA_GLOBAL_REPO_PATH;

@@ -1,25 +1,28 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import picocolors from 'picocolors';
 import yaml from 'yaml';
-import { fileURLToPath } from 'node:url';
-import { Runner } from '../../core/kernel/runner.js';
-import { SessionManager } from '../../core/memory/sessionManager.js';
 import { ContextAssembler } from '../../core/context/assembler.js';
 import { ToolRegistry } from '../../core/kernel/registry.js';
-import * as PathResolver from '../../utils/pathResolver.js';
-import { ConfigManager } from '../../utils/configManager.js';
+import type { Runner } from '../../core/kernel/runner.js';
 import * as Env from '../../core/llm/env.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { SessionManager } from '../../core/memory/sessionManager.js';
+import * as GlobalConfig from '../../utils/globalConfig.js';
+import * as PathResolver from '../../utils/pathResolver.js';
+import * as UI from '../ui.js';
 
 export class SlashCommandManager {
   private projectPath: string;
-  private configLoader: () => any;
+  private configLoader: () => Record<string, unknown>;
   private runner: Runner;
   private onReload?: () => void;
 
-  constructor(projectPath: string, configLoader: () => any, runner: Runner, options: { onReload?: () => void } = {}) {
+  constructor(
+    projectPath: string,
+    configLoader: () => Record<string, unknown>,
+    runner: Runner,
+    options: { onReload?: () => void } = {},
+  ) {
     this.projectPath = path.resolve(projectPath);
     this.configLoader = configLoader;
     this.runner = runner;
@@ -37,7 +40,7 @@ export class SlashCommandManager {
 
     switch (cmd) {
       case '/model':
-        this.handleModel(args);
+        await this.handleModel(args);
         break;
       case '/provider':
         await this.handleProvider(args);
@@ -66,6 +69,9 @@ export class SlashCommandManager {
       case '/skills':
         this.handleSkills();
         break;
+      case '/auto':
+        this.handleAuto(args);
+        break;
       default:
         console.log(`Unknown command: ${cmd}`);
         break;
@@ -76,7 +82,7 @@ export class SlashCommandManager {
 
   private handleContext(): void {
     const root = path.resolve(this.projectPath);
-    const out = ContextAssembler.assemble(root, this.runner.memory);
+    const out = ContextAssembler.assemble(root, this.runner.memory.store.db);
     console.log(out.toMarkdown());
   }
 
@@ -90,7 +96,8 @@ export class SlashCommandManager {
       console.log('-'.repeat(60));
       for (const name of items) {
         const toolData = registry.find(name);
-        const desc = toolData?.manifest?.description || 'No description provided.';
+        const desc =
+          toolData?.manifest?.description || 'No description provided.';
         console.log(`  * ${name.padEnd(25)} - ${desc}`);
       }
     }
@@ -98,12 +105,7 @@ export class SlashCommandManager {
 
   private handleSkills(): void {
     const skillsDir = path.join(this.projectPath, 'skills');
-    
-    // Resolve templates/skills directory
-    let templateSkillsDir = path.resolve(__dirname, '..', '..', 'generators', 'aura', 'app', 'templates', 'skills');
-    if (!fs.existsSync(templateSkillsDir)) {
-      templateSkillsDir = path.resolve(__dirname, '..', '..', 'src', 'generators', 'aura', 'app', 'templates', 'skills');
-    }
+    const templateSkillsDir = path.join(GlobalConfig.repoPath(), 'skills');
 
     const skillPaths: Record<string, string> = {};
     for (const baseDir of [templateSkillsDir, skillsDir]) {
@@ -116,7 +118,7 @@ export class SlashCommandManager {
               skillPaths[file] = skillFile;
             }
           }
-        } catch (e) {}
+        } catch {}
       }
     }
 
@@ -134,10 +136,16 @@ export class SlashCommandManager {
     }
   }
 
-  private parseSkillMeta(filePath: string, defaultName: string): { name: string; description: string } {
+  private parseSkillMeta(
+    filePath: string,
+    defaultName: string,
+  ): { name: string; description: string } {
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
-      const meta = { name: defaultName, description: 'No description provided.' };
+      const meta = {
+        name: defaultName,
+        description: 'No description provided.',
+      };
 
       if (content.startsWith('---')) {
         const parts = content.split('---');
@@ -153,7 +161,9 @@ export class SlashCommandManager {
       }
 
       if (meta.description === 'No description provided.') {
-        const firstH1 = content.split('\n').find(line => line.startsWith('# '));
+        const firstH1 = content
+          .split('\n')
+          .find((line) => line.startsWith('# '));
         if (firstH1) {
           meta.description = firstH1.substring(2).trim();
         }
@@ -169,7 +179,63 @@ export class SlashCommandManager {
     const sessionMgr = new SessionManager(this.projectPath);
     const cleanedArgs = args?.trim();
 
-    if (!cleanedArgs || cleanedArgs.toLowerCase() === 'list') {
+    if (!cleanedArgs) {
+      const sessions = sessionMgr.list();
+      const current = sessionMgr.currentName();
+
+      if (sessions.length === 0) {
+        console.log('  No sessions found.');
+        return;
+      }
+
+      const options = sessions.map((s) => ({
+        value: s.name,
+        label: s.name,
+        hint: s.name === current ? '(current)' : `${s.event_count || 0} events`,
+      }));
+
+      options.push({
+        value: '__new__',
+        label: '+ Create a new session...',
+        hint: '',
+      });
+
+      options.push({
+        value: '__cancel__',
+        label: 'Cancel',
+        hint: '',
+      });
+
+      const chosen = await UI.selectPrompt(
+        'Select a conversation session:',
+        options,
+        current || undefined,
+      );
+      if (UI.isCancel(chosen) || chosen === '__cancel__') {
+        return;
+      }
+
+      if (chosen === '__new__') {
+        const name = `session_${new Date().toISOString().replace(/[-:T.Z]/g, '')}`;
+        sessionMgr.create(name);
+        sessionMgr.activate(name);
+        UI.printSuccess(`Created and switched to session '${name}'`);
+        if (this.onReload) {
+          this.onReload();
+        }
+        return;
+      }
+
+      const sessionName = chosen as string;
+      sessionMgr.activate(sessionName);
+      UI.printSuccess(`Switched to session '${sessionName}'`);
+      if (this.onReload) {
+        this.onReload();
+      }
+      return;
+    }
+
+    if (cleanedArgs.toLowerCase() === 'list') {
       const sessions = sessionMgr.list();
       const current = sessionMgr.currentName();
 
@@ -182,13 +248,17 @@ export class SlashCommandManager {
       } else {
         for (const s of sessions) {
           const activeStar = s.name === current ? '* ' : '  ';
-          console.log(`${activeStar}${s.name.padEnd(30)} (${s.event_count || 0} events)`);
+          console.log(
+            `${activeStar}${s.name.padEnd(30)} (${s.event_count || 0} events)`,
+          );
         }
       }
 
       console.log('-'.repeat(60));
       console.log('Usage: /session <session_name>  - Switch session');
-      console.log('       /session new             - Start a new timestamped session');
+      console.log(
+        '       /session new             - Start a new timestamped session',
+      );
     } else {
       let name = cleanedArgs;
       if (name.toLowerCase() === 'new') {
@@ -199,7 +269,7 @@ export class SlashCommandManager {
       }
 
       if (!sessionMgr.exists(name)) {
-        console.log(`\x1b[31m⛔️ Session '${name}' does not exist\x1b[0m`);
+        console.log(picocolors.red(`⛔️ Session '${name}' does not exist`));
         console.log('Create it first: /session new');
         return;
       }
@@ -209,9 +279,17 @@ export class SlashCommandManager {
 
       if (this.onReload) {
         this.onReload();
-        console.log(`\x1b[32mSuccessfully switched and hot-loaded session '${name}'!\x1b[0m`);
+        console.log(
+          picocolors.green(
+            `Successfully switched and hot-loaded session '${name}'!`,
+          ),
+        );
       } else {
-        console.log('\x1b[33mSession registered. Please restart chat shell to activate.\x1b[0m');
+        console.log(
+          picocolors.yellow(
+            'Session registered. Please restart agent shell to activate.',
+          ),
+        );
       }
     }
   }
@@ -232,26 +310,118 @@ export class SlashCommandManager {
     }
   }
 
-  private handleModel(args?: string): void {
-    const config = this.configLoader();
+  private async handleModel(args?: string): Promise<void> {
+    const config = this.configLoader() as any;
     if (!args || args.trim().length === 0) {
-      console.log(`Current model: ${config?.llm?.model || 'default'}`);
-      console.log('Usage: /model <model_name>');
+      const provider = config?.llm?.provider || 'local';
+      const currentModel = config?.llm?.model || 'default';
+
+      let models: { value: string; label: string; hint?: string }[] = [];
+      if (provider === 'openai') {
+        models = [
+          { value: 'gpt-4o', label: 'gpt-4o', hint: 'Recommended' },
+          { value: 'gpt-4-turbo', label: 'gpt-4-turbo' },
+          { value: 'gpt-3.5-turbo', label: 'gpt-3.5-turbo' },
+          { value: 'o1-mini', label: 'o1-mini' },
+        ];
+      } else if (provider === 'anthropic') {
+        models = [
+          {
+            value: 'claude-3-5-sonnet-latest',
+            label: 'claude-3-5-sonnet-latest',
+            hint: 'Recommended',
+          },
+          { value: 'claude-3-opus-latest', label: 'claude-3-opus-latest' },
+          {
+            value: 'claude-3-haiku-20240307',
+            label: 'claude-3-haiku-20240307',
+          },
+        ];
+      } else if (provider === 'openrouter') {
+        models = [
+          {
+            value: 'openai/gpt-4o',
+            label: 'openai/gpt-4o',
+            hint: 'Recommended',
+          },
+          {
+            value: 'anthropic/claude-3.5-sonnet',
+            label: 'anthropic/claude-3.5-sonnet',
+          },
+          {
+            value: 'meta-llama/llama-3.1-70b-instruct',
+            label: 'llama-3.1-70b',
+          },
+        ];
+      } else {
+        models = [
+          { value: 'llama3', label: 'llama3' },
+          { value: 'mistral', label: 'mistral' },
+          { value: 'phi3', label: 'phi3' },
+        ];
+      }
+
+      models.push({
+        value: '__custom__',
+        label: 'Custom...',
+        hint: 'Specify custom model name',
+      });
+      models.push({ value: '__cancel__', label: 'Cancel' });
+
+      const chosen = await UI.selectPrompt(
+        `Select a model for ${provider}:`,
+        models,
+        currentModel,
+      );
+      if (UI.isCancel(chosen) || chosen === '__cancel__') {
+        return;
+      }
+
+      let modelName = chosen as string;
+      if (chosen === '__custom__') {
+        modelName = await UI.prompt('Enter custom model name: ');
+        if (!modelName || modelName.trim().length === 0) return;
+      }
+
+      this.updateConfig('llm', 'model', modelName.trim());
+      UI.printSuccess(`Model switched to: ${modelName.trim()}`);
     } else {
       this.updateConfig('llm', 'model', args.trim());
-      console.log(`Model switched to: ${args.trim()}`);
+      UI.printSuccess(`Model switched to: ${args.trim()}`);
     }
   }
 
   private async handleProvider(args?: string): Promise<void> {
-    const config = this.configLoader();
+    const config = this.configLoader() as any;
     if (!args || args.trim().length === 0) {
-      console.log(`Current provider: ${config?.llm?.provider || 'local'}`);
-      console.log('Usage: /provider <provider_name>');
+      const currentProvider = config?.llm?.provider || 'local';
+      const providers = [
+        { value: 'openai', label: 'OpenAI' },
+        { value: 'anthropic', label: 'Anthropic' },
+        { value: 'openrouter', label: 'OpenRouter' },
+        { value: 'local', label: 'Local (Ollama/LM Studio/etc.)' },
+        { value: '__cancel__', label: 'Cancel' },
+      ];
+
+      const chosen = await UI.selectPrompt(
+        'Select LLM provider:',
+        providers,
+        currentProvider,
+      );
+      if (UI.isCancel(chosen) || chosen === '__cancel__') {
+        return;
+      }
+
+      const provider = chosen as string;
+      this.updateConfig('llm', 'provider', provider);
+      UI.printSuccess(`Provider switched to: ${provider}`);
+      if (this.onReload) {
+        this.onReload();
+      }
     } else {
       const provider = args.trim();
       this.updateConfig('llm', 'provider', provider);
-      console.log(`Provider switched to: ${provider}`);
+      UI.printSuccess(`Provider switched to: ${provider}`);
       if (this.onReload) {
         this.onReload();
       }
@@ -259,7 +429,7 @@ export class SlashCommandManager {
   }
 
   private handleSettings(): void {
-    const config = this.configLoader();
+    const config = this.configLoader() as any;
     const sessionMgr = new SessionManager(this.projectPath);
     const currentSession = sessionMgr.currentName() || 'default';
     const provider = config?.llm?.provider || 'local';
@@ -275,24 +445,30 @@ export class SlashCommandManager {
     }
 
     const cfgPath = PathResolver.resolveConfigPath(this.projectPath) || '';
-    
-    let maskedKey = '\x1b[31mMissing\x1b[0m';
+
+    let maskedKey = picocolors.red('Missing');
     if (apiKey && apiKey.trim().length > 0) {
       const trimmed = apiKey.trim();
       if (trimmed.length <= 8) {
-        maskedKey = '\x1b[32mPresent\x1b[0m (masked: ****)';
+        maskedKey = `${picocolors.green('Present')} (masked: ****)`;
       } else {
-        maskedKey = `\x1b[32mPresent\x1b[0m (masked: ${trimmed.substring(0, 4)}...${trimmed.substring(trimmed.length - 4)})`;
+        maskedKey =
+          picocolors.green('Present') +
+          ` (masked: ${trimmed.substring(0, 4)}...${trimmed.substring(trimmed.length - 4)})`;
       }
     }
 
-    const sessionInfo = sessionMgr.list().find(s => s.name === currentSession);
+    const sessionInfo = sessionMgr
+      .list()
+      .find((s) => s.name === currentSession);
     const eventCount = sessionInfo?.event_count || 0;
 
     console.log('Current Workspace Settings:');
-    console.log(`  Active Session:  \x1b[33m${currentSession}\x1b[0m (${eventCount} events)`);
-    console.log(`  LLM Provider:    \x1b[33m${provider}\x1b[0m`);
-    console.log(`  LLM Model:       \x1b[33m${model}\x1b[0m`);
+    console.log(
+      `  Active Session:  ${picocolors.yellow(currentSession)} (${eventCount} events)`,
+    );
+    console.log(`  LLM Provider:    ${picocolors.yellow(provider)}`);
+    console.log(`  LLM Model:       ${picocolors.yellow(model)}`);
     console.log(`  API Key:         ${maskedKey}`);
     console.log(`  Config File:     ${cfgPath}`);
   }
@@ -304,13 +480,30 @@ export class SlashCommandManager {
     console.log('  /settings        - Show current session and LLM settings');
     console.log('  /undo            - Undo last turn (removes from memory)');
     console.log('  /redo            - Redo last undone turn');
-    console.log('  /session [name]  - List, switch, or create new conversation sessions');
-    console.log('  /context         - Compile and print current project context');
+    console.log(
+      '  /session [name]  - List, switch, or create new conversation sessions',
+    );
+    console.log(
+      '  /context         - Compile and print current project context',
+    );
     console.log('  /tools           - List all registered tools in workspace');
     console.log('  /skills          - List all available agent skills');
     console.log('  /help            - Show this help');
     console.log('  /auto on/off     - Toggle auto mode');
     console.log('  /exit or /quit   - Exit the shell');
+  }
+
+  private handleAuto(args: string): void {
+    const cleanedArgs = args.trim().toLowerCase();
+    if (cleanedArgs === 'on') {
+      this.runner.toggleAuto(true);
+      console.log('✅ Auto mode enabled.');
+    } else if (cleanedArgs === 'off') {
+      this.runner.toggleAuto(false);
+      console.log('✅ Auto mode disabled.');
+    } else {
+      console.log('Usage: /auto on|off');
+    }
   }
 
   private updateConfig(section: string, key: string, value: any): void {

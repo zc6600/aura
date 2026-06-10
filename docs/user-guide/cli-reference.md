@@ -26,6 +26,7 @@ Complete reference for all Aura OS commands organized by category.
 | `aura list` | List all registered projects |
 | `aura delete <name>` | Delete a project |
 | `aura prune` | Remove non-existent projects |
+| `aura register <name>` | Register current directory |
 
 ### Configuration Commands
 
@@ -41,9 +42,9 @@ Complete reference for all Aura OS commands organized by category.
 
 | Command | Description |
 |---------|-------------|
-| `aura chat` | Start interactive chat session |
-| `aura chat --goal "..."` | Run autonomous goal execution |
-| `aura ask "question"` | Direct LLM query |
+| `aura agent` | Start interactive agent session |
+| `aura agent --goal "..."` | Run autonomous goal execution |
+| `aura chat "question"` | Direct LLM query |
 | `aura context` | Print project context |
 
 ### Management Commands
@@ -58,6 +59,8 @@ Complete reference for all Aura OS commands organized by category.
 | `aura kernel plan` | Plan a task |
 | `aura web` | Start web server |
 | `aura completion` | Generate shell completion |
+| `aura session list` | List all conversation sessions |
+| `aura session switch <name>` | Switch active session |
 
 ---
 
@@ -219,6 +222,15 @@ Remove non-existent projects from the global registry.
 aura prune
 ```
 
+#### `aura register <name>`
+
+Register the current directory as a project with the specified name in the global registry.
+
+**Example:**
+```bash
+aura register my_project
+```
+
 ---
 
 ### Configuration Commands
@@ -287,20 +299,20 @@ aura branch experimental
 
 ### Interaction Commands
 
-#### `aura chat`
+#### `aura agent`
 
 Start an interactive agent shell session with automatic LLM configuration.
 
 **Examples:**
 ```bash
 # Start interactive session
-aura chat
+aura agent
 
 # Run in autonomous goal execution mode
-aura chat --goal "Create a file named hello.txt containing hello world"
+aura agent --goal "Create a file named hello.txt containing hello world"
 
 # Run in non-interactive mode (for automation/cron)
-aura chat --goal "Find the count of files in the current folder" --non-interactive
+aura agent --goal "Find the count of files in the current folder" --non-interactive
 ```
 
 **Options:**
@@ -308,24 +320,24 @@ aura chat --goal "Find the count of files in the current folder" --non-interacti
 - `--non-interactive` - Print final summary to stdout, bypass interactive prompts
 - `--verbose` - Show detailed session information
 
-#### `aura ask`
+#### `aura chat`
 
 Directly query the active LLM from any workspace without agent wrappers. Supports conversation memory.
 
 **Examples:**
 ```bash
 # Ask a question
-aura ask "What is the capital of France?"
+aura chat "What is the capital of France?"
 
 # Ask a follow-up (recalls previous conversation)
-aura ask "What is its population?"
+aura chat "What is its population?"
 
 # Use a specific session for isolated memory
-aura ask "Remember my name is Alice" --session user_info
-aura ask "What is my name?" --session user_info
+aura chat "Remember my name is Alice" --session user_info
+aura chat "What is my name?" --session user_info
 
 # Clear session memory
-aura ask "Start over" --session user_info --clear
+aura chat "Start over" --session user_info --clear
 ```
 
 **Options:**
@@ -395,6 +407,33 @@ Start the web server (if available).
 **Example:**
 ```bash
 aura web
+```
+
+#### `aura session`
+
+Manage conversation sessions (isolated SQLite memory databases).
+
+**Subcommands:**
+* `list`: List all available sessions.
+* `create <name>`: Create and activate a new session.
+* `switch <name>`: Switch to an existing session.
+* `current`: Show details of the currently active session.
+* `delete <name>`: Delete a session database (requires confirmation).
+* `duplicate <source> <name>`: Duplicate an existing session database for branching experiments.
+* `export <name> <dest_path>`: Export a session to a backup file.
+* `import <path> <name>`: Import a session from a backup file.
+* `rename <old_name> <new_name>`: Rename a session.
+
+**Examples:**
+```bash
+# List all sessions
+aura session list
+
+# Create a new session
+aura session create feature-branch
+
+# Switch active session
+aura session switch default
 ```
 
 ---
@@ -478,6 +517,38 @@ aura update all
 
 # Smart merge for all projects
 aura update all --merge
+```
+
+##### `aura update project <path_or_name>`
+
+Update a single project by name or workspace directory path.
+
+**Options:**
+- `--merge` or `-m` - Use smart merge instead of simple pull
+
+**Examples:**
+```bash
+# Simple pull for project named my_project
+aura update project my_project
+
+# Smart merge for project at specific path
+aura update project /path/to/my_project --merge
+```
+
+##### `aura update current` (or `aura update .`)
+
+Update the current active workspace templates.
+
+**Options:**
+- `--merge` or `-m` - Use smart merge instead of simple pull
+
+**Examples:**
+```bash
+# Simple pull for current workspace
+aura update current
+
+# Smart merge for current workspace
+aura update . --merge
 ```
 
 #### `aura template`
@@ -565,7 +636,7 @@ aura new my-project
 cd my-project
 
 # Or register existing directory
-aura register
+aura register my-project
 ```
 
 ---

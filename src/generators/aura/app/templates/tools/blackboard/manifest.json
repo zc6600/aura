@@ -1,47 +1,35 @@
 {
-    "name": "blackboard",
-    "description": "Unified tool for interacting with the shared blackboard (read, write, lock, release).",
-    "runtime": "python3",
-    "entry": "logic.py",
-    "auto_load": false,
-    "permissions": {
-        "file_system": "read-write",
-        "allow_paths": [
-            "./state",
-            "./.aura/state"
-        ]
-    },
-    "input_schema": {
+  "name": "blackboard",
+  "description": "Unified tool for interacting with the shared blackboard (read, write, lock, release).",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": false,
+  "permissions": {
+    "file_system": "read-write",
+    "allow_paths": ["./state", "./.aura/state"]
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string",
+        "description": "The unique key (filename) for the data or lock."
+      },
+      "action": {
+        "type": "string",
+        "enum": ["read", "write", "lock", "release", "list", "delete"],
+        "description": "The action to perform on the blackboard."
+      },
+      "content": {
         "type": "object",
-        "properties": {
-            "key": {
-                "type": "string",
-                "description": "The unique key (filename) for the data or lock."
-            },
-            "action": {
-                "type": "string",
-                "enum": [
-                    "read",
-                    "write",
-                    "lock",
-                    "release",
-                    "list",
-                    "delete"
-                ],
-                "description": "The action to perform on the blackboard."
-            },
-            "content": {
-                "type": "object",
-                "description": "The data to write (used with action='write'). Can be a string or a JSON object."
-            },
-            "timeout": {
-                "type": "integer",
-                "description": "Timeout in seconds for 'lock' action. Defaults to 10.",
-                "default": 10
-            }
-        },
-        "required": [
-            "action"
-        ]
-    }
+        "description": "The data to write (used with action='write'). Can be a string or a JSON object."
+      },
+      "timeout": {
+        "type": "integer",
+        "description": "Timeout in seconds for 'lock' action. Defaults to 10.",
+        "default": 10
+      }
+    },
+    "required": ["action"]
+  }
 }

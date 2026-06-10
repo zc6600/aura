@@ -1,16 +1,27 @@
-import fs from 'fs';
-import path from 'path';
-import yaml from 'yaml';
-import * as PathResolver from '../../../utils/pathResolver.js';
-import { ConfigManager } from '../../../utils/configManager.js';
+import fs from 'node:fs';
+import path from 'node:path';
 import Database from 'better-sqlite3';
+import yaml from 'yaml';
+import * as ConfigManager from '../../../utils/configManager.js';
+import * as PathResolver from '../../../utils/pathResolver.js';
+
+interface AnchorProviderOptions {
+  envPath?: string;
+  state?: unknown;
+}
+
+interface AnchorConfig {
+  state_management?: {
+    db_path?: string;
+  };
+}
 
 export class AnchorProvider {
   private projectPath: string;
   private envPath: string;
-  private state?: any;
+  private state?: unknown;
 
-  constructor(projectPath: string, options: any = {}) {
+  constructor(projectPath: string, options: AnchorProviderOptions = {}) {
     this.projectPath = path.resolve(projectPath);
     this.envPath = options.envPath || this.projectPath;
     this.state = options.state;
@@ -21,14 +32,34 @@ export class AnchorProvider {
 
     // 1. Try to read from state object
     if (this.state) {
-      if (this.state.store && typeof this.state.store.getVariable === 'function') {
-        planText = this.state.store.getVariable('plan');
-      } else if (typeof this.state.getVariable === 'function') {
-        planText = this.state.getVariable('plan');
-      } else if (typeof this.state.getFirstValue === 'function') {
+      if (
+        (this.state as { store: { getVariable: (key: string) => string } })
+          .store &&
+        typeof (
+          this.state as { store: { getVariable: (key: string) => string } }
+        ).store.getVariable === 'function'
+      ) {
+        planText = (
+          this.state as { store: { getVariable: (key: string) => string } }
+        ).store.getVariable('plan');
+      } else if (
+        typeof (this.state as { getVariable: (key: string) => string })
+          .getVariable === 'function'
+      ) {
+        planText = (
+          this.state as { getVariable: (key: string) => string }
+        ).getVariable('plan');
+      } else if (
+        typeof (this.state as { getFirstValue: (query: string) => string })
+          .getFirstValue === 'function'
+      ) {
         try {
-          planText = this.state.getFirstValue("SELECT value FROM variables WHERE key = 'plan' LIMIT 1");
-        } catch (e) {}
+          planText = (
+            this.state as { getFirstValue: (query: string) => string }
+          ).getFirstValue(
+            "SELECT value FROM variables WHERE key = 'plan' LIMIT 1",
+          );
+        } catch (_e) {}
       }
     }
 
@@ -36,32 +67,31 @@ export class AnchorProvider {
     let dbPath = 'state/aura.db';
     try {
       dbPath = PathResolver.sessionDbPath(this.projectPath);
-    } catch (e) {
+    } catch (_e) {
       try {
-        const config = ConfigManager.load(this.envPath) || {};
+        const config: AnchorConfig = ConfigManager.load(this.envPath) || {};
         const p = config.state_management?.db_path;
-        dbPath = p ? path.resolve(this.envPath, p) : path.join(this.envPath, 'state', 'aura.db');
-      } catch (err) {
+        dbPath = p
+          ? path.resolve(this.envPath, p)
+          : path.join(this.envPath, 'state', 'aura.db');
+      } catch (_err) {
         dbPath = path.join(this.envPath, 'state', 'aura.db');
       }
     }
 
-    if (planText === null && fs.existsSync(dbPath) && fs.statSync(dbPath).isFile()) {
-      let db: any;
-      try {
-        db = new Database(dbPath);
-        const row = db.prepare("SELECT value FROM variables WHERE key = 'plan' LIMIT 1").get();
-        if (row) {
-          planText = String(row.value);
-        }
-        db.close();
-      } catch (e) {
-        if (db) {
-          try {
-            db.close();
-          } catch (err) {}
-        }
+    if (
+      planText === null &&
+      fs.existsSync(dbPath) &&
+      fs.statSync(dbPath).isFile()
+    ) {
+      const db = new Database(dbPath);
+      const row = db
+        .prepare("SELECT value FROM variables WHERE key = 'plan' LIMIT 1")
+        .get() as { value: string };
+      if (row) {
+        planText = String(row.value);
       }
+      db.close();
     }
 
     // 3. Scan anchors/ directory
@@ -79,27 +109,31 @@ export class AnchorProvider {
 
           try {
             const rawContent = fs.readFileSync(filePath, 'utf-8');
-            let data: any;
+            let data: Record<string, unknown>;
             if (ext === '.json') {
-              data = JSON.parse(rawContent);
+              data = JSON.parse(rawContent) as Record<string, unknown>;
             } else {
-              data = yaml.parse(rawContent);
+              data = yaml.parse(rawContent) as Record<string, unknown>;
             }
 
             if (data && typeof data === 'object') {
               const id = data.id || path.basename(file, ext);
               const callWhen = data.call_when;
-              const brief = Array.isArray(callWhen) ? String(callWhen[0] || '') : String(callWhen || '');
+              const brief = Array.isArray(callWhen)
+                ? String(callWhen[0] || '')
+                : String(callWhen || '');
               const label = brief.trim() ? `: ${brief.trim()}` : '';
               nodes.push(`- ${id}${label}`);
             }
-          } catch (e) {}
+          } catch (_e) {}
         }
-      } catch (e) {}
+      } catch (_e) {
+        // Ignore errors reading anchors directory
+      }
     }
 
     const lines: string[] = [];
-    if (planText && planText.trim()) {
+    if (planText?.trim()) {
       lines.push(`### Overall Task\n${planText.trim()}`);
     }
     if (nodes.length > 0) {

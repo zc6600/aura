@@ -5,20 +5,14 @@
   "entry": "logic.py",
   "permissions": {
     "file_system": "read-write",
-    "allow_paths": [
-      "./state"
-    ]
+    "allow_paths": ["./state"]
   },
   "input_schema": {
     "type": "object",
     "properties": {
       "action": {
         "type": "string",
-        "enum": [
-          "create",
-          "approve",
-          "get"
-        ],
+        "enum": ["create", "approve", "get"],
         "description": "Action to perform: 'create' a new plan, 'approve' the active plan, or 'get' the current plan.",
         "default": "create"
       },
@@ -52,8 +46,6 @@
         "description": "Session run id (optional, auto-generated if not provided)."
       }
     },
-    "required": [
-      "action"
-    ]
+    "required": ["action"]
   }
 }

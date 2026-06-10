@@ -143,16 +143,18 @@ aura template sync
 Update Aura CLI itself.
 
 **Behavior:**
-- In source directory: builds and installs gem from source
-- Otherwise: updates from RubyGems
+- Displays instructions to upgrade globally via npm or rebuild locally if developing in the source repository.
+- Automatically triggers a template synchronization to your global user repository (`~/.aura/repo`).
 
 ```bash
-# From source
-cd aura/aura
+# Running framework update
 aura update framework
 
-# From anywhere
-aura update framework
+# If updating globally:
+npm update -g aura-cli
+
+# If developing locally in the source root:
+npm run build
 ```
 
 ### Status Checks

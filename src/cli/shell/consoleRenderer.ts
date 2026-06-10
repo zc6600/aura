@@ -1,15 +1,21 @@
 import readline from 'node:readline';
 import picocolors from 'picocolors';
+import * as UI from '../ui.js';
 
 export class ConsoleRenderer {
   private verbose: boolean;
   private lastStreamed = false;
+  private spinner: any = null;
 
   constructor(options: { verbose?: boolean } = {}) {
     this.verbose = options.verbose || false;
   }
 
   public onToken(text: string): void {
+    if (this.spinner) {
+      this.spinner.stop('');
+      this.spinner = null;
+    }
     if (!this.lastStreamed) {
       this.lastStreamed = true;
       process.stdout.write('\r\x1b[K'); // Clear waiting line
@@ -18,6 +24,10 @@ export class ConsoleRenderer {
   }
 
   public onStreamEnd(): void {
+    if (this.spinner) {
+      this.spinner.stop('');
+      this.spinner = null;
+    }
     if (this.lastStreamed) {
       process.stdout.write('\n');
     }
@@ -25,16 +35,25 @@ export class ConsoleRenderer {
   }
 
   public onWaiting(elapsedSeconds: number): void {
-    process.stdout.write(`\r⏳ Waiting for response... (${elapsedSeconds.toFixed(1)}s)`);
+    if (!this.spinner) {
+      this.spinner = UI.showSpinner('Waiting for response...');
+    }
+    this.spinner.message(
+      `Waiting for response... (${elapsedSeconds.toFixed(1)}s)`,
+    );
   }
 
   public onClearWaiting(): void {
+    if (this.spinner) {
+      this.spinner.stop('');
+      this.spinner = null;
+    }
     process.stdout.write('\r\x1b[K');
   }
 
   public onToolStart(tool: string, summary?: string | null, args?: any): void {
     console.log(`\n>> 🔧 Tool: ${picocolors.cyan(tool)}`);
-    if (summary && summary.trim()) {
+    if (summary?.trim()) {
       console.log(`   🧾 Summary: ${summary.trim()}`);
     }
     if (this.verbose && args && Object.keys(args).length > 0) {
@@ -57,11 +76,12 @@ export class ConsoleRenderer {
 
     console.log(`   ${statusColor(`✓ Status: ${status}`)}`);
 
-    const output = result?.output ?? result?.content ?? result?.stdout ?? result?.message;
-    if (output && output.toString().trim()) {
+    const output =
+      result?.output ?? result?.content ?? result?.stdout ?? result?.message;
+    if (output?.toString().trim()) {
       let outputStr = output.toString().trim();
       if (outputStr.length > 200) {
-        outputStr = outputStr.substring(0, 197) + '...';
+        outputStr = `${outputStr.substring(0, 197)}...`;
       }
       const firstLine = outputStr.split('\n')[0]?.trim() || outputStr;
       if (firstLine) {
@@ -79,6 +99,10 @@ export class ConsoleRenderer {
   }
 
   public onThought(thought: string, elapsed?: number | null): void {
+    if (this.spinner) {
+      this.spinner.stop('');
+      this.spinner = null;
+    }
     if (elapsed !== undefined && elapsed !== null) {
       console.log(`\n>> 💬 Response (${this.formatDuration(elapsed)}):`);
     } else {
@@ -88,10 +112,18 @@ export class ConsoleRenderer {
   }
 
   public onError(message: string): void {
+    if (this.spinner) {
+      this.spinner.stop('');
+      this.spinner = null;
+    }
     console.error(`\n>> ${picocolors.red(`⚠️  Error: ${message}`)}`);
   }
 
   public onWarning(message: string): void {
+    if (this.spinner) {
+      this.spinner.stop('');
+      this.spinner = null;
+    }
     console.warn(`\n>> ${picocolors.yellow(`⚠️  ${message}`)}`);
   }
 
@@ -121,7 +153,7 @@ export class ConsoleRenderer {
     try {
       const json = JSON.stringify(args);
       if (json.length > 100) {
-        return json.substring(0, 97) + '...';
+        return `${json.substring(0, 97)}...`;
       }
       return json;
     } catch {

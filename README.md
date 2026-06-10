@@ -145,39 +145,39 @@ aura sync
 aura pull
 ```
 
-### 5. Interactive Chat & Autonomous Goal Execution
+### 5. Interactive Agent & Autonomous Goal Execution
 
-Aura OS supports interactive chat sessions with **automatic LLM configuration**, direct query helpers, and autonomous goal execution:
+Aura OS supports interactive agent sessions with **automatic LLM configuration**, direct query helpers, and autonomous goal execution:
 
 ```bash
 # 1. Start an interactive agent shell session
 # LLM provider is automatically detected from .env file (OPENROUTER_API_KEY, OPENAI_API_KEY, etc.)
-aura chat
+aura agent
 
 # 2. Run in autonomous goal execution mode (exits when goal is achieved)
-aura chat --goal "Create a file named hello.txt containing hello world"
+aura agent --goal "Create a file named hello.txt containing hello world"
 
 # 3. Headless non-interactive execution (suitable for automation / cron)
 # Prints the final summary to stdout, bypassing interactive prompts and dashboard indicators
-aura chat --goal "Find the count of files in the current folder" --non-interactive
+aura agent --goal "Find the count of files in the current folder" --non-interactive
 
-# 4. Directly ask the LLM a question (using the default session memory)
-aura ask "What is the capital of France?"
+# 4. Directly chat or ask the LLM a question (using the default session memory)
+aura chat "What is the capital of France?"
 
 # 5. Ask a follow-up question (it will automatically recall the previous question/answer)
-aura ask "What is its population?"
+aura chat "What is its population?"
 
 # 6. Use a specific custom session name for isolated memory
-aura ask "Remember my name is Alice" --session user_info
-aura ask "What is my name?" --session user_info
+aura chat "Remember my name is Alice" --session user_info
+aura chat "What is my name?" --session user_info
 
 # 7. Clear the session's memory
-aura ask "Start over" --session user_info --clear
+aura chat "Start over" --session user_info --clear
 ```
 
 #### Automatic LLM Configuration
 
-When you run `aura chat`, Aura automatically:
+When you run `aura agent`, Aura automatically:
 - ✅ Loads API keys from `.env` file in your project directory
 - ✅ Detects available providers (OpenRouter, OpenAI, Anthropic, etc.)
 - ✅ Configures the LLM provider and applies sensible model defaults
@@ -196,7 +196,7 @@ OPENAI_API_KEY=sk-your-key-here
 3. `ANTHROPIC_API_KEY` → uses `anthropic` provider
 4. Falls back to `local` (offline mock) if no keys found
 
-No manual configuration required! Just add your API key to `.env` and run `aura chat`.
+No manual configuration required! Just add your API key to `.env` and run `aura agent`.
 
 ---
 

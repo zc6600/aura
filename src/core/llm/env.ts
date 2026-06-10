@@ -1,6 +1,6 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
 
 /**
  * Loads .env from a specific project directory, then falls back to global sources.
@@ -79,7 +79,10 @@ export function loadFile(filePath: string): void {
       const key = line.slice(0, eqIdx).trim();
       let val = line.slice(eqIdx + 1).trim();
 
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
         val = val.slice(1, -1);
       }
 
@@ -88,7 +91,7 @@ export function loadFile(filePath: string): void {
         process.env[key] = val;
       }
     }
-  } catch (err) {
+  } catch (_err) {
     // Fail silently matching Ruby's rescue StandardError
   }
 }
@@ -99,10 +102,14 @@ export function loadFile(filePath: string): void {
 export function resolveApiKey(provider: string): string | undefined {
   const name = provider.toUpperCase().replace(/[^A-Z0-9]/g, '_');
   const vendorKey = name.length > 0 ? `${name}_API_KEY` : '';
-  
-  if (vendorKey && process.env[vendorKey] && process.env[vendorKey]!.trim().length > 0) {
+
+  if (
+    vendorKey &&
+    process.env[vendorKey] &&
+    process.env[vendorKey]?.trim().length > 0
+  ) {
     return process.env[vendorKey];
   }
-  
+
   return process.env.AURA_LLM_API_KEY;
 }

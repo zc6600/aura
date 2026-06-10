@@ -1,5 +1,5 @@
-import { spawn, ChildProcess } from 'child_process';
-import EventEmitter from 'events';
+import { type ChildProcess, spawn } from 'node:child_process';
+import EventEmitter from 'node:events';
 
 export class LSPClient extends EventEmitter {
   private command: string;
@@ -8,14 +8,26 @@ export class LSPClient extends EventEmitter {
   private timeout: number;
   private nextId = 1;
   private process: ChildProcess | null = null;
-  private running = false;
-  private initialized = false;
-  private serverCapabilities: any = {};
-  
-  private handlers = new Map<string, { resolve: (val: any) => void; reject: (err: any) => void; timer: NodeJS.Timeout }>();
+  private serverCapabilities: Record<string, unknown> = {};
+  public running = false;
+  public initialized = false;
+
+  private handlers = new Map<
+    string,
+    {
+      resolve: (val: Record<string, unknown>) => void;
+      reject: (err: unknown) => void;
+      timer: NodeJS.Timeout;
+    }
+  >();
   private stdoutBuffer = Buffer.alloc(0);
 
-  constructor(command: string, args: string[] = [], env: Record<string, string> = {}, timeout = 30) {
+  constructor(
+    command: string,
+    args: string[] = [],
+    env: Record<string, string> = {},
+    timeout = 30,
+  ) {
     super();
     this.command = command;
     this.args = args || [];
@@ -30,14 +42,14 @@ export class LSPClient extends EventEmitter {
     const spawnEnv = { ...process.env, ...this.env };
     this.process = spawn(this.command, this.args, {
       env: spawnEnv,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     this.process.stdout?.on('data', (chunk: Buffer) => {
       this.handleStdout(chunk);
     });
 
-    this.process.stderr?.on('data', (chunk: Buffer) => {
+    this.process.stderr?.on('data', (_chunk: Buffer) => {
       // Can be logged if needed
     });
 
@@ -55,49 +67,60 @@ export class LSPClient extends EventEmitter {
     if (this.process) {
       try {
         this.process.stdin?.end();
-      } catch (e) {}
+      } catch (_e) {}
       try {
         this.process.kill('SIGTERM');
-      } catch (e) {}
+      } catch (_e) {}
       const proc = this.process;
       setTimeout(() => {
         try {
           proc.kill('SIGKILL');
-        } catch (e) {}
+        } catch (_e) {}
       }, 1000);
       this.process = null;
     }
     this.cleanup(new Error('LSP client stopped'));
   }
 
-  public async initializeServer(rootPath: string): Promise<any> {
+  public async initializeServer(
+    rootPath: string,
+  ): Promise<Record<string, unknown>> {
     this.start();
     const resp = await this.request('initialize', {
       processId: process.pid,
       rootPath: rootPath,
       rootUri: `file://${rootPath.replace(/\\/g, '/')}`,
       capabilities: this.clientCapabilities(),
-      initializationOptions: {}
+      initializationOptions: {},
     });
 
-    if (resp && resp.result) {
-      this.serverCapabilities = resp.result.capabilities;
+    if (resp?.result) {
+      const result = (resp as Record<string, unknown>).result as Record<
+        string,
+        unknown
+      >;
+      // LSP initialize result has shape { capabilities: {...} }
+      this.serverCapabilities =
+        (result?.capabilities as Record<string, unknown>) ?? result ?? {};
       try {
         this.notify('initialized', {});
-      } catch (e) {}
+      } catch (_e) {}
       this.initialized = true;
     }
-    return resp;
+    return resp as Record<string, unknown>;
   }
 
-  public request(method: string, params?: any): Promise<any> {
+  public request(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
     return new Promise((resolve, reject) => {
       const id = String(this.nextId++);
       const payload = {
         jsonrpc: '2.0',
         id,
         method,
-        params
+        params,
       };
 
       const timer = setTimeout(() => {
@@ -113,11 +136,11 @@ export class LSPClient extends EventEmitter {
     });
   }
 
-  public notify(method: string, params?: any): void {
+  public notify(method: string, params?: Record<string, unknown>): void {
     const payload = {
       jsonrpc: '2.0',
       method,
-      params
+      params,
     };
     this.writeMessage(payload);
   }
@@ -126,18 +149,18 @@ export class LSPClient extends EventEmitter {
     this.on(`notification:${method}`, callback);
   }
 
-  public get server_capabilities(): any {
+  public get server_capabilities(): Record<string, unknown> {
     return this.serverCapabilities;
   }
 
-  private writeMessage(payload: any): void {
-    if (!this.process || !this.process.stdin) return;
+  private writeMessage(payload: Record<string, unknown>): void {
+    if (!this.process?.stdin) return;
     const body = JSON.stringify(payload);
     const byteLength = Buffer.byteLength(body, 'utf-8');
     const header = `Content-Length: ${byteLength}\r\n\r\n`;
     try {
       this.process.stdin.write(header + body);
-    } catch (e) {}
+    } catch (_e) {}
   }
 
   private handleStdout(chunk: Buffer): void {
@@ -149,7 +172,9 @@ export class LSPClient extends EventEmitter {
       if (!headerMatch) {
         const doubleNewlineIndex = str.indexOf('\r\n\r\n');
         if (doubleNewlineIndex !== -1 && !str.startsWith('Content-Length:')) {
-          this.stdoutBuffer = this.stdoutBuffer.subarray(doubleNewlineIndex + 4);
+          this.stdoutBuffer = this.stdoutBuffer.subarray(
+            doubleNewlineIndex + 4,
+          );
           continue;
         }
         break;
@@ -163,19 +188,24 @@ export class LSPClient extends EventEmitter {
         break;
       }
 
-      const bodyBuffer = this.stdoutBuffer.subarray(headerBytes, totalBytesNeeded);
+      const bodyBuffer = this.stdoutBuffer.subarray(
+        headerBytes,
+        totalBytesNeeded,
+      );
       this.stdoutBuffer = this.stdoutBuffer.subarray(totalBytesNeeded);
 
       try {
         const msg = JSON.parse(bodyBuffer.toString('utf-8'));
         this.handleMessage(msg);
       } catch (e) {
-        console.warn(`[LSPClient] Failed to parse LSP message: ${(e as Error).message}`);
+        console.warn(
+          `[LSPClient] Failed to parse LSP message: ${(e as Error).message}`,
+        );
       }
     }
   }
 
-  private handleMessage(msg: any): void {
+  private handleMessage(msg: Record<string, unknown>): void {
     if (msg.id !== undefined && msg.id !== null) {
       const id = String(msg.id);
       const handler = this.handlers.get(id);
@@ -183,7 +213,11 @@ export class LSPClient extends EventEmitter {
         clearTimeout(handler.timer);
         this.handlers.delete(id);
         if (msg.error) {
-          handler.reject(new Error(msg.error.message || 'LSP error'));
+          handler.reject(
+            new Error(
+              (msg.error as { message: string }).message || 'LSP error',
+            ),
+          );
         } else {
           handler.resolve(msg);
         }
@@ -194,20 +228,20 @@ export class LSPClient extends EventEmitter {
   }
 
   private cleanup(err: Error): void {
-    for (const [id, handler] of this.handlers.entries()) {
+    for (const [_id, handler] of this.handlers.entries()) {
       clearTimeout(handler.timer);
       handler.reject(err);
     }
     this.handlers.clear();
   }
 
-  private clientCapabilities(): any {
+  private clientCapabilities(): Record<string, unknown> {
     return {
       textDocument: {
         synchronization: { dynamicRegistration: true, didSave: true },
-        publishDiagnostics: { relatedInformation: true }
+        publishDiagnostics: { relatedInformation: true },
       },
-      workspace: { configuration: true }
+      workspace: { configuration: true },
     };
   }
 }

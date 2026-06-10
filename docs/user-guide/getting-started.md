@@ -77,7 +77,7 @@ aura info
 
 ## LLM Configuration
 
-Aura OS features **zero-config LLM setup**. When you run `aura chat`, it automatically detects and configures your LLM provider.
+Aura OS features **zero-config LLM setup**. When you run `aura agent`, it automatically detects and configures your LLM provider.
 
 ### Automatic Detection
 
@@ -94,7 +94,7 @@ Aura will auto-detect providers in this priority order:
 |---------|----------|---------------|
 | `OPENROUTER_API_KEY` | openrouter | openai/gpt-4o |
 | `OPENAI_API_KEY` | openai | gpt-4o |
-| `ANTHROPIC_API_KEY` | anthropic | claude-sonnet-4-20250514 |
+| `ANTHROPIC_API_KEY` | anthropic | claude-3-5-sonnet-20241022 |
 | No keys found | local | (offline mock) |
 
 **Example:**
@@ -103,8 +103,8 @@ Aura will auto-detect providers in this priority order:
 # Just add your API key
 echo "OPENROUTER_API_KEY=sk-or-v1-your-key" > .env
 
-# Run chat - no manual configuration needed!
-aura chat
+# Run agent - no manual configuration needed!
+aura agent
 # Output: ℹ️ Auto-configured LLM provider: openrouter (from OPENROUTER_API_KEY)
 ```
 
@@ -115,7 +115,7 @@ You can manually configure LLM settings in `.aura/config/config.yml`:
 ```yaml
 llm:
   provider: "openrouter"
-  model: "anthropic/claude-sonnet-4-20250514"
+  model: "anthropic/claude-3-5-sonnet-20241022"
   api_base: ""
 ```
 
@@ -151,16 +151,16 @@ my_agent_project/
 
 ### Run Your First Agent
 
-Start an interactive chat session:
+Start an interactive agent session:
 
 ```bash
-aura chat
+aura agent
 ```
 
 Or run in autonomous mode:
 
 ```bash
-aura chat --goal "Create a file named hello.txt containing hello world"
+aura agent --goal "Create a file named hello.txt containing hello world"
 ```
 
 ### Check Project Status
@@ -177,7 +177,7 @@ aura doctor
 
 ## Source Root Protection
 
-To prevent accidental pollution of the raw framework codebase, Aura restricts certain commands when run from the source root directory (where `aura.gemspec` exists).
+To prevent accidental pollution of the raw framework codebase, Aura restricts certain commands when run from the source root directory (where `package.json` with the name `aura-cli` exists).
 
 ### Whitelisted Commands
 
@@ -188,19 +188,24 @@ These commands can be run from the source root:
 - `aura info` - Display system information
 - `aura version` - Print version
 - `aura new <project>` - Create new workspace
-- `aura ask "question"` - Direct LLM query
+- `aura chat "question"` - Direct LLM query
 - `aura list` - List registered projects
 - `aura delete <name>` - Delete a project
 - `aura branch` - Manage agent profiles
+- `aura register <name>` - Register project
+- `aura prune` - Prune projects
+- `aura web` - Start web dashboard server
+- `aura template` - Manage templates
+- `aura completion` - Generate shell completion
 
 All other commands must be run from within a workspace directory.
 
 ### Bypassing Source Root Protection
 
-For developers working directly on the Aura OS source code who wish to run commands (like `aura chat`) in the source root directory, the restriction can be bypassed:
+For developers working directly on the Aura OS source code who wish to run commands (like `aura agent`) in the source root directory, the restriction can be bypassed:
 
-- By setting the environment variable `AURA_ALLOW_ROOT=true` (e.g. `AURA_ALLOW_ROOT=true aura chat`)
-- By appending the `--allow-root` option to the command line (e.g. `aura chat --allow-root`)
+- By setting the environment variable `AURA_ALLOW_ROOT=true` (e.g. `AURA_ALLOW_ROOT=true aura agent`)
+- By appending the `--allow-root` option to the command line (e.g. `aura agent --allow-root`)
 
 ---
 

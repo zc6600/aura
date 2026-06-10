@@ -1,22 +1,28 @@
-import fs from 'fs';
-import path from 'path';
+import * as path from 'node:path';
+import type { Database } from 'better-sqlite3';
+import * as ConfigManager from '../../utils/configManager.js';
+import { type AuraConfig, parseAuraConfig } from '../../utils/configSchema.js';
 import * as PathResolver from '../../utils/pathResolver.js';
-import { ConfigManager } from '../../utils/configManager.js';
-import { parseAuraConfig, type AuraConfig } from '../../utils/configSchema.js';
-import { DirectiveProvider } from './providers/directiveProvider.js';
-import { WorkspaceProvider } from './providers/workspaceProvider.js';
-import { TaskProvider } from './providers/taskProvider.js';
-import { GlobalRulesProvider } from './providers/globalRulesProvider.js';
-import { DirectoryTreeProvider } from './providers/directoryTreeProvider.js';
-import { HintProvider } from './providers/hintProvider.js';
-import { SkillProvider } from './providers/skillProvider.js';
-import { GardenProvider } from './providers/gardenProvider.js';
+import type { LSPManager } from '../ext/lsp/manager.js';
+import {
+  ContextEnvProvider,
+  ContextMemory,
+  ContextPayload,
+  ContextPrompt,
+} from './payload.js';
 import { AnchorProvider } from './providers/anchorProvider.js';
-import { LSPProvider } from './providers/lspProvider.js';
+import { DirectiveProvider } from './providers/directiveProvider.js';
+import { DirectoryTreeProvider } from './providers/directoryTreeProvider.js';
+import { GardenProvider } from './providers/gardenProvider.js';
+import { GlobalRulesProvider } from './providers/globalRulesProvider.js';
+import { HintProvider } from './providers/hintProvider.js';
 import { KnowledgeProvider } from './providers/knowledgeProvider.js';
-import { ToolProvider } from './providers/toolProvider.js';
+import { LSPProvider } from './providers/lspProvider.js';
+import { SkillProvider } from './providers/skillProvider.js';
 import { StateProvider } from './providers/stateProvider.js';
-import { ContextPrompt, ContextEnvProvider, ContextMemory, ContextPayload } from './payload.js';
+import { TaskProvider } from './providers/taskProvider.js';
+import { ToolProvider } from './providers/toolProvider.js';
+import { WorkspaceProvider } from './providers/workspaceProvider.js';
 
 export class ContextOverflowError extends Error {
   constructor(message: string) {
@@ -25,11 +31,15 @@ export class ContextOverflowError extends Error {
   }
 }
 
+interface CustomDatabase extends Database {
+  commitSummary(summary: string): void;
+}
+
 export class ContextBase {
   private projectPath: string;
   private envPath: string;
-  private db: any;
-  private options: any;
+  private db: Database;
+  private options: Record<string, unknown>;
 
   private directiveProvider: DirectiveProvider;
   private workspaceProvider: WorkspaceProvider;
@@ -45,28 +55,53 @@ export class ContextBase {
   private toolProvider: ToolProvider;
   private stateProvider: StateProvider;
 
-  constructor(projectPath: string, db: any, options: any = {}) {
+  // ... other providers
+
+  constructor(
+    projectPath: string,
+    db: Database,
+    options: Record<string, unknown> = {},
+  ) {
     this.projectPath = path.resolve(projectPath);
-    this.envPath = PathResolver.environmentPath(this.projectPath) || this.projectPath;
+    this.envPath =
+      PathResolver.environmentPath(this.projectPath) || this.projectPath;
     this.db = db;
     this.options = options || {};
 
     const envOpts = { ...this.options, envPath: this.envPath };
 
-    this.directiveProvider = new DirectiveProvider(this.projectPath, this.options);
+    this.directiveProvider = new DirectiveProvider(
+      this.projectPath,
+      this.options,
+    );
     this.workspaceProvider = new WorkspaceProvider(this.projectPath);
     this.taskProvider = new TaskProvider(this.projectPath);
 
-    this.globalRulesProvider = new GlobalRulesProvider(this.projectPath, envOpts);
-    this.directoryTreeProvider = new DirectoryTreeProvider(this.projectPath, this.options);
+    this.globalRulesProvider = new GlobalRulesProvider(
+      this.projectPath,
+      envOpts,
+    );
+    this.directoryTreeProvider = new DirectoryTreeProvider(
+      this.projectPath,
+      this.options,
+    );
     this.hintProvider = new HintProvider(this.projectPath, envOpts);
     this.skillProvider = new SkillProvider(this.projectPath, envOpts);
     this.gardenProvider = new GardenProvider(this.projectPath, envOpts);
-    this.anchorProvider = new AnchorProvider(this.projectPath, { ...envOpts, state: this.db });
+    this.anchorProvider = new AnchorProvider(this.projectPath, {
+      ...envOpts,
+      state: this.db,
+    });
 
-    this.lspProvider = new LSPProvider(this.projectPath, this.options.lsp_manager);
+    this.lspProvider = new LSPProvider(
+      this.projectPath,
+      this.options.lsp_manager as LSPManager | undefined,
+    );
     this.knowledgeProvider = new KnowledgeProvider(this.projectPath, envOpts);
-    this.toolProvider = new ToolProvider(this.projectPath, { ...this.options, state: db });
+    this.toolProvider = new ToolProvider(this.projectPath, {
+      ...this.options,
+      state: db,
+    });
 
     this.stateProvider = new StateProvider(db, this.options);
   }
@@ -96,18 +131,25 @@ export class ContextBase {
     const prompt = new ContextPrompt(
       sections.directive || '',
       sections.workspace || '',
-      sections.task || ''
+      sections.task || '',
     );
 
     const envProvider = new ContextEnvProvider(
       sections.env || '',
       sections.lsp || '',
-      sections.knowledge || ''
+      sections.knowledge || '',
     );
 
     const memory = new ContextMemory(sections.state || '');
 
-    return new ContextPayload(prompt, envProvider, memory, tools, this.options, sections);
+    return new ContextPayload(
+      prompt,
+      envProvider,
+      memory,
+      tools,
+      this.options,
+      sections,
+    );
   }
 
   private fetchMaxChars(): number | null {
@@ -115,12 +157,15 @@ export class ContextBase {
       const cfg = ConfigManager.loadTyped(this.envPath);
       const limit = cfg.state_management?.max_state_chars;
       return limit ? Number(limit) : null;
-    } catch (e) {
+    } catch (_e) {
       return null;
     }
   }
 
-  private compressSections(sections: Record<string, string>, limit: number): Record<string, string> {
+  private compressSections(
+    sections: Record<string, string>,
+    limit: number,
+  ): Record<string, string> {
     const order = [
       'directive',
       'workspace',
@@ -135,7 +180,11 @@ export class ContextBase {
     let compressed = { ...sections };
     compressed = this.statePriorityCompress(compressed, limit);
 
-    let calcTotal = (s: Record<string, string>) => order.map(k => s[k]).filter(Boolean).join('\n\n').length;
+    const calcTotal = (s: Record<string, string>) =>
+      order
+        .map((k) => s[k])
+        .filter(Boolean)
+        .join('\n\n').length;
     if (calcTotal(compressed) <= limit) {
       return compressed;
     }
@@ -159,8 +208,13 @@ export class ContextBase {
     const finalLen = calcTotal(compressed);
     if (finalLen > limit) {
       const errorMsg = `Compressed context length ${finalLen} exceeds max_state_chars ${limit}`;
-      if (this.db && typeof this.db.commitSummary === 'function') {
-        this.db.commitSummary(`Context assembly failed: ${errorMsg}`);
+      if (
+        this.db &&
+        typeof (this.db as CustomDatabase).commitSummary === 'function'
+      ) {
+        (this.db as CustomDatabase).commitSummary(
+          `Context assembly failed: ${errorMsg}`,
+        );
       }
       throw new ContextOverflowError(errorMsg);
     }
@@ -168,11 +222,15 @@ export class ContextBase {
     return compressed;
   }
 
-  private statePriorityCompress(sections: Record<string, string>, limit: number): Record<string, string> {
+  private statePriorityCompress(
+    sections: Record<string, string>,
+    limit: number,
+  ): Record<string, string> {
     if (!sections.state) return sections;
 
     const current = sections.state;
-    const calcTotal = (s: Record<string, string>) => Object.values(s).join('\n\n').length;
+    const calcTotal = (s: Record<string, string>) =>
+      Object.values(s).join('\n\n').length;
 
     if (calcTotal(sections) <= limit) return sections;
 
@@ -183,7 +241,9 @@ export class ContextBase {
     const summaryTrimStep = Number(cc.summary_trim_step ?? 5);
 
     const historyTag = '### History:';
-    const avTag = current.includes('### Variables:') ? '### Variables:' : '### Active Variables:';
+    const avTag = current.includes('### Variables:')
+      ? '### Variables:'
+      : '### Active Variables:';
 
     const historyIdx = current.indexOf(historyTag);
     const avIdx = current.indexOf(avTag);
@@ -220,9 +280,10 @@ export class ContextBase {
 
     // Truncate individual events
     if (perEventCap > 0) {
-      events = events.map(line => {
+      events = events.map((line) => {
         if (line && line.length > perEventCap) {
-          const notice = '...[truncated; full payload in state/aura.db (events.payload); use sqlite3 to query]';
+          const notice =
+            '...[truncated; full payload in state/aura.db (events.payload); use sqlite3 to query]';
           const maxBody = Math.max(0, perEventCap - notice.length);
           return line.substring(0, maxBody) + notice;
         }
@@ -230,14 +291,18 @@ export class ContextBase {
       });
     }
 
-    sections.state = [pre, [header, ...events].join('\n'), avBlock].filter(Boolean).join('');
+    sections.state = [pre, [header, ...events].join('\n'), avBlock]
+      .filter(Boolean)
+      .join('');
 
     if (calcTotal(sections) <= limit) return sections;
 
     // Drop older events until threshold
     while (calcTotal(sections) > limit && events.length > minEventThreshold) {
       events.shift();
-      sections.state = [pre, [header, ...events].join('\n'), avBlock].filter(Boolean).join('');
+      sections.state = [pre, [header, ...events].join('\n'), avBlock]
+        .filter(Boolean)
+        .join('');
     }
 
     // summary trim step
@@ -245,21 +310,29 @@ export class ContextBase {
       while (calcTotal(sections) > limit && events.length > 0) {
         const drop = Math.min(summaryTrimStep, events.length);
         events.splice(0, drop);
-        sections.state = [pre, [header, ...events].join('\n'), avBlock].filter(Boolean).join('');
+        sections.state = [pre, [header, ...events].join('\n'), avBlock]
+          .filter(Boolean)
+          .join('');
       }
     }
 
     return sections;
   }
 
-  private aggressiveStateTrim(sections: Record<string, string>, limit: number): Record<string, string> {
+  private aggressiveStateTrim(
+    sections: Record<string, string>,
+    limit: number,
+  ): Record<string, string> {
     if (!sections.state) return sections;
-    const calcTotal = (s: Record<string, string>) => Object.values(s).filter(Boolean).join('\n\n').length;
+    const calcTotal = (s: Record<string, string>) =>
+      Object.values(s).filter(Boolean).join('\n\n').length;
     if (calcTotal(sections) <= limit) return sections;
 
     const current = sections.state;
     const historyTag = '### History:';
-    const avTag = current.includes('### Variables:') ? '### Variables:' : '### Active Variables:';
+    const avTag = current.includes('### Variables:')
+      ? '### Variables:'
+      : '### Active Variables:';
 
     const historyIdx = current.indexOf(historyTag);
     const avIdx = current.indexOf(avTag);
@@ -291,7 +364,9 @@ export class ContextBase {
 
     while (calcTotal(sections) > limit && events.length > 1) {
       events.shift();
-      sections.state = [pre, [header, ...events].join('\n'), avBlock].filter(Boolean).join('');
+      sections.state = [pre, [header, ...events].join('\n'), avBlock]
+        .filter(Boolean)
+        .join('');
     }
 
     return sections;
@@ -300,31 +375,43 @@ export class ContextBase {
   private loadFullConfig(): AuraConfig {
     try {
       return ConfigManager.loadTyped(this.envPath);
-    } catch (e) {
+    } catch (_e) {
       return parseAuraConfig({});
     }
   }
 
-  private buildEnvironmentContent(): string | null {
+  public buildEnvironmentContent(): string | null {
     const sections = ['# SYSTEM & ENVIRONMENT'];
 
     const globalRules = this.globalRulesProvider.provide();
-    if (globalRules) sections.push(`## Global Rules\n${globalRules}`);
+    if (globalRules)
+      sections.push(`## Global Rules
+${globalRules}`);
 
     const workspaceTree = this.directoryTreeProvider.provide();
-    if (workspaceTree) sections.push(`## Workspace Overview\n${workspaceTree}`);
+    if (workspaceTree)
+      sections.push(`## Workspace Overview
+${workspaceTree}`);
 
     const magicHints = this.hintProvider.provide();
-    if (magicHints && magicHints.trim()) sections.push(`## Active Tags & Guidance\n${magicHints}`);
+    if (magicHints?.trim())
+      sections.push(`## Active Tags & Guidance
+${magicHints}`);
 
     const skillsKnowledge = this.skillProvider.provide();
-    if (skillsKnowledge) sections.push(`## Skills Knowledge\n${skillsKnowledge}`);
+    if (skillsKnowledge)
+      sections.push(`## Skills Knowledge
+${skillsKnowledge}`);
 
     const gardenKnowledge = this.gardenProvider.provide();
-    if (gardenKnowledge) sections.push(`## Garden Playbooks\n${gardenKnowledge}`);
+    if (gardenKnowledge)
+      sections.push(`## Garden Playbooks
+${gardenKnowledge}`);
 
     const userTask = this.anchorProvider.provide();
-    if (userTask) sections.push(`## User Tasks\n${userTask}`);
+    if (userTask)
+      sections.push(`## User Tasks
+${userTask}`);
 
     if (sections.length <= 1) {
       return null;

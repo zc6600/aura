@@ -31,10 +31,7 @@
         "description": "Directories that must remain read-only"
       }
     },
-    "required": [
-      "file_path",
-      "content"
-    ]
+    "required": ["file_path", "content"]
   },
   "memory": {
     "retention": "working",

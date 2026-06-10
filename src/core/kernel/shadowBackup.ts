@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import { execa } from 'execa';
 import * as PathResolver from '../../utils/pathResolver.js';
 
@@ -13,12 +13,16 @@ export class ShadowBackup {
 
   constructor(projectPath: string) {
     this.projectPath = path.resolve(projectPath);
-    this.envPath = PathResolver.environmentPath(this.projectPath) || this.projectPath;
+    this.envPath =
+      PathResolver.environmentPath(this.projectPath) || this.projectPath;
     this.shadowPath = path.join(this.envPath, 'shadow');
     this.shadowGit = path.join(this.shadowPath, '.git');
   }
 
-  public async recordChanges(toolName: string, toolArgs: any = {}): Promise<void> {
+  public async recordChanges(
+    toolName: string,
+    toolArgs: Record<string, unknown> = {},
+  ): Promise<void> {
     try {
       await this.ensureShadowGitInitialized();
 
@@ -26,7 +30,9 @@ export class ShadowBackup {
 
       if (fs.existsSync(path.join(this.projectPath, '.git'))) {
         try {
-          const { stdout } = await execa('git', ['status', '--porcelain'], { cwd: this.projectPath });
+          const { stdout } = await execa('git', ['status', '--porcelain'], {
+            cwd: this.projectPath,
+          });
           const lines = stdout.split('\n');
           for (const line of lines) {
             if (line.length > 3) {
@@ -37,7 +43,7 @@ export class ShadowBackup {
               changedFiles.push(filepath);
             }
           }
-        } catch (e) {}
+        } catch (_e) {}
       } else {
         if (toolArgs && typeof toolArgs === 'object') {
           const filePath = toolArgs.file_path || toolArgs.path;
@@ -76,9 +82,11 @@ export class ShadowBackup {
           // Check ignore
           if (fs.existsSync(path.join(this.projectPath, '.git'))) {
             try {
-              await execa('git', ['check-ignore', relPath], { cwd: this.projectPath });
+              await execa('git', ['check-ignore', relPath], {
+                cwd: this.projectPath,
+              });
               continue; // Ignored
-            } catch (e) {
+            } catch (_e) {
               // Not ignored
             }
           }
@@ -87,7 +95,7 @@ export class ShadowBackup {
           fs.mkdirSync(path.dirname(absDest), { recursive: true });
           fs.copyFileSync(absSrc, absDest);
           copiedAny = true;
-        } catch (e) {}
+        } catch (_e) {}
       }
 
       if (copiedAny) {
@@ -95,8 +103,14 @@ export class ShadowBackup {
         await execa('git', ['add', '.'], { cwd: this.shadowPath });
         await execa('git', ['commit', '-m', message], { cwd: this.shadowPath });
       }
-    } catch (e: any) {
-      console.warn(`ShadowBackup Error: ${e.message}`);
+    } catch (e: unknown) {
+      const isClean =
+        (e as Error).message &&
+        ((e as Error).message.includes('nothing to commit') ||
+          (e as Error).message.includes('working tree clean'));
+      if (!isClean) {
+        console.warn(`ShadowBackup Error: ${(e as Error).message}`);
+      }
     }
   }
 
@@ -107,8 +121,12 @@ export class ShadowBackup {
 
     fs.mkdirSync(this.shadowPath, { recursive: true });
     await execa('git', ['init'], { cwd: this.shadowPath });
-    await execa('git', ['config', 'user.name', 'Aura Shadow Backup'], { cwd: this.shadowPath });
-    await execa('git', ['config', 'user.email', 'shadow@aura-os.ai'], { cwd: this.shadowPath });
+    await execa('git', ['config', 'user.name', 'Aura Shadow Backup'], {
+      cwd: this.shadowPath,
+    });
+    await execa('git', ['config', 'user.email', 'shadow@aura-os.ai'], {
+      cwd: this.shadowPath,
+    });
 
     const gitignorePath = path.join(this.shadowPath, '.gitignore');
     if (!fs.existsSync(gitignorePath)) {
@@ -116,6 +134,8 @@ export class ShadowBackup {
     }
 
     await execa('git', ['add', '.gitignore'], { cwd: this.shadowPath });
-    await execa('git', ['commit', '-m', 'Initial commit'], { cwd: this.shadowPath });
+    await execa('git', ['commit', '-m', 'Initial commit'], {
+      cwd: this.shadowPath,
+    });
   }
 }

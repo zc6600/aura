@@ -1,10 +1,35 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import * as PathResolver from '../../utils/pathResolver.js';
+
+export interface ToolManifest {
+  name?: string;
+  runtime?:
+    | string
+    | { language?: string; runtime?: string; entry_point?: string };
+  entry?: string;
+  timeout?: number;
+  agent_can_modify_timeout?: boolean;
+  permissions?: { allow_paths?: string[] };
+  input_schema?: Record<string, unknown>;
+  input?: Record<string, unknown>;
+  requires_context?: string;
+  creates_context?: string;
+  description?: string;
+  [key: string]: unknown;
+}
+
+export interface GroupManifest {
+  group_name?: string;
+  entry_tool?: string;
+  subtools?: string[];
+  context?: { name: string; lifecycle?: { ttl: Record<string, unknown> } };
+  [key: string]: unknown;
+}
 
 export interface RegisteredTool {
   path: string;
-  manifest: any;
+  manifest: ToolManifest;
   group?: string | null;
 }
 
@@ -14,26 +39,29 @@ export class ToolRegistry {
   private workspacePath: string;
   private toolsPaths: string[];
   private registry: Record<string, RegisteredTool> = {};
-  private groups: Record<string, any> = {};
+  private groups: Record<string, GroupManifest> = {};
   private lastScanMtime: number | null = null;
   private notFoundCache: Set<string> = new Set();
 
   constructor(projectPath: string) {
     this.projectPath = path.resolve(projectPath);
-    this.envPath = PathResolver.environmentPath(this.projectPath) || this.projectPath;
+    this.envPath =
+      PathResolver.environmentPath(this.projectPath) || this.projectPath;
     this.workspacePath = this.projectPath; // Mapping to resolve workspace root
 
-    this.toolsPaths = Array.from(new Set([
-      path.join(this.workspacePath, 'tools'),
-      path.join(this.envPath, 'tools'),
-    ]));
+    this.toolsPaths = Array.from(
+      new Set([
+        path.join(this.workspacePath, 'tools'),
+        path.join(this.envPath, 'tools'),
+      ]),
+    );
 
     this.scan();
   }
 
   public find(toolName: string): RegisteredTool | null {
     this.maybeRefresh();
-    if (Object.prototype.hasOwnProperty.call(this.registry, toolName)) {
+    if (Object.hasOwn(this.registry, toolName)) {
       return this.registry[toolName];
     }
     if (this.notFoundCache.has(toolName)) {
@@ -71,7 +99,7 @@ export class ToolRegistry {
               this.scanDirectory(dir);
             }
           }
-        } catch (e) {}
+        } catch (_e) {}
       }
     }
     this.lastScanMtime = this.latestToolsMtime();
@@ -94,7 +122,7 @@ export class ToolRegistry {
             this.scanDirectory(fullSub);
           }
         }
-      } catch (e) {}
+      } catch (_e) {}
     }
   }
 
@@ -114,7 +142,7 @@ export class ToolRegistry {
           try {
             const stat = fs.statSync(p);
             mtimes.push(stat.mtimeMs);
-          } catch (e) {}
+          } catch (_e) {}
         };
 
         scanMtime(toolsPath);
@@ -123,7 +151,7 @@ export class ToolRegistry {
           let children: string[] = [];
           try {
             children = fs.readdirSync(dir);
-          } catch (e) {
+          } catch (_e) {
             return;
           }
           for (const name of children) {
@@ -135,7 +163,7 @@ export class ToolRegistry {
                 if (fs.statSync(fullPath).isDirectory()) {
                   walk(fullPath);
                 }
-              } catch (e) {}
+              } catch (_e) {}
             }
           }
         };
@@ -148,7 +176,9 @@ export class ToolRegistry {
   private processGroup(dir: string): void {
     const manifestPath = path.join(dir, 'group_manifest.json');
     try {
-      const groupManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+      const groupManifest = JSON.parse(
+        fs.readFileSync(manifestPath, 'utf-8'),
+      ) as GroupManifest;
       const groupName = groupManifest.group_name || path.basename(dir);
       this.groups[groupName] = {
         path: dir,
@@ -166,9 +196,11 @@ export class ToolRegistry {
         const subtoolDir = path.join(dir, subtoolName);
         this.registerTool(subtoolDir, groupName);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (this.warningsEnabled()) {
-        console.warn(`[ToolRegistry] Failed to load group ${dir}: ${e.message}`);
+        console.warn(
+          `[ToolRegistry] Failed to load group ${dir}: ${(e as Error).message}`,
+        );
       }
     }
   }
@@ -182,16 +214,20 @@ export class ToolRegistry {
     if (!fs.existsSync(manifestPath)) return;
 
     try {
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+      const manifest = JSON.parse(
+        fs.readFileSync(manifestPath, 'utf-8'),
+      ) as ToolManifest;
       const name = manifest.name || path.basename(dir);
       this.registry[name] = {
         path: dir,
         manifest,
         group: groupName,
       };
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (this.warningsEnabled()) {
-        console.warn(`[ToolRegistry] Failed to register tool ${dir}: ${e.message}`);
+        console.warn(
+          `[ToolRegistry] Failed to register tool ${dir}: ${(e as Error).message}`,
+        );
       }
     }
   }

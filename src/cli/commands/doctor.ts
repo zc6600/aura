@@ -1,23 +1,22 @@
-import { execa } from 'execa';
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
 import picocolors from 'picocolors';
 import yaml from 'yaml';
+import * as PromptRegistry from '../../core/llm/prompts/registry.js';
 import * as GlobalConfig from '../../utils/globalConfig.js';
 import * as PathResolver from '../../utils/pathResolver.js';
-import * as Env from '../../core/llm/env.js';
-import * as PromptRegistry from '../../core/llm/prompts/registry.js';
-import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export class Doctor {
-  public static async run(options: { prompts?: boolean } = {}): Promise<void> {
+export const Doctor = {
+  async run(options: { prompts?: boolean } = {}): Promise<void> {
     if (options.prompts) {
-      this.loadDotenvFiles();
-      this.checkPrompts();
+      Doctor.loadDotenvFiles();
+      Doctor.checkPrompts();
       return;
     }
 
@@ -42,44 +41,74 @@ export class Doctor {
       // Check daemon
       let daemonVersion: string | null = null;
       try {
-        const { stdout } = await execa('docker', ['info', '--format', '{{.ServerVersion}}'], { timeout: 2500 });
+        const { stdout } = await execa(
+          'docker',
+          ['info', '--format', '{{.ServerVersion}}'],
+          { timeout: 2500 },
+        );
         daemonVersion = stdout.trim();
       } catch {}
 
       if (daemonVersion) {
-        console.log(`Docker Daemon: ${picocolors.green('Running')} (${daemonVersion})`);
+        console.log(
+          `Docker Daemon: ${picocolors.green('Running')} (${daemonVersion})`,
+        );
 
         // Check buildx
         try {
-          const { stdout: buildxVer } = await execa('docker', ['buildx', 'version'], { timeout: 2000 });
+          const { stdout: buildxVer } = await execa(
+            'docker',
+            ['buildx', 'version'],
+            { timeout: 2000 },
+          );
           console.log(`Docker Buildx: ${buildxVer.trim()}`);
         } catch {
-          console.log(picocolors.yellow('⚠️ Docker Buildx: Not available (optional but recommended)'));
+          console.log(
+            picocolors.yellow(
+              '⚠️ Docker Buildx: Not available (optional but recommended)',
+            ),
+          );
         }
 
         // Check sandbox image
         const sandboxImage = 'aura-sandbox';
         try {
-          const { stdout: imagesOut } = await execa('docker', ['images', '--format', '{{.Repository}}:{{.Tag}}', sandboxImage], { timeout: 2000 });
+          const { stdout: imagesOut } = await execa(
+            'docker',
+            ['images', '--format', '{{.Repository}}:{{.Tag}}', sandboxImage],
+            { timeout: 2000 },
+          );
           if (imagesOut.trim()) {
-            console.log(`Sandbox Image: ${picocolors.green(`${sandboxImage} found`)}`);
+            console.log(
+              `Sandbox Image: ${picocolors.green(`${sandboxImage} found`)}`,
+            );
           } else {
-            console.log(picocolors.yellow(`⚠️ Sandbox Image: '${sandboxImage}' not found`));
+            console.log(
+              picocolors.yellow(`⚠️ Sandbox Image: '${sandboxImage}' not found`),
+            );
             console.log('💡 To build it for the current workspace:');
-            console.log(`   $ docker build -t ${sandboxImage} -f .aura/Dockerfile.sandbox .aura`);
+            console.log(
+              `   $ docker build -t ${sandboxImage} -f .aura/Dockerfile.sandbox .aura`,
+            );
           }
         } catch {
           console.log(picocolors.yellow(`⚠️ Sandbox Image check failed`));
         }
       } else {
-        console.log(picocolors.red('Docker Daemon: Not running or unresponsive'));
-        console.log('💡 Start Docker Desktop or run: sudo systemctl start docker');
+        console.log(
+          picocolors.red('Docker Daemon: Not running or unresponsive'),
+        );
+        console.log(
+          '💡 Start Docker Desktop or run: sudo systemctl start docker',
+        );
       }
     } catch {
       console.log(picocolors.red('Docker: Not found!'));
       console.log('💡 To install Docker:');
       console.log('   - macOS: brew install --cask docker');
-      console.log('   - Ubuntu/Debian: Follow https://docs.docker.com/engine/install/');
+      console.log(
+        '   - Ubuntu/Debian: Follow https://docs.docker.com/engine/install/',
+      );
     }
 
     // Check SQLite3
@@ -88,22 +117,34 @@ export class Doctor {
       const sqliteVer = stdout.trim().split(/\s+/)[0];
       console.log(`SQLite3: ${sqliteVer}`);
     } catch {
-      console.log(picocolors.yellow('⚠️ SQLite3: CLI not found (better-sqlite3 may still work)'));
+      console.log(
+        picocolors.yellow(
+          '⚠️ SQLite3: CLI not found (better-sqlite3 may still work)',
+        ),
+      );
     }
 
     // Check Global Repo
     try {
       await GlobalConfig.ensureRepo();
-      console.log(`Global Repository (~/.aura/repo): ${picocolors.green('OK')}`);
+      console.log(
+        `Global Repository (~/.aura/repo): ${picocolors.green('OK')}`,
+      );
     } catch (e: any) {
-      console.log(picocolors.red(`Global Repository: Failed to initialize! (${e.message})`));
+      console.log(
+        picocolors.red(
+          `Global Repository: Failed to initialize! (${e.message})`,
+        ),
+      );
     }
 
     // Check LLM Configuration
-    this.loadDotenvFiles();
+    Doctor.loadDotenvFiles();
 
     const workspacePath = PathResolver.findAuraDir(process.cwd());
-    const cfgPath = PathResolver.resolveConfigPath(workspacePath || GlobalConfig.repoPath());
+    const cfgPath = PathResolver.resolveConfigPath(
+      workspacePath || GlobalConfig.repoPath(),
+    );
 
     let provider: string | null = null;
     let apiKeySet = false;
@@ -115,22 +156,26 @@ export class Doctor {
         const cfg = yaml.parse(raw) || {};
         const llmCfg = cfg.llm || {};
         provider = llmCfg.provider;
-        if (provider && provider.trim()) {
-          envVarName = this.getEnvVarName(provider);
+        if (provider?.trim()) {
+          envVarName = Doctor.getEnvVarName(provider);
           apiKeySet = !!(
-            (envVarName && process.env[envVarName] && process.env[envVarName]?.trim()) ||
-            (llmCfg.api_key && llmCfg.api_key.trim())
+            (envVarName && process.env[envVarName]?.trim()) ||
+            llmCfg.api_key?.trim()
           );
         }
       } catch {}
     }
 
-    if (!provider || !provider.trim()) {
+    if (!provider?.trim()) {
       console.log(picocolors.yellow('⚠️ LLM Provider: Not configured'));
       console.log('💡 To configure your LLM provider, run:');
-      console.log('   $ aura config llm.provider <provider>  (e.g., openai, openrouter, anthropic, gemini)');
+      console.log(
+        '   $ aura config llm.provider <provider>  (e.g., openai, openrouter, anthropic, gemini)',
+      );
     } else if (!apiKeySet) {
-      console.log(picocolors.yellow(`⚠️ LLM API Key: Missing for provider '${provider}'`));
+      console.log(
+        picocolors.yellow(`⚠️ LLM API Key: Missing for provider '${provider}'`),
+      );
       console.log('💡 To set the API key in config, run:');
       console.log('   $ aura config llm.api_key <your_api_key>');
       if (envVarName) {
@@ -138,24 +183,27 @@ export class Doctor {
         console.log(`   $ export ${envVarName}=<your_api_key>`);
       }
     } else {
-      console.log(`LLM Config (Provider: ${provider}): ${picocolors.green('OK')}`);
+      console.log(
+        `LLM Config (Provider: ${provider}): ${picocolors.green('OK')}`,
+      );
     }
 
     console.log(`Aura CLI: ${picocolors.green('OK')}`);
 
     console.log('\nChecking prompt templates...');
-    this.checkPrompts();
-  }
+    Doctor.checkPrompts();
+  },
 
-  private static checkPrompts(): void {
-    const workspacePath = PathResolver.findAuraDir(process.cwd()) ? path.dirname(PathResolver.findAuraDir(process.cwd())!) : process.cwd();
+  checkPrompts(): void {
+    const auraDir = PathResolver.findAuraDir(process.cwd());
+    const workspacePath = auraDir ? path.dirname(auraDir) : process.cwd();
     console.log(`Workspace Root: ${workspacePath}`);
 
     // Validate standard prompt
     console.log('\n[Standard Mode Prompt]');
     try {
       const standardPrompt = PromptRegistry.resolve('standard', workspacePath);
-      this.validateAndPrintPrompt('standard', standardPrompt);
+      Doctor.validateAndPrintPrompt('standard', standardPrompt);
     } catch (e: any) {
       console.log(picocolors.red(`  Failed to resolve: ${e.message}`));
     }
@@ -163,8 +211,11 @@ export class Doctor {
     // Validate Ralph developer prompt
     console.log('\n[Ralph Developer Prompt]');
     try {
-      const ralphDevPrompt = PromptRegistry.resolve('ralph_developer', workspacePath);
-      this.validateAndPrintPrompt('ralph_developer', ralphDevPrompt);
+      const ralphDevPrompt = PromptRegistry.resolve(
+        'ralph_developer',
+        workspacePath,
+      );
+      Doctor.validateAndPrintPrompt('ralph_developer', ralphDevPrompt);
     } catch (e: any) {
       console.log(picocolors.red(`  Failed to resolve: ${e.message}`));
     }
@@ -172,52 +223,72 @@ export class Doctor {
     // Validate Ralph critic prompt
     console.log('\n[Ralph Critic Prompt]');
     try {
-      const ralphCriticPrompt = PromptRegistry.resolve('ralph_critic', workspacePath);
-      this.validateAndPrintPrompt('ralph_critic', ralphCriticPrompt);
+      const ralphCriticPrompt = PromptRegistry.resolve(
+        'ralph_critic',
+        workspacePath,
+      );
+      Doctor.validateAndPrintPrompt('ralph_critic', ralphCriticPrompt);
     } catch (e: any) {
       console.log(picocolors.red(`  Failed to resolve: ${e.message}`));
     }
 
     // Sync checks
-    this.checkOverridesSync(workspacePath);
-  }
+    Doctor.checkOverridesSync(workspacePath);
+  },
 
-  private static validateAndPrintPrompt(mode: string, prompt: string): void {
+  validateAndPrintPrompt(_mode: string, prompt: string): void {
     const charCount = prompt.length;
-    console.log(`  Compiled Length: ${charCount} chars (~${Math.round(charCount / 4.0)} tokens)`);
+    console.log(
+      `  Compiled Length: ${charCount} chars (~${Math.round(charCount / 4.0)} tokens)`,
+    );
 
     if (charCount > 100000) {
-      console.log(picocolors.red('  ❌ Warning: Prompt length exceeds 100k characters. This may cause large latency or API costs.'));
+      console.log(
+        picocolors.red(
+          '  ❌ Warning: Prompt length exceeds 100k characters. This may cause large latency or API costs.',
+        ),
+      );
     } else if (charCount > 20000) {
-      console.log(picocolors.yellow(`  ⚠️ Warning: Prompt length is large (${charCount} chars). Check if all sections are necessary.`));
+      console.log(
+        picocolors.yellow(
+          `  ⚠️ Warning: Prompt length is large (${charCount} chars). Check if all sections are necessary.`,
+        ),
+      );
     } else {
       console.log(`  Length constraint: ${picocolors.green('OK')}`);
     }
 
     const issues = PromptRegistry.validatePrompt(prompt);
     if (issues.length > 0) {
-      issues.forEach((iss) => console.log(picocolors.yellow(`  ⚠️ ${iss}`)));
+      for (const iss of issues) {
+        console.log(picocolors.yellow(`  ⚠� ${iss}`));
+      }
     } else {
       console.log(`  Structure validation: ${picocolors.green('OK')}`);
     }
-  }
+  },
 
-  private static checkOverridesSync(workspacePath: string): void {
+  checkOverridesSync(workspacePath: string): void {
     const legacy = path.join(workspacePath, 'skills', 'system.md');
     if (fs.existsSync(legacy)) {
       console.log('\n[Workspace Prompt Sync]');
       console.log('  Found legacy system override at skills/system.md.');
-      console.log('  💡 Note: Modular prompt section overrides (prompts/system/*.md) will be ignored because skills/system.md takes precedence.');
+      console.log(
+        '  💡 Note: Modular prompt section overrides (prompts/system/*.md) will be ignored because skills/system.md takes precedence.',
+      );
     }
 
     const overrideDir = path.join(workspacePath, 'prompts', 'system');
-    if (!fs.existsSync(overrideDir) || !fs.statSync(overrideDir).isDirectory()) {
+    if (
+      !fs.existsSync(overrideDir) ||
+      !fs.statSync(overrideDir).isDirectory()
+    ) {
       return;
     }
 
     console.log('\n[Workspace Prompt Sync]');
     const files = fs.readdirSync(overrideDir).filter((f) => f.endsWith('.md'));
-    
+
     // Default defaultDir in registry
     const defaultDir = PromptRegistry.getDefaultSystemPromptDir();
 
@@ -230,13 +301,17 @@ export class Doctor {
         const defaultContent = fs.readFileSync(defaultPath, 'utf-8');
         const overrideContent = fs.readFileSync(overrideFile, 'utf-8');
         if (defaultContent.trim() === overrideContent.trim()) {
-          console.log(picocolors.yellow('    ⚠️ Identical to system default. Consider removing this override to receive future framework updates.'));
+          console.log(
+            picocolors.yellow(
+              '    ⚠️ Identical to system default. Consider removing this override to receive future framework updates.',
+            ),
+          );
         }
       }
     }
-  }
+  },
 
-  private static loadDotenvFiles(): void {
+  loadDotenvFiles(): void {
     const candidates = [
       path.join(os.homedir(), '.aura', '.env'),
       path.join(process.cwd(), '.env'),
@@ -258,7 +333,10 @@ export class Doctor {
           if (!trimmed || trimmed.startsWith('#')) return;
           const [key, ...valParts] = trimmed.split('=');
           if (key && valParts.length > 0) {
-            const val = valParts.join('=').trim().replace(/^['"]|['"]$/g, '');
+            const val = valParts
+              .join('=')
+              .trim()
+              .replace(/^['"]|['"]$/g, '');
             if (!process.env[key.trim()]) {
               process.env[key.trim()] = val;
             }
@@ -266,9 +344,9 @@ export class Doctor {
         });
       } catch {}
     }
-  }
+  },
 
-  private static getEnvVarName(provider: string): string | null {
+  getEnvVarName(provider: string): string | null {
     switch (provider.toLowerCase()) {
       case 'openai':
         return 'OPENAI_API_KEY';
@@ -283,5 +361,5 @@ export class Doctor {
       default:
         return null;
     }
-  }
-}
+  },
+};

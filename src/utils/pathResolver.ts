@@ -1,11 +1,19 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
+import { WorkspaceError } from '../cli/ui.js';
 
 export class SecurityError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'SecurityError';
+  }
+}
+
+export class ArgumentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ArgumentError';
   }
 }
 
@@ -20,11 +28,15 @@ export function validateSafePath(pathStr: string, baseDir: string): string {
   const expanded = path.resolve(expandedBase, pathStr);
 
   const real = fs.existsSync(expanded) ? fs.realpathSync(expanded) : expanded;
-  const realBase = fs.existsSync(expandedBase) ? fs.realpathSync(expandedBase) : expandedBase;
+  const realBase = fs.existsSync(expandedBase)
+    ? fs.realpathSync(expandedBase)
+    : expandedBase;
 
   const isSafe = real === realBase || real.startsWith(realBase + path.sep);
   if (!isSafe) {
-    throw new SecurityError(`Path traversal detected: ${pathStr} escapes base directory ${baseDir}`);
+    throw new SecurityError(
+      `Path traversal detected: ${pathStr} escapes base directory ${baseDir}`,
+    );
   }
 
   return real;
@@ -40,16 +52,24 @@ export function sanitizeSessionName(name?: string): string {
 
   const trimmed = name.trim();
 
-  if (trimmed.includes('..') || trimmed.includes('/') || trimmed.includes('\\')) {
+  if (
+    trimmed.includes('..') ||
+    trimmed.includes('/') ||
+    trimmed.includes('\\')
+  ) {
     throw new ArgumentError('Session name cannot contain path separators');
   }
 
   if (trimmed.length > MAX_SESSION_NAME_LENGTH) {
-    throw new ArgumentError(`Session name too long (max ${MAX_SESSION_NAME_LENGTH} characters)`);
+    throw new ArgumentError(
+      `Session name too long (max ${MAX_SESSION_NAME_LENGTH} characters)`,
+    );
   }
 
   if (!SESSION_NAME_PATTERN.test(trimmed)) {
-    throw new ArgumentError('Session name must start with alphanumeric character and contain only letters, numbers, hyphens, and underscores');
+    throw new ArgumentError(
+      'Session name must start with alphanumeric character and contain only letters, numbers, hyphens, and underscores',
+    );
   }
 
   return trimmed;
@@ -60,12 +80,14 @@ export function sanitizeSessionName(name?: string): string {
  */
 export function validatePort(port: string | number): number {
   const num = typeof port === 'number' ? port : parseInt(port, 10);
-  if (isNaN(num) || num < 0 || num > 65535) {
+  if (Number.isNaN(num) || num < 0 || num > 65535) {
     throw new ArgumentError('Port must be between 0 and 65535');
   }
 
   if (num > 0 && num < 1024) {
-    console.warn(`\x1b[33m⚠️  Warning: Port ${num} is a privileged port (< 1024). May require root privileges.\x1b[0m`);
+    console.warn(
+      `\x1b[33m⚠️  Warning: Port ${num} is a privileged port (< 1024). May require root privileges.\x1b[0m`,
+    );
   }
 
   return num;
@@ -77,7 +99,7 @@ export function validatePort(port: string | number): number {
 export const MAX_STEPS_LIMIT = 1000;
 export function validateMaxSteps(steps: string | number): number {
   const num = typeof steps === 'number' ? steps : parseInt(steps, 10);
-  if (isNaN(num) || num <= 0) {
+  if (Number.isNaN(num) || num <= 0) {
     throw new ArgumentError('Max steps must be a positive number');
   }
   if (num > MAX_STEPS_LIMIT) {
@@ -135,7 +157,11 @@ export function findAuraDir(startDir: string = process.cwd()): string | null {
 
   while (true) {
     const hidden = path.join(dir, '.aura');
-    if (fs.existsSync(hidden) && fs.statSync(hidden).isDirectory() && hidden !== globalAura) {
+    if (
+      fs.existsSync(hidden) &&
+      fs.statSync(hidden).isDirectory() &&
+      hidden !== globalAura
+    ) {
       return hidden;
     }
 
@@ -151,10 +177,15 @@ export function findAuraDir(startDir: string = process.cwd()): string | null {
  */
 export function resolveProjectPath(projectPath?: string): string | null {
   if (process.env.AURA_GLOBAL_ENV === 'true') {
-    return !projectPath || projectPath.trim().length === 0 ? process.cwd() : path.resolve(projectPath);
+    return !projectPath || projectPath.trim().length === 0
+      ? process.cwd()
+      : path.resolve(projectPath);
   }
 
-  const startDir = !projectPath || projectPath.trim().length === 0 ? process.cwd() : path.resolve(projectPath);
+  const startDir =
+    !projectPath || projectPath.trim().length === 0
+      ? process.cwd()
+      : path.resolve(projectPath);
   const auraDir = findAuraDir(startDir);
 
   if (auraDir) {
@@ -177,10 +208,9 @@ export function ensureWorkspace(startDir: string = process.cwd()): string {
 
   const auraDir = findAuraDir(startDir);
   if (!auraDir) {
-    console.error('\x1b[31m⛔️ Error: Not in an Aura workspace (no .aura folder found in parent directories).\x1b[0m');
-    console.error('To initialize a workspace in the current directory, run:');
-    console.error('  $ aura new');
-    process.exit(1);
+    throw new WorkspaceError(
+      'Not in an Aura workspace (no .aura folder found in parent directories).',
+    );
   }
   return auraDir;
 }
@@ -188,10 +218,13 @@ export function ensureWorkspace(startDir: string = process.cwd()): string {
 /**
  * Resolve the config.yml path inside an environment path.
  */
-export function resolveConfigPath(projectPathOrEnvPath?: string): string | null {
+export function resolveConfigPath(
+  projectPathOrEnvPath?: string,
+): string | null {
   if (!projectPathOrEnvPath) return null;
 
-  const envPath = environmentPath(projectPathOrEnvPath) || path.resolve(projectPathOrEnvPath);
+  const envPath =
+    environmentPath(projectPathOrEnvPath) || path.resolve(projectPathOrEnvPath);
 
   const subfolderCfg = path.join(envPath, 'config', 'config.yml');
   if (fs.existsSync(subfolderCfg)) {
@@ -205,8 +238,12 @@ export function resolveConfigPath(projectPathOrEnvPath?: string): string | null 
 /**
  * Resolves the database file path for a given session.
  */
-export function sessionDbPath(projectPath?: string, sessionName?: string): string {
-  const envPath = environmentPath(projectPath || '.')!;
+export function sessionDbPath(
+  projectPath?: string,
+  sessionName?: string,
+): string {
+  const envPath =
+    environmentPath(projectPath || '.') || path.resolve(projectPath || '.');
   const stateDir = path.join(envPath, 'state');
 
   const envDb = process.env.AURA_STATE_DB_PATH;
@@ -222,14 +259,14 @@ export function sessionDbPath(projectPath?: string, sessionName?: string): strin
     if (fs.existsSync(activeTxt)) {
       try {
         resolvedSession = fs.readFileSync(activeTxt, 'utf-8').trim();
-      } catch (err) {
+      } catch (_err) {
         resolvedSession = 'default';
       }
     } else {
       fs.mkdirSync(stateDir, { recursive: true });
       try {
         fs.writeFileSync(activeTxt, 'default');
-      } catch (err) {
+      } catch (_err) {
         // Ignore write failures
       }
       resolvedSession = 'default';
@@ -256,11 +293,4 @@ export function sessionDbPath(projectPath?: string, sessionName?: string): strin
 
   fs.mkdirSync(path.join(stateDir, 'sessions'), { recursive: true });
   return path.join(stateDir, 'sessions', `${resolvedSession}.db`);
-}
-
-export class ArgumentError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ArgumentError';
-  }
 }

@@ -1,10 +1,10 @@
 import {
-  LLMError,
   LLMAuthError,
-  LLMTimeoutError,
+  LLMBadRequestError,
+  LLMError,
   LLMRateLimitError,
   LLMServerError,
-  LLMBadRequestError,
+  LLMTimeoutError,
 } from './errors.js';
 
 export class HttpClient {
@@ -14,16 +14,19 @@ export class HttpClient {
   public static async post(
     urlStr: string,
     headers: Record<string, string>,
-    bodyHash: Record<string, any>,
+    bodyHash: Record<string, unknown>,
     options: {
       timeout?: number;
       stream?: boolean;
       onChunk?: (chunk: string) => void;
-    } = {}
-  ): Promise<any> {
+    } = {},
+  ): Promise<Record<string, unknown> | null> {
     const timeoutSeconds = options.timeout ?? 120;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      timeoutSeconds * 1000,
+    );
 
     try {
       const response = await fetch(urlStr, {
@@ -42,7 +45,7 @@ export class HttpClient {
         } catch {
           // Ignore text reading errors
         }
-        this.validateResponseCode(response.status, bodyText);
+        HttpClient.validateResponseCode(response.status, bodyText);
       }
 
       if (options.stream) {
@@ -65,17 +68,17 @@ export class HttpClient {
         return null;
       } else {
         const json = await response.json();
-        return json;
+        return json as Record<string, unknown>;
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearTimeout(timeoutId);
-      if (err.name === 'AbortError') {
+      if (err instanceof Error && err.name === 'AbortError') {
         throw new LLMTimeoutError(`LLM request timed out: ${err.message}`);
       }
       if (err instanceof LLMError) {
         throw err;
       }
-      throw new LLMError(`LLM connection failed: ${err.message}`);
+      throw new LLMError(`LLM connection failed: ${(err as Error).message}`);
     }
   }
 
@@ -85,7 +88,8 @@ export class HttpClient {
     if (errorMessage.length > 0) {
       try {
         const parsed = JSON.parse(errorMessage);
-        errorMessage = parsed?.error?.message || parsed?.message || errorMessage;
+        errorMessage =
+          parsed?.error?.message || parsed?.message || errorMessage;
       } catch {
         // Keep original string if not valid JSON
       }
@@ -96,7 +100,10 @@ export class HttpClient {
     if (status === 401 || status === 403) {
       throw new LLMAuthError(`Authentication failed: ${errorMessage}`);
     } else if (status === 400) {
-      if (errorMessage.includes('API key not valid') || errorMessage.includes('API_KEY_INVALID')) {
+      if (
+        errorMessage.includes('API key not valid') ||
+        errorMessage.includes('API_KEY_INVALID')
+      ) {
         throw new LLMAuthError(`Authentication failed: ${errorMessage}`);
       } else {
         throw new LLMBadRequestError(`Bad request: ${errorMessage}`);

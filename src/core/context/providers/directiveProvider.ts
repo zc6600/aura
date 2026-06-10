@@ -1,17 +1,21 @@
-import { PromptsRegistry } from '../../llm/prompts/registry.js';
+import * as PromptsRegistry from '../../llm/prompts/registry.js';
 
 export class DirectiveProvider {
   private projectPath: string;
-  private options: any;
+  private options: Record<string, unknown>;
 
-  constructor(projectPath: string, options: any = {}) {
+  constructor(projectPath: string, options: Record<string, unknown> = {}) {
     this.projectPath = projectPath;
     this.options = options || {};
   }
 
   public provide(): string {
-    const mode = this.options.directive_mode || 'standard';
-    const content = PromptsRegistry.resolve(mode, this.projectPath, this.options);
+    const mode = (this.options.directive_mode as string) || 'standard';
+    const content = PromptsRegistry.resolve(
+      mode,
+      this.projectPath,
+      this.options,
+    );
     if (!content) {
       return '';
     }

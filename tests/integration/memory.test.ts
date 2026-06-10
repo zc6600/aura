@@ -1,22 +1,25 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
-import Database from 'better-sqlite3';
-import yaml from 'yaml';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
+import Database from 'better-sqlite3';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import yaml from 'yaml';
+import { Runner } from '../../src/core/kernel/runner.js';
 import { MemoryBase } from '../../src/core/memory/base.js';
 import { MemoryConfig } from '../../src/core/memory/config.js';
-import { SQLiteStore } from '../../src/core/memory/sqliteStore.js';
-import { MemoryRecorder } from '../../src/core/memory/recorder.js';
-import { MemoryProvider } from '../../src/core/memory/provider.js';
 import { MemoryPolicy } from '../../src/core/memory/policy.js';
+import { MemoryProvider } from '../../src/core/memory/provider.js';
+import { MemoryRecorder } from '../../src/core/memory/recorder.js';
 import { SessionManager } from '../../src/core/memory/sessionManager.js';
-import { Runner } from '../../src/core/kernel/runner.js';
+import { SQLiteStore } from '../../src/core/memory/sqliteStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+interface CountRow {
+  count: number;
+}
 
 describe('Memory Integration', { timeout: 30000 }, () => {
   let testDir: string;
@@ -24,9 +27,14 @@ describe('Memory Integration', { timeout: 30000 }, () => {
   let memory: MemoryBase;
 
   beforeEach(() => {
-    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-memory-integration-'));
+    testDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'aura-memory-integration-'),
+    );
     config = new MemoryConfig({
-      store: { project_path: testDir, db_path: path.join(testDir, 'state', 'aura.db') },
+      store: {
+        project_path: testDir,
+        db_path: path.join(testDir, 'state', 'aura.db'),
+      },
       metabolism: { max_chars: 100000, recent_events_n: 20 },
     });
     memory = new MemoryBase({ config });
@@ -34,16 +42,16 @@ describe('Memory Integration', { timeout: 30000 }, () => {
 
   afterEach(() => {
     try {
-      if (memory && memory.store) {
+      if (memory?.store) {
         memory.store.close();
       }
-    } catch (e) {}
+    } catch (_e) {}
 
     try {
       if (fs.existsSync(testDir)) {
         fs.rmSync(testDir, { recursive: true, force: true });
       }
-    } catch (e) {}
+    } catch (_e) {}
   });
 
   // 1. Metabolizer Public API
@@ -80,7 +88,9 @@ describe('Memory Integration', { timeout: 30000 }, () => {
     let runnerTestDir: string;
 
     beforeEach(() => {
-      runnerTestDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-runner-integration-'));
+      runnerTestDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'aura-runner-integration-'),
+      );
       fs.mkdirSync(path.join(runnerTestDir, 'config'), { recursive: true });
       fs.writeFileSync(
         path.join(runnerTestDir, 'config', 'config.yml'),
@@ -89,7 +99,7 @@ describe('Memory Integration', { timeout: 30000 }, () => {
             max_state_chars: 100000,
             recent_events_n: 20,
           },
-        })
+        }),
       );
     });
 
@@ -98,7 +108,7 @@ describe('Memory Integration', { timeout: 30000 }, () => {
         if (fs.existsSync(runnerTestDir)) {
           fs.rmSync(runnerTestDir, { recursive: true, force: true });
         }
-      } catch (e) {}
+      } catch (_e) {}
     });
 
     it('runner initialization with memory', () => {
@@ -160,11 +170,13 @@ describe('Memory Integration', { timeout: 30000 }, () => {
         if (fs.existsSync(sessionDir)) {
           fs.rmSync(sessionDir, { recursive: true, force: true });
         }
-      } catch (e) {}
+      } catch (_e) {}
     });
 
     it('create session', () => {
-      const session = manager.create('test-session', { description: 'Test session' });
+      const session = manager.create('test-session', {
+        description: 'Test session',
+      });
       expect(session.name).toBe('test-session');
       expect(session.db_path).toContain('test-session.db');
       expect(session.created_at).toBeDefined();
@@ -188,8 +200,10 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       expect(manager.currentName()).toBe('session-b');
       expect(process.env.AURA_SESSION_NAME).toBe('session-b');
 
-      const sessions = (manager as any).loadMetadata();
-      expect(new Date(sessions['session-b'].last_active_at).getTime()).toBeGreaterThan(new Date(createdTime).getTime());
+      const sessions = manager.loadMetadata();
+      expect(
+        new Date(sessions['session-b'].last_active_at).getTime(),
+      ).toBeGreaterThan(new Date(createdTime).getTime());
     });
 
     it('activate nonexistent session throws error', () => {
@@ -212,7 +226,7 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       manager.delete('to-delete');
       expect(manager.exists('to-delete')).toBe(false);
 
-      const sessions = (manager as any).loadMetadata();
+      const sessions = manager.loadMetadata();
       expect(sessions).not.toHaveProperty('to-delete');
     });
 
@@ -223,7 +237,7 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       expect(manager.exists('old-name')).toBe(false);
       expect(manager.exists('new-name')).toBe(true);
 
-      const sessions = (manager as any).loadMetadata();
+      const sessions = manager.loadMetadata();
       expect(sessions).not.toHaveProperty('old-name');
       expect(sessions).toHaveProperty('new-name');
     });
@@ -239,22 +253,26 @@ describe('Memory Integration', { timeout: 30000 }, () => {
 
     it('duplicate session', () => {
       manager.create('original');
-      const dbPath = (manager as any).dbPathFor('original');
+      const dbPath = manager.dbPathFor('original');
       const db = new Database(dbPath);
-      db.prepare('INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)').run(
+      db.prepare(
+        'INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)',
+      ).run(
         Math.floor(Date.now() / 1000),
         'user',
         null,
-        JSON.stringify({ content: 'test' })
+        JSON.stringify({ content: 'test' }),
       );
       db.close();
 
       manager.duplicate('original', 'copy');
       expect(manager.exists('copy')).toBe(true);
 
-      const copyDbPath = (manager as any).dbPathFor('copy');
+      const copyDbPath = manager.dbPathFor('copy');
       const copyDb = new Database(copyDbPath);
-      const countRow = copyDb.prepare('SELECT COUNT(*) as count FROM events').get() as any;
+      const countRow = copyDb
+        .prepare('SELECT COUNT(*) as count FROM events')
+        .get() as CountRow;
       expect(countRow.count).toBe(1);
       copyDb.close();
     });
@@ -273,20 +291,24 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       manager.create('session-a');
       manager.create('session-b');
 
-      const dbA = (manager as any).dbPathFor('session-a');
-      const dbB = (manager as any).dbPathFor('session-b');
+      const dbA = manager.dbPathFor('session-a');
+      const dbB = manager.dbPathFor('session-b');
 
       const db = new Database(dbA);
-      db.prepare('INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)').run(
+      db.prepare(
+        'INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)',
+      ).run(
         Math.floor(Date.now() / 1000),
         'user',
         null,
-        JSON.stringify({ content: 'data for A' })
+        JSON.stringify({ content: 'data for A' }),
       );
       db.close();
 
       const db2 = new Database(dbB);
-      const countRow = db2.prepare('SELECT COUNT(*) as count FROM events').get() as any;
+      const countRow = db2
+        .prepare('SELECT COUNT(*) as count FROM events')
+        .get() as CountRow;
       expect(countRow.count).toBe(0);
       db2.close();
     });
@@ -299,14 +321,16 @@ describe('Memory Integration', { timeout: 30000 }, () => {
 
     it('list includes stats', () => {
       manager.create('with-stats');
-      const dbPath = (manager as any).dbPathFor('with-stats');
+      const dbPath = manager.dbPathFor('with-stats');
       const db = new Database(dbPath);
       for (let i = 0; i < 3; i++) {
-        db.prepare('INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)').run(
+        db.prepare(
+          'INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)',
+        ).run(
           Math.floor(Date.now() / 1000),
           'user',
           null,
-          JSON.stringify({ content: `event ${i}` })
+          JSON.stringify({ content: `event ${i}` }),
         );
       }
       db.close();
@@ -315,7 +339,7 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       const statsSession = sessions.find((s) => s.name === 'with-stats');
       expect(statsSession).toBeDefined();
       expect(statsSession?.event_count).toBe(3);
-      expect(statsSession!.turn_count!).toBeGreaterThan(0);
+      expect(statsSession?.turn_count).toBeGreaterThan(0);
     });
 
     it('integration with runner reconnect', () => {
@@ -328,9 +352,11 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       runner.recordUserInput('Hello from integration test');
       runner.memory.store.close();
 
-      const dbPath = (manager as any).dbPathFor('integration-test');
+      const dbPath = manager.dbPathFor('integration-test');
       const db = new Database(dbPath);
-      const countRow = db.prepare("SELECT COUNT(*) as count FROM events WHERE phase = 'user'").get() as any;
+      const countRow = db
+        .prepare("SELECT COUNT(*) as count FROM events WHERE phase = 'user'")
+        .get() as CountRow;
       expect(countRow.count).toBe(1);
       db.close();
     });
@@ -376,7 +402,9 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       expect(old[0].payload.content).toBe('Event 0');
       expect(old[old.length - 1].payload.content).toBe('Event 6');
 
-      const hasRecent = old.some((e) => /Event (7|8|9)/.test(e.payload.content));
+      const hasRecent = old.some((e) =>
+        /Event (7|8|9)/.test(String(e.payload.content)),
+      );
       expect(hasRecent).toBe(false);
     });
 
@@ -387,11 +415,19 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       expect(memory.undo()).toBe(true);
 
       const db = memory.store.getRawDb();
-      const undoneCount = (db.prepare('SELECT COUNT(*) as count FROM undone_events').get() as any).count;
+      const undoneCount = (
+        db
+          .prepare('SELECT COUNT(*) as count FROM undone_events')
+          .get() as CountRow
+      ).count;
       expect(undoneCount).toBeGreaterThan(0);
 
       memory.recorder.recordUser('New User Event');
-      const undoneCountAfter = (db.prepare('SELECT COUNT(*) as count FROM undone_events').get() as any).count;
+      const undoneCountAfter = (
+        db
+          .prepare('SELECT COUNT(*) as count FROM undone_events')
+          .get() as CountRow
+      ).count;
       expect(undoneCountAfter).toBe(0);
     });
   });
@@ -449,7 +485,7 @@ describe('Memory Integration', { timeout: 30000 }, () => {
         { id: 3, phase: 'milestone' },
       ];
 
-      const result = policy.apply(events);
+      const result = policy.apply(events as any);
       expect(result.to_summarize.length).toBe(1);
       expect(result.to_delete.length).toBe(2); // execution deletes, plan gets summarized then deleted
       expect(result.to_keep.length).toBe(1);
@@ -460,9 +496,18 @@ describe('Memory Integration', { timeout: 30000 }, () => {
   describe('Backward Compatibility Checks', () => {
     it('all event types have phase and tool fields in parsed payload', () => {
       memory.recorder.recordUser('user event');
-      memory.recorder.recordPlan({ tool: 'test', args: {}, thought: 'Thinking...' });
+      memory.recorder.recordPlan({
+        type: 'tool_call',
+        tool: 'test',
+        args: {},
+        thought: 'Thinking...',
+      });
       memory.recorder.recordExecution('test_tool', { status: 'ok' });
-      memory.recorder.recordInterception('blocked_tool', 'advice text', 'reason text');
+      memory.recorder.recordInterception(
+        'blocked_tool',
+        'advice text',
+        'reason text',
+      );
       memory.recorder.recordCustom('custom_phase', { data: 'custom_data' });
 
       const events = memory.provider.recentEvents();

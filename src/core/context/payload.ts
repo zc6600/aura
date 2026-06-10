@@ -1,8 +1,11 @@
+import type { ChatMessage, ToolSchema } from '../llm/types.js';
+import type { StructuredTool } from './providers/toolProvider.js';
+
 export class ContextPrompt {
   constructor(
     public readonly kernel_prompt: string,
     public readonly workspace_prompt: string,
-    public readonly task_prompt: string
+    public readonly task_prompt: string,
   ) {}
 }
 
@@ -10,7 +13,7 @@ export class ContextEnvProvider {
   constructor(
     public readonly overview: string,
     public readonly lsp: string,
-    public readonly knowledge: string
+    public readonly knowledge: string,
   ) {}
 }
 
@@ -22,33 +25,34 @@ export class ContextPayload {
   public readonly prompt?: ContextPrompt | null;
   public readonly env_provider?: ContextEnvProvider | null;
   public readonly memory?: ContextMemory | null;
-  public readonly tools: any[];
-  public readonly options: any;
+  public readonly tools: StructuredTool[];
+  public readonly options: Record<string, unknown>;
   public readonly sections: Record<string, string>;
 
   constructor(
     promptOrSections: ContextPrompt | Record<string, string>,
-    envProviderOrTools: ContextEnvProvider | any[] = null as any,
-    memoryOrOptions: ContextMemory | any = null as any,
-    tools: any[] = [],
-    options: any = {},
-    sections: Record<string, string> = {}
+    envProviderOrTools: ContextEnvProvider | StructuredTool[] = [],
+    memoryOrOptions: ContextMemory | Record<string, unknown> = {},
+    tools: StructuredTool[] = [],
+    options: Record<string, unknown> = {},
+    sections: Record<string, string> = {},
   ) {
     if (promptOrSections && !(promptOrSections instanceof ContextPrompt)) {
       // Signature: (sections, tools, options)
       this.sections = (promptOrSections as Record<string, string>) || {};
-      this.tools = (envProviderOrTools as any[]) || [];
-      this.options = memoryOrOptions || {};
+      this.tools = (envProviderOrTools as StructuredTool[]) || [];
+      this.options = (memoryOrOptions as Record<string, unknown>) || {};
+      this.memory = null;
 
       this.prompt = new ContextPrompt(
         this.sections.directive || '',
         this.sections.workspace || '',
-        this.sections.task || ''
+        this.sections.task || '',
       );
       this.env_provider = new ContextEnvProvider(
         this.sections.env || '',
         this.sections.lsp || '',
-        this.sections.knowledge || ''
+        this.sections.knowledge || '',
       );
       this.memory = new ContextMemory(this.sections.state || '');
     } else {
@@ -61,14 +65,17 @@ export class ContextPayload {
       this.sections = { ...(sections || {}) };
 
       if (this.prompt) {
-        this.sections.directive = this.sections.directive || this.prompt.kernel_prompt;
-        this.sections.workspace = this.sections.workspace || this.prompt.workspace_prompt;
+        this.sections.directive =
+          this.sections.directive || this.prompt.kernel_prompt;
+        this.sections.workspace =
+          this.sections.workspace || this.prompt.workspace_prompt;
         this.sections.task = this.sections.task || this.prompt.task_prompt;
       }
       if (this.env_provider) {
         this.sections.env = this.sections.env || this.env_provider.overview;
         this.sections.lsp = this.sections.lsp || this.env_provider.lsp;
-        this.sections.knowledge = this.sections.knowledge || this.env_provider.knowledge;
+        this.sections.knowledge =
+          this.sections.knowledge || this.env_provider.knowledge;
       }
       if (this.memory) {
         this.sections.state = this.sections.state || this.memory.state;
@@ -89,7 +96,7 @@ export class ContextPayload {
     ];
 
     return order
-      .map(k => {
+      .map((k) => {
         if (excludedKeys.includes(k)) return null;
         return this.sections[k];
       })
@@ -105,12 +112,13 @@ export class ContextPayload {
     return this.toMarkdown();
   }
 
-  public toMessages(options: { goal?: string | null } = {}): Array<{ role: string; content: string }> {
+  public toMessages(options: { goal?: string | null } = {}): ChatMessage[] {
     const mode = this.options.directive_mode;
     const goal = options.goal;
 
     if (mode === 'ralph_developer' || mode === 'ralph_critic') {
-      const systemPrompt = this.prompt?.kernel_prompt || this.sections.directive || '';
+      const systemPrompt =
+        this.prompt?.kernel_prompt || this.sections.directive || '';
       const userContent = this.buildUserContent(goal);
       return [
         { role: 'system', content: systemPrompt },
@@ -123,21 +131,18 @@ export class ContextPayload {
     }
   }
 
-  public toToolSchemas(): any[] {
+  public toToolSchemas(): ToolSchema[] {
     if (!this.tools || this.tools.length === 0) return [];
 
-    return this.tools.map(tool => {
-      let schema = tool.input_schema || tool.input || {};
+    return this.tools.map((tool) => {
+      let schema = tool.input_schema || {};
       schema = this.processSchema(schema);
       schema = this.normalizeSchema(schema);
 
       return {
-        type: 'function',
-        function: {
-          name: tool.name,
-          description: tool.description || '',
-          parameters: schema,
-        },
+        name: tool.name,
+        description: tool.description || '',
+        input_schema: schema,
       };
     });
   }
@@ -146,15 +151,20 @@ export class ContextPayload {
     const mode = this.options.directive_mode;
 
     if (mode === 'ralph_critic') {
-      const audit = this.options.ralph_audit || {};
+      const audit = (this.options.ralph_audit as Record<string, string>) || {};
       const changes = audit.changes || '';
       const previousAudit = audit.previous_audit || '';
       const testOutput = audit.test_output || '';
       const taskContent = audit.task_content || '';
 
-      const criticMode = String(this.options.critic_mode || 'light').toLowerCase();
+      const criticMode = String(
+        this.options.critic_mode || 'light',
+      ).toLowerCase();
       // Heavy critic includes all context parts except directive, active, index, state
-      const parts = criticMode === 'heavy' ? this.toMarkdownExcluding(['directive', 'active', 'index', 'state']) : null;
+      const parts =
+        criticMode === 'heavy'
+          ? this.toMarkdownExcluding(['directive', 'active', 'index', 'state'])
+          : null;
 
       return [
         parts,
@@ -164,14 +174,19 @@ export class ContextPayload {
         `# PHYSICAL TEST EXECUTION VERIFICATION LOG\n${testOutput}`,
         `# TASK CHECKLIST\n${taskContent}`,
         'Please audit these changes. Are they complete and correct according to the Goal?\n' +
-        'Does it address the previous critique and satisfy all acceptance criteria?',
+          'Does it address the previous critique and satisfy all acceptance criteria?',
       ]
         .filter(Boolean)
         .join('\n\n');
     } else if (mode === 'ralph_developer') {
-      const parts = this.toMarkdownExcluding(['directive', 'active', 'index', 'state']);
+      const parts = this.toMarkdownExcluding([
+        'directive',
+        'active',
+        'index',
+        'state',
+      ]);
 
-      const recap = this.options.ralph_recap || {};
+      const recap = (this.options.ralph_recap as Record<string, string>) || {};
       const lastTool = recap.last_tool || 'None';
       const lastOutput = recap.last_output || 'No tools executed yet.';
       const lastTest = recap.last_test || 'Not run yet.';
@@ -205,13 +220,17 @@ export class ContextPayload {
       // Exclude tool descriptions because tools schema are passed separately in native API
       let parts = this.toMarkdownExcluding(['tools']);
       if (goal && String(goal).trim()) {
-        parts = [parts, '## CURRENT USER TASK', String(goal).trim()].filter(Boolean).join('\n\n');
+        parts = [parts, '## CURRENT USER TASK', String(goal).trim()]
+          .filter(Boolean)
+          .join('\n\n');
       }
       return parts;
     }
   }
 
-  private normalizeSchema(schema: any): any {
+  private normalizeSchema(
+    schema: Record<string, unknown>,
+  ): Record<string, unknown> {
     if (!schema || typeof schema !== 'object') {
       return { type: 'object', properties: {}, required: [] };
     }
@@ -223,17 +242,19 @@ export class ContextPayload {
       properties: schema.properties || {},
       required: schema.required || [],
     };
-    return this.processSchema(wrapped);
+    return this.processSchema(wrapped as Record<string, unknown>);
   }
 
-  private processSchema(schema: any): any {
+  private processSchema(
+    schema: Record<string, unknown>,
+  ): Record<string, unknown> {
     if (!schema || typeof schema !== 'object') return schema;
 
     const props = schema.properties;
     if (props && typeof props === 'object') {
-      for (const [k, v] of Object.entries(props)) {
+      for (const [_k, v] of Object.entries(props)) {
         if (v && typeof v === 'object') {
-          const val = v as any;
+          const val = v as Record<string, unknown>;
           if (String(val.type) === 'array' && !val.items) {
             val.items = { type: 'string' };
           }

@@ -58,7 +58,7 @@ Aura automatically detects and configures LLM providers from `.env` files.
 |---------------------|----------|---------------|
 | `OPENROUTER_API_KEY` | openrouter | openai/gpt-4o |
 | `OPENAI_API_KEY` | openai | gpt-4o |
-| `ANTHROPIC_API_KEY` | anthropic | claude-sonnet-4-20250514 |
+| `ANTHROPIC_API_KEY` | anthropic | claude-3-5-sonnet-20241022 |
 | No keys found | local | (offline mock) |
 
 **Setup:**
@@ -67,8 +67,8 @@ Aura automatically detects and configures LLM providers from `.env` files.
 # Create .env file in your project
 echo "OPENROUTER_API_KEY=sk-or-v1-your-key" > .env
 
-# Run chat - automatically detects provider
-aura chat
+# Run agent - automatically detects provider
+aura agent
 # Output: ℹ️ Auto-configured LLM provider: openrouter (from OPENROUTER_API_KEY)
 ```
 
@@ -85,7 +85,7 @@ Override auto-detection by setting values in `config.yml`:
 ```yaml
 llm:
   provider: "openrouter"
-  model: "anthropic/claude-sonnet-4-20250514"
+  model: "anthropic/claude-3-5-sonnet-20241022"
   api_base: ""  # Optional custom API endpoint
 ```
 
@@ -161,7 +161,7 @@ aura config state_management.max_state_chars 100000
 ```bash
 # Use Claude for production (better reasoning)
 aura config llm.provider anthropic
-aura config llm.model claude-sonnet-4-20250514
+aura config llm.model claude-3-5-sonnet-20241022
 
 # Enable strict security
 aura config security.strict_path_isolation true
@@ -245,7 +245,23 @@ hints:
 directory_tree:
   max_depth: 3
   max_files_per_dir: 10
+
+# Context Compression
+context_compression:
+  event_max_chars: 800          # Max length for a single event in compiled context
+  event_min_count_threshold: 10 # Retain at least 10 events before trimming summaries
+  summary_trim_step: 5          # Number of lines to discard when trimming
 ```
+
+---
+
+## Context Compression
+
+To optimize context window usage, Aura OS uses a state-aware compression policy configured under the `context_compression` section of `config.yml`.
+
+* **`context_compression.event_max_chars`**: The maximum characters displayed in compiled context for a single event payload (default: `800`).
+* **`context_compression.event_min_count_threshold`**: The minimum number of recent events that must be kept before summary trimming starts (default: `10`).
+* **`context_compression.summary_trim_step`**: The approximate number of lines discarded at each step when trimming events to fit within limits (default: `5`).
 
 ---
 
@@ -303,7 +319,7 @@ Customize for specific projects:
 
 ```bash
 cd my-project
-aura config llm.model claude-sonnet-4-20250514
+aura config llm.model claude-3-5-sonnet-20241022
 ```
 
 ### 4. Use Agent Profiles
@@ -313,7 +329,7 @@ Create profiles for different use cases:
 ```bash
 # Production profile
 aura branch production
-aura config llm.model claude-sonnet-4-20250514
+aura config llm.model claude-3-5-sonnet-20241022
 aura config security.strict_path_isolation true
 
 # Development profile

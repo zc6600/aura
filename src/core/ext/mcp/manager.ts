@@ -1,9 +1,35 @@
-import fs from 'fs';
-import path from 'path';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import yaml from 'yaml';
-import { spawnSync } from 'child_process';
+import type { ToolResult } from '../../kernel/interfaces.js';
 import { StdioClient } from './client.js';
 import { SseClient } from './sseClient.js';
+
+export interface MCPConfigServer {
+  name: string;
+  transport?: 'stdio' | 'sse';
+  timeout?: number;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  auto_load?: boolean;
+  hint?: string;
+  tool_hints?: Record<string, string>;
+}
+
+export interface MCPTool {
+  name: string;
+  tool: string;
+  server: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+  auto_load: boolean;
+  hint: string;
+  raw: any;
+}
 
 type MCPClient = {
   request: (method: string, params?: any) => Promise<any>;
@@ -23,7 +49,7 @@ export class MCPManager {
     for (const client of Object.values(this.clients)) {
       try {
         client.close();
-      } catch (e) {}
+      } catch (_e) {}
     }
     this.clients = {};
   }
@@ -32,9 +58,9 @@ export class MCPManager {
     return String(name).startsWith('mcp.');
   }
 
-  public listTools(): any[] {
+  public listTools(): MCPTool[] {
     const srvs = this.servers();
-    const toolsList: any[] = [];
+    const toolsList: MCPTool[] = [];
 
     for (const srv of srvs) {
       const name = srv.name;
@@ -107,7 +133,14 @@ child.stdin.write(JSON.stringify({
         try {
           const res = spawnSync(
             process.execPath,
-            ['-e', helperScript, cmd, JSON.stringify(args), JSON.stringify(env), String(timeout)],
+            [
+              '-e',
+              helperScript,
+              cmd,
+              JSON.stringify(args),
+              JSON.stringify(env),
+              String(timeout),
+            ],
             { encoding: 'utf-8', timeout: (timeout + 2) * 1000 },
           );
 
@@ -128,7 +161,7 @@ child.stdin.write(JSON.stringify({
               });
             }
           }
-        } catch (e) {}
+        } catch (_e) {}
         continue;
       }
 
@@ -217,10 +250,20 @@ const handleLine = async (line) => {
 `;
 
         try {
-          const res = spawnSync(process.execPath, ['-e', helperScript, String(url), JSON.stringify(headers), String(timeout)], {
-            encoding: 'utf-8',
-            timeout: (timeout + 2) * 1000,
-          });
+          const res = spawnSync(
+            process.execPath,
+            [
+              '-e',
+              helperScript,
+              String(url),
+              JSON.stringify(headers),
+              String(timeout),
+            ],
+            {
+              encoding: 'utf-8',
+              timeout: (timeout + 2) * 1000,
+            },
+          );
 
           if (res.status === 0 && res.stdout.trim()) {
             const resp = JSON.parse(res.stdout.trim());
@@ -239,15 +282,17 @@ const handleLine = async (line) => {
               });
             }
           }
-        } catch (e) {}
-        continue;
+        } catch (_e) {}
       }
     }
 
     return toolsList;
   }
 
-  public async callTool(fullName: string, args: any): Promise<any> {
+  public async callTool(
+    fullName: string,
+    args: Record<string, unknown>,
+  ): Promise<ToolResult> {
     const parsed = this.parseTool(fullName);
     if (!parsed) {
       return { status: 'failed', error: `invalid mcp tool: ${fullName}` };
@@ -266,26 +311,39 @@ const handleLine = async (line) => {
     }
 
     try {
-      const resp = await client.request('tools/call', { name: tool, arguments: args || {} });
-      if (resp && resp.error) {
+      const resp = await client.request('tools/call', {
+        name: tool,
+        arguments: args || {},
+      });
+      if (resp?.error) {
         return { status: 'failed', error: resp.error.message || resp.error };
       }
 
       const res = resp.result || {};
       const text = this.extractText(res.content);
       const status = res.isError ? 'failed' : 'ok';
-      const out: any = { status, content: text || res.content, mcp: res };
+      const out: ToolResult = {
+        status,
+        content: text || res.content,
+        mcp: res,
+      };
       if (res.isError) {
         out.error = res.content;
       }
       return out;
-    } catch (e: any) {
-      return { status: 'failed', error: e.message };
+    } catch (e: unknown) {
+      const msg = (e as Error).message ?? String(e);
+      return { status: 'failed', error: msg };
     }
   }
 
-  private servers(): any[] {
-    const configPath = path.join(this.projectPath, 'tools', 'mcp', 'config.yml');
+  private servers(): MCPConfigServer[] {
+    const configPath = path.join(
+      this.projectPath,
+      'tools',
+      'mcp',
+      'config.yml',
+    );
     if (!fs.existsSync(configPath)) {
       return [];
     }
@@ -293,12 +351,12 @@ const handleLine = async (line) => {
       const content = fs.readFileSync(configPath, 'utf-8');
       const cfg = yaml.parse(content) || {};
       return Array.isArray(cfg.servers) ? cfg.servers : [];
-    } catch (e) {
+    } catch (_e) {
       return [];
     }
   }
 
-  private clientFor(serverCfg: any): MCPClient | null {
+  private clientFor(serverCfg: MCPConfigServer): MCPClient | null {
     const transport = String(serverCfg.transport || 'stdio');
     const name = String(serverCfg.name || '');
     if (!name) return null;
@@ -343,7 +401,7 @@ const handleLine = async (line) => {
     return [server, tool];
   }
 
-  private extractText(content: any): string | null {
+  private extractText(content: Record<string, unknown>[]): string | null {
     if (!Array.isArray(content)) {
       return null;
     }
@@ -362,7 +420,10 @@ const handleLine = async (line) => {
     return texts.join('\n');
   }
 
-  private buildHint(serverCfg: any, toolName: string): string | null {
+  private buildHint(
+    serverCfg: MCPConfigServer,
+    toolName: string,
+  ): string | null {
     const base = serverCfg.hint || '';
     const toolHints = serverCfg.tool_hints || {};
     const toolHint = toolHints[toolName] || '';

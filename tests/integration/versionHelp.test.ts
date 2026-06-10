@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { execa } from 'execa';
-import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
+import { describe, expect, it } from 'vitest';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

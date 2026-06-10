@@ -15,9 +15,9 @@ The unified central orchestrator for the agent's goal execution.
 
 **Responsibilities:**
 - **Loop Orchestration**: Runs a state-machine loop to achieve a goal
-- **Planner Execution**: Calls the LLM planner, handles plain text or raw string responses, wrapping them as synthesized `final` tool calls
+- **Planner Execution**: Calls the LLM planner, handles plain text or raw string responses, extracting the final answer directly upon natural stops (finish_reason: 'stop') rather than wrapping them as tool calls.
 - **Robust Error Tolerance**: Retries malformed JSON responses up to 5 times (configurable via `system.max_format_errors`) and handles blocked tools (up to 3 times, configurable via `system.max_tool_errors`) with feedback injections so the agent can self-correct
-- **Exception Boundary**: Catches and standardizes execution errors into standard JavaScript Error instances
+- **Exception Boundary**: Catches and standardizes execution errors into standard JavaScript Error instances, and wraps tool execution subprocess crashes into structured `ToolResult` failure objects to prevent the entire runner daemon from terminating.
 
 **Usage**: AgentLoop wraps Runner for complex goal-based execution. For simpler interactions, Runner can be used directly.
 
@@ -169,7 +169,7 @@ Aura uses a strict subset of JSON Schema:
 
 ### Execution Contract
 
-**Input**: `process.argv[2]` (or `sys.argv[1]` in Python) is a JSON string of arguments
+**Input**: The JSON string of arguments is written directly to the child process's **STDIN**. (Note: Standard python templates also support reading from `sys.argv[1]` as a fallback, but the primary method is STDIN).
 
 **Output**: STDOUT must be a single JSON object
 

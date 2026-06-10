@@ -1,40 +1,57 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import picocolors from 'picocolors';
-import { Runner } from '../../core/kernel/runner.js';
 import { AgentLoop } from '../../core/kernel/agentLoop.js';
+import type { ToolCall } from '../../core/kernel/interfaces.js';
+import { Runner } from '../../core/kernel/runner.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import * as UI from '../ui.js';
+
+interface FormattedLoopStep {
+  tool: string;
+  args: Record<string, unknown>;
+  summary?: string | null;
+  status: string | null;
+  output: string;
+}
 
 export class Kernel {
-  public static async observe(projectPath?: string, options: { human?: boolean } = {}): Promise<void> {
-    const root = this.resolveProjectPath(projectPath);
+  public static async observe(
+    projectPath?: string,
+    options: { human?: boolean; previewLines?: number } = {},
+  ): Promise<void> {
+    const root = Kernel.resolveProjectPath(projectPath);
     const runner = new Runner(root);
     let ctx = '';
 
     try {
       const observed = await runner.observe();
       ctx = typeof observed === 'string' ? observed : observed.toString();
-    } catch (e: any) {
-      ctx = `[Context overflow] ${e.message}`;
+    } catch (e: unknown) {
+      ctx = `[Context overflow] ${(e as Error).message}`;
     }
 
     if (options.human) {
-      console.log(ctx);
+      const limit = options.previewLines ?? 50;
+      const lines = ctx.split('\n');
+      const output =
+        lines.length > limit ? `${lines.slice(0, limit).join('\n')}\n...` : ctx;
+      console.log(output);
     } else {
       console.log(JSON.stringify({ context: ctx }));
     }
   }
 
-  public static async runCall(tool: string, argsJson: string, projectPath?: string): Promise<void> {
-    const root = this.resolveProjectPath(projectPath);
+  public static async runCall(
+    tool: string,
+    argsJson: string,
+    projectPath?: string,
+  ): Promise<void> {
+    const root = Kernel.resolveProjectPath(projectPath);
     const runner = new Runner(root);
     let args = {};
 
     try {
       args = JSON.parse(argsJson);
-    } catch (e: any) {
-      console.error(picocolors.red(`⛔️ Error parsing args JSON: ${e.message}`));
-      process.exit(1);
+    } catch (e: unknown) {
+      throw new UI.CliError(`Invalid args JSON: ${(e as Error).message}`);
     }
 
     const out = await runner.runCall({ tool, args });
@@ -45,13 +62,23 @@ export class Kernel {
     }
   }
 
-  public static async once(projectPath?: string, options: { call?: string; input?: string; ask?: boolean; human?: boolean; verbose?: boolean; previewLines?: number } = {}): Promise<void> {
-    const root = this.resolveProjectPath(projectPath);
+  public static async once(
+    projectPath?: string,
+    options: {
+      call?: string;
+      input?: string;
+      ask?: boolean;
+      human?: boolean;
+      verbose?: boolean;
+      previewLines?: number;
+    } = {},
+  ): Promise<void> {
+    const root = Kernel.resolveProjectPath(projectPath);
     const runner = new Runner(root);
     let input = options.input || '';
 
     if (options.ask && (!input || input.trim().length === 0)) {
-      input = await this.readStdinLine('Input> ');
+      input = await Kernel.readStdinLine('Input> ');
     }
 
     input = input.trim();
@@ -63,24 +90,27 @@ export class Kernel {
     try {
       const observed = await runner.observe();
       ctx = typeof observed === 'string' ? observed : observed.toString();
-    } catch (e: any) {
-      ctx = `[Context overflow] ${e.message}`;
+    } catch (e: unknown) {
+      ctx = `[Context overflow] ${(e as Error).message}`;
     }
 
-    let payload: any = null;
+    let payload: ToolCall | null = null;
     if (options.call) {
       try {
-        payload = JSON.parse(options.call);
-      } catch (e: any) {
-        console.error(picocolors.red(`⛔️ Error parsing call JSON: ${e.message}`));
-        process.exit(1);
+        payload = JSON.parse(options.call) as ToolCall;
+      } catch (e: unknown) {
+        throw new UI.CliError(`Invalid call JSON: ${(e as Error).message}`);
       }
     }
 
     if (!payload && input.length > 0) {
       const plan = await runner.plan(input, ctx);
-      if (plan && plan.tool) {
-        payload = { tool: plan.tool, args: plan.args || {}, summary: plan.summary };
+      if (plan && plan.type === 'tool_call') {
+        payload = {
+          tool: plan.tool,
+          args: plan.args || {},
+          summary: plan.summary,
+        };
       }
     }
 
@@ -90,30 +120,37 @@ export class Kernel {
     if (payload) {
       const out = await runner.runCall(payload);
       if (options.human) {
-        console.log(this.humanKernelOutput(ctx, out, payload, previewLines, verbose));
+        console.log(
+          Kernel.humanKernelOutput(ctx, out, payload, previewLines, verbose),
+        );
       } else {
         const preview = ctx.split('\n').slice(0, previewLines).join('\n');
         console.log(JSON.stringify({ context_preview: preview, result: out }));
       }
     } else {
       if (options.human) {
-        console.log(this.humanKernelOutput(ctx, null, null, previewLines, verbose));
+        console.log(
+          Kernel.humanKernelOutput(ctx, null, null, previewLines, verbose),
+        );
       } else {
         console.log(ctx);
       }
     }
   }
 
-  public static async plan(projectPath?: string, options: { goal?: string; human?: boolean; previewLines?: number } = {}): Promise<void> {
-    const root = this.resolveProjectPath(projectPath);
+  public static async plan(
+    projectPath?: string,
+    options: { goal?: string; human?: boolean; previewLines?: number } = {},
+  ): Promise<void> {
+    const root = Kernel.resolveProjectPath(projectPath);
     const runner = new Runner(root);
     let ctx = '';
 
     try {
       const observed = await runner.observe();
       ctx = typeof observed === 'string' ? observed : observed.toString();
-    } catch (e: any) {
-      ctx = `[Context overflow] ${e.message}`;
+    } catch (e: unknown) {
+      ctx = `[Context overflow] ${(e as Error).message}`;
     }
 
     const res = await runner.plan(options.goal, ctx);
@@ -130,64 +167,112 @@ export class Kernel {
     }
   }
 
-  public static async loop(projectPath?: string, options: { goal?: string; human?: boolean; verbose?: boolean; maxSteps?: number } = {}): Promise<void> {
-    const root = this.resolveProjectPath(projectPath);
+  public static async loop(
+    projectPath?: string,
+    options: {
+      goal?: string;
+      human?: boolean;
+      verbose?: boolean;
+      maxSteps?: number;
+    } = {},
+  ): Promise<void> {
+    const root = Kernel.resolveProjectPath(projectPath);
     const runner = new Runner(root);
 
-    const prefix = process.env.AURA_SUBAGENT_ID ? `[Subagent ${process.env.AURA_SUBAGENT_ID}]` : '[Agent]';
+    const prefix = process.env.AURA_SUBAGENT_ID
+      ? `[Subagent ${process.env.AURA_SUBAGENT_ID}]`
+      : '[Agent]';
     const eventBus = {
-      emit: (event: string, payload?: any) => {
+      emit: (event: string, payload?: Record<string, any>) => {
         if (event === 'thought') {
           const content = payload?.content?.trim();
           if (content) process.stderr.write(`${prefix} Thought: ${content}\n`);
         } else if (event === 'tool_start') {
-          process.stderr.write(`${prefix} Tool Call: ${payload.tool} | ${payload.summary || ''}\n`);
+          process.stderr.write(
+            `${prefix} Tool Call: ${payload?.tool} | ${payload?.summary || ''}\n`,
+          );
         } else if (event === 'tool_result') {
-          process.stderr.write(`${prefix} Tool Result: ${payload.result?.status || 'ok'}\n`);
+          process.stderr.write(
+            `${prefix} Tool Result: ${payload?.result?.status || 'ok'}\n`,
+          );
         } else if (event === 'final_answer') {
           const content = payload?.content?.trim();
-          if (content) process.stderr.write(`${prefix} Final Answer: ${content}\n`);
+          if (content)
+            process.stderr.write(`${prefix} Final Answer: ${content}\n`);
         }
       },
     };
 
     const agentLoop = new AgentLoop(runner, { eventBus });
     const maxSteps = options.maxSteps || 30;
-    const res = await agentLoop.run(options.goal || '', { max_steps: maxSteps });
-
-    const formattedSteps = res.steps.map((step) => {
-      const payload = { tool: step.tool, args: step.args || {}, summary: step.summary };
-      return this.formatLoopStep(payload, step.result);
+    const res = await agentLoop.run(options.goal || '', {
+      max_steps: maxSteps,
     });
 
-    let finalRes: any = null;
+    const formattedSteps = res.steps.map((step) => {
+      const payload = {
+        tool: step.tool,
+        args: step.args || {},
+        summary: step.summary,
+      };
+      return Kernel.formatLoopStep(payload, step.result);
+    });
+
+    let finalRes: unknown = null;
     if (res.status === 'completed') {
       finalRes = res.steps[res.steps.length - 1]
         ? res.steps[res.steps.length - 1].result
         : { status: 'completed', content: res.final_content };
     } else {
-      finalRes = { status: 'failed', reason: res.failure_reason || 'aborted', steps: res.steps.length };
+      finalRes = {
+        status: 'failed',
+        reason: res.failure_reason || 'aborted',
+        steps: res.steps.length,
+      };
     }
 
     if (options.human) {
       const verbose = !!options.verbose || process.env.VERBOSE === 'true';
       formattedSteps.forEach((s) => {
-        console.log(this.humanLoopStep(s, verbose));
+        console.log(Kernel.humanLoopStep(s, verbose));
       });
     } else {
       console.log(JSON.stringify({ steps: formattedSteps, final: finalRes }));
     }
   }
 
-  private static formatLoopStep(payload: any, out: any): any {
-    const status = out && typeof out === 'object' ? out.status : null;
-    const body = out && typeof out === 'object'
-      ? (out.content || out.output || out.message || out.stdout || out.stderr || JSON.stringify(out))
+  private static formatLoopStep(
+    payload: {
+      tool: string;
+      args?: Record<string, unknown>;
+      summary?: string | null;
+    },
+    out: unknown,
+  ): FormattedLoopStep {
+    const outObj =
+      out && typeof out === 'object' ? (out as Record<string, unknown>) : null;
+    const status = outObj ? (outObj.status as string | null) : null;
+    const body = outObj
+      ? outObj.content ||
+        outObj.output ||
+        outObj.message ||
+        outObj.stdout ||
+        outObj.stderr ||
+        JSON.stringify(outObj)
       : String(out);
-    return { tool: payload.tool, args: payload.args || {}, summary: payload.summary, status, output: body };
+    return {
+      tool: payload.tool,
+      args: payload.args || {},
+      summary: payload.summary,
+      status,
+      output: String(body),
+    };
   }
 
-  private static humanLoopStep(step: any, verbose: boolean): string {
+  private static humanLoopStep(
+    step: FormattedLoopStep,
+    verbose: boolean,
+  ): string {
     const lines = [];
     lines.push('== Step ==');
     lines.push(`Tool: ${step.tool}`);
@@ -203,13 +288,19 @@ export class Kernel {
     lines.push('Output:');
     let body = String(step.output || '');
     if (!verbose) {
-      body = this.truncateOutput(body, 5);
+      body = Kernel.truncateOutput(body, 5);
     }
     lines.push(body);
     return lines.join('\n');
   }
 
-  private static humanKernelOutput(ctx: string, out: any, payload: any, nlines: number, verbose: boolean): string {
+  private static humanKernelOutput(
+    ctx: string,
+    out: unknown,
+    payload: ToolCall | null,
+    nlines: number,
+    verbose: boolean,
+  ): string {
     const lines = [];
     lines.push('== Context Preview ==');
     lines.push(ctx.split('\n').slice(0, nlines).join('\n'));
@@ -231,15 +322,16 @@ export class Kernel {
     if (out === null || out === undefined) {
       lines.push('(no execution)');
     } else if (out && typeof out === 'object') {
-      const status = out.status || 'ok';
+      const outObj = out as Record<string, unknown>;
+      const status = (outObj.status as string) || 'ok';
       if (['blocked', 'upgrade_required'].includes(status)) {
         lines.push(`Status: ${status} (Tool execution blocked/failed)`);
       } else {
         lines.push(`Status: ${status}`);
       }
-      let body = this.formatResultBody(out);
+      let body = Kernel.formatResultBody(out);
       if (!verbose) {
-        body = this.truncateOutput(body, 5);
+        body = Kernel.truncateOutput(body, 5);
       }
       lines.push(body);
     } else {
@@ -249,13 +341,23 @@ export class Kernel {
     return lines.join('\n');
   }
 
-  private static formatResultBody(res: any): string {
-    if (!res || typeof res !== 'object') return String(res);
-    const candidates = [res.content, res.output, res.message, res.stdout, res.stderr];
-    const found = candidates.find((v) => v !== undefined && v !== null && String(v).trim().length > 0);
+  private static formatResultBody(res: unknown): string {
+    const resObj =
+      res && typeof res === 'object' ? (res as Record<string, unknown>) : null;
+    if (!resObj) return String(res);
+    const candidates = [
+      resObj.content,
+      resObj.output,
+      resObj.message,
+      resObj.stdout,
+      resObj.stderr,
+    ];
+    const found = candidates.find(
+      (v) => v !== undefined && v !== null && String(v).trim().length > 0,
+    );
     if (found !== undefined) return String(found);
 
-    const keys = Object.keys(res);
+    const keys = Object.keys(resObj);
     if (keys.length > 0) {
       return `Result returned (fields: ${keys.join(', ')})`;
     }
@@ -265,12 +367,14 @@ export class Kernel {
   private static truncateOutput(body: string, maxLines: number): string {
     const lines = body.split('\n');
     if (lines.length <= maxLines) return body;
-    return lines.slice(0, maxLines).join('\n') + '\n...';
+    return `${lines.slice(0, maxLines).join('\n')}\n...`;
   }
 
   private static resolveProjectPath(projectPath?: string): string {
     try {
-      const resolved = PathResolver.resolveProjectPath(projectPath || undefined);
+      const resolved = PathResolver.resolveProjectPath(
+        projectPath || undefined,
+      );
       if (resolved) return resolved;
     } catch {}
     return process.cwd();

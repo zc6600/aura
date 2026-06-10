@@ -1,31 +1,36 @@
-import fs from 'fs';
-import path from 'path';
-import { ToolRegistry } from '../../kernel/registry.js';
-import { ContextManager, ContextItem } from '../manager.js';
-import { MCPManager } from '../../ext/mcp/manager.js';
-import { ConfigManager } from '../../../utils/configManager.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import * as ConfigManager from '../../../utils/configManager.js';
+import { MCPManager, type MCPTool } from '../../ext/mcp/manager.js';
+import { type ToolManifest, ToolRegistry } from '../../kernel/registry.js';
+import { type ContextItem, ContextManager } from '../manager.js';
 
 export interface StructuredTool {
   name: string;
   description: string;
-  input_schema: any;
-  permissions: any;
+  input_schema: Record<string, unknown>;
+  permissions: Record<string, unknown>;
   hint: string;
+}
+
+interface ToolProviderOptions {
+  state?: unknown;
+  current_turn?: number;
 }
 
 export class ToolProvider {
   private workspaceRoot: string;
   private envPath: string;
-  private options: any;
-  private state: any;
+  private state: unknown;
   private currentTurn: number;
   private registry: ToolRegistry;
   private manager: ContextManager;
   private mcpManager: MCPManager;
   private activeToolsList: StructuredTool[] = [];
   private loadedToolsList: string[] = [];
+  public readonly options: ToolProviderOptions;
 
-  constructor(workspacePath: string, options: any = {}) {
+  constructor(workspacePath: string, options: ToolProviderOptions = {}) {
     const resolvedEnv = PathResolverEnvironment(workspacePath) || workspacePath;
     this.envPath = path.resolve(resolvedEnv);
     this.workspaceRoot = path.resolve(workspacePath);
@@ -40,7 +45,10 @@ export class ToolProvider {
   public provide(): string {
     try {
       const ttlConfigs = this.scanTtlConfigs();
-      const activeContexts = this.manager.maintenance(this.currentTurn, ttlConfigs);
+      const activeContexts = this.manager.maintenance(
+        this.currentTurn,
+        ttlConfigs,
+      );
 
       this.loadedToolsList = [];
       this.activeToolsList = [];
@@ -67,7 +75,7 @@ export class ToolProvider {
     } finally {
       try {
         this.mcpManager.shutdown();
-      } catch (e) {}
+      } catch (_e) {}
     }
   }
 
@@ -78,12 +86,14 @@ export class ToolProvider {
     return this.activeToolsList;
   }
 
-  private scanTtlConfigs(): Record<string, any> {
-    const configs: Record<string, any> = {};
-    const tps = Array.from(new Set([
-      path.join(this.workspaceRoot, 'tools'),
-      path.join(this.envPath, 'tools'),
-    ]));
+  private scanTtlConfigs(): Record<string, Record<string, unknown>> {
+    const configs: Record<string, Record<string, unknown>> = {};
+    const tps = Array.from(
+      new Set([
+        path.join(this.workspaceRoot, 'tools'),
+        path.join(this.envPath, 'tools'),
+      ]),
+    );
 
     for (const toolsDir of tps) {
       if (fs.existsSync(toolsDir) && fs.statSync(toolsDir).isDirectory()) {
@@ -91,7 +101,7 @@ export class ToolProvider {
           let files: string[] = [];
           try {
             files = fs.readdirSync(dir);
-          } catch (e) {
+          } catch (_e) {
             return;
           }
           for (const name of files) {
@@ -103,10 +113,11 @@ export class ToolProvider {
               } else if (name === 'group_manifest.json') {
                 const manifest = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
                 if (manifest.context?.name) {
-                  configs[manifest.context.name] = manifest.context.lifecycle?.ttl || {};
+                  configs[manifest.context.name] =
+                    manifest.context.lifecycle?.ttl || {};
                 }
               }
-            } catch (e) {}
+            } catch (_e) {}
           }
         };
         walk(toolsDir);
@@ -115,16 +126,29 @@ export class ToolProvider {
     return configs;
   }
 
-  private processSubtool(name: string, dir: string, manifest: any, activeContexts: Record<string, ContextItem>): void {
+  private processSubtool(
+    name: string,
+    dir: string,
+    manifest: ToolManifest,
+    activeContexts: Record<string, ContextItem>,
+  ): void {
     const reqContext = manifest.requires_context;
-    const activeInstances = Object.entries(activeContexts).filter(([_, ctx]) => ctx.type === reqContext);
+    const activeInstances = Object.entries(activeContexts).filter(
+      ([_, ctx]) => ctx.type === reqContext,
+    );
 
     let desc = this.buildFullDescription(name, dir, manifest);
     if (activeInstances.length > 0) {
       const instanceIds = activeInstances.map(([id]) => id).join(', ');
-      desc = desc.replace(new RegExp(`Requires: ${reqContext}`, 'g'), `Requires: ${reqContext} (Active instances: ${instanceIds})`);
+      desc = desc.replace(
+        new RegExp(`Requires: ${reqContext}`, 'g'),
+        `Requires: ${reqContext} (Active instances: ${instanceIds})`,
+      );
     } else {
-      desc = desc.replace(new RegExp(`Requires: ${reqContext}`, 'g'), `Requires: ${reqContext} (No active instances)`);
+      desc = desc.replace(
+        new RegExp(`Requires: ${reqContext}`, 'g'),
+        `Requires: ${reqContext} (No active instances)`,
+      );
     }
 
     this.loadedToolsList.push(desc);
@@ -137,7 +161,11 @@ export class ToolProvider {
     });
   }
 
-  private processTopLevelTool(name: string, dir: string, manifest: any): void {
+  private processTopLevelTool(
+    name: string,
+    dir: string,
+    manifest: ToolManifest,
+  ): void {
     if (name === 'anchor_submit' && !this.anchorsHasFiles()) {
       return;
     }
@@ -166,13 +194,17 @@ export class ToolProvider {
   }
 
   private findSubtoolsForContext(contextType: string): string[] {
-    return this.registry.allTools().filter(tname => {
+    return this.registry.allTools().filter((tname) => {
       const t = this.registry.find(tname);
       return t?.manifest?.requires_context === contextType;
     });
   }
 
-  private buildFullDescription(name: string, dir: string, manifest: any): string {
+  private buildFullDescription(
+    name: string,
+    dir: string,
+    manifest: ToolManifest,
+  ): string {
     const hint = this.loadHint(dir);
     const desc = manifest.description || '';
     const perms = manifest.permissions || {};
@@ -197,7 +229,7 @@ export class ToolProvider {
   private loadHint(dir: string): string {
     try {
       const files = fs.readdirSync(dir);
-      const hintFile = files.find(f => f.endsWith('.hint'));
+      const hintFile = files.find((f) => f.endsWith('.hint'));
       if (hintFile) {
         const fullPath = path.join(dir, hintFile);
         const relHintFile = this.relativize(fullPath);
@@ -208,25 +240,25 @@ export class ToolProvider {
         let content = fs.readFileSync(fullPath, 'utf-8').trim();
         const maxFileChars = this.fetchMaxFileChars();
         if (content.length > maxFileChars) {
-          content = content.substring(0, maxFileChars) + ' ... [truncated]';
+          content = `${content.substring(0, maxFileChars)} ... [truncated]`;
         }
         return content;
       }
-    } catch (e) {}
+    } catch (_e) {}
     return 'No specific guidance provided.';
   }
 
-  private usageFromSchema(schema: any): string | null {
+  private usageFromSchema(schema: Record<string, unknown>): string | null {
     if (!schema || typeof schema !== 'object') {
       return null;
     }
 
-    const props = schema.properties || {};
-    const required = schema.required || [];
-    const sample: Record<string, any> = {};
+    const props = (schema.properties as Record<string, unknown>) || {};
+    const required = (schema.required as string[]) || [];
+    const sample: Record<string, unknown> = {};
 
     for (const [k, v] of Object.entries(props)) {
-      const val = v as any;
+      const val = v as Record<string, unknown>;
       if (val && typeof val === 'object') {
         switch (val.type) {
           case 'string':
@@ -252,10 +284,10 @@ export class ToolProvider {
     return JSON.stringify({ input: sample, required });
   }
 
-  private loadConfig(): any {
+  private loadConfig(): Record<string, unknown> {
     try {
       return ConfigManager.load(this.envPath) || {};
-    } catch (e) {
+    } catch (_e) {
       return {};
     }
   }
@@ -267,11 +299,14 @@ export class ToolProvider {
     }
     try {
       const files = fs.readdirSync(dir);
-      return files.some(f => {
+      return files.some((f) => {
         const ext = path.extname(f).toLowerCase();
-        return ['.json', '.yaml', '.yml'].includes(ext) && fs.statSync(path.join(dir, f)).isFile();
+        return (
+          ['.json', '.yaml', '.yml'].includes(ext) &&
+          fs.statSync(path.join(dir, f)).isFile()
+        );
       });
-    } catch (e) {
+    } catch (_e) {
       return false;
     }
   }
@@ -289,10 +324,10 @@ export class ToolProvider {
           hint: tool.hint || 'No specific guidance provided.',
         });
       }
-    } catch (e) {}
+    } catch (_e) {}
   }
 
-  private buildMcpDescription(tool: any): string {
+  private buildMcpDescription(tool: MCPTool): string {
     const name = tool.name;
     const desc = tool.description || '';
     const schema = tool.input_schema || {};
@@ -313,29 +348,35 @@ export class ToolProvider {
       const schema = {
         type: 'object',
         properties: {
-          file_path: { type: 'string', description: 'Optional relative path to inspect diagnostics for.' },
+          file_path: {
+            type: 'string',
+            description: 'Optional relative path to inspect diagnostics for.',
+          },
         },
       };
-      this.loadedToolsList.push([
-        '## lsp_diagnostics',
-        'Description: Retrieve diagnostics warning and compile errors for files in workspace.',
-        'Permissions: {}',
-        `Usage: ${this.usageFromSchema(schema)}`,
-        'Hint: Use this tool to get real-time feedback on code changes.',
-      ].join('\n'));
+      this.loadedToolsList.push(
+        [
+          '## lsp_diagnostics',
+          'Description: Retrieve diagnostics warning and compile errors for files in workspace.',
+          'Permissions: {}',
+          `Usage: ${this.usageFromSchema(schema)}`,
+          'Hint: Use this tool to get real-time feedback on code changes.',
+        ].join('\n'),
+      );
 
       this.activeToolsList.push({
         name: 'lsp_diagnostics',
-        description: 'Retrieve diagnostics warning and compile errors for files in workspace.',
+        description:
+          'Retrieve diagnostics warning and compile errors for files in workspace.',
         input_schema: schema,
         permissions: {},
         hint: 'Use this tool to get real-time feedback on code changes.',
       });
-    } catch (e) {}
+    } catch (_e) {}
   }
 
   private fetchMaxFileChars(): number {
-    const cfg = this.loadConfig();
+    const cfg = this.loadConfig() as any;
     const limit = cfg.hints?.max_file_chars;
     return limit ? Number(limit) : 10000;
   }
@@ -345,14 +386,17 @@ export class ToolProvider {
     const env = this.envPath;
     let out = filePath;
     if (ws) out = out.replace(new RegExp(`^${escapeRegExp(ws)}/?`), '');
-    if (out === filePath && env) out = out.replace(new RegExp(`^${escapeRegExp(env)}/?`), '');
+    if (out === filePath && env)
+      out = out.replace(new RegExp(`^${escapeRegExp(env)}/?`), '');
     return out;
   }
 
   private isIgnored(relPath: string): boolean {
-    const cfg = this.loadConfig();
+    const cfg = this.loadConfig() as any;
     const ignoreList: string[] = cfg.hints?.ignore_list || [];
-    return ignoreList.some(pattern => pattern === relPath || relPath.includes(pattern));
+    return ignoreList.some(
+      (pattern) => pattern === relPath || relPath.includes(pattern),
+    );
   }
 }
 
@@ -363,7 +407,7 @@ function PathResolverEnvironment(projectPath: string): string | null {
     if (fs.existsSync(auraDir) && fs.statSync(auraDir).isDirectory()) {
       return auraDir;
     }
-  } catch (e) {}
+  } catch (_e) {}
   return null;
 }
 

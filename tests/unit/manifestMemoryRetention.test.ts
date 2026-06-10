@@ -1,14 +1,25 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import yaml from 'yaml';
 import { fileURLToPath } from 'node:url';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import yaml from 'yaml';
 import { ToolRegistry } from '../../src/core/kernel/registry.js';
-import { MemoryPolicy } from '../../src/core/memory/policy.js';
 import { Runner } from '../../src/core/kernel/runner.js';
+import { MemoryPolicy } from '../../src/core/memory/policy.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+interface ToolManifest {
+  name: string;
+  description?: string;
+  memory?: {
+    retention?: string;
+    summarize?: boolean;
+    max_steps?: number;
+    permanent?: boolean;
+  };
+}
 
 describe('ManifestMemoryRetention', () => {
   const appPath = path.resolve(__dirname, 'tmp_manifest_memory');
@@ -51,13 +62,19 @@ describe('ManifestMemoryRetention', () => {
         },
       },
     };
-    fs.writeFileSync(path.join(configDir, 'config.yml'), yaml.stringify(configContent));
+    fs.writeFileSync(
+      path.join(configDir, 'config.yml'),
+      yaml.stringify(configContent),
+    );
   });
 
-  const createTool = (name: string, manifest: any) => {
+  const createTool = (name: string, manifest: ToolManifest) => {
     const toolDir = path.join(toolsDir, name);
     fs.mkdirSync(toolDir, { recursive: true });
-    fs.writeFileSync(path.join(toolDir, 'manifest.json'), JSON.stringify(manifest));
+    fs.writeFileSync(
+      path.join(toolDir, 'manifest.json'),
+      JSON.stringify(manifest),
+    );
     fs.writeFileSync(path.join(toolDir, 'logic.py'), "print('ok')");
   };
 
@@ -79,7 +96,7 @@ describe('ManifestMemoryRetention', () => {
     const toolData = registry.find('bash_command');
     expect(toolData).not.toBeNull();
 
-    const memoryConfig = toolData!.manifest.memory;
+    const memoryConfig = toolData?.manifest.memory as any;
     expect(memoryConfig).not.toBeNull();
     expect(memoryConfig.retention).toBe('ephemeral');
     expect(memoryConfig.summarize).toBe(true);
@@ -122,7 +139,10 @@ describe('ManifestMemoryRetention', () => {
     registry.scan();
 
     const policy = new MemoryPolicy({ registry });
-    const policyData = (policy as any).getRetentionPolicy('execution', 'custom_tool');
+    const policyData = (policy as any).getRetentionPolicy(
+      'execution',
+      'custom_tool',
+    );
     expect(policyData.summarize).toBe(false);
     expect(policyData.max_steps).toBe(50); // Default max steps for working tier
   });
@@ -144,7 +164,10 @@ describe('ManifestMemoryRetention', () => {
       retention: cfg.state_management?.retention,
     });
 
-    const policyData = (policy as any).getRetentionPolicy('execution', 'simple_tool');
+    const policyData = (policy as any).getRetentionPolicy(
+      'execution',
+      'simple_tool',
+    );
     expect(policyData).not.toBeNull();
     expect(policyData.max_steps).toBe(10);
     expect(policyData.summarize).toBe(true);
@@ -154,7 +177,10 @@ describe('ManifestMemoryRetention', () => {
     const registry = new ToolRegistry(appPath);
     const policy = new MemoryPolicy({ registry });
 
-    const policyData = (policy as any).getRetentionPolicy('unknown_phase', 'nonexistent_tool');
+    const policyData = (policy as any).getRetentionPolicy(
+      'unknown_phase',
+      'nonexistent_tool',
+    );
     expect(policyData.max_steps).toBe(50);
     expect(policyData.summarize).toBe(false);
   });
@@ -181,12 +207,14 @@ describe('ManifestMemoryRetention', () => {
       { id: 3, phase: 'plan', tool: null, timestamp: 3000 },
     ];
 
-    const result = policy.apply(events);
+    const result = policy.apply(events as any);
 
-    const tempToolEvents = result.to_summarize.filter(e => e.tool === 'temp_tool');
+    const tempToolEvents = result.to_summarize.filter(
+      (e) => e.tool === 'temp_tool',
+    );
     expect(tempToolEvents.length).toBe(2);
 
-    const planEvents = result.to_delete.filter(e => e.phase === 'plan');
+    const planEvents = result.to_delete.filter((e) => e.phase === 'plan');
     expect(planEvents.length).toBe(1);
   });
 
@@ -211,7 +239,7 @@ describe('ManifestMemoryRetention', () => {
       { id: 2, phase: 'execution', tool: 'other_tool', timestamp: 2000 },
     ];
 
-    const result = policy.apply(events);
+    const result = policy.apply(events as any);
 
     const keptEvents = result.to_keep;
     expect(keptEvents.length).toBe(1);
@@ -249,12 +277,14 @@ describe('ManifestMemoryRetention', () => {
       { id: 3, phase: 'execution', tool: 'permanent_tool', timestamp: 3000 },
     ];
 
-    const result = policy.apply(events);
+    const result = policy.apply(events as any);
 
     expect(result.to_summarize.length).toBe(1);
     expect(result.to_summarize[0].tool).toBe('ephemeral_tool');
 
-    const workingDeleted = result.to_delete.filter(e => e.tool === 'working_tool');
+    const workingDeleted = result.to_delete.filter(
+      (e) => e.tool === 'working_tool',
+    );
     expect(workingDeleted.length).toBe(1);
 
     expect(result.to_keep.length).toBe(1);
@@ -276,7 +306,10 @@ describe('ManifestMemoryRetention', () => {
     const policyData = (policy as any).getManifestRetention('no_memory_tool');
     expect(policyData).toBeNull();
 
-    const fallbackPolicy = (policy as any).getRetentionPolicy('execution', 'no_memory_tool');
+    const fallbackPolicy = (policy as any).getRetentionPolicy(
+      'execution',
+      'no_memory_tool',
+    );
     expect(fallbackPolicy).not.toBeNull();
   });
 
@@ -313,17 +346,24 @@ describe('ManifestMemoryRetention', () => {
     const runner = new Runner(appPath);
 
     // 1. Check registry is propagated to Memory Base
-    expect((runner as any).registry).toBe((runner.memory as any).metabolizer.registry);
+    expect(runner.getRegistry()).toBe(
+      (runner.getMemory() as any).metabolizer.registry,
+    );
 
     // 2. Check registry is propagated to Metabolizer
-    expect((runner as any).registry).toBe((runner.memory as any).metabolizer.registry);
+    expect(runner.getRegistry()).toBe(
+      (runner.getMemory() as any).metabolizer.registry,
+    );
 
     // 3. Check registry is propagated to Policy
-    const policy = (runner.memory as any).metabolizer.policy;
-    expect((runner as any).registry).toBe(policy.registry);
+    const policy = (runner.getMemory() as any).metabolizer.policy;
+    expect(runner.getRegistry()).toBe(policy.getRegistry());
 
     // 4. Check policy retrieves custom setting correctly
-    const policyData = (policy as any).getRetentionPolicy('execution', 'runner_test_tool');
+    const policyData = policy.getRetentionPolicy(
+      'execution',
+      'runner_test_tool',
+    );
     expect(policyData.summarize).toBe(true);
     expect(policyData.retention).toBe('ephemeral');
   });

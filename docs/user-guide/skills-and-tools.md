@@ -88,7 +88,7 @@ STDOUT must be a single JSON object:
 aura kernel observe .
 
 # Run a tool manually
-aura kernel run_call . read_file '{"file_path": "README.md"}'
+aura kernel run_call read_file '{"file_path": "README.md"}' .
 ```
 
 ### How Tools are Exposed to the LLM
@@ -186,8 +186,8 @@ aura skill list
 ### Adding Skills
 
 ```bash
-# Add a new skill
-aura skill add
+# Install a skill from a Git URL or local directory
+aura skill install <url_or_path> [name]
 ```
 
 ---
@@ -237,7 +237,7 @@ MCP tools appear as `mcp.<server>.<tool>`:
 aura tools list
 
 # Use MCP tool
-aura kernel run_call . mcp.sqlite.query '{"sql": "SELECT * FROM events LIMIT 5"}'
+aura kernel run_call mcp.sqlite.query '{"sql": "SELECT * FROM events LIMIT 5"}' .
 ```
 
 ### Security Note

@@ -1,17 +1,23 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
 import { execa } from 'execa';
 import picocolors from 'picocolors';
 import yaml from 'yaml';
-import * as PathResolver from '../../utils/pathResolver.js';
 import * as GlobalConfig from '../../utils/globalConfig.js';
+import * as PathResolver from '../../utils/pathResolver.js';
+import * as UI from '../ui.js';
 
 export class Skills {
-  public static async list(projectPath?: string, options: { json?: boolean } = {}): Promise<void> {
+  public static async list(
+    projectPath?: string,
+    options: { json?: boolean } = {},
+  ): Promise<void> {
     let resolvedPath = '';
     try {
-      resolvedPath = PathResolver.resolveProjectPath(projectPath || undefined) || process.cwd();
+      resolvedPath =
+        PathResolver.resolveProjectPath(projectPath || undefined) ||
+        process.cwd();
     } catch {
       resolvedPath = process.cwd();
     }
@@ -23,13 +29,14 @@ export class Skills {
     const searchDirs = [templateSkillsDir, skillsDir];
 
     for (const baseDir of searchDirs) {
-      if (!fs.existsSync(baseDir) || !fs.statSync(baseDir).isDirectory()) continue;
-      
+      if (!fs.existsSync(baseDir) || !fs.statSync(baseDir).isDirectory())
+        continue;
+
       const subdirs = fs.readdirSync(baseDir);
       for (const subdir of subdirs) {
         const fullSubdir = path.join(baseDir, subdir);
         if (!fs.statSync(fullSubdir).isDirectory()) continue;
-        
+
         const skillMd = path.join(fullSubdir, 'SKILL.md');
         if (fs.existsSync(skillMd)) {
           skillPaths[subdir] = skillMd;
@@ -51,7 +58,7 @@ export class Skills {
     if (options.json) {
       const output = sortedNames.map((name) => {
         const p = skillPaths[name];
-        const meta = this.parseSkillMeta(p);
+        const meta = Skills.parseSkillMeta(p);
         return {
           name,
           description: meta.description,
@@ -67,7 +74,7 @@ export class Skills {
 
     for (const name of sortedNames) {
       const p = skillPaths[name];
-      const meta = this.parseSkillMeta(p);
+      const meta = Skills.parseSkillMeta(p);
       console.log(picocolors.green(`* ${name}`));
       if (meta.description) {
         console.log(`  Description: ${meta.description}`);
@@ -80,12 +87,16 @@ export class Skills {
   public static async install(urlOrPath: string, name?: string): Promise<void> {
     let resolvedPath = '';
     try {
-      resolvedPath = PathResolver.resolveProjectPath(undefined) || process.cwd();
+      resolvedPath =
+        PathResolver.resolveProjectPath(undefined) || process.cwd();
     } catch {
       resolvedPath = process.cwd();
     }
 
-    const isGit = urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://') || urlOrPath.startsWith('git@');
+    const isGit =
+      urlOrPath.startsWith('http://') ||
+      urlOrPath.startsWith('https://') ||
+      urlOrPath.startsWith('git@');
     const tmpPrefix = path.join(os.tmpdir(), 'skill_install_');
     const tmpDir = fs.mkdtempSync(tmpPrefix);
 
@@ -97,14 +108,14 @@ export class Skills {
           await execa('git', ['clone', '--depth', '1', urlOrPath, tmpDir]);
           srcDir = tmpDir;
         } catch (err: any) {
-          console.error(picocolors.red(`⛔️ Error: Failed to clone repository: ${err.message}`));
-          process.exit(1);
+          throw new UI.SkillError(`Failed to clone repository: ${err.message}`);
         }
       } else {
         srcDir = path.resolve(urlOrPath);
         if (!fs.existsSync(srcDir) || !fs.statSync(srcDir).isDirectory()) {
-          console.error(picocolors.red(`⛔️ Error: Local path '${urlOrPath}' is not a directory.`));
-          process.exit(1);
+          throw new UI.SkillError(
+            `Local path '${urlOrPath}' is not a directory.`,
+          );
         }
       }
 
@@ -112,48 +123,61 @@ export class Skills {
       let skillMd = path.join(srcDir, 'SKILL.md');
       if (!fs.existsSync(skillMd)) {
         // Try searching subfolders recursively
-        const matches = this.globSkillMd(srcDir);
+        const matches = Skills.globSkillMd(srcDir);
         if (matches.length > 0) {
           skillMd = matches[0];
           srcDir = path.dirname(skillMd);
         } else {
-          console.error(picocolors.red('⛔️ Error: No SKILL.md file found in the source directory.'));
-          process.exit(1);
+          throw new UI.SkillError(
+            'No SKILL.md file found in the source directory.',
+          );
         }
       }
 
       // Determine skill name
       let skillName = name;
       if (!skillName || skillName.trim().length === 0) {
-        const meta = this.parseSkillMeta(skillMd);
+        const meta = Skills.parseSkillMeta(skillMd);
         if (meta.name && meta.name !== path.basename(path.dirname(skillMd))) {
           skillName = meta.name.toLowerCase().replace(/[^a-z0-9_-]/g, '');
         } else {
-          skillName = path.basename(srcDir).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+          skillName = path
+            .basename(srcDir)
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]/g, '');
         }
       } else {
         skillName = skillName.trim();
-        if (skillName.includes('..') || skillName.includes('/') || skillName.includes('\\') || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(skillName)) {
-          console.error(picocolors.red(`⛔️ Error: Invalid skill name '${skillName}'. Only alphanumeric characters, underscores, and hyphens are allowed.`));
-          process.exit(1);
+        if (
+          skillName.includes('..') ||
+          skillName.includes('/') ||
+          skillName.includes('\\') ||
+          !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(skillName)
+        ) {
+          throw new UI.SkillError(
+            `Invalid skill name '${skillName}'. Only alphanumeric characters, underscores, and hyphens are allowed.`,
+          );
         }
       }
 
       const destDir = path.join(resolvedPath, 'skills', skillName);
       if (fs.existsSync(destDir)) {
-        console.error(picocolors.red(`⛔️ Error: Skill '${skillName}' already exists at: ${destDir}`));
-        process.exit(1);
+        throw new UI.SkillError(
+          `Skill '${skillName}' already exists at: ${destDir}`,
+        );
       }
 
       fs.mkdirSync(path.dirname(destDir), { recursive: true });
-      this.copyFolderSync(srcDir, destDir);
+      Skills.copyFolderSync(srcDir, destDir);
 
       const innerGit = path.join(destDir, '.git');
       if (fs.existsSync(innerGit)) {
         fs.rmSync(innerGit, { recursive: true, force: true });
       }
 
-      console.log(picocolors.green(`✓ Skill '${skillName}' successfully installed to: ${destDir}`));
+      UI.printSuccess(
+        `Skill '${skillName}' successfully installed to: ${destDir}`,
+      );
     } finally {
       // Clean up tmp directory if it was created
       try {
@@ -164,9 +188,15 @@ export class Skills {
     }
   }
 
-  private static parseSkillMeta(skillMdPath: string): { name: string; description: string } {
+  private static parseSkillMeta(skillMdPath: string): {
+    name: string;
+    description: string;
+  } {
     const content = fs.readFileSync(skillMdPath, 'utf-8');
-    const meta = { name: path.basename(path.dirname(skillMdPath)), description: '' };
+    const meta = {
+      name: path.basename(path.dirname(skillMdPath)),
+      description: '',
+    };
 
     if (content.startsWith('---')) {
       const parts = content.split('---', 3);
@@ -183,7 +213,9 @@ export class Skills {
 
     if (!meta.description) {
       const firstH1 = content.split('\n').find((line) => line.startsWith('# '));
-      meta.description = firstH1 ? firstH1.substring(2).trim() : 'No description provided.';
+      meta.description = firstH1
+        ? firstH1.substring(2).trim()
+        : 'No description provided.';
     }
 
     return meta;
@@ -214,7 +246,7 @@ export class Skills {
       const fromPath = path.join(from, element);
       const toPath = path.join(to, element);
       if (fs.lstatSync(fromPath).isDirectory()) {
-        this.copyFolderSync(fromPath, toPath);
+        Skills.copyFolderSync(fromPath, toPath);
       } else {
         fs.copyFileSync(fromPath, toPath);
       }

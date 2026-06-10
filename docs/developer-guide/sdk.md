@@ -49,7 +49,7 @@ Invokes the initialization command locally in the target workspace context.
 
 #### `run_loop(goal: str, max_steps: int = 30) -> subprocess.CompletedProcess`
 Executes the solver loop locally on the host machine.
-*   **Action**: Runs `aura kernel loop` (which maps to `aura chat --goal` in the TS implementation) with the requested goal.
+*   **Action**: Runs `aura kernel loop` (which maps to `aura agent --goal` in the TS implementation) with the requested goal.
 
 #### `update_config(provider: str, model: str)`
 Directly parses, updates, and serializes the YAML configuration file (`.aura/config/config.yml`) under the workspace.

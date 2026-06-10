@@ -12,8 +12,8 @@ This document describes the internal architecture of the **Aura Framework** (the
 ```mermaid
 graph TB
     subgraph "User Interface Layer"
-        CLI[CLI Commands<br/>aura run/ask/session]
-        Shell[Interactive Shell<br/>aura shell]
+        CLI[CLI Commands<br/>aura agent/ask/session]
+        Shell[Interactive Shell<br/>aura agent]
         Web[Web Interface<br/>Future]
     end
     
@@ -47,7 +47,6 @@ graph TB
         LSP[LSP Manager<br/>Code Intelligence]
         MCP[MCP Client<br/>External Tools]
         Hints[Hint System<br/>.hint files]
-        Validator[ToolValidator<br/>Tool Verification]
     end
     
     subgraph "External Services"
@@ -79,7 +78,6 @@ graph TB
     Metabolizer --> State
     
     Engine --> Registry
-    Engine --> Validator
     Engine --> LSP
     Engine --> MCP
     
@@ -358,17 +356,26 @@ Guide for contributors to the Aura framework itself.
 - **CI/CD Pipeline**: GitHub Actions workflow
 - **Code Reference**: `tests/`
 
+### 7. [Daemon Architecture](daemon-architecture.md)
+The client-server process topology for Aura OS.
+- **IPC Architecture**: UNIX sockets & Windows named pipes for low-overhead JSON-RPC protocol
+- **Shared State**: Solves two-process sync (CLI vs Web UI) by running execution loops centrally
+- **Warm Runtime**: Eliminates Node.js cold starts and caches DB and MCP connections
+- **Reactive Watcher**: Instant context assembly caching filesystem structures and .hint files
+- **Code Reference**: `src/daemon/`
+
 ---
 
 ## Key Design Principles
 
 1. **Layered Architecture**: Clear separation between UI, Application, Kernel, Context, and Infrastructure layers
-2. **Event-Driven**: All communication through EventBus for loose coupling
-3. **Read-Write Separation**: StateRecorder (write) and StateProvider (read) for clean state management
-4. **Session Isolation**: Each conversation has its own database for privacy and organization
-5. **Tiered Memory**: Different event types have different retention strategies
-6. **Configuration-Driven**: Behavior controlled by config.yml and manifest.json, not hardcoded
-7. **Tool Evolution**: Tools can be created, validated, tested, and improved by the agent itself
+2. **Client-Server Division**: Thin CLI wrapper/client executing commands via long-lived, high-performance background daemon
+3. **Event-Driven**: All communication through EventBus and IPC streaming for loose coupling
+4. **Read-Write Separation**: StateRecorder (write) and StateProvider (read) for clean state management
+5. **Session Isolation**: Each conversation has its own database for privacy and organization
+6. **Tiered Memory**: Different event types have different retention strategies
+7. **Configuration-Driven**: Behavior controlled by config.yml and manifest.json, not hardcoded
+8. **Tool Evolution**: Tools can be created, validated, tested, and improved by the agent itself
 
 ---
 

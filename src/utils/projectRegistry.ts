@@ -1,10 +1,13 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
 import yaml from 'yaml';
 
 export function configPath(): string {
-  return process.env.AURA_GLOBAL_PROJECTS_CONFIG_PATH || path.join(os.homedir(), '.aura', 'projects.yml');
+  return (
+    process.env.AURA_GLOBAL_PROJECTS_CONFIG_PATH ||
+    path.join(os.homedir(), '.aura', 'projects.yml')
+  );
 }
 
 /**
@@ -18,10 +21,17 @@ export function registeredProjects(): Record<string, string> {
   try {
     const raw = fs.readFileSync(p, 'utf-8');
     const data = yaml.parse(raw);
-    return data && typeof data === 'object' && data.projects ? data.projects : {};
-  } catch (e) {
+    return data && typeof data === 'object' && data.projects
+      ? data.projects
+      : {};
+  } catch (_e) {
     return {};
   }
+}
+
+interface GlobalProjectsConfig {
+  projects?: Record<string, string>;
+  [key: string]: unknown;
 }
 
 /**
@@ -31,11 +41,12 @@ export function register(name: string, projectPath: string): void {
   const p = configPath();
   fs.mkdirSync(path.dirname(p), { recursive: true });
 
-  let data: any = {};
+  let data: GlobalProjectsConfig = {};
   if (fs.existsSync(p)) {
     try {
-      data = yaml.parse(fs.readFileSync(p, 'utf-8')) || {};
-    } catch (e) {
+      data = (yaml.parse(fs.readFileSync(p, 'utf-8')) ||
+        {}) as GlobalProjectsConfig;
+    } catch (_e) {
       data = {};
     }
   }
@@ -60,10 +71,11 @@ export function unregister(name: string): boolean {
     return false;
   }
 
-  let data: any = {};
+  let data: GlobalProjectsConfig = {};
   try {
-    data = yaml.parse(fs.readFileSync(p, 'utf-8')) || {};
-  } catch (e) {
+    data = (yaml.parse(fs.readFileSync(p, 'utf-8')) ||
+      {}) as GlobalProjectsConfig;
+  } catch (_e) {
     return false;
   }
 

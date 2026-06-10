@@ -1,43 +1,45 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
 import { execa } from 'execa';
-import { fileURLToPath } from 'node:url';
-
-import { Runner } from '../../src/core/kernel/runner.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MCPManager } from '../../src/core/ext/mcp/manager.js';
+import { Runner } from '../../src/core/kernel/runner.js';
+import { initializeWorkspaceInPlace } from '../../src/utils/workspaceInitializer.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const auraBinPath = path.resolve(__dirname, '../../src/bin/aura.ts');
+interface GrepResult {
+  file: string;
+  line: number;
+  content: string;
+}
 
 describe('Tools Integration', { timeout: 30000 }, () => {
   let projectPath: string;
   let runner: Runner;
 
   beforeEach(async () => {
-    projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-tools-integration-'));
-    
-    // Initialize standard workspace scaffolding using the CLI 'new' command
-    const res = await execa('npx', ['tsx', auraBinPath, 'new', projectPath]);
-    expect(res.exitCode).toBe(0);
+    projectPath = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'aura-tools-integration-'),
+    );
+
+    // Initialize workspace scaffolding directly in-process
+    await initializeWorkspaceInPlace(projectPath);
 
     runner = new Runner(projectPath);
   });
 
   afterEach(() => {
     try {
-      if (runner && runner.memory && runner.memory.store) {
+      if (runner?.memory?.store) {
         runner.memory.store.close();
       }
-    } catch (e) {}
+    } catch (_e) {}
 
     try {
       if (fs.existsSync(projectPath)) {
         fs.rmSync(projectPath, { recursive: true, force: true });
       }
-    } catch (e) {}
+    } catch (_e) {}
   });
 
   // 1. Read File Tool
@@ -106,15 +108,21 @@ describe('Tools Integration', { timeout: 30000 }, () => {
 
   // 3. Workspace Grep Tool
   it('workspace_grep scenario', async () => {
-    fs.writeFileSync(path.join(projectPath, 'math.rb'), 'def calculate_sum(a, b)\n  a + b\nend\n');
-    fs.writeFileSync(path.join(projectPath, 'string_utils.py'), 'def concat_strings(s1, s2):\n  return s1 + s2\n');
+    fs.writeFileSync(
+      path.join(projectPath, 'math.rb'),
+      'def calculate_sum(a, b)\n  a + b\nend\n',
+    );
+    fs.writeFileSync(
+      path.join(projectPath, 'string_utils.py'),
+      'def concat_strings(s1, s2):\n  return s1 + s2\n',
+    );
 
     // Plain text search
-    const res = await runner.runCall({
+    const res = (await runner.runCall({
       tool: 'workspace_grep',
       args: { query: 'concat' },
       summary: 'Grep for concat',
-    });
+    })) as any;
 
     expect(res.status).toBe('ok');
     expect(res.count).toBe(1);
@@ -135,17 +143,17 @@ describe('Tools Integration', { timeout: 30000 }, () => {
     expect(resRegex.count).toBeGreaterThanOrEqual(2);
 
     // Search with file pattern filtering
-    const resFilter = await runner.runCall({
+    const resFilter = (await runner.runCall({
       tool: 'workspace_grep',
       args: {
         query: 'def',
         file_pattern: '*.py',
       },
       summary: 'Grep def in python files only',
-    });
+    })) as any;
 
     expect(resFilter.status).toBe('ok');
-    const files = resFilter.results.map((r: any) => r.file);
+    const files = resFilter.results.map((r: GrepResult) => r.file);
     expect(files).toContain('string_utils.py');
     expect(files).not.toContain('math.rb');
   });
@@ -182,11 +190,11 @@ describe('Tools Integration', { timeout: 30000 }, () => {
   // 5. Bash Command Tool
   it('bash_command scenario', async () => {
     // Run basic exit-0 command
-    const res = await runner.runCall({
+    const res = (await runner.runCall({
       tool: 'bash_command',
       args: { command: "echo 'hello aura'" },
       summary: 'Run echo command',
-    });
+    })) as any;
 
     expect(res.status).toBe('ok');
     expect(res.stdout.trim()).toContain('hello aura');
@@ -256,14 +264,14 @@ describe('Tools Integration', { timeout: 30000 }, () => {
     expect(resWrite.key).toBe('global_status');
 
     // Read variable
-    const resRead = await runner.runCall({
+    const resRead = (await runner.runCall({
       tool: 'blackboard',
       args: {
         action: 'read',
         key: 'global_status',
       },
       summary: 'Read status from blackboard',
-    });
+    })) as any;
 
     expect(resRead.status).toBe('success');
     expect(resRead.content.phase).toBe('development');
@@ -350,7 +358,7 @@ describe('Tools Integration', { timeout: 30000 }, () => {
     expect(resSave1.status).toBe('success');
 
     // Search document using keyword mode
-    const resSearch = await runner.runCall({
+    const resSearch = (await runner.runCall({
       tool: 'knowledge_db',
       args: {
         action: 'search',
@@ -359,7 +367,7 @@ describe('Tools Integration', { timeout: 30000 }, () => {
         retrieval_mode: 'keyword',
       },
       summary: 'Search for OS docs',
-    });
+    })) as any;
 
     expect(resSearch.status).toBe('success');
     expect(resSearch.chunks.length).toBeGreaterThanOrEqual(1);
@@ -401,7 +409,7 @@ describe('Tools Integration', { timeout: 30000 }, () => {
 
   // 9. Plan Task Tool
   it('plan_task scenario', async () => {
-    const resCreate = await runner.runCall({
+    const resCreate = (await runner.runCall({
       tool: 'plan_task',
       args: {
         action: 'create',
@@ -409,7 +417,7 @@ describe('Tools Integration', { timeout: 30000 }, () => {
         run_id: 'task_run_99',
       },
       summary: 'Initialize task list',
-    });
+    })) as any;
 
     expect(resCreate.status).toBe('success');
     expect(resCreate.tasks.length).toBe(3);
@@ -429,14 +437,14 @@ describe('Tools Integration', { timeout: 30000 }, () => {
     expect(resUpdate.completed_indices).toContain(0);
     expect(resUpdate.in_progress_indices).toContain(1);
 
-    const resGet = await runner.runCall({
+    const resGet = (await runner.runCall({
       tool: 'plan_task',
       args: {
         action: 'get',
         run_id: 'task_run_99',
       },
       summary: 'Fetch task progress overview',
-    });
+    })) as any;
 
     expect(resGet.status).toBe('success');
     expect(resGet.completed_indices).toContain(0);
@@ -446,44 +454,50 @@ describe('Tools Integration', { timeout: 30000 }, () => {
 
   // 10. Plan Proposal Tool
   it('plan_proposal scenario', async () => {
-    const resCreate = await runner.runCall({
+    const resCreate = (await runner.runCall({
       tool: 'plan_proposal',
       args: {
         action: 'create',
         goal: 'Refactor tests to separate plumbing from capabilities',
-        steps: ['Create tool system test folders', 'Migrate existing tests', 'Run verification'],
+        steps: [
+          'Create tool system test folders',
+          'Migrate existing tests',
+          'Run verification',
+        ],
         files_to_modify: ['test/system/test_system_subagents.rb'],
         verification_commands: ['rake test:system'],
         run_id: 'refactor_run_01',
       },
       summary: 'Draft refactoring plan',
-    });
+    })) as any;
 
     expect(resCreate.status).toBe('success');
     expect(resCreate.run_id).toBe('refactor_run_01');
     expect(resCreate.plan.status).toBe('pending');
 
-    const resGet = await runner.runCall({
+    const resGet = (await runner.runCall({
       tool: 'plan_proposal',
       args: {
         action: 'get',
         run_id: 'refactor_run_01',
       },
       summary: 'Retrieve refactoring plan',
-    });
+    })) as any;
 
     expect(resGet.status).toBe('success');
-    expect(resGet.plan.goal).toBe('Refactor tests to separate plumbing from capabilities');
+    expect(resGet.plan.goal).toBe(
+      'Refactor tests to separate plumbing from capabilities',
+    );
     expect(resGet.plan.steps.length).toBe(3);
 
-    const resApprove = await runner.runCall({
+    const resApprove = (await runner.runCall({
       tool: 'plan_proposal',
       args: {
         action: 'approve',
         run_id: 'refactor_run_01',
       },
       summary: 'Approve drafted plan',
-    });
+    })) as any;
 
     expect(resApprove.status).toBe('success');
     expect(resApprove.plan.status).toBe('approved');
@@ -536,7 +550,10 @@ describe('Tools Integration', { timeout: 30000 }, () => {
         required: ['steps'],
       },
     };
-    fs.writeFileSync(path.join(workflowDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+    fs.writeFileSync(
+      path.join(workflowDir, 'manifest.json'),
+      JSON.stringify(manifest, null, 2),
+    );
 
     const pythonScript = `
 import sys
@@ -566,13 +583,13 @@ if __name__ == "__main__":
     // Reinitialize runner to detect the new tool
     const localRunner = new Runner(projectPath);
 
-    const res = await localRunner.runCall({
+    const res = (await localRunner.runCall({
       tool: 'workflow',
       args: {
         steps: ['lint', 'test', 'build'],
       },
       summary: 'Execute custom automated pipeline steps',
-    });
+    })) as any;
 
     localRunner.memory.store.close();
 
@@ -584,9 +601,15 @@ if __name__ == "__main__":
   it('walkthrough_generator scenario', async () => {
     // Walkthrough generator expects a git repo to find changes
     await execa('git', ['init'], { cwd: projectPath });
-    await execa('git', ['config', 'user.name', 'Test User'], { cwd: projectPath });
-    await execa('git', ['config', 'user.email', 'test@aura.ai'], { cwd: projectPath });
-    await execa('git', ['commit', '--allow-empty', '-m', 'Initial commit'], { cwd: projectPath });
+    await execa('git', ['config', 'user.name', 'Test User'], {
+      cwd: projectPath,
+    });
+    await execa('git', ['config', 'user.email', 'test@aura.ai'], {
+      cwd: projectPath,
+    });
+    await execa('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
+      cwd: projectPath,
+    });
 
     // Simulate agent writing a file
     await runner.runCall({
@@ -599,7 +622,7 @@ if __name__ == "__main__":
     });
 
     // Run walkthrough generator
-    const res = await runner.runCall({
+    const res = (await runner.runCall({
       tool: 'walkthrough_generator',
       args: {
         action: 'generate',
@@ -607,12 +630,14 @@ if __name__ == "__main__":
         run_id: 'run_test_123',
       },
       summary: 'Generate changes walkthrough report',
-    });
+    })) as any;
 
     expect(res.status).toBe('success');
     expect(res.run_id).toBe('run_test_123');
     expect(res.modified_files).toContain('lib/new_logic.py');
-    expect(res.content).toContain('Created NewLogic class to handle core workflows.');
+    expect(res.content).toContain(
+      'Created NewLogic class to handle core workflows.',
+    );
     expect(res.content).toContain('lib/new_logic.py');
 
     const reportPath = path.join(projectPath, res.walkthrough_path);

@@ -1,25 +1,25 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execa } from 'execa';
 import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { initializeWorkspaceInPlace } from '../../src/utils/workspaceInitializer.js';
 import { rmRetry } from '../utils/rmRetry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const auraBinPath = path.resolve(__dirname, '../../src/bin/aura.ts');
 
-describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
+describe('CLI Chat Context & Commands Integration', { timeout: 60000 }, () => {
   let tempWorkspace: string;
 
   beforeEach(async () => {
     // Create a temporary workspace directory
-    tempWorkspace = path.resolve(__dirname, `temp-ask-context-${Date.now()}`);
+    tempWorkspace = path.resolve(__dirname, `temp-chat-context-${Date.now()}`);
     fs.mkdirSync(tempWorkspace, { recursive: true });
 
-    // Initialize workspace using `aura new` via tsx
-    const res = await execa('npx', ['tsx', auraBinPath, 'new', tempWorkspace]);
-    expect(res.exitCode).toBe(0);
+    // Initialize workspace directly in-process
+    await initializeWorkspaceInPlace(tempWorkspace);
   });
 
   afterEach(async () => {
@@ -28,16 +28,23 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     }
   });
 
-  it('test_ask_context_empty', async () => {
-    const res = await execa('npx', ['tsx', auraBinPath, 'ask', 'context'], {
+  it('test_chat_context_empty', async () => {
+    const res = await execa('npx', ['tsx', auraBinPath, 'chat', 'context'], {
       cwd: tempWorkspace,
     });
     expect(res.exitCode).toBe(0);
-    expect(res.stdout).toContain("No conversation history found for session 'default'.");
+    expect(res.stdout).toContain(
+      "No conversation history found for session 'default'.",
+    );
   });
 
-  it('test_ask_context_populated', async () => {
-    const sessionDir = path.join(tempWorkspace, '.aura', 'state', 'ask_sessions');
+  it('test_chat_context_populated', async () => {
+    const sessionDir = path.join(
+      tempWorkspace,
+      '.aura',
+      'state',
+      'chat_sessions',
+    );
     fs.mkdirSync(sessionDir, { recursive: true });
     const historyFile = path.join(sessionDir, 'default.json');
 
@@ -47,7 +54,7 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     ];
     fs.writeFileSync(historyFile, JSON.stringify(mockHistory, null, 2));
 
-    const res = await execa('npx', ['tsx', auraBinPath, 'ask', 'context'], {
+    const res = await execa('npx', ['tsx', auraBinPath, 'chat', 'context'], {
       cwd: tempWorkspace,
     });
     expect(res.exitCode).toBe(0);
@@ -58,8 +65,13 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     expect(res.stdout).toContain('General Kenobi!');
   });
 
-  it('test_ask_context_custom_session', async () => {
-    const sessionDir = path.join(tempWorkspace, '.aura', 'state', 'ask_sessions');
+  it('test_chat_context_custom_session', async () => {
+    const sessionDir = path.join(
+      tempWorkspace,
+      '.aura',
+      'state',
+      'chat_sessions',
+    );
     fs.mkdirSync(sessionDir, { recursive: true });
     const historyFile = path.join(sessionDir, 'my_session.json');
 
@@ -70,30 +82,53 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     fs.writeFileSync(historyFile, JSON.stringify(mockHistory, null, 2));
 
     // Try default session (should be empty)
-    const resDefault = await execa('npx', ['tsx', auraBinPath, 'ask', 'context'], {
-      cwd: tempWorkspace,
-    });
-    expect(resDefault.stdout).toContain("No conversation history found for session 'default'.");
+    const resDefault = await execa(
+      'npx',
+      ['tsx', auraBinPath, 'chat', 'context'],
+      {
+        cwd: tempWorkspace,
+      },
+    );
+    expect(resDefault.stdout).toContain(
+      "No conversation history found for session 'default'.",
+    );
 
     // Try custom session using --session
-    const resCustom = await execa('npx', ['tsx', auraBinPath, 'ask', 'context', '--session', 'my_session'], {
-      cwd: tempWorkspace,
-    });
+    const resCustom = await execa(
+      'npx',
+      ['tsx', auraBinPath, 'chat', 'context', '--session', 'my_session'],
+      {
+        cwd: tempWorkspace,
+      },
+    );
     expect(resCustom.exitCode).toBe(0);
-    expect(resCustom.stdout).toContain("Conversation history for session 'my_session':");
+    expect(resCustom.stdout).toContain(
+      "Conversation history for session 'my_session':",
+    );
     expect(resCustom.stdout).toContain('Is this a custom session?');
     expect(resCustom.stdout).toContain('Yes it is.');
 
     // Try custom session using -s
-    const resCustomShort = await execa('npx', ['tsx', auraBinPath, 'ask', 'context', '-s', 'my_session'], {
-      cwd: tempWorkspace,
-    });
+    const resCustomShort = await execa(
+      'npx',
+      ['tsx', auraBinPath, 'chat', 'context', '-s', 'my_session'],
+      {
+        cwd: tempWorkspace,
+      },
+    );
     expect(resCustomShort.exitCode).toBe(0);
-    expect(resCustomShort.stdout).toContain("Conversation history for session 'my_session':");
+    expect(resCustomShort.stdout).toContain(
+      "Conversation history for session 'my_session':",
+    );
   });
 
-  it('test_ask_context_clear', async () => {
-    const sessionDir = path.join(tempWorkspace, '.aura', 'state', 'ask_sessions');
+  it('test_chat_context_clear', async () => {
+    const sessionDir = path.join(
+      tempWorkspace,
+      '.aura',
+      'state',
+      'chat_sessions',
+    );
     fs.mkdirSync(sessionDir, { recursive: true });
     const historyFile = path.join(sessionDir, 'default.json');
 
@@ -103,17 +138,23 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     ];
     fs.writeFileSync(historyFile, JSON.stringify(mockHistory, null, 2));
 
-    const res = await execa('npx', ['tsx', auraBinPath, 'ask', 'context', '--clear'], {
-      cwd: tempWorkspace,
-    });
+    const res = await execa(
+      'npx',
+      ['tsx', auraBinPath, 'chat', 'context', '--clear'],
+      {
+        cwd: tempWorkspace,
+      },
+    );
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toContain("Memory cleared for session 'default'.");
-    expect(res.stdout).toContain("No conversation history found for session 'default'.");
+    expect(res.stdout).toContain(
+      "No conversation history found for session 'default'.",
+    );
     expect(fs.existsSync(historyFile)).toBe(false);
   });
 
-  it('test_ask_loop_exit', async () => {
-    const child = execa('npx', ['tsx', auraBinPath, 'ask'], {
+  it('test_chat_loop_exit', async () => {
+    const child = execa('npx', ['tsx', auraBinPath, 'chat'], {
       cwd: tempWorkspace,
       stdin: 'pipe',
     });
@@ -125,13 +166,21 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     expect(res.stdout).toContain('Bye!');
   });
 
-  it('test_ask_loop_clear', async () => {
-    const sessionDir = path.join(tempWorkspace, '.aura', 'state', 'ask_sessions');
+  it('test_chat_loop_clear', async () => {
+    const sessionDir = path.join(
+      tempWorkspace,
+      '.aura',
+      'state',
+      'chat_sessions',
+    );
     fs.mkdirSync(sessionDir, { recursive: true });
     const historyFile = path.join(sessionDir, 'default.json');
-    fs.writeFileSync(historyFile, JSON.stringify([{ role: 'user', content: 'Hello' }], null, 2));
+    fs.writeFileSync(
+      historyFile,
+      JSON.stringify([{ role: 'user', content: 'Hello' }], null, 2),
+    );
 
-    const child = execa('npx', ['tsx', auraBinPath, 'ask'], {
+    const child = execa('npx', ['tsx', auraBinPath, 'chat'], {
       cwd: tempWorkspace,
       stdin: 'pipe',
     });
@@ -145,13 +194,21 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     expect(fs.existsSync(historyFile)).toBe(false);
   });
 
-  it('test_ask_loop_context', async () => {
-    const sessionDir = path.join(tempWorkspace, '.aura', 'state', 'ask_sessions');
+  it('test_chat_loop_context', async () => {
+    const sessionDir = path.join(
+      tempWorkspace,
+      '.aura',
+      'state',
+      'chat_sessions',
+    );
     fs.mkdirSync(sessionDir, { recursive: true });
     const historyFile = path.join(sessionDir, 'default.json');
-    fs.writeFileSync(historyFile, JSON.stringify([{ role: 'user', content: 'Hello there!' }], null, 2));
+    fs.writeFileSync(
+      historyFile,
+      JSON.stringify([{ role: 'user', content: 'Hello there!' }], null, 2),
+    );
 
-    const child = execa('npx', ['tsx', auraBinPath, 'ask'], {
+    const child = execa('npx', ['tsx', auraBinPath, 'chat'], {
       cwd: tempWorkspace,
       stdin: 'pipe',
     });
@@ -166,8 +223,8 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     expect(res.stdout).toContain('Hello there!');
   });
 
-  it('test_ask_loop_slash_exit', async () => {
-    const child = execa('npx', ['tsx', auraBinPath, 'ask'], {
+  it('test_chat_loop_slash_exit', async () => {
+    const child = execa('npx', ['tsx', auraBinPath, 'chat'], {
       cwd: tempWorkspace,
       stdin: 'pipe',
     });
@@ -178,13 +235,21 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     expect(res.stdout).toContain('Bye!');
   });
 
-  it('test_ask_loop_slash_clear', async () => {
-    const sessionDir = path.join(tempWorkspace, '.aura', 'state', 'ask_sessions');
+  it('test_chat_loop_slash_clear', async () => {
+    const sessionDir = path.join(
+      tempWorkspace,
+      '.aura',
+      'state',
+      'chat_sessions',
+    );
     fs.mkdirSync(sessionDir, { recursive: true });
     const historyFile = path.join(sessionDir, 'default.json');
-    fs.writeFileSync(historyFile, JSON.stringify([{ role: 'user', content: 'Hello' }], null, 2));
+    fs.writeFileSync(
+      historyFile,
+      JSON.stringify([{ role: 'user', content: 'Hello' }], null, 2),
+    );
 
-    const child = execa('npx', ['tsx', auraBinPath, 'ask'], {
+    const child = execa('npx', ['tsx', auraBinPath, 'chat'], {
       cwd: tempWorkspace,
       stdin: 'pipe',
     });
@@ -198,13 +263,21 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     expect(fs.existsSync(historyFile)).toBe(false);
   });
 
-  it('test_ask_loop_slash_context', async () => {
-    const sessionDir = path.join(tempWorkspace, '.aura', 'state', 'ask_sessions');
+  it('test_chat_loop_slash_context', async () => {
+    const sessionDir = path.join(
+      tempWorkspace,
+      '.aura',
+      'state',
+      'chat_sessions',
+    );
     fs.mkdirSync(sessionDir, { recursive: true });
     const historyFile = path.join(sessionDir, 'default.json');
-    fs.writeFileSync(historyFile, JSON.stringify([{ role: 'user', content: 'Hello there!' }], null, 2));
+    fs.writeFileSync(
+      historyFile,
+      JSON.stringify([{ role: 'user', content: 'Hello there!' }], null, 2),
+    );
 
-    const child = execa('npx', ['tsx', auraBinPath, 'ask'], {
+    const child = execa('npx', ['tsx', auraBinPath, 'chat'], {
       cwd: tempWorkspace,
       stdin: 'pipe',
     });
@@ -218,8 +291,8 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     expect(res.stdout).toContain('Hello there!');
   });
 
-  it('test_ask_loop_slash_model', async () => {
-    const child = execa('npx', ['tsx', auraBinPath, 'ask'], {
+  it('test_chat_loop_slash_model', async () => {
+    const child = execa('npx', ['tsx', auraBinPath, 'chat'], {
       cwd: tempWorkspace,
       stdin: 'pipe',
     });
@@ -235,8 +308,8 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     expect(res.stdout).toContain('my_special_model');
   });
 
-  it('test_ask_loop_slash_provider', async () => {
-    const child = execa('npx', ['tsx', auraBinPath, 'ask'], {
+  it('test_chat_loop_slash_provider', async () => {
+    const child = execa('npx', ['tsx', auraBinPath, 'chat'], {
       cwd: tempWorkspace,
       stdin: 'pipe',
     });
@@ -252,8 +325,8 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     expect(res.stdout).toContain('local');
   });
 
-  it('test_ask_loop_slash_session', async () => {
-    const child = execa('npx', ['tsx', auraBinPath, 'ask'], {
+  it('test_chat_loop_slash_session', async () => {
+    const child = execa('npx', ['tsx', auraBinPath, 'chat'], {
       cwd: tempWorkspace,
       stdin: 'pipe',
     });
@@ -269,8 +342,8 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     expect(res.stdout).toContain('user_info');
   });
 
-  it('test_ask_loop_slash_help', async () => {
-    const child = execa('npx', ['tsx', auraBinPath, 'ask'], {
+  it('test_chat_loop_slash_help', async () => {
+    const child = execa('npx', ['tsx', auraBinPath, 'chat'], {
       cwd: tempWorkspace,
       stdin: 'pipe',
     });
@@ -288,8 +361,8 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     expect(res.stdout).toContain('/undo');
   });
 
-  it('test_ask_loop_slash_settings', async () => {
-    const child = execa('npx', ['tsx', auraBinPath, 'ask'], {
+  it('test_chat_loop_slash_settings', async () => {
+    const child = execa('npx', ['tsx', auraBinPath, 'chat'], {
       cwd: tempWorkspace,
       stdin: 'pipe',
     });
@@ -304,8 +377,13 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     expect(res.stdout).toContain('LLM Provider:');
   });
 
-  it('test_ask_loop_slash_undo', async () => {
-    const sessionDir = path.join(tempWorkspace, '.aura', 'state', 'ask_sessions');
+  it('test_chat_loop_slash_undo', async () => {
+    const sessionDir = path.join(
+      tempWorkspace,
+      '.aura',
+      'state',
+      'chat_sessions',
+    );
     fs.mkdirSync(sessionDir, { recursive: true });
     const historyFile = path.join(sessionDir, 'default.json');
 
@@ -315,7 +393,7 @@ describe('CLI Ask Context & Commands Integration', { timeout: 60000 }, () => {
     ];
     fs.writeFileSync(historyFile, JSON.stringify(mockHistory, null, 2));
 
-    const child = execa('npx', ['tsx', auraBinPath, 'ask'], {
+    const child = execa('npx', ['tsx', auraBinPath, 'chat'], {
       cwd: tempWorkspace,
       stdin: 'pipe',
     });

@@ -1,18 +1,25 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import yaml from 'yaml';
-import { fileURLToPath } from 'node:url';
 
 // Helper to get directory name safely in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export async function gitRun(dir: string, ...args: string[]): Promise<{ stdout: string; stderr: string; success: boolean }> {
+export async function gitRun(
+  dir: string,
+  ...args: string[]
+): Promise<{ stdout: string; stderr: string; success: boolean }> {
   try {
     const { stdout, stderr } = await execa('git', ['-C', dir, ...args]);
-    return { stdout: stdout.toString().trim(), stderr: stderr.toString().trim(), success: true };
+    return {
+      stdout: stdout.toString().trim(),
+      stderr: stderr.toString().trim(),
+      success: true,
+    };
   } catch (e: any) {
     return {
       stdout: e.stdout?.toString().trim() || '',
@@ -23,7 +30,10 @@ export async function gitRun(dir: string, ...args: string[]): Promise<{ stdout: 
 }
 
 export function repoPath(): string {
-  return process.env.AURA_GLOBAL_REPO_PATH || path.join(os.homedir(), '.aura', 'repo');
+  return (
+    process.env.AURA_GLOBAL_REPO_PATH ||
+    path.join(os.homedir(), '.aura', 'repo')
+  );
 }
 
 export function configPath(): string {
@@ -39,12 +49,12 @@ export async function ensureRepo(): Promise<void> {
   if (fs.existsSync(repoConfigFile)) {
     fs.mkdirSync(repoConfigDir, { recursive: true });
     const targetConfigFile = path.join(repoConfigDir, 'config.yml');
-    
+
     if (fs.existsSync(targetConfigFile)) {
       try {
         const existingRaw = fs.readFileSync(targetConfigFile, 'utf-8');
         const templateRaw = fs.readFileSync(repoConfigFile, 'utf-8');
-        
+
         const existingCfg = yaml.parse(existingRaw) || {};
         const templateCfg = yaml.parse(templateRaw) || {};
 
@@ -54,7 +64,10 @@ export async function ensureRepo(): Promise<void> {
           mergedCfg.llm = { ...templateCfg.llm, ...existingCfg.llm };
         }
         if (templateCfg.state_management && existingCfg.state_management) {
-          mergedCfg.state_management = { ...templateCfg.state_management, ...existingCfg.state_management };
+          mergedCfg.state_management = {
+            ...templateCfg.state_management,
+            ...existingCfg.state_management,
+          };
         }
         if (templateCfg.ralph && existingCfg.ralph) {
           mergedCfg.ralph = { ...templateCfg.ralph, ...existingCfg.ralph };
@@ -62,7 +75,7 @@ export async function ensureRepo(): Promise<void> {
 
         fs.writeFileSync(targetConfigFile, yaml.stringify(mergedCfg), 'utf-8');
         fs.unlinkSync(repoConfigFile);
-      } catch (err) {
+      } catch (_err) {
         fs.renameSync(repoConfigFile, targetConfigFile);
       }
     } else {
@@ -71,7 +84,12 @@ export async function ensureRepo(): Promise<void> {
 
     if (fs.existsSync(path.join(repo, '.git'))) {
       await gitRun(repo, 'add', '.');
-      await gitRun(repo, 'commit', '-m', 'Migrate config.yml to config/config.yml');
+      await gitRun(
+        repo,
+        'commit',
+        '-m',
+        'Migrate config.yml to config/config.yml',
+      );
     }
   }
 
@@ -83,9 +101,24 @@ export async function ensureRepo(): Promise<void> {
   fs.mkdirSync(repo, { recursive: true });
 
   // Copy default templates from generators directory
-  let gemTemplates = path.resolve(__dirname, '..', 'generators', 'aura', 'app', 'templates');
+  let gemTemplates = path.resolve(
+    __dirname,
+    '..',
+    'generators',
+    'aura',
+    'app',
+    'templates',
+  );
   if (!fs.existsSync(gemTemplates)) {
-    gemTemplates = path.resolve(__dirname, '..', 'src', 'generators', 'aura', 'app', 'templates');
+    gemTemplates = path.resolve(
+      __dirname,
+      '..',
+      'src',
+      'generators',
+      'aura',
+      'app',
+      'templates',
+    );
   }
 
   if (fs.existsSync(gemTemplates) && fs.statSync(gemTemplates).isDirectory()) {
@@ -98,7 +131,6 @@ export async function ensureRepo(): Promise<void> {
   await gitRun(repo, 'config', 'user.email', 'support@aura-os.ai');
   await gitRun(repo, 'config', 'receive.denyCurrentBranch', 'updateInstead');
 
-  await gitRun(repo, 'checkout', '-b', 'main');
   await gitRun(repo, 'add', '.');
   await gitRun(repo, 'commit', '-m', 'Initial template commit');
   await gitRun(repo, 'branch', '-M', 'main');
@@ -106,7 +138,7 @@ export async function ensureRepo(): Promise<void> {
 
 function copyFolderSync(from: string, to: string) {
   fs.mkdirSync(to, { recursive: true });
-  fs.readdirSync(from).forEach(element => {
+  fs.readdirSync(from).forEach((element) => {
     const fromPath = path.join(from, element);
     const toPath = path.join(to, element);
     if (fs.lstatSync(fromPath).isDirectory()) {

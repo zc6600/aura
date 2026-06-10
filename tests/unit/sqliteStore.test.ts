@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SQLiteStore } from '../../src/core/memory/sqliteStore.js';
 
 describe('SQLiteStore', () => {
@@ -71,9 +71,9 @@ describe('SQLiteStore', () => {
   describe('Undo and Redo flow', () => {
     it('should undo and redo user turns correctly', () => {
       const ts = Math.floor(Date.now() / 1000);
-      
+
       // Turn 1: User input
-      const userEventId = store.insertEvent({
+      const _userEventId = store.insertEvent({
         timestamp: ts,
         phase: 'user',
         tool: 'input',

@@ -1,23 +1,26 @@
 import { Bridge } from '../../core/interface/bridge.js';
-import { Runner } from '../../core/kernel/runner.js';
+import type { ToolResult } from '../../core/kernel/interfaces.js';
+import type { Runner } from '../../core/kernel/runner.js';
 import { ConsoleRenderer } from './consoleRenderer.js';
 
 export class Executor {
   public static readonly DANGEROUS_TOOLS = ['write_file', 'bash_command'];
-
-  private projectPath: string;
   private bridge: Bridge;
-  private configLoader: () => any;
+  private configLoader: () => Record<string, unknown>;
   private renderer: ConsoleRenderer;
   private timerInterval?: NodeJS.Timeout;
-
-  constructor(projectPath: string, runner: Runner, configLoader: () => any) {
-    this.projectPath = projectPath;
+  constructor(
+    projectPath: string,
+    runner: Runner,
+    configLoader: () => Record<string, unknown>,
+  ) {
     this.bridge = new Bridge(projectPath, { runner });
     this.configLoader = configLoader;
 
     const config = this.configLoader();
-    this.renderer = new ConsoleRenderer({ verbose: config?.verbose });
+    this.renderer = new ConsoleRenderer({
+      verbose: config?.verbose as boolean,
+    });
 
     this.setupBridge();
   }
@@ -57,9 +60,12 @@ export class Executor {
   }
 
   private setupBridge(): void {
-    this.bridge.on('on_waiting', (startTimeMs: number, streamedCheck: () => boolean) => {
-      this.startTimer(startTimeMs, streamedCheck);
-    });
+    this.bridge.on(
+      'on_waiting',
+      (startTimeMs: number, streamedCheck: () => boolean) => {
+        this.startTimer(startTimeMs, streamedCheck);
+      },
+    );
 
     this.bridge.on('on_clear_waiting', () => {
       this.killTimer();
@@ -75,15 +81,22 @@ export class Executor {
       this.renderer.onStreamEnd();
     });
 
-    this.bridge.on('on_tool_start', (tool: string, summary?: string | null, args?: any) => {
-      this.renderer.onToolStart(tool, summary, args);
-    });
+    this.bridge.on(
+      'on_tool_start',
+      (
+        tool: string,
+        summary?: string | null,
+        args?: Record<string, unknown>,
+      ) => {
+        this.renderer.onToolStart(tool, summary, args);
+      },
+    );
 
     this.bridge.on('on_tool_executing', () => {
       this.renderer.onToolExecuting();
     });
 
-    this.bridge.on('on_tool_result', (result: any) => {
+    this.bridge.on('on_tool_result', (result: ToolResult) => {
       this.renderer.onToolResult(result);
     });
 

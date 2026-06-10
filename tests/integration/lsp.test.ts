@@ -1,13 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
-import { execa } from 'execa';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
+import { execa } from 'execa';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { LSPProvider } from '../../src/core/context/providers/lspProvider.js';
 import { LSPClient } from '../../src/core/ext/lsp/client.js';
 import { LSPManager } from '../../src/core/ext/lsp/manager.js';
-import { LSPProvider } from '../../src/core/context/providers/lspProvider.js';
 import { Runner } from '../../src/core/kernel/runner.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,7 +18,9 @@ describe('LSP Integration', { timeout: 30000 }, () => {
   let runner: Runner;
 
   beforeEach(async () => {
-    projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-lsp-integration-'));
+    projectPath = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'aura-lsp-integration-'),
+    );
 
     // Scaffolding
     const res = await execa('npx', ['tsx', auraBinPath, 'new', projectPath]);
@@ -30,15 +31,15 @@ describe('LSP Integration', { timeout: 30000 }, () => {
 
   afterEach(() => {
     try {
-      if (runner && runner.memory && runner.memory.store) {
+      if (runner?.memory?.store) {
         runner.memory.store.close();
       }
-    } catch (e) {}
+    } catch (_e) {}
     try {
       if (fs.existsSync(projectPath)) {
         fs.rmSync(projectPath, { recursive: true, force: true });
       }
-    } catch (e) {}
+    } catch (_e) {}
   });
 
   // 1. LSPClient JSON-RPC stream framing & request/response
@@ -108,10 +109,12 @@ process.stdin.on('data', (chunk) => {
       ],
     };
 
-    // Call private updateDiagnostics via type casting or bracket notation
-    (manager as any).updateDiagnostics(params);
+    manager.updateDiagnostics(params);
 
-    const diags = manager.getDiagnostics(testFile) as any[];
+    const diags = manager.getDiagnostics(testFile) as {
+      severity: number;
+      message: string;
+    }[];
     expect(diags.length).toBe(1);
     expect(diags[0].message).toBe('Syntax error');
     expect(diags[0].severity).toBe(1);
@@ -137,7 +140,7 @@ process.stdin.on('data', (chunk) => {
         },
       ],
     };
-    (manager as any).updateDiagnostics(params);
+    manager.updateDiagnostics(params);
 
     const output = provider.provide();
     expect(output).toContain('# CODE HEALTH');
@@ -147,7 +150,7 @@ process.stdin.on('data', (chunk) => {
 
   // 4. Runner.observe integration includes diagnostics
   it('test_observe_includes_lsp_diagnostics', async () => {
-    const manager = (runner as any).lspManager as LSPManager;
+    const manager = runner.getLSPManager();
     expect(manager).toBeDefined();
 
     const testFile = 'logic.py';
@@ -161,7 +164,7 @@ process.stdin.on('data', (chunk) => {
         },
       ],
     };
-    (manager as any).updateDiagnostics(params);
+    manager.updateDiagnostics(params);
 
     const ctx = (await runner.observe()).toMarkdown();
     expect(ctx).toContain('# CODE HEALTH');

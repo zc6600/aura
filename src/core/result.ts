@@ -16,7 +16,7 @@
  */
 
 export type Result<T, E extends Error = Error> =
-  | { ok: true;  value: T }
+  | { ok: true; value: T }
   | { ok: false; error: E };
 
 /** Constructs a successful Result. */
@@ -35,7 +35,7 @@ export function Err<E extends Error>(error: E): Result<never, E> {
  */
 export function mapResult<T, U, E extends Error>(
   result: Result<T, E>,
-  fn: (value: T) => U
+  fn: (value: T) => U,
 ): Result<U, E> {
   if (result.ok) {
     return Ok(fn(result.value));
@@ -55,6 +55,9 @@ export function unwrap<T, E extends Error>(result: Result<T, E>): T {
 /**
  * Returns the value from a Result, or a fallback if it failed.
  */
-export function unwrapOr<T, E extends Error>(result: Result<T, E>, fallback: T): T {
+export function unwrapOr<T, E extends Error>(
+  result: Result<T, E>,
+  fallback: T,
+): T {
   return result.ok ? result.value : fallback;
 }

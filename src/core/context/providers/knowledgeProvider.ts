@@ -1,19 +1,33 @@
-import fs from 'fs';
-import path from 'path';
-import { ConfigManager } from '../../../utils/configManager.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import * as ConfigManager from '../../../utils/configManager.js';
+
+interface KnowledgeProviderOptions {
+  envPath?: string;
+}
+
+interface KnowledgeConfig {
+  hints?: {
+    max_file_chars?: number;
+    ignore_list?: string[];
+  };
+}
 
 export class KnowledgeProvider {
   private projectPath: string;
   private envPath: string;
 
-  constructor(projectPath: string, options: any = {}) {
+  constructor(projectPath: string, options: KnowledgeProviderOptions = {}) {
     this.projectPath = path.resolve(projectPath);
     this.envPath = options.envPath || this.projectPath;
   }
 
   public provide(): string {
     const knowledgePath = path.join(this.projectPath, 'knowledge');
-    if (!fs.existsSync(knowledgePath) || !fs.statSync(knowledgePath).isDirectory()) {
+    if (
+      !fs.existsSync(knowledgePath) ||
+      !fs.statSync(knowledgePath).isDirectory()
+    ) {
       return '';
     }
 
@@ -24,7 +38,7 @@ export class KnowledgeProvider {
       let files: string[] = [];
       try {
         files = fs.readdirSync(dir);
-      } catch (e) {
+      } catch (_e) {
         return;
       }
 
@@ -33,7 +47,7 @@ export class KnowledgeProvider {
         let stat: fs.Stats;
         try {
           stat = fs.statSync(fullPath);
-        } catch (e) {
+        } catch (_e) {
           continue;
         }
 
@@ -42,9 +56,13 @@ export class KnowledgeProvider {
         } else if (stat.isFile()) {
           if (name.endsWith('.hint')) continue;
 
-          const relToKnowledge = path.relative(knowledgePath, fullPath).replace(/\\/g, '/');
+          const relToKnowledge = path
+            .relative(knowledgePath, fullPath)
+            .replace(/\\/g, '/');
           const hintPath = `${fullPath}.hint`;
-          const relHintPath = path.relative(this.projectPath, hintPath).replace(/\\/g, '/');
+          const relHintPath = path
+            .relative(this.projectPath, hintPath)
+            .replace(/\\/g, '/');
 
           let hintStr = '';
           if (fs.existsSync(hintPath) && !this.isIgnored(relHintPath)) {
@@ -52,11 +70,11 @@ export class KnowledgeProvider {
               let hintContent = fs.readFileSync(hintPath, 'utf-8').trim();
               if (hintContent) {
                 if (hintContent.length > maxFileChars) {
-                  hintContent = hintContent.substring(0, maxFileChars) + ' ... [truncated]';
+                  hintContent = `${hintContent.substring(0, maxFileChars)} ... [truncated]`;
                 }
                 hintStr = ` (Context: ${hintContent})`;
               }
-            } catch (e) {}
+            } catch (_e) {}
           }
 
           items.push(`- ${relToKnowledge}${hintStr}`);
@@ -77,25 +95,25 @@ export class KnowledgeProvider {
 
   private fetchMaxFileChars(): number {
     try {
-      const cfg = ConfigManager.load(this.envPath) || {};
+      const cfg: KnowledgeConfig = ConfigManager.load(this.envPath) || {};
       const limit = cfg.hints?.max_file_chars;
       return limit ? Number(limit) : 10000;
-    } catch (e) {
+    } catch (_e) {
       return 10000;
     }
   }
 
   private isIgnored(relPath: string): boolean {
     try {
-      const cfg = ConfigManager.load(this.envPath) || {};
+      const cfg: KnowledgeConfig = ConfigManager.load(this.envPath) || {};
       const ignoreList: string[] = cfg.hints?.ignore_list || [];
-      return ignoreList.some(pattern => {
+      return ignoreList.some((pattern) => {
         if (pattern === relPath || relPath.includes(pattern)) {
           return true;
         }
         return false;
       });
-    } catch (e) {
+    } catch (_e) {
       return false;
     }
   }

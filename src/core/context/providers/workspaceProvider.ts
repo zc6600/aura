@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export class WorkspaceProvider {
   public static readonly FILES: Record<string, string> = {
@@ -79,12 +79,14 @@ export class WorkspaceProvider {
       path.join(this.projectPath, 'instructions', filename),
     ];
 
-    const file = candidates.find(f => fs.existsSync(f) && fs.statSync(f).isFile());
+    const file = candidates.find(
+      (f) => fs.existsSync(f) && fs.statSync(f).isFile(),
+    );
     if (!file) return null;
 
     try {
       return fs.readFileSync(file, 'utf-8').trim();
-    } catch (e) {
+    } catch (_e) {
       return null;
     }
   }
@@ -96,29 +98,32 @@ export class WorkspaceProvider {
     }
 
     try {
-      const files = fs.readdirSync(memoryDir)
-        .filter(f => f.endsWith('.md'))
+      const files = fs
+        .readdirSync(memoryDir)
+        .filter((f) => f.endsWith('.md'))
         .sort();
 
       if (files.length === 0) return null;
 
       // Get last 2 logs
       const lastTwo = files.slice(-2);
-      const contentList = lastTwo.map(f => {
-        const fullPath = path.join(memoryDir, f);
-        try {
-          const date = path.basename(f, '.md');
-          const body = fs.readFileSync(fullPath, 'utf-8').trim();
-          return `## Memory Log (${date})\n${body}`;
-        } catch (e) {
-          return null;
-        }
-      }).filter(Boolean);
+      const contentList = lastTwo
+        .map((f) => {
+          const fullPath = path.join(memoryDir, f);
+          try {
+            const date = path.basename(f, '.md');
+            const body = fs.readFileSync(fullPath, 'utf-8').trim();
+            return `## Memory Log (${date})\n${body}`;
+          } catch (_e) {
+            return null;
+          }
+        })
+        .filter(Boolean);
 
       if (contentList.length === 0) return null;
 
       return `# RECENT MEMORY LOGS\n${contentList.join('\n\n')}`;
-    } catch (e) {
+    } catch (_e) {
       return null;
     }
   }

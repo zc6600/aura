@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -8,9 +8,9 @@ export class Job {
   public started_at: Date | null = null;
   public ended_at: Date | null = null;
   public readonly events: number[] = [];
-  public metadata: Record<string, any>;
+  public metadata: Record<string, unknown>;
 
-  constructor(metadata: Record<string, any> = {}) {
+  constructor(metadata: Record<string, unknown> = {}) {
     this.id = crypto.randomUUID();
     this.status = 'pending';
     this.metadata = metadata;
@@ -36,7 +36,7 @@ export class Job {
     this.events.push(eventId);
   }
 
-  public toObject(): any {
+  public toObject(): Record<string, unknown> {
     return {
       id: this.id,
       status: this.status,

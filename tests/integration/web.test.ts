@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
 import http from 'node:http';
-import { execa } from 'execa';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,7 +15,9 @@ describe('Web Server Integration', { timeout: 30000 }, () => {
   let projectPath: string;
 
   beforeEach(async () => {
-    projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-web-integration-'));
+    projectPath = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'aura-web-integration-'),
+    );
 
     // 1. Initialize workspace via CLI
     const res = await execa('npx', ['tsx', auraBinPath, 'new', projectPath]);
@@ -27,7 +29,15 @@ describe('Web Server Integration', { timeout: 30000 }, () => {
       args: { file_path: '.aura/config/config.yml' },
       summary: 'Read config file',
     });
-    const resOnce = await execa('npx', ['tsx', auraBinPath, 'kernel', 'once', projectPath, '-c', payload]);
+    const resOnce = await execa('npx', [
+      'tsx',
+      auraBinPath,
+      'kernel',
+      'once',
+      projectPath,
+      '-c',
+      payload,
+    ]);
     expect(resOnce.exitCode).toBe(0);
   }, 30000);
 
@@ -36,15 +46,18 @@ describe('Web Server Integration', { timeout: 30000 }, () => {
       if (fs.existsSync(projectPath)) {
         fs.rmSync(projectPath, { recursive: true, force: true });
       }
-    } catch (e) {}
+    } catch (_e) {}
   });
 
   async function getFreePort(): Promise<number> {
     return new Promise((resolve) => {
       const server = http.createServer();
       server.listen(0, '127.0.0.1', () => {
-        const port = (server.address() as any).port;
-        server.close(() => resolve(port));
+        const address = server.address();
+        if (address && typeof address !== 'string') {
+          const port = address.port;
+          server.close(() => resolve(port));
+        }
       });
     });
   }
@@ -60,7 +73,7 @@ describe('Web Server Integration', { timeout: 30000 }, () => {
           req.on('error', (err) => reject(err));
         });
         return;
-      } catch (e) {
+      } catch (_e) {
         await new Promise((r) => setTimeout(r, 100));
       }
     }
@@ -87,11 +100,13 @@ describe('Web Server Integration', { timeout: 30000 }, () => {
 
       // Query /events
       const responseText = await new Promise<string>((resolve, reject) => {
-        http.get(`http://127.0.0.1:${port}/events`, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve(data));
-        }).on('error', reject);
+        http
+          .get(`http://127.0.0.1:${port}/events`, (res) => {
+            let data = '';
+            res.on('data', (chunk) => (data += chunk));
+            res.on('end', () => resolve(data));
+          })
+          .on('error', reject);
       });
 
       const eventsData = JSON.parse(responseText);
@@ -100,10 +115,12 @@ describe('Web Server Integration', { timeout: 30000 }, () => {
 
       // Trigger graceful shutdown
       await new Promise<void>((resolve, reject) => {
-        http.get(`http://127.0.0.1:${port}/shutdown`, (res) => {
-          res.resume();
-          resolve();
-        }).on('error', reject);
+        http
+          .get(`http://127.0.0.1:${port}/shutdown`, (res) => {
+            res.resume();
+            resolve();
+          })
+          .on('error', reject);
       });
 
       // Wait for child to exit

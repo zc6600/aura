@@ -1,9 +1,25 @@
-import path from 'path';
+import path from 'node:path';
 import { LSPClient } from './client.js';
+
+export interface LSPDiagnostic {
+  severity: number;
+  message: string;
+  range: {
+    start: { line: number; character: number };
+    end?: { line: number; character: number };
+  };
+  source?: string;
+  code?: string | number;
+}
+
+export interface LSPPublishDiagnosticsParams {
+  uri: string;
+  diagnostics: LSPDiagnostic[];
+}
 
 export class LSPManager {
   private projectPath: string;
-  private diagnostics: Record<string, any> = {};
+  private diagnostics: Record<string, LSPDiagnostic[]> = {};
   private clients: Record<string, LSPClient> = {};
 
   constructor(projectPath: string) {
@@ -21,7 +37,9 @@ export class LSPManager {
     return client;
   }
 
-  public getDiagnostics(filePath?: string): Record<string, any> | any[] {
+  public getDiagnostics(
+    filePath?: string,
+  ): Record<string, LSPDiagnostic[]> | LSPDiagnostic[] {
     if (filePath) {
       const uri = `file://${path.resolve(this.projectPath, filePath).replace(/\\/g, '/')}`;
       return this.diagnostics[uri] || [];
@@ -33,7 +51,7 @@ export class LSPManager {
     for (const client of Object.values(this.clients)) {
       try {
         client.stop();
-      } catch (e) {}
+      } catch (_e) {}
     }
     this.clients = {};
   }
@@ -43,37 +61,42 @@ export class LSPManager {
     if (!config) return null;
 
     const client = new LSPClient(config.command, config.args, config.env || {});
-    client.onNotification('textDocument/publishDiagnostics', (params: any) => {
-      this.updateDiagnostics(params);
-    });
+    client.onNotification(
+      'textDocument/publishDiagnostics',
+      (params: LSPPublishDiagnosticsParams) => {
+        this.updateDiagnostics(params);
+      },
+    );
 
     try {
       await client.initializeServer(this.projectPath);
       return client;
-    } catch (e) {
+    } catch (_e) {
       return null;
     }
   }
 
-  private updateDiagnostics(params: any): void {
+  public updateDiagnostics(params: LSPPublishDiagnosticsParams): void {
     const uri = params.uri;
     const diags = params.diagnostics || [];
     this.diagnostics[uri] = diags;
   }
 
-  private lspConfigs(): Record<string, { command: string; args: string[]; env?: Record<string, string> }> {
+  private lspConfigs(): Record<
+    string,
+    { command: string; args: string[]; env?: Record<string, string> }
+  > {
     return {
       ruby: {
         command: 'solargraph',
         args: ['stdio'],
-        env: { PATH: process.env.PATH || '' }
+        env: { PATH: process.env.PATH || '' },
       },
       python: {
         command: 'pyright-langserver',
         args: ['--stdio'],
-        env: { PATH: process.env.PATH || '' }
-      }
+        env: { PATH: process.env.PATH || '' },
+      },
     };
   }
 }
-

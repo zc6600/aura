@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AI-native operating system for folder-as-workspace agents
 - Kernel with AgentLoop execution engine
 - Session management with per-session isolated SQLite databases
-- CLI with comprehensive command structure (new, chat, session, tools, skills, etc.)
+- CLI with comprehensive command structure (new, agent, session, tools, skills, etc.)
 - LLM provider abstraction with multiple adapters (OpenAI, OpenRouter, Anthropic, Gemini, DeepSeek, Local)
 - Memory metabolism system with tiered retention strategy
 - Context assembly with providers (tools, state, knowledge, LSP, environment)

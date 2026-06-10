@@ -1,13 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import * as PathResolver from '../../src/utils/pathResolver.js';
 
 describe('PathResolver', () => {
   describe('validateSafePath', () => {
     it('should allow paths within the base directory', () => {
       const base = '/foo/bar';
-      
-      expect(PathResolver.validateSafePath('baz.txt', base)).toBe('/foo/bar/baz.txt');
-      expect(PathResolver.validateSafePath('sub/baz.txt', base)).toBe('/foo/bar/sub/baz.txt');
+
+      expect(PathResolver.validateSafePath('baz.txt', base)).toBe(
+        '/foo/bar/baz.txt',
+      );
+      expect(PathResolver.validateSafePath('sub/baz.txt', base)).toBe(
+        '/foo/bar/sub/baz.txt',
+      );
       expect(PathResolver.validateSafePath('.', base)).toBe('/foo/bar');
     });
 
@@ -36,8 +40,12 @@ describe('PathResolver', () => {
 
     it('should allow alphanumeric session names', () => {
       expect(PathResolver.sanitizeSessionName('session123')).toBe('session123');
-      expect(PathResolver.sanitizeSessionName('session-name')).toBe('session-name');
-      expect(PathResolver.sanitizeSessionName('session_name')).toBe('session_name');
+      expect(PathResolver.sanitizeSessionName('session-name')).toBe(
+        'session-name',
+      );
+      expect(PathResolver.sanitizeSessionName('session_name')).toBe(
+        'session_name',
+      );
     });
 
     it('should throw ArgumentError for invalid names', () => {
@@ -66,9 +74,15 @@ describe('PathResolver', () => {
     });
 
     it('should throw ArgumentError for out of bounds ports', () => {
-      expect(() => PathResolver.validatePort(-1)).toThrow(PathResolver.ArgumentError);
-      expect(() => PathResolver.validatePort(65536)).toThrow(PathResolver.ArgumentError);
-      expect(() => PathResolver.validatePort('invalid')).toThrow(PathResolver.ArgumentError);
+      expect(() => PathResolver.validatePort(-1)).toThrow(
+        PathResolver.ArgumentError,
+      );
+      expect(() => PathResolver.validatePort(65536)).toThrow(
+        PathResolver.ArgumentError,
+      );
+      expect(() => PathResolver.validatePort('invalid')).toThrow(
+        PathResolver.ArgumentError,
+      );
     });
   });
 
@@ -79,9 +93,15 @@ describe('PathResolver', () => {
     });
 
     it('should throw ArgumentError for invalid steps count', () => {
-      expect(() => PathResolver.validateMaxSteps(0)).toThrow(PathResolver.ArgumentError);
-      expect(() => PathResolver.validateMaxSteps(-10)).toThrow(PathResolver.ArgumentError);
-      expect(() => PathResolver.validateMaxSteps(1001)).toThrow(PathResolver.ArgumentError);
+      expect(() => PathResolver.validateMaxSteps(0)).toThrow(
+        PathResolver.ArgumentError,
+      );
+      expect(() => PathResolver.validateMaxSteps(-10)).toThrow(
+        PathResolver.ArgumentError,
+      );
+      expect(() => PathResolver.validateMaxSteps(1001)).toThrow(
+        PathResolver.ArgumentError,
+      );
     });
   });
 });

@@ -22,9 +22,7 @@
         "description": "Optional glob pattern to restrict searched files (e.g. '*.rb', 'app/**/*.py')."
       }
     },
-    "required": [
-      "query"
-    ]
+    "required": ["query"]
   },
   "memory": {
     "retention": "ephemeral",

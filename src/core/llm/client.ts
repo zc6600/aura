@@ -1,30 +1,29 @@
-import { BaseAdapter, CompletionResult } from './adapters/base.js';
+import { AnthropicAdapter } from './adapters/anthropic.js';
+import type { BaseAdapter, CompletionResult } from './adapters/base.js';
 import { LocalAdapter } from './adapters/local.js';
 import {
-  OpenAIAdapter,
-  OpenRouterAdapter,
   DeepSeekAdapter,
   GeminiAdapter,
+  OpenAIAdapter,
+  OpenRouterAdapter,
 } from './adapters/openai.js';
-import { AnthropicAdapter } from './adapters/anthropic.js';
 import * as Env from './env.js';
 import {
-  LLMError,
   LLMAuthError,
   LLMBadRequestError,
-  LLMTimeoutError,
+  LLMError,
   LLMRateLimitError,
   LLMServerError,
+  LLMTimeoutError,
   StreamAbortedError,
 } from './errors.js';
-
-interface ProviderConfig {
-  provider: string;
-  apiBase?: string;
-  apiKey?: string;
-  model?: string;
-  maxRetries?: number;
-}
+import type {
+  AdapterConstructor,
+  ChatMessage,
+  CompletionOptions,
+  LLMConfig,
+  ProviderConfig,
+} from './types.js';
 
 interface ProviderHealth {
   failureCount: number;
@@ -32,7 +31,7 @@ interface ProviderHealth {
   probing: boolean;
 }
 
-const adaptersRegistry: Record<string, any> = {
+const adaptersRegistry: Record<string, AdapterConstructor> = {
   local: LocalAdapter,
   openai: OpenAIAdapter,
   openrouter: OpenRouterAdapter,
@@ -42,7 +41,10 @@ const adaptersRegistry: Record<string, any> = {
 };
 
 export class Client {
-  public static registerAdapter(providerName: string, klass: any): void {
+  public static registerAdapter(
+    providerName: string,
+    klass: AdapterConstructor,
+  ): void {
     adaptersRegistry[providerName.toLowerCase()] = klass;
   }
 
@@ -55,7 +57,7 @@ export class Client {
 
   public fallbacks: ProviderConfig[] = [];
   public maxRetries: number = 2;
-  
+
   private primaryConfig: ProviderConfig;
   private currentConfig: ProviderConfig;
   private adapter: BaseAdapter;
@@ -80,7 +82,10 @@ export class Client {
   /**
    * Instantiates a Client using values loaded from config objects and environment paths.
    */
-  public static fromConfig(config: Record<string, any> | null, projectPath?: string): Client {
+  public static fromConfig(
+    config: LLMConfig | null,
+    projectPath?: string,
+  ): Client {
     if (!config) {
       return new Client({ provider: 'local' });
     }
@@ -105,12 +110,16 @@ export class Client {
 
     // Parse fallbacks array
     const rawFallbacks = config.fallbacks || [];
-    const fallbackList = Array.isArray(rawFallbacks) ? rawFallbacks : [rawFallbacks];
+    const fallbackList = Array.isArray(rawFallbacks)
+      ? rawFallbacks
+      : [rawFallbacks];
     for (const fb of fallbackList) {
       const fbProvider = fb.provider;
       if (!fbProvider || fbProvider.trim().length === 0) {
         if (Client.llmWarningsEnabled()) {
-          console.warn('\x1b[31m⚠️ Invalid fallback configuration: missing "provider"\x1b[0m');
+          console.warn(
+            '\x1b[31m⚠️ Invalid fallback configuration: missing "provider"\x1b[0m',
+          );
         }
         continue;
       }
@@ -139,7 +148,9 @@ export class Client {
       const fbProvider = backupCfg.provider;
       if (!fbProvider || fbProvider.trim().length === 0) {
         if (Client.llmWarningsEnabled()) {
-          console.warn('\x1b[31m⚠️ Invalid backup configuration: missing "provider"\x1b[0m');
+          console.warn(
+            '\x1b[31m⚠️ Invalid backup configuration: missing "provider"\x1b[0m',
+          );
         }
       } else {
         let fbKey = backupCfg.api_key;
@@ -160,7 +171,8 @@ export class Client {
       }
     }
 
-    const maxRetries = config.max_retries !== undefined ? config.max_retries : 2;
+    const maxRetries =
+      config.max_retries !== undefined ? config.max_retries : 2;
 
     const client = new Client({
       provider,
@@ -173,12 +185,14 @@ export class Client {
 
     // Validate active configurations
     const allConfigs = client.configsChain();
-    const validConfigs = allConfigs.filter((cfg) => cfg.apiKey && cfg.apiKey.trim().length > 0);
+    const validConfigs = allConfigs.filter(
+      (cfg) => cfg.apiKey && cfg.apiKey.trim().length > 0,
+    );
 
     if (validConfigs.length === 0) {
       if (Client.llmWarningsEnabled()) {
         console.warn(
-          '\x1b[31m⚠️  Warning: No valid LLM configurations found. Primary and all fallbacks are missing API keys.\x1b[0m'
+          '\x1b[31m⚠️  Warning: No valid LLM configurations found. Primary and all fallbacks are missing API keys.\x1b[0m',
         );
       }
     } else if (validConfigs.length < allConfigs.length) {
@@ -186,7 +200,7 @@ export class Client {
         console.warn(
           `\x1b[33m⚠️  Warning: ${
             allConfigs.length - validConfigs.length
-          } of ${allConfigs.length} LLM configurations have invalid or missing API keys.\x1b[0m`
+          } of ${allConfigs.length} LLM configurations have invalid or missing API keys.\x1b[0m`,
         );
       }
     }
@@ -205,14 +219,17 @@ export class Client {
     return this.adapter.supportsNativeTools();
   }
 
-  public async complete(messages: any[], options: any = {}): Promise<CompletionResult> {
+  public async complete(
+    messages: ChatMessage[],
+    options: CompletionOptions = {},
+  ): Promise<CompletionResult> {
     return this.withFallback((adapter) => adapter.complete(messages, options));
   }
 
   public async completeStream(
-    messages: any[],
-    options: any = {},
-    onChunk?: (delta: string) => void
+    messages: ChatMessage[],
+    options: CompletionOptions = {},
+    onChunk?: (delta: string) => void,
   ): Promise<CompletionResult> {
     let hasYielded = false;
 
@@ -226,7 +243,9 @@ export class Client {
         } catch (err) {
           // If we've already yielded streaming content, abort fallback/retry chain
           if (hasYielded) {
-            throw new StreamAbortedError(err instanceof Error ? err : new Error(String(err)));
+            throw new StreamAbortedError(
+              err instanceof Error ? err : new Error(String(err)),
+            );
           }
           throw err;
         }
@@ -239,7 +258,9 @@ export class Client {
     }
   }
 
-  private async withFallback<T>(fn: (adapter: BaseAdapter, config: ProviderConfig) => Promise<T>): Promise<T> {
+  private async withFallback<T>(
+    fn: (adapter: BaseAdapter, config: ProviderConfig) => Promise<T>,
+  ): Promise<T> {
     const configsToTry = this.configsChain();
     let activeConfigs = this.filterConfigs(configsToTry);
 
@@ -247,7 +268,7 @@ export class Client {
       activeConfigs = configsToTry;
     }
 
-    let lastError: any = null;
+    let lastError: Error | null = null;
 
     for (let idx = 0; idx < activeConfigs.length; idx++) {
       const config = activeConfigs[idx];
@@ -257,7 +278,8 @@ export class Client {
         this.adapter = this.buildAdapter(this.currentConfig);
       }
 
-      const configRetries = config.maxRetries !== undefined ? config.maxRetries : this.maxRetries;
+      const configRetries =
+        config.maxRetries !== undefined ? config.maxRetries : this.maxRetries;
       const maxAttempts = configRetries + 1;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -265,25 +287,25 @@ export class Client {
           const result = await fn(this.adapter, config);
           this.resetProviderHealth(config);
           return result;
-        } catch (err: any) {
+        } catch (err: unknown) {
           if (err instanceof StreamAbortedError) {
             throw err;
           }
-          lastError = err;
+          lastError = err instanceof Error ? err : new Error(String(err));
           this.recordProviderFailure(config);
 
           // Skip retrying if error is not retryable (e.g., Auth or Bad Request)
-          if (!this.isRetryableError(err)) {
+          if (!this.isRetryableError(lastError)) {
             break;
           }
 
-          const warnMessage = `LLM request failed using provider "${config.provider}" (attempt ${attempt}/${maxAttempts}): ${err.message}`;
+          const warnMessage = `LLM request failed using provider "${config.provider}" (attempt ${attempt}/${maxAttempts}): ${lastError.message}`;
           this.emitWarningMessage(warnMessage);
 
           if (attempt < maxAttempts) {
             // Exponential backoff: 2 ** (attempt - 1) up to a cap of 10s
-            const backoffTime = Math.min(Math.pow(2, attempt - 1), 10);
-            await this.sleep(backoffTime);
+            const backoffTime = Math.min(2 ** (attempt - 1), 10);
+            await this.getSleep(backoffTime);
           }
         }
       }
@@ -343,14 +365,18 @@ export class Client {
 
   private resetProviderHealth(cfg: ProviderConfig): void {
     const key = this.configKey(cfg);
-    this.healthRegistry.set(key, { failureCount: 0, lastFailedAt: null, probing: false });
+    this.healthRegistry.set(key, {
+      failureCount: 0,
+      lastFailedAt: null,
+      probing: false,
+    });
   }
 
   private configKey(cfg: ProviderConfig): string {
     return `${cfg.provider}_${cfg.model || ''}_${cfg.apiBase || ''}`;
   }
 
-  private isRetryableError(error: any): boolean {
+  private isRetryableError(error: Error): boolean {
     if (error instanceof LLMAuthError || error instanceof LLMBadRequestError) {
       return false;
     }
@@ -375,6 +401,26 @@ export class Client {
 
   protected async sleep(seconds: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+  }
+
+  public getAdapter(): BaseAdapter {
+    return this.adapter;
+  }
+
+  /**
+   * Public sleep entry point. Tests spy on this method to intercept delays.
+   * withFallback calls this.getSleep(seconds) so spies are triggered.
+   */
+  public async getSleep(seconds: number): Promise<void> {
+    return this.sleep(seconds);
+  }
+
+  public getCurrentConfig(): ProviderConfig {
+    return this.currentConfig;
+  }
+
+  public getBuildAdapter(): (config: ProviderConfig) => BaseAdapter {
+    return (config: ProviderConfig) => this.buildAdapter(config);
   }
 
   private buildAdapter(config: ProviderConfig): BaseAdapter {

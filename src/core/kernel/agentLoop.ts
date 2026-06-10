@@ -1,11 +1,21 @@
-import { Planner } from './planner.js';
-import { ParseResult } from '../llm/parsers/responseParser.js';
-import type { IRunner, IEventBus, ToolCall, ToolResult } from './interfaces.js';
+import type { ParseResult } from '../llm/parsers/responseParser.js';
+import type { IEventBus, IRunner, ToolCall, ToolResult } from './interfaces.js';
+
+interface SystemConfig {
+  max_steps?: number;
+  max_format_errors?: number;
+  max_tool_errors?: number;
+}
 
 export interface AgentLoopResult {
   status: 'completed' | 'failed';
   final_content?: string | null;
-  steps: Array<{ tool: string; args: Record<string, unknown>; summary?: string | null; result: ToolResult }>;
+  steps: Array<{
+    tool: string;
+    args: Record<string, unknown>;
+    summary?: string | null;
+    result: ToolResult;
+  }>;
   failure_reason?: string | null;
 }
 
@@ -18,13 +28,20 @@ export class AgentLoop {
     this.eventBus = options.eventBus || { emit: () => {} };
   }
 
-  public async run(goal: string, options: { ctx?: string | null; max_steps?: number | null } = {}): Promise<AgentLoopResult> {
-    const cfg = typeof this.runner.loadConfig === 'function' ? this.runner.loadConfig() : {};
-    const limitSteps = (options.max_steps as number | undefined) || (cfg.system as any)?.max_steps || 30;
-    const maxFmtErrs = (cfg.system as any)?.max_format_errors || 5;
-    const maxToolErrs = (cfg.system as any)?.max_tool_errors || 3;
+  public async run(
+    goal: string,
+    options: { ctx?: string | null; max_steps?: number | null } = {},
+  ): Promise<AgentLoopResult> {
+    const cfg =
+      typeof this.runner.loadConfig === 'function'
+        ? this.runner.loadConfig()
+        : {};
+    const systemConfig = (cfg.system || {}) as SystemConfig;
+    const limitSteps = options.max_steps ?? systemConfig.max_steps ?? 30;
+    const maxFmtErrs = systemConfig.max_format_errors ?? 5;
+    const maxToolErrs = systemConfig.max_tool_errors ?? 3;
 
-    if (goal && goal.trim() && typeof this.runner.recordUserInput === 'function') {
+    if (goal?.trim() && typeof this.runner.recordUserInput === 'function') {
       this.runner.recordUserInput(goal);
     }
 
@@ -49,7 +66,12 @@ export class AgentLoop {
       if (finishReason === 'stop') {
         const content = this.extractStopContent(plan);
         this.eventBus.emit('final_answer', { content });
-        return { status: 'completed', final_content: content, steps, failure_reason: null };
+        return {
+          status: 'completed',
+          final_content: content,
+          steps,
+          failure_reason: null,
+        };
       }
 
       if (['length', 'content_filter', 'error'].includes(finishReason)) {
@@ -60,11 +82,22 @@ export class AgentLoop {
 
       // 3. Validate tool call format
       // Note: check both typed ToolCallResult and legacy plain objects that have a 'tool' field
-      const planTool = plan.type === 'tool_call' ? plan.tool : (plan as any).tool as string | undefined;
+      const planAsAny = plan as unknown as Record<string, unknown>;
+      const planTool =
+        plan.type === 'tool_call'
+          ? plan.tool
+          : typeof planAsAny.tool === 'string' && planAsAny.tool
+            ? planAsAny.tool
+            : undefined;
       if (!planTool) {
         formatErrors++;
-        const thought = plan.type === 'text' ? plan.content : (plan as any).thought;
-        if (thought && thought.trim()) {
+        const thought =
+          plan.type === 'text'
+            ? plan.content
+            : plan.type === 'tool_call'
+              ? plan.thought
+              : undefined;
+        if (thought?.trim()) {
           this.eventBus.emit('thought', { content: thought });
         } else {
           this.eventBus.emit('no_response', {});
@@ -72,15 +105,19 @@ export class AgentLoop {
 
         if (formatErrors >= maxFmtErrs) {
           this.eventBus.emit('loop_aborted', { reason: 'format_errors' });
-          return { status: 'failed', steps, failure_reason: `Max format errors reached (${maxFmtErrs})` };
+          return {
+            status: 'failed',
+            steps,
+            failure_reason: `Max format errors reached (${maxFmtErrs})`,
+          };
         }
         ctx = this.injectFormatError(ctx);
         continue;
       }
 
       // Emit thought
-      const thought = (plan as any).thought;
-      if (thought && thought.trim()) {
+      const thought = plan.thought;
+      if (thought?.trim()) {
         this.eventBus.emit('thought', { content: thought });
       }
 
@@ -89,21 +126,44 @@ export class AgentLoop {
 
       // 4. Act step
       stepCount++;
-      const result = await this.executeTool(plan);
+      let result: ToolResult;
+      try {
+        result = await this.executeTool(plan);
+      } catch (err: unknown) {
+        result = {
+          status: 'failed',
+          error: (err as Error).message || String(err),
+          advice: 'The tool execution process crashed unexpectedly.',
+        };
+      }
       steps.push({
         tool: toolName,
-        args: (plan as any).args || {},
-        summary: (plan as any).summary ?? null,
+        args:
+          plan.type === 'tool_call'
+            ? plan.args || {}
+            : (planAsAny.args as Record<string, unknown>) || {},
+        summary:
+          plan.type === 'tool_call'
+            ? (plan.summary ?? null)
+            : ((planAsAny.summary as string | null) ?? null),
         result,
       });
 
       const status = String(result.status || '');
       if (['blocked', 'upgrade_required', 'failed'].includes(status)) {
         toolErrors++;
-        this.eventBus.emit('tool_halted', { tool: toolName, status, advice: result.advice ?? null });
+        this.eventBus.emit('tool_halted', {
+          tool: toolName,
+          status,
+          advice: result.advice ?? null,
+        });
         if (toolErrors >= maxToolErrs) {
           this.eventBus.emit('loop_aborted', { reason: 'tool_errors' });
-          return { status: 'failed', steps, failure_reason: `Max tool errors reached (${maxToolErrs})` };
+          return {
+            status: 'failed',
+            steps,
+            failure_reason: `Max tool errors reached (${maxToolErrs})`,
+          };
         }
         ctx = this.injectToolError(ctx, toolName, result);
         continue;
@@ -118,17 +178,24 @@ export class AgentLoop {
 
   private async observe(): Promise<string> {
     try {
-      return await this.runner.observe();
-    } catch (e: any) {
-      return `[Context overflow] ${e.message}`;
+      const result = await this.runner.observe();
+      // runner.observe() returns ContextPayload; mocks may return a string
+      if (typeof result === 'string') return result;
+      return (result as { toMarkdown(): string }).toMarkdown();
+    } catch (e: unknown) {
+      const msg = (e as Error).message ?? String(e);
+      return `[Context overflow] ${msg}`;
     }
   }
 
-  private async callPlanner(goal: string, ctx: string): Promise<ParseResult & { finish_reason?: string | null }> {
+  private async callPlanner(
+    goal: string,
+    ctx: string,
+  ): Promise<ParseResult & { finish_reason?: string | null }> {
     this.eventBus.emit('plan_stream_start', {});
     try {
       return await this.runner.planStream(goal, ctx, (ev) => {
-        this.eventBus.emit('plan_event', ev as any);
+        this.eventBus.emit('plan_event', ev);
       });
     } finally {
       this.eventBus.emit('plan_stream_end', {});
@@ -146,7 +213,15 @@ export class AgentLoop {
 
   private extractStopContent(plan: ParseResult): string {
     if (!plan) return '';
-    return String((plan as any).content ?? (plan as any).args?.content ?? '');
+    if (plan.type === 'text') {
+      return plan.content;
+    }
+    // Support legacy plain objects without a 'type' field that carry 'content'
+    const p = plan as unknown as Record<string, unknown>;
+    if (typeof p.content === 'string') {
+      return p.content;
+    }
+    return '';
   }
 
   private injectFormatError(ctx: string): string {
@@ -160,9 +235,14 @@ export class AgentLoop {
     return `${msg}\n\n${ctx}`;
   }
 
-  private injectToolError(ctx: string, toolName: string, result: ToolResult): string {
-    return `[TOOL ERROR] Tool '${toolName}' was ${result.status}: ${result.advice || result.error || 'No explanation provided.'}\n` +
-      `Please choose a different approach or tool.\n\n${ctx}`;
+  private injectToolError(
+    ctx: string,
+    toolName: string,
+    result: ToolResult,
+  ): string {
+    return (
+      `[TOOL ERROR] Tool '${toolName}' was ${result.status}: ${result.advice || result.error || 'No explanation provided.'}\n` +
+      `Please choose a different approach or tool.\n\n${ctx}`
+    );
   }
 }
-

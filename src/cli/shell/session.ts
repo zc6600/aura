@@ -1,63 +1,142 @@
-import readline from 'node:readline';
-import fs from 'node:fs';
 import path from 'node:path';
 import picocolors from 'picocolors';
-import { Runner } from '../../core/kernel/runner.js';
+import type { ToolResult } from '../../core/kernel/interfaces.js';
 import { RalphLoop } from '../../core/kernel/ralphLoop.js';
-import { SessionManager } from '../../core/memory/sessionManager.js';
-import { SlashCommandManager } from './slashCommandManager.js';
-import { Executor } from './executor.js';
-import { Dashboard } from '../commands/dashboard.js';
-import * as PathResolver from '../../utils/pathResolver.js';
+import { Runner } from '../../core/kernel/runner.js';
 import * as Env from '../../core/llm/env.js';
+import { SessionManager } from '../../core/memory/sessionManager.js';
+import type { DaemonClient } from '../../daemon/client.js';
+import { Dashboard } from '../commands/dashboard.js';
+import * as UI from '../ui.js';
+import { ConsoleRenderer } from './consoleRenderer.js';
+import { Executor } from './executor.js';
+import { SlashCommandManager } from './slashCommandManager.js';
 
 export class Session {
   private projectPath: string;
-  private options: any;
+  private options: Record<string, unknown>;
   private runner!: Runner;
-  private config!: any;
+  private config!: Record<string, unknown>;
   private sessionMgr!: SessionManager;
   private slashManager!: SlashCommandManager;
   private executor!: Executor;
   private auto = true;
 
-  constructor(projectPath: string, options: any = {}) {
+  constructor(projectPath: string, options: Record<string, unknown> = {}) {
     this.projectPath = path.resolve(projectPath);
     this.options = options;
   }
 
   public async start(): Promise<void> {
     await this.setupEnvironment();
-    const mode = this.options.mode || 'classic';
-    const goal = this.options.goal;
+    const mode = (this.options.mode as string) || 'classic';
+    const goal = this.options.goal as string;
+
+    if (!this.options['no-daemon']) {
+      const { DaemonClient } = await import('../../daemon/client.js');
+      const client = new DaemonClient(this.projectPath);
+      await client.connect();
+
+      const currentSession = this.sessionMgr.currentName();
+      await client.request('workspace/initialize', {
+        sessionName: currentSession,
+      });
+
+      const renderer = new ConsoleRenderer({
+        verbose: this.options.verbose as boolean,
+      });
+
+      client.onConfirmRequest(async (msg) => {
+        return await renderer.askConfirmation(msg);
+      });
+
+      if (goal && goal.trim().length > 0) {
+        client.onNotification((method, params) => {
+          if (method === 'agent/onProgress') {
+            const { type, payload } = params as {
+              type: string;
+              payload: Record<string, unknown>;
+            };
+            this.handleProgressNotification(renderer, type, payload);
+          }
+        });
+
+        try {
+          const res = await client.request('agent/runGoal', {
+            goal,
+            mode,
+            options: {
+              auto_mode: true,
+              max_steps: this.options.max_steps,
+              verify_command: this.options.verify,
+              critic: this.options.critic,
+              critic_mode: this.options.critic_mode,
+            },
+          });
+          if (res.status === 'completed') {
+            if (res.final_content) {
+              console.log(res.final_content);
+            }
+          } else {
+            throw new Error(
+              `Daemon task loop finished with status: ${res.status}`,
+            );
+          }
+        } finally {
+          client.disconnect();
+        }
+        return;
+      }
+
+      // Interactive loop runs via Daemon!
+      try {
+        await this.runLoopWithDaemon(client, renderer);
+      } finally {
+        client.disconnect();
+      }
+      return;
+    }
 
     if (mode.toLowerCase() === 'ralph') {
       if (!goal || goal.trim().length === 0) {
-        console.error(picocolors.red('⛔️ Error: Ralph Loop requires an autonomous goal (use --goal or -g).'));
-        process.exit(1);
+        throw new UI.SessionError(
+          'Ralph Loop requires an autonomous goal (use --goal or -g).',
+        );
       }
 
-      console.log(picocolors.blue(`🚀 Starting Ralph Loop for goal: '${goal}'`));
+      console.log(
+        picocolors.blue(`🚀 Starting Ralph Loop for goal: '${goal}'`),
+      );
       const bus = {
-        emit: (event: string, payload: any) => {
+        emit: (event: string, payload: Record<string, unknown>) => {
           if (event === 'ralph_start') {
             console.log(picocolors.blue(`🚀 Starting Ralph Loop`));
             console.log(`   - Max Steps: ${payload.max_steps}`);
             console.log(`   - Verifier: ${payload.verifier}`);
             console.log('');
           } else if (event === 'ralph_step_start') {
-            console.log(picocolors.cyan(`--- [Ralph Loop Step ${payload.step}/${payload.max_steps} | Session: ${payload.session}] ---`));
+            console.log(
+              picocolors.cyan(
+                `--- [Ralph Loop Step ${payload.step}/${payload.max_steps} | Session: ${payload.session}] ---`,
+              ),
+            );
           } else if (event === 'thought') {
             console.log(picocolors.gray(`💬 ${payload.content}`));
           } else if (event === 'warning') {
             console.warn(picocolors.yellow(`⚠️  ${payload.message}`));
           } else if (event === 'final_answer') {
-            console.log(picocolors.green(`✅ Ralph Loop Success! All verification checks passed.`));
+            console.log(
+              picocolors.green(
+                `✅ Ralph Loop Success! All verification checks passed.`,
+              ),
+            );
             console.log(`Final Output: ${payload.content}`);
           } else if (event === 'loop_aborted') {
-            console.error(picocolors.red(`Ralph Loop aborted: ${payload.reason}`));
+            console.error(
+              picocolors.red(`Ralph Loop aborted: ${payload.reason}`),
+            );
           }
-        }
+        },
       };
 
       const ralph = new RalphLoop(this.runner, goal, {
@@ -69,10 +148,8 @@ export class Session {
       });
 
       const res = await ralph.run();
-      if (res === 'completed') {
-        process.exit(0);
-      } else {
-        process.exit(1);
+      if (res !== 'completed') {
+        throw new UI.SessionError('Ralph Loop failed verification checks.');
       }
     } else {
       if (!goal || goal.trim().length === 0) {
@@ -99,24 +176,36 @@ export class Session {
     }
 
     // LLM auto-configure defaults matching setup_environment in session.rb
-    const llmConfig = this.config.llm || {};
-    let provider = llmConfig.provider;
+    const llmConfig = (this.config.llm as Record<string, unknown>) || {};
+    let provider = llmConfig.provider as string;
     if (!provider || provider.trim() === '' || provider === 'local') {
       if (process.env.OPENROUTER_API_KEY) {
         provider = 'openrouter';
-        console.log(picocolors.green('ℹ️ Auto-configured LLM provider: openrouter (from OPENROUTER_API_KEY)'));
+        console.log(
+          picocolors.green(
+            'ℹ️ Auto-configured LLM provider: openrouter (from OPENROUTER_API_KEY)',
+          ),
+        );
       } else if (process.env.OPENAI_API_KEY) {
         provider = 'openai';
-        console.log(picocolors.green('ℹ️ Auto-configured LLM provider: openai (from OPENAI_API_KEY)'));
+        console.log(
+          picocolors.green(
+            'ℹ️ Auto-configured LLM provider: openai (from OPENAI_API_KEY)',
+          ),
+        );
       } else if (process.env.ANTHROPIC_API_KEY) {
         provider = 'anthropic';
-        console.log(picocolors.green('ℹ️ Auto-configured LLM provider: anthropic (from ANTHROPIC_API_KEY)'));
+        console.log(
+          picocolors.green(
+            'ℹ️ Auto-configured LLM provider: anthropic (from ANTHROPIC_API_KEY)',
+          ),
+        );
       } else {
         provider = 'local';
       }
     }
 
-    let model = llmConfig.model;
+    let model = llmConfig.model as string;
     if (!model || model.trim() === '') {
       if (provider === 'openrouter') {
         model = 'openai/gpt-4o';
@@ -134,14 +223,23 @@ export class Session {
     if (model) llmConfig.model = model;
     this.config.llm = llmConfig;
 
-    this.slashManager = new SlashCommandManager(this.projectPath, () => this.runner.loadConfig(), this.runner, {
-      onReload: () => { this.setupEnvironment(); }
-    });
-    this.executor = new Executor(this.projectPath, this.runner, () => this.runner.loadConfig());
+    this.slashManager = new SlashCommandManager(
+      this.projectPath,
+      () => this.runner.loadConfig(),
+      this.runner,
+      {
+        onReload: () => {
+          this.setupEnvironment();
+        },
+      },
+    );
+    this.executor = new Executor(this.projectPath, this.runner, () =>
+      this.runner.loadConfig(),
+    );
   }
 
   private async runLoop(): Promise<void> {
-    const goal = this.options.goal || this.options.g;
+    const goal = this.options.goal as string;
     if (goal && goal.trim().length > 0) {
       const summary = await this.executor.processGoal(goal.trim());
       if (summary && summary.trim().length > 0) {
@@ -150,87 +248,210 @@ export class Session {
       return;
     }
 
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
+    console.log(
+      'Welcome to Aura Shell. Type /help for commands, /exit to exit.',
+    );
+    console.log('Press Enter twice to submit a multiline message.');
+    console.log('');
 
-    console.log('Welcome to Aura Shell. Type /help for commands, /exit to exit.');
-    rl.setPrompt('aura> ');
-    rl.prompt();
-
-    let multilineMode = false;
-    let buffer: string[] = [];
-
-    rl.on('line', async (line) => {
-      rl.pause();
-
-      let input = line.trim();
-      if (multilineMode) {
-        if (input.endsWith('\\')) {
-          buffer.push(input.substring(0, input.length - 1));
-          rl.resume();
-          rl.setPrompt('....> ');
-          rl.prompt();
-          return;
-        } else {
-          buffer.push(input);
-          input = buffer.join('\n');
-          buffer = [];
-          multilineMode = false;
-        }
-      } else {
-        if (input.endsWith('\\')) {
-          buffer.push(input.substring(0, input.length - 1));
-          multilineMode = true;
-          rl.resume();
-          rl.setPrompt('....> ');
-          rl.prompt();
-          return;
-        }
+    while (true) {
+      const inputVal = await UI.multilinePrompt('aura>');
+      if (UI.isCancel(inputVal)) {
+        console.log('Bye!');
+        break;
       }
 
-      if (['exit', 'quit', '/exit', '/quit', '/q'].includes(input.toLowerCase())) {
+      const input = (inputVal as string).trim();
+      if (!input) {
+        continue;
+      }
+
+      if (
+        ['exit', 'quit', '/exit', '/quit', '/q'].includes(input.toLowerCase())
+      ) {
         console.log('Bye!');
-        rl.close();
-        process.exit(0);
+        break;
+      }
+
+      if (
+        ['auto on', '/auto on'].includes(
+          input.toLowerCase().replace(/\s+/g, ' '),
+        )
+      ) {
+        this.auto = true;
+        console.log('Auto mode: ON');
+        continue;
+      }
+      if (
+        ['auto off', '/auto off'].includes(
+          input.toLowerCase().replace(/\s+/g, ' '),
+        )
+      ) {
+        this.auto = false;
+        console.log('Auto mode: OFF (Interactive Mode)');
+        continue;
+      }
+      if (['auto', '/auto'].includes(input.toLowerCase())) {
+        console.log('Usage: /auto on/off (Toggle auto-pilot/interactive mode)');
+        continue;
       }
 
       if (await this.slashManager.handle(input)) {
-        rl.resume();
-        rl.setPrompt('aura> ');
-        rl.prompt();
-        return;
+        continue;
       }
 
-      if (['auto on', '/auto on'].includes(input.toLowerCase().replace(/\s+/g, ' '))) {
-        this.auto = true;
-        console.log('Auto mode: ON');
-        rl.resume();
-        rl.setPrompt('aura> ');
-        rl.prompt();
-        return;
+      try {
+        await this.executor.process(input, this.auto);
+      } catch (e: unknown) {
+        console.error(
+          picocolors.red(
+            `⛔️ Error processing command: ${(e as Error).message}`,
+          ),
+        );
       }
-      if (['auto off', '/auto off'].includes(input.toLowerCase().replace(/\s+/g, ' '))) {
-        this.auto = false;
-        console.log('Auto mode: OFF (Interactive Mode)');
-        rl.resume();
-        rl.setPrompt('aura> ');
-        rl.prompt();
-        return;
-      }
+    }
+  }
 
-      if (input.length > 0) {
+  private async runLoopWithDaemon(
+    client: DaemonClient,
+    renderer: ConsoleRenderer,
+  ): Promise<void> {
+    console.log(
+      'Welcome to Aura Shell (Daemon Mode). Type /help for commands, /exit to exit.',
+    );
+    console.log('Press Enter twice to submit a multiline message.');
+    console.log('');
+
+    const removeListener = client.onNotification(
+      (method: string, params: Record<string, unknown>) => {
+        if (method === 'agent/onProgress') {
+          const { type, payload } = params as {
+            type: string;
+            payload: Record<string, unknown>;
+          };
+          this.handleProgressNotification(renderer, type, payload);
+        }
+      },
+    );
+
+    try {
+      while (true) {
+        const inputVal = await UI.multilinePrompt('aura>');
+        if (UI.isCancel(inputVal)) {
+          break;
+        }
+
+        const input = inputVal.trim();
+        if (input.length === 0) {
+          continue;
+        }
+
+        if (['exit', 'quit', '/exit', '/quit'].includes(input.toLowerCase())) {
+          break;
+        }
+
+        if (
+          ['auto on', '/auto on'].includes(
+            input.toLowerCase().replace(/\s+/g, ' '),
+          )
+        ) {
+          this.auto = true;
+          console.log('Auto mode: ON');
+          continue;
+        }
+        if (
+          ['auto off', '/auto off'].includes(
+            input.toLowerCase().replace(/\s+/g, ' '),
+          )
+        ) {
+          this.auto = false;
+          console.log('Auto mode: OFF (Interactive Mode)');
+          continue;
+        }
+        if (['auto', '/auto'].includes(input.toLowerCase())) {
+          console.log(
+            'Usage: /auto on/off (Toggle auto-pilot/interactive mode)',
+          );
+          continue;
+        }
+
+        if (await this.slashManager.handle(input)) {
+          continue;
+        }
+
         try {
-          await this.executor.process(input, this.auto);
-        } catch (e: any) {
-          console.error(picocolors.red(`⛔️ Error processing command: ${e.message}`));
+          const res = await client.request('agent/runGoal', {
+            goal: input,
+            mode: 'classic',
+            options: {
+              auto_mode: this.auto,
+              max_steps: this.options.max_steps,
+              verify_command: this.options.verify,
+              critic: this.options.critic,
+              critic_mode: this.options.critic_mode,
+            },
+          });
+          if (res.status !== 'completed' && res.status !== 'failed') {
+            throw new Error(
+              `Daemon task loop finished with status: ${res.status}`,
+            );
+          }
+        } catch (e: unknown) {
+          console.error(
+            picocolors.red(
+              `⛔️ Error processing command: ${(e as Error).message}`,
+            ),
+          );
         }
       }
+    } finally {
+      removeListener();
+    }
+  }
 
-      rl.resume();
-      rl.setPrompt('aura> ');
-      rl.prompt();
-    });
+  private handleProgressNotification(
+    renderer: ConsoleRenderer,
+    type: string,
+    payload: Record<string, unknown>,
+  ): void {
+    if (type === 'thought') {
+      renderer.onThought(payload.content as string);
+    } else if (type === 'warning') {
+      renderer.onWarning(payload.message as string);
+    } else if (type === 'final_answer') {
+      console.log(
+        picocolors.green(
+          `✅ Ralph Loop Success! All verification checks passed.`,
+        ),
+      );
+      console.log(`Final Output: ${payload.content}`);
+    } else if (type === 'tool_start') {
+      renderer.onToolStart(
+        payload.tool as string,
+        payload.summary as string,
+        payload.args as Record<string, unknown>,
+      );
+    } else if (type === 'tool_executing') {
+      renderer.onToolExecuting();
+    } else if (type === 'tool_result') {
+      renderer.onToolResult(payload.result as ToolResult);
+    } else if (type === 'loop_aborted') {
+      renderer.onError(`Ralph Loop aborted: ${payload.reason}`);
+    } else if (type === 'error') {
+      renderer.onError(payload.message as string);
+    } else if (type === 'ralph_start') {
+      console.log(
+        picocolors.blue(`🚀 Starting Ralph Loop for goal: '${payload.goal}'`),
+      );
+      console.log(`   - Max Steps: ${payload.max_steps}`);
+      console.log(`   - Verifier: ${payload.verifier}`);
+      console.log('');
+    } else if (type === 'ralph_step_start') {
+      console.log(
+        picocolors.cyan(
+          `--- [Ralph Loop Step ${payload.step}/${payload.max_steps} | Session: ${payload.session}] ---`,
+        ),
+      );
+    }
   }
 }

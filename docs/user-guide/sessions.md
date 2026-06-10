@@ -163,11 +163,11 @@ Separate different tasks into isolated sessions:
 ```bash
 # Task 1: Research
 aura session create research-api
-aura chat --goal "Research best practices for API design"
+aura agent --goal "Research best practices for API design"
 
 # Task 2: Implementation
 aura session create implement-api
-aura chat --goal "Implement REST API based on research"
+aura agent --goal "Implement REST API based on research"
 
 # Sessions are completely isolated
 ```
@@ -178,14 +178,14 @@ Try risky changes without affecting working state:
 
 ```bash
 # Start with working session
-aura session activate working-version
+aura session switch working-version
 
 # Create experimental branch
 aura session duplicate working-version refactor-experiment
-aura session activate refactor-experiment
+aura session switch refactor-experiment
 
 # Experiment safely
-aura chat --goal "Refactor the authentication module to use JWT"
+aura agent --goal "Refactor the authentication module to use JWT"
 
 # If successful, merge insights manually
 # If failed, just delete experiment
@@ -199,11 +199,11 @@ aura session delete refactor-experiment
 aura session export production-fix /backup/production-fix-$(date +%Y%m%d).db
 
 # Proceed with changes
-aura chat --goal "Fix the production database migration issue"
+aura agent --goal "Fix the production database migration issue"
 
 # If something goes wrong, restore
 aura session import /backup/production-fix-20240115.db restored-fix
-aura session activate restored-fix
+aura session switch restored-fix
 ```
 
 ---
@@ -237,16 +237,16 @@ aura session create fix-login-bug
 
 ## Shell Integration
 
-When you start `aura chat`, it automatically loads the current session:
+When you start `aura agent`, it automatically loads the current session:
 
 ```bash
-aura chat
+aura agent
 # Output: 📝 Session: research-task (if verbose mode)
 ```
 
-### Slash Commands in Chat
+### Slash Commands in Agent
 
-Inside `aura chat`, you can switch sessions:
+Inside `aura agent`, you can switch sessions:
 
 ```
 /session list
@@ -330,7 +330,7 @@ Before risky changes:
 
 ```bash
 aura session duplicate stable-version experimental-change
-aura session activate experimental-change
+aura session switch experimental-change
 # Experiment safely
 ```
 
@@ -363,7 +363,7 @@ cat state/active_session.txt
 ```bash
 # Restore from backup
 aura session import /backup/session.db restored-session
-aura session activate restored-session
+aura session switch restored-session
 ```
 
 ---

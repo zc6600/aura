@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execa } from 'execa';
 import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { initializeWorkspaceInPlace } from '../../src/utils/workspaceInitializer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,16 +16,17 @@ describe('CLI git Subcommand Integration', { timeout: 30000 }, () => {
     tempWorkspace = path.resolve(__dirname, `temp-cli-git-${Date.now()}`);
     fs.mkdirSync(tempWorkspace, { recursive: true });
 
-    // Initialize workspace using `aura new`
-    const res = await execa('npx', ['tsx', auraBinPath, 'new', tempWorkspace]);
-    expect(res.exitCode).toBe(0);
+    // Initialize workspace
+    await initializeWorkspaceInPlace(tempWorkspace);
 
     const auraDir = path.join(tempWorkspace, '.aura');
 
     // Configure local git within the test repo
     await execa('git', ['init'], { cwd: auraDir });
     await execa('git', ['config', 'user.name', 'Aura Test'], { cwd: auraDir });
-    await execa('git', ['config', 'user.email', 'test@aura.ai'], { cwd: auraDir });
+    await execa('git', ['config', 'user.email', 'test@aura.ai'], {
+      cwd: auraDir,
+    });
   });
 
   afterEach(() => {
@@ -37,7 +39,9 @@ describe('CLI git Subcommand Integration', { timeout: 30000 }, () => {
     const auraDir = path.join(tempWorkspace, '.aura');
 
     // Check status
-    const resStatus = await execa('npx', ['tsx', auraBinPath, 'status'], { cwd: tempWorkspace });
+    const resStatus = await execa('npx', ['tsx', auraBinPath, 'status'], {
+      cwd: tempWorkspace,
+    });
     expect(resStatus.stdout).toContain('On branch');
 
     // Create a dummy custom tool file
@@ -47,15 +51,25 @@ describe('CLI git Subcommand Integration', { timeout: 30000 }, () => {
     fs.writeFileSync(toolFile, '// Dummy tool');
 
     // Stage changes
-    const resAdd = await execa('npx', ['tsx', auraBinPath, 'add', 'tools/my_tool.ts'], { cwd: tempWorkspace });
+    const resAdd = await execa(
+      'npx',
+      ['tsx', auraBinPath, 'add', 'tools/my_tool.ts'],
+      { cwd: tempWorkspace },
+    );
     expect(resAdd.exitCode).toBe(0);
 
     // Commit changes
-    const resCommit = await execa('npx', ['tsx', auraBinPath, 'commit', '-m', 'add dummy tool'], { cwd: tempWorkspace });
+    const resCommit = await execa(
+      'npx',
+      ['tsx', auraBinPath, 'commit', '-m', 'add dummy tool'],
+      { cwd: tempWorkspace },
+    );
     expect(resCommit.exitCode).toBe(0);
 
     // Check status after commit (should be clean of that file)
-    const resStatusAfter = await execa('npx', ['tsx', auraBinPath, 'status'], { cwd: tempWorkspace });
+    const resStatusAfter = await execa('npx', ['tsx', auraBinPath, 'status'], {
+      cwd: tempWorkspace,
+    });
     expect(resStatusAfter.stdout).not.toContain('tools/my_tool.ts');
   });
 });

@@ -11,7 +11,11 @@ export class SseClient {
 
   private handlers = new Map<
     string,
-    { resolve: (val: any) => void; reject: (err: any) => void; timer: NodeJS.Timeout }
+    {
+      resolve: (val: Record<string, unknown>) => void;
+      reject: (err: Error) => void;
+      timer: NodeJS.Timeout;
+    }
   >();
 
   constructor(url: string, headers: Record<string, string> = {}, timeout = 30) {
@@ -20,13 +24,19 @@ export class SseClient {
     this.timeout = timeout || 30;
   }
 
-  public async request(method: string, params?: any): Promise<any> {
+  public async request(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
     await this.ensureStarted();
     await this.ensureInitialized();
     return this.requestRaw(method, params);
   }
 
-  public async notify(method: string, params?: any): Promise<void> {
+  public async notify(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<void> {
     await this.ensureStarted();
     await this.postMessage({ jsonrpc: '2.0', method, params });
   }
@@ -35,7 +45,7 @@ export class SseClient {
     this.running = false;
     try {
       this.abort?.abort();
-    } catch (e) {}
+    } catch (_e) {}
     this.abort = null;
     this.cleanup(new Error('MCP client closed'));
   }
@@ -60,8 +70,12 @@ export class SseClient {
         capabilities: {},
         clientInfo: { name: 'aura', version },
       });
-      if (resp && resp.result) {
-        await this.postMessage({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} });
+      if (resp?.result) {
+        await this.postMessage({
+          jsonrpc: '2.0',
+          method: 'notifications/initialized',
+          params: {},
+        });
       }
     } catch (e) {
       this.initialized = false;
@@ -69,7 +83,10 @@ export class SseClient {
     }
   }
 
-  private requestRaw(method: string, params?: any): Promise<any> {
+  private requestRaw(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
     return new Promise((resolve, reject) => {
       const id = String(this.nextId++);
       const payload = { jsonrpc: '2.0', id, method, params };
@@ -92,8 +109,11 @@ export class SseClient {
     });
   }
 
-  private async postMessage(payload: any): Promise<void> {
-    const headers: Record<string, string> = { ...this.headers, 'Content-Type': 'application/json' };
+  private async postMessage(payload: Record<string, unknown>): Promise<void> {
+    const headers: Record<string, string> = {
+      ...this.headers,
+      'Content-Type': 'application/json',
+    };
     await fetch(this.url, {
       method: 'POST',
       headers,
@@ -102,7 +122,10 @@ export class SseClient {
   }
 
   private async listenLoop(signal: AbortSignal): Promise<void> {
-    const headers: Record<string, string> = { ...this.headers, Accept: 'text/event-stream' };
+    const headers: Record<string, string> = {
+      ...this.headers,
+      Accept: 'text/event-stream',
+    };
     const resp = await fetch(this.url, { method: 'GET', headers, signal });
     if (!resp.ok || !resp.body) {
       throw new Error(`mcp sse connect failed: ${resp.status}`);
@@ -130,12 +153,12 @@ export class SseClient {
         try {
           const msg = JSON.parse(data);
           this.handleMessage(msg);
-        } catch (e) {}
+        } catch (_e) {}
       }
     }
   }
 
-  private handleMessage(msg: any): void {
+  private handleMessage(msg: Record<string, unknown>): void {
     if (!msg || msg.id === undefined || msg.id === null) return;
     const id = String(msg.id);
     const handler = this.handlers.get(id);

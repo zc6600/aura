@@ -1,14 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { findAuraDir, workspacePath } from '../../../utils/pathResolver.js';
+import * as PathResolver from '../../../utils/pathResolver.js';
 import {
-  RALPH_PROTOCOL_PROMPT,
-  DEFAULT_RALPH_USER_DIRECTIVES,
-  CRITIC_PROTOCOL_PROMPT,
   CRITIC_HEAVY_PROTOCOL_PROMPT,
-  DEFAULT_CRITIC_AUDIT_RULES
+  CRITIC_PROTOCOL_PROMPT,
+  DEFAULT_CRITIC_AUDIT_RULES,
+  DEFAULT_RALPH_USER_DIRECTIVES,
+  RALPH_PROTOCOL_PROMPT,
 } from './ralphPrompt.js';
 
 interface CacheEntry {
@@ -24,7 +23,7 @@ export const SECTIONS = [
   '03_operational_rules.md',
   '04_tool_spec.md',
   '05_skill_spec.md',
-  '06_constraints.md'
+  '06_constraints.md',
 ];
 
 /**
@@ -51,7 +50,14 @@ const packageRoot = findPackageRoot(currentFileDir);
  */
 export function getDefaultSystemPromptDir(): string {
   // In development (tsx)
-  const devPath = path.join(packageRoot, 'src', 'core', 'llm', 'prompts', 'system');
+  const devPath = path.join(
+    packageRoot,
+    'src',
+    'core',
+    'llm',
+    'prompts',
+    'system',
+  );
   if (fs.existsSync(devPath)) return devPath;
 
   // In production (dist)
@@ -83,7 +89,7 @@ export function readFileCached(filePath: string): string | null {
       content = parts[2] || content;
     }
 
-    const cleaned = content.trim() + '\n';
+    const cleaned = `${content.trim()}\n`;
     cache.set(filePath, { mtime, content: cleaned });
     return cleaned;
   } catch {
@@ -101,17 +107,20 @@ export function clearCache(): void {
 /**
  * Finds a file in the workspace or its parent directories (up to workspace root limit).
  */
-export function findFileInWorkspace(projectPath: string | null, relativePaths: string[]): string | null {
+export function findFileInWorkspace(
+  projectPath: string | null,
+  relativePaths: string[],
+): string | null {
   if (!projectPath) return null;
 
   const workspaceRoot = path.resolve(projectPath);
   let limit = workspaceRoot;
 
-  const auraDir = findAuraDir(workspaceRoot);
+  const auraDir = PathResolver.findAuraDir(workspaceRoot);
   if (auraDir) {
     limit = path.dirname(auraDir);
   } else {
-    const wPath = workspacePath(workspaceRoot);
+    const wPath = PathResolver.workspacePath(workspaceRoot);
     if (wPath) limit = wPath;
   }
 
@@ -147,7 +156,7 @@ export function composeModularSystemPrompt(projectPath: string): string {
       `prompts/system/${section}`,
       `.aura/prompts/system/${section}`,
       `skills/system/${section}`,
-      `.aura/skills/system/${section}`
+      `.aura/skills/system/${section}`,
     ]);
 
     if (sectionOverride) {
@@ -168,18 +177,24 @@ export function composeModularSystemPrompt(projectPath: string): string {
 /**
  * Resolves prompt based on execution mode.
  */
-export function resolve(mode: string, projectPath: string, options: { criticMode?: string } = {}): string {
+export function resolve(
+  mode: string,
+  projectPath: string,
+  options: { criticMode?: string } = {},
+): string {
   const m = mode.toLowerCase();
-  
+
   if (m === 'standard') {
     const systemPath = findFileInWorkspace(projectPath, [
       'skills/system.md',
       '.aura/skills/system.md',
       'prompts/system.md',
-      '.aura/prompts/system.md'
+      '.aura/prompts/system.md',
     ]);
 
-    return systemPath ? (readFileCached(systemPath) || '') : composeModularSystemPrompt(projectPath);
+    return systemPath
+      ? readFileCached(systemPath) || ''
+      : composeModularSystemPrompt(projectPath);
   }
 
   if (m === 'ralph_developer') {
@@ -190,27 +205,34 @@ export function resolve(mode: string, projectPath: string, options: { criticMode
       'prompts/ralph_system.md',
       '.aura/prompts/ralph_system.md',
       'skills/ralph_system.md',
-      '.aura/skills/ralph_system.md'
+      '.aura/skills/ralph_system.md',
     ]);
 
-    const custom = ralphPath ? (readFileCached(ralphPath) || '') : DEFAULT_RALPH_USER_DIRECTIVES;
+    const custom = ralphPath
+      ? readFileCached(ralphPath) || ''
+      : DEFAULT_RALPH_USER_DIRECTIVES;
     return `${base}\n\n${custom}`;
   }
 
   if (m === 'ralph_critic') {
     const criticMode = (options.criticMode || 'light').toLowerCase();
-    const base = criticMode === 'heavy' ? CRITIC_HEAVY_PROTOCOL_PROMPT : CRITIC_PROTOCOL_PROMPT;
-    
+    const base =
+      criticMode === 'heavy'
+        ? CRITIC_HEAVY_PROTOCOL_PROMPT
+        : CRITIC_PROTOCOL_PROMPT;
+
     const criticPath = findFileInWorkspace(projectPath, [
       'prompts/ralph/critic_rules.md',
       '.aura/prompts/ralph/critic_rules.md',
       'prompts/critic_rules.md',
       '.aura/prompts/critic_rules.md',
       'skills/critic_rules.md',
-      '.aura/skills/critic_rules.md'
+      '.aura/skills/critic_rules.md',
     ]);
 
-    const custom = criticPath ? (readFileCached(criticPath) || '') : DEFAULT_CRITIC_AUDIT_RULES;
+    const custom = criticPath
+      ? readFileCached(criticPath) || ''
+      : DEFAULT_CRITIC_AUDIT_RULES;
     return `${base}\n\n${custom}`;
   }
 
@@ -231,22 +253,16 @@ export function validatePrompt(content: string): string[] {
   }
 
   if (!content.includes('tool') || !content.includes('args')) {
-    issues.push("Warning: Prompt may lack structural tool calling rules (missing 'tool' or 'args').");
+    issues.push(
+      "Warning: Prompt may lack structural tool calling rules (missing 'tool' or 'args').",
+    );
   }
 
   if (content.includes('{{') && !content.includes('{{project_path}}')) {
-    issues.push('Warning: Contains unresolved template placeholders (unrecognized double curly braces).');
+    issues.push(
+      'Warning: Contains unresolved template placeholders (unrecognized double curly braces).',
+    );
   }
 
   return issues;
 }
-
-export const PromptsRegistry = {
-  getDefaultSystemPromptDir,
-  readFileCached,
-  clearCache,
-  findFileInWorkspace,
-  composeModularSystemPrompt,
-  resolve,
-  validatePrompt,
-};

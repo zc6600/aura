@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'node:fs';
 import yaml from 'yaml';
 
 export interface RetentionTier {
@@ -39,54 +39,61 @@ export class MemoryConfig {
     type: 'sqlite',
   };
 
-  private raw: any;
+  private raw: Record<string, unknown>;
 
-  constructor(raw: any = {}) {
+  constructor(raw: Record<string, unknown> = {}) {
     this.raw = raw || {};
   }
 
   public get storeConfig(): StoreConfig {
-    const store = this.raw.store || {};
+    const store = (this.raw.store as Record<string, unknown>) || {};
     return {
       ...MemoryConfig.DEFAULT_STORE,
       ...store,
-    };
+    } as StoreConfig;
   }
 
-  public get retention(): any {
-    return this.raw.retention || {};
+  public get retention(): Record<string, unknown> {
+    return (this.raw.retention as Record<string, unknown>) || {};
   }
 
-  public get summarizer(): any {
-    return this.raw.summarizer || null;
+  public get summarizer(): Record<string, unknown> | null {
+    return (this.raw.summarizer as Record<string, unknown>) || null;
   }
 
   public get metabolism(): MetabolismConfig {
-    const meta = this.raw.metabolism || {};
+    const meta = (this.raw.metabolism as Record<string, unknown>) || {};
     return {
       max_chars: Number(
         meta.max_chars ??
-        this.raw.max_state_chars ??
-        this.raw.max_chars ??
-        MemoryConfig.DEFAULT_METABOLISM.max_chars
+          this.raw.max_state_chars ??
+          this.raw.max_chars ??
+          MemoryConfig.DEFAULT_METABOLISM.max_chars,
       ),
       recent_events_n: Number(
         meta.recent_events_n ??
-        this.raw.recent_events_n ??
-        MemoryConfig.DEFAULT_METABOLISM.recent_events_n
+          this.raw.recent_events_n ??
+          MemoryConfig.DEFAULT_METABOLISM.recent_events_n,
       ),
       keep_last_summary_n_steps: Number(
         meta.keep_last_summary_n_steps ??
-        this.raw.keep_last_summary_n_steps ??
-        MemoryConfig.DEFAULT_METABOLISM.keep_last_summary_n_steps
+          this.raw.keep_last_summary_n_steps ??
+          MemoryConfig.DEFAULT_METABOLISM.keep_last_summary_n_steps,
       ),
       summarization: {
-        enabled: meta.summarization?.enabled ?? this.raw.summarization?.enabled ?? true,
+        enabled: (() => {
+          const s = meta.summarization ?? this.raw.summarization;
+          if (s === false) return false;
+          if (s && typeof s === 'object') {
+            return (s as Record<string, unknown>).enabled !== false;
+          }
+          return true;
+        })(),
         max_chars: Number(
-          meta.summarization?.max_chars ??
-          this.raw.summarization?.max_chars ??
-          MemoryConfig.DEFAULT_METABOLISM.summarization?.max_chars ??
-          500
+          (meta.summarization as Record<string, unknown>)?.max_chars ??
+            (this.raw.summarization as Record<string, unknown>)?.max_chars ??
+            MemoryConfig.DEFAULT_METABOLISM.summarization?.max_chars ??
+            500,
         ),
       },
     };
@@ -99,9 +106,10 @@ export class MemoryConfig {
     try {
       const content = fs.readFileSync(path, 'utf-8');
       const data = yaml.parse(content) || {};
-      const memoryConfig = data.state_management || {};
-      return new MemoryConfig(memoryConfig);
-    } catch (e) {
+      const memoryConfig =
+        (data as Record<string, unknown>).state_management || {};
+      return new MemoryConfig(memoryConfig as Record<string, unknown>);
+    } catch (_e) {
       return new MemoryConfig();
     }
   }
