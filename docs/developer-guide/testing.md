@@ -10,7 +10,7 @@ The tests under `tests/` validate the framework code in this repository.
 
 **Scope:**
 - CLI entry and dispatch: `src/bin/aura.ts`, `src/cli/commands/`
-- Workspace initializer: `src/cli/commands/new.ts` (creates `.aura/` by copying standard templates)
+- Workspace initializer: `src/utils/workspaceInitializer.ts` (mapped to `aura new` in `src/bin/aura.ts`, creates `.aura/` by copying templates)
 - Templates: `src/generators/aura/app/templates/config.yml` and tool templates
 - Isolation verification: many tests generate a temporary Agent project via `aura new <tmp_path>` and assert files/databases under that generated project.
 
@@ -41,6 +41,8 @@ npx vitest run -t "AgentLoop"
 The repository uses a **type-first** test structure under `tests/`:
 - `tests/unit/**`: fast, deterministic, mocks external subprocesses/API keys where possible.
 - `tests/integration/**`: multi-module integration, spins up subprocesses, runs git status, initializes workspaces.
+- `tests/system/**`: opt-in real-system checks that may call a real LLM provider and validate end-to-end runtime contracts.
+- `tests/benchmark/**`: capability evaluation tasks, model comparisons, and agent performance measurements.
 
 ```bash
 # Run unit tests only
@@ -56,6 +58,37 @@ Notes:
   ```bash
   export OPENROUTER_API_KEY=mock-key-for-testing
   ```
+
+### System Tests
+
+System tests are intentionally separate from unit/integration tests. They answer
+"does the real runtime chain work?" rather than "how capable is the agent?".
+
+```bash
+# Run only system tests with a real provider key
+RUN_SYSTEM_TESTS=1 OPENROUTER_API_KEY=... npx vitest run tests/system/
+
+# Or copy the local env template and run without exporting keys in the shell
+cp tests/system/.env.example tests/system/.env
+$EDITOR tests/system/.env
+npx vitest run tests/system/
+
+# Override provider/model discovery
+RUN_SYSTEM_TESTS=1 \
+  AURA_SYSTEM_LLM_PROVIDER=openai \
+  AURA_SYSTEM_LLM_API_KEY_ENV=OPENAI_API_KEY \
+  AURA_SYSTEM_LLM_MODEL=gpt-4o-mini \
+  OPENAI_API_KEY=... \
+  npx vitest run tests/system/
+```
+
+System tests should:
+- Assert stable side effects: exit codes, files, event payloads, SQLite rows, and JSON shapes.
+- Avoid asserting exact natural-language output from the model.
+- Use tiny temporary workspaces and bounded `max_steps`, `max_tokens`, retries, and timeouts.
+- Stay opt-in with `RUN_SYSTEM_TESTS=1`; ordinary CI should not call real LLM APIs.
+- Keep real keys in shell environment variables or `tests/system/.env`, which is ignored by git.
+- Leave capability scoring, hard tasks, and model-to-model comparisons to `tests/benchmark/**`.
 
 ---
 
