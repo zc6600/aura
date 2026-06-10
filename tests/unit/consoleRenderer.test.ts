@@ -11,6 +11,10 @@ import {
 import { ConsoleRenderer } from '../../src/cli/shell/consoleRenderer.js';
 import * as UI from '../../src/cli/ui.js';
 
+function stripAnsi(str: string): string {
+  return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+}
+
 interface MockSpinner {
   start: SpyInstance;
   message: SpyInstance;
@@ -102,9 +106,10 @@ describe('ConsoleRenderer', () => {
     renderer.onToolStart('write_file', 'write text to file', { path: 'a.txt' });
 
     const logs = consoleLogSpy.mock.calls.map((c) => c.join(' ')).join('\n');
-    expect(logs).toContain('Tool: write_file');
-    expect(logs).toContain('Summary: write text to file');
-    expect(logs).toContain('Args: {"path":"a.txt"}');
+    const cleanLogs = stripAnsi(logs);
+    expect(cleanLogs).toContain('Tool: write_file');
+    expect(cleanLogs).toContain('Summary: write text to file');
+    expect(cleanLogs).toContain('Args: {"path":"a.txt"}');
   });
 
   it('test_on_tool_executing', () => {
@@ -123,10 +128,11 @@ describe('ConsoleRenderer', () => {
     renderer.onToolResult(result);
 
     const logs = consoleLogSpy.mock.calls.map((c) => c.join(' ')).join('\n');
-    expect(logs).toContain('Status: ok');
-    expect(logs).toContain('file written successfully');
-    expect(logs).toContain('Modified files:');
-    expect(logs).toContain('a.txt');
+    const cleanLogs = stripAnsi(logs);
+    expect(cleanLogs).toContain('Status: ok');
+    expect(cleanLogs).toContain('file written successfully');
+    expect(cleanLogs).toContain('Modified files:');
+    expect(cleanLogs).toContain('a.txt');
   });
 
   it('test_on_thought', () => {
@@ -134,8 +140,9 @@ describe('ConsoleRenderer', () => {
     renderer.onThought('thinking aloud', 2.3);
 
     const logs = consoleLogSpy.mock.calls.map((c) => c.join(' ')).join('\n');
-    expect(logs).toContain('Response (2.3s):');
-    expect(logs).toContain('thinking aloud');
+    const cleanLogs = stripAnsi(logs);
+    expect(cleanLogs).toContain('Response (2.3s):');
+    expect(cleanLogs).toContain('thinking aloud');
   });
 
   it('test_on_error', () => {
@@ -143,7 +150,8 @@ describe('ConsoleRenderer', () => {
     renderer.onError('system crash');
 
     const errs = consoleErrorSpy.mock.calls.map((c) => c.join(' ')).join('\n');
-    expect(errs).toContain('Error: system crash');
+    const cleanErrs = stripAnsi(errs);
+    expect(cleanErrs).toContain('Error: system crash');
   });
 
   it('test_on_warning', () => {
@@ -151,7 +159,8 @@ describe('ConsoleRenderer', () => {
     renderer.onWarning('deprecated');
 
     const warns = consoleWarnSpy.mock.calls.map((c) => c.join(' ')).join('\n');
-    expect(warns).toContain('deprecated');
+    const cleanWarns = stripAnsi(warns);
+    expect(cleanWarns).toContain('deprecated');
   });
 
   it('test_ask_confirmation_yes', async () => {

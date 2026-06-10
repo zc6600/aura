@@ -66,19 +66,15 @@ See [CHANGELOG.md](CHANGELOG.md) for a complete list of changes, features, and r
 Aura OS requires **Node.js 18+** and **Git** installed on your system.
 
 #### Method A: One-Click Setup (Recommended)
-You can run the setup script directly to check dependencies, install npm packages, compile the project, configure environment templates, and link the CLI globally.
-
-If you have already cloned the repository locally, run:
-```bash
-bash bin/setup.sh
-```
-
-If the repository is public or you have configured credentials, you can fetch and run it via `curl`:
+You can run the setup script directly in a single command (bypassing caching via a query timestamp) to check dependencies, install npm packages, compile the project, configure environment templates, and link the CLI globally:
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/zc6600/aura/main/bin/setup.sh?t=$(date +%s)" | bash
 ```
 
-*(Note: Since this is a private repository, anonymous raw `curl` requests will return a 404. If you have the GitHub CLI installed and authenticated, you can run: `gh api repos/zc6600/aura/contents/bin/setup.sh -H "Accept: application/vnd.github.raw" | bash`)*
+Alternatively, if you have already cloned the repository locally, you can run:
+```bash
+bash bin/setup.sh
+```
 
 #### Method B: Global NPM Installation
 Once published, you can install the CLI globally:

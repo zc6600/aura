@@ -16,6 +16,8 @@ describe('CLI config Subcommand Integration', { timeout: 60000 }, () => {
   let testGlobalRepo: string;
   let testWorkspace: string;
   let origEnvRepo: string | undefined;
+  let origForceColor: string | undefined;
+  let origNoColor: string | undefined;
 
   beforeEach(async () => {
     tempDir = path.resolve(__dirname, `temp-cli-config-${Date.now()}`);
@@ -36,6 +38,12 @@ describe('CLI config Subcommand Integration', { timeout: 60000 }, () => {
     origEnvRepo = process.env.AURA_GLOBAL_REPO_PATH;
     process.env.AURA_GLOBAL_REPO_PATH = testGlobalRepo;
 
+    // Disable colors to prevent stdout mismatch due to terminal colors
+    origForceColor = process.env.FORCE_COLOR;
+    delete process.env.FORCE_COLOR;
+    origNoColor = process.env.NO_COLOR;
+    process.env.NO_COLOR = '1';
+
     // Initialize workspace
     await initializeWorkspaceInPlace(testWorkspace);
   });
@@ -45,6 +53,18 @@ describe('CLI config Subcommand Integration', { timeout: 60000 }, () => {
       process.env.AURA_GLOBAL_REPO_PATH = origEnvRepo;
     } else {
       delete process.env.AURA_GLOBAL_REPO_PATH;
+    }
+
+    if (origForceColor !== undefined) {
+      process.env.FORCE_COLOR = origForceColor;
+    } else {
+      delete process.env.FORCE_COLOR;
+    }
+
+    if (origNoColor !== undefined) {
+      process.env.NO_COLOR = origNoColor;
+    } else {
+      delete process.env.NO_COLOR;
     }
 
     if (fs.existsSync(tempDir)) {
