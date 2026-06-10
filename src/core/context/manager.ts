@@ -30,7 +30,9 @@ export class ContextManager {
 
     const overridePath = process.env.AURA_TOOL_CONTEXTS_PATH;
     if (overridePath?.trim()) {
-      this.stateFile = path.resolve(overridePath, this.envPath);
+      this.stateFile = path.isAbsolute(overridePath)
+        ? overridePath
+        : path.resolve(this.envPath, overridePath);
     } else {
       this.stateFile = path.join(this.envPath, 'state', 'tool_contexts.json');
     }

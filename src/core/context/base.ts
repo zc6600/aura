@@ -280,10 +280,12 @@ export class ContextBase {
 
     // Truncate individual events
     if (perEventCap > 0) {
+      const dbRelPath = this.db.name
+        ? path.relative(this.projectPath, this.db.name).replace(/\\/g, '/')
+        : '.aura/state/sessions/default.db';
       events = events.map((line) => {
         if (line && line.length > perEventCap) {
-          const notice =
-            '...[truncated; full payload in state/aura.db (events.payload); use sqlite3 to query]';
+          const notice = `...[truncated; full payload in ${dbRelPath} (events.payload); use sqlite3 to query]`;
           const maxBody = Math.max(0, perEventCap - notice.length);
           return line.substring(0, maxBody) + notice;
         }

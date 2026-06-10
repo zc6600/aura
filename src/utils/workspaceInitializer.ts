@@ -101,12 +101,22 @@ export async function initializeSandbox(): Promise<string> {
       const innerRules = fs.existsSync(innerIgnorePath)
         ? fs.readFileSync(innerIgnorePath, 'utf-8')
         : '';
-      if (!innerRules.includes('state/aura.db*')) {
-        fs.writeFileSync(
-          innerIgnorePath,
-          `${innerRules}\nstate/aura.db*\n`,
-          'utf-8',
-        );
+      const newRules = [
+        'state/aura.db*',
+        'state/**/*.db*',
+        'state/sessions/',
+        'state/chat_sessions/',
+      ];
+      let updatedRules = innerRules;
+      let changed = false;
+      for (const rule of newRules) {
+        if (!updatedRules.includes(rule)) {
+          updatedRules = `${updatedRules.trim()}\n${rule}\n`;
+          changed = true;
+        }
+      }
+      if (changed) {
+        fs.writeFileSync(innerIgnorePath, updatedRules, 'utf-8');
       }
 
       // Record sandbox project
@@ -186,12 +196,22 @@ export async function initializeWorkspaceInPlace(
     const innerRules = fs.existsSync(innerIgnorePath)
       ? fs.readFileSync(innerIgnorePath, 'utf-8')
       : '';
-    if (!innerRules.includes('state/aura.db*')) {
-      fs.writeFileSync(
-        innerIgnorePath,
-        `${innerRules}\nstate/aura.db*\n`,
-        'utf-8',
-      );
+    const newRules = [
+      'state/aura.db*',
+      'state/**/*.db*',
+      'state/sessions/',
+      'state/chat_sessions/',
+    ];
+    let updatedRules = innerRules;
+    let changed = false;
+    for (const rule of newRules) {
+      if (!updatedRules.includes(rule)) {
+        updatedRules = `${updatedRules.trim()}\n${rule}\n`;
+        changed = true;
+      }
+    }
+    if (changed) {
+      fs.writeFileSync(innerIgnorePath, updatedRules, 'utf-8');
     }
 
     ProjectRegistry.register(projectName, projectPath);
@@ -254,12 +274,22 @@ export async function initializeGlobalEnv(): Promise<string> {
       const innerRules = fs.existsSync(innerIgnorePath)
         ? fs.readFileSync(innerIgnorePath, 'utf-8')
         : '';
-      if (!innerRules.includes('state/aura.db*')) {
-        fs.writeFileSync(
-          innerIgnorePath,
-          `${innerRules}\nstate/aura.db*\n`,
-          'utf-8',
-        );
+      const newRules = [
+        'state/aura.db*',
+        'state/**/*.db*',
+        'state/sessions/',
+        'state/chat_sessions/',
+      ];
+      let updatedRules = innerRules;
+      let changed = false;
+      for (const rule of newRules) {
+        if (!updatedRules.includes(rule)) {
+          updatedRules = `${updatedRules.trim()}\n${rule}\n`;
+          changed = true;
+        }
+      }
+      if (changed) {
+        fs.writeFileSync(innerIgnorePath, updatedRules, 'utf-8');
       }
 
       // Record global project name in config

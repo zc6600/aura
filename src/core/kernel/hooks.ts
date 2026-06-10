@@ -20,15 +20,14 @@ export class Hooks implements IHooks {
 
   /**
    * Runs all hooks registered under `name`.
-   * Returns false if any synchronous hook explicitly returned false (blocking).
-   * Async hooks are fire-and-forget from the perspective of the return value.
+   * Returns false if any hook explicitly returned false (blocking).
    */
-  public run(name: string, ...args: unknown[]): boolean {
+  public async run(name: string, ...args: unknown[]): Promise<boolean> {
     const list = this.hookMap[name];
     if (!list) return true;
 
     for (const hook of list) {
-      const result = hook(...args);
+      const result = await hook(...args);
       if (result === false) {
         return false;
       }

@@ -63,7 +63,7 @@ export interface IHooks {
   register(name: string, fn: HookFn): void;
   unregister(name: string, fn: HookFn): void;
   /** Returns false if any hook explicitly returned false (blocking execution). */
-  run(name: string, ...args: unknown[]): boolean;
+  run(name: string, ...args: unknown[]): Promise<boolean>;
 }
 
 // ---------------------------------------------------------------------------

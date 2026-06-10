@@ -30,9 +30,13 @@ export class ShadowBackup {
 
       if (fs.existsSync(path.join(this.projectPath, '.git'))) {
         try {
-          const { stdout } = await execa('git', ['status', '--porcelain'], {
-            cwd: this.projectPath,
-          });
+          const { stdout } = await execa(
+            'git',
+            ['-c', 'core.quotepath=false', 'status', '--porcelain'],
+            {
+              cwd: this.projectPath,
+            },
+          );
           const lines = stdout.split('\n');
           for (const line of lines) {
             if (line.length > 3) {
@@ -58,9 +62,19 @@ export class ShadowBackup {
 
       for (const relPath of changedFiles) {
         const absSrc = path.resolve(this.projectPath, relPath);
+        const absDest = path.resolve(this.shadowPath, relPath);
 
         try {
-          if (!fs.existsSync(absSrc) || !fs.statSync(absSrc).isFile()) {
+          if (!fs.existsSync(absSrc)) {
+            // Handle file deletion synchronization
+            if (fs.existsSync(absDest)) {
+              fs.rmSync(absDest, { force: true });
+              copiedAny = true;
+            }
+            continue;
+          }
+
+          if (!fs.statSync(absSrc).isFile()) {
             continue;
           }
 
@@ -79,19 +93,6 @@ export class ShadowBackup {
             continue;
           }
 
-          // Check ignore
-          if (fs.existsSync(path.join(this.projectPath, '.git'))) {
-            try {
-              await execa('git', ['check-ignore', relPath], {
-                cwd: this.projectPath,
-              });
-              continue; // Ignored
-            } catch (_e) {
-              // Not ignored
-            }
-          }
-
-          const absDest = path.resolve(this.shadowPath, relPath);
           fs.mkdirSync(path.dirname(absDest), { recursive: true });
           fs.copyFileSync(absSrc, absDest);
           copiedAny = true;

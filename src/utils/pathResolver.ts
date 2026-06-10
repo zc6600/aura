@@ -25,12 +25,23 @@ export const SESSION_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
  */
 export function validateSafePath(pathStr: string, baseDir: string): string {
   const expandedBase = path.resolve(baseDir);
-  const expanded = path.resolve(expandedBase, pathStr);
-
-  const real = fs.existsSync(expanded) ? fs.realpathSync(expanded) : expanded;
   const realBase = fs.existsSync(expandedBase)
     ? fs.realpathSync(expandedBase)
     : expandedBase;
+
+  const expanded = path.resolve(realBase, pathStr);
+
+  // Find the closest existing ancestor to resolve symbolic links correctly
+  let current = expanded;
+  let real = expanded;
+  while (current && current !== path.dirname(current)) {
+    if (fs.existsSync(current)) {
+      const realAncestor = fs.realpathSync(current);
+      real = path.join(realAncestor, path.relative(current, expanded));
+      break;
+    }
+    current = path.dirname(current);
+  }
 
   const isSafe = real === realBase || real.startsWith(realBase + path.sep);
   if (!isSafe) {

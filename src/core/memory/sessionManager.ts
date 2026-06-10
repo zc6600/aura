@@ -267,7 +267,12 @@ export class SessionManager {
     }
 
     const sourceDb = this.dbPathFor(sourceName);
-    fs.copyFileSync(sourceDb, newDb);
+    const db = new Database(sourceDb);
+    try {
+      db.prepare('VACUUM INTO ?').run(newDb);
+    } finally {
+      db.close();
+    }
 
     const sessionInfo: SessionInfo = {
       name: newName,
@@ -292,7 +297,16 @@ export class SessionManager {
       throw new Error(`Session '${name}' does not exist`);
     }
     fs.mkdirSync(path.dirname(destPath), { recursive: true });
-    fs.copyFileSync(this.dbPathFor(name), destPath);
+    if (fs.existsSync(destPath)) {
+      fs.unlinkSync(destPath);
+    }
+    const sourceDb = this.dbPathFor(name);
+    const db = new Database(sourceDb);
+    try {
+      db.prepare('VACUUM INTO ?').run(destPath);
+    } finally {
+      db.close();
+    }
   }
 
   public import(sourcePath: string, name: string): SessionInfo {

@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import picocolors from 'picocolors';
 import { SessionManager } from '../../core/memory/sessionManager.js';
 import * as PathResolver from '../../utils/pathResolver.js';
@@ -207,6 +209,7 @@ export class SessionCmd {
     }
 
     // Fallback to global config path for read-only queries (list, current)
-    return new SessionManager(process.cwd());
+    const globalEnv = path.resolve(os.homedir(), '.aura', 'global');
+    return new SessionManager(globalEnv);
   }
 }

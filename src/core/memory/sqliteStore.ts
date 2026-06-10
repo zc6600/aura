@@ -285,14 +285,16 @@ export class SQLiteStore {
     this.transaction(() => {
       // Move events to undone_events
       this.db
-        .prepare('INSERT INTO undone_events SELECT * FROM events WHERE id >= ?')
+        .prepare(
+          'INSERT OR REPLACE INTO undone_events SELECT * FROM events WHERE id >= ?',
+        )
         .run(lastUserId);
       this.db.prepare('DELETE FROM events WHERE id >= ?').run(lastUserId);
 
       // Move summaries to undone_summaries
       this.db
         .prepare(
-          'INSERT INTO undone_summaries SELECT * FROM summaries WHERE source_event_id >= ?',
+          'INSERT OR REPLACE INTO undone_summaries SELECT * FROM summaries WHERE source_event_id >= ?',
         )
         .run(lastUserId);
       this.db
@@ -325,7 +327,7 @@ export class SQLiteStore {
         // Restore single turn
         this.db
           .prepare(
-            'INSERT INTO events SELECT * FROM undone_events WHERE id >= ? AND id < ?',
+            'INSERT OR REPLACE INTO events SELECT * FROM undone_events WHERE id >= ? AND id < ?',
           )
           .run(nextUserId, followingUserId);
         this.db
@@ -334,7 +336,7 @@ export class SQLiteStore {
 
         this.db
           .prepare(
-            'INSERT INTO summaries SELECT * FROM undone_summaries WHERE source_event_id >= ? AND source_event_id < ?',
+            'INSERT OR REPLACE INTO summaries SELECT * FROM undone_summaries WHERE source_event_id >= ? AND source_event_id < ?',
           )
           .run(nextUserId, followingUserId);
         this.db
@@ -346,7 +348,7 @@ export class SQLiteStore {
         // Restore tail
         this.db
           .prepare(
-            'INSERT INTO events SELECT * FROM undone_events WHERE id >= ?',
+            'INSERT OR REPLACE INTO events SELECT * FROM undone_events WHERE id >= ?',
           )
           .run(nextUserId);
         this.db
@@ -355,7 +357,7 @@ export class SQLiteStore {
 
         this.db
           .prepare(
-            'INSERT INTO summaries SELECT * FROM undone_summaries WHERE source_event_id >= ?',
+            'INSERT OR REPLACE INTO summaries SELECT * FROM undone_summaries WHERE source_event_id >= ?',
           )
           .run(nextUserId);
         this.db

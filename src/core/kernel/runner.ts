@@ -182,7 +182,7 @@ export class Runner extends EventEmitter implements IRunner {
       context: ctx,
       goal,
     };
-    this.hooks.run('before_planning', payload);
+    await this.hooks.run('before_planning', payload);
 
     const res = (await this.planner.plan(
       payload.context as string | ContextPayload,
@@ -203,7 +203,7 @@ export class Runner extends EventEmitter implements IRunner {
       context: ctx,
       goal,
     };
-    this.hooks.run('before_planning', payload);
+    await this.hooks.run('before_planning', payload);
 
     const res = (await this.planner.planStream(
       payload.context as string | ContextPayload,
@@ -229,7 +229,7 @@ export class Runner extends EventEmitter implements IRunner {
 
     this.emit('tool_start', { tool, args, summary });
 
-    if (!this.hooks.run('before_tool_execution', tool, args)) {
+    if (!(await this.hooks.run('before_tool_execution', tool, args))) {
       this.emit('tool_blocked', { tool, reason: 'Hook rejected execution' });
       return { status: 'blocked', advice: 'Execution rejected by hook' };
     }
@@ -246,7 +246,7 @@ export class Runner extends EventEmitter implements IRunner {
     });
 
     const resPayload = { result: res, tool };
-    this.hooks.run('after_tool_execution', resPayload);
+    await this.hooks.run('after_tool_execution', resPayload);
     res = resPayload.result as ToolResult;
 
     if (modifiedFiles && modifiedFiles.length > 0) {

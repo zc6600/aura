@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import * as PathResolver from '../../src/utils/pathResolver.js';
 
@@ -29,6 +32,33 @@ describe('PathResolver', () => {
       expect(() => {
         PathResolver.validateSafePath('../barbaz/file.txt', base);
       }).toThrow(PathResolver.SecurityError);
+    });
+
+    it('should correctly allow paths to non-existent files under a symlinked base directory', () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-test-'));
+      const realDir = path.join(tmpDir, 'real');
+      fs.mkdirSync(realDir);
+
+      const symlinkDir = path.join(tmpDir, 'symlink');
+      fs.symlinkSync(realDir, symlinkDir);
+
+      try {
+        const nonExistentTarget = 'new-file.txt';
+        const result = PathResolver.validateSafePath(
+          nonExistentTarget,
+          symlinkDir,
+        );
+
+        expect(result).toBe(
+          path.join(fs.realpathSync(realDir), nonExistentTarget),
+        );
+
+        expect(() => {
+          PathResolver.validateSafePath('../../escaped.txt', symlinkDir);
+        }).toThrow(PathResolver.SecurityError);
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
     });
   });
 

@@ -123,6 +123,29 @@ ${'#'.repeat(110000)}`,
     expect(out).not.toContain('Large Hint Should Not Show');
   });
 
+  it('test_has_magic_hint_reads_only_4kb_buffer', () => {
+    // Create a very large file (> 100KB) with @aura-hint: in the first 4KB, and verify it returns true.
+    const largeFilePath = path.join(projectPath, 'large_hint_file.py');
+    const header = '# @aura-hint: My optimized magic hint\n';
+    const body = 'B'.repeat(150000); // 150KB
+    fs.writeFileSync(largeFilePath, header + body);
+
+    const hasHint = (Hints as any).hasMagicHint(largeFilePath);
+    expect(hasHint).toBe(true);
+
+    // Create another large file with @aura-hint: AFTER the first 4KB, and verify it returns false (since we only scan the first 4KB).
+    const largeFileNoHintInHeaderPath = path.join(
+      projectPath,
+      'large_no_hint_in_header.py',
+    );
+    const headerNoHint = `${'B'.repeat(5000)}\n`;
+    const bodyWithHint = '# @aura-hint: This should not be scanned\n';
+    fs.writeFileSync(largeFileNoHintInHeaderPath, headerNoHint + bodyWithHint);
+
+    const hasHint2 = (Hints as any).hasMagicHint(largeFileNoHintInHeaderPath);
+    expect(hasHint2).toBe(false);
+  });
+
   it('test_magic_hint_scanning_truncates_and_warns_on_long_hints', () => {
     const longHint = 'X'.repeat(1200);
     fs.writeFileSync(

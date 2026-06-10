@@ -100,5 +100,41 @@ describe('SQLiteStore', () => {
       expect(redoOk).toBe(true);
       expect(store.countEvents()).toBe(3); // Back to 3 events
     });
+
+    it('should handle undo and redo safely even when duplicate events exist in undone_events', () => {
+      const ts = Math.floor(Date.now() / 1000);
+
+      // 1. Insert user event
+      const userEventId = store.insertEvent({
+        timestamp: ts,
+        phase: 'user',
+        tool: 'input',
+        payload: { text: 'Turn with potential conflicts' },
+      });
+
+      // 2. Pre-seed the undone_events table with a conflicting event of the same ID
+      const db = store.getRawDb();
+      db.prepare(
+        'INSERT INTO undone_events (id, timestamp, phase, tool, payload) VALUES (?, ?, ?, ?, ?)',
+      ).run(
+        userEventId,
+        ts,
+        'user',
+        'input',
+        JSON.stringify({ text: 'Conflict' }),
+      );
+
+      // 3. Perform undo. Should overwrite conflict and succeed.
+      const undoOk = store.undoLastTurn();
+      expect(undoOk).toBe(true);
+
+      // Verify that the event is in undone_events (and matches the undone turn, not the pre-seeded conflict)
+      const undone = db
+        .prepare('SELECT payload FROM undone_events WHERE id = ?')
+        .get(userEventId) as { payload: string };
+      expect(JSON.parse(undone.payload)).toEqual({
+        text: 'Turn with potential conflicts',
+      });
+    });
   });
 });

@@ -224,7 +224,7 @@ export class MemoryProvider {
         return { ts, seq, order: 0, id: Number(e.id), body: `User: ${txt}` };
       }
       case 'plan': {
-        const planData = typeof pl === 'object' ? pl : {};
+        const planData = typeof pl === 'object' && pl !== null ? pl : {};
         const planTool = (planData as { tool?: string }).tool;
         const summary = (planData as { summary?: string }).summary;
         const thought =
@@ -256,7 +256,9 @@ export class MemoryProvider {
       }
       case 'execution': {
         const res =
-          typeof pl === 'object' ? (pl as { result?: unknown }).result : null;
+          typeof pl === 'object' && pl !== null
+            ? (pl as { result?: unknown }).result
+            : null;
         let status = '';
         if (typeof pl === 'object') {
           const resStatus =

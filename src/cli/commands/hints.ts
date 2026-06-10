@@ -264,12 +264,22 @@ export class Hints {
   }
 
   private static hasMagicHint(file: string): boolean {
+    let fd: number | null = null;
     try {
-      const content = fs.readFileSync(file, 'utf-8');
+      fd = fs.openSync(file, 'r');
+      const buffer = Buffer.alloc(4096);
+      const bytesRead = fs.readSync(fd, buffer, 0, 4096, 0);
+      const content = buffer.toString('utf-8', 0, bytesRead);
       const lines = content.split('\n').slice(0, 15);
       return lines.some((line) => line.includes('@aura-hint:'));
     } catch {
       return false;
+    } finally {
+      if (fd !== null) {
+        try {
+          fs.closeSync(fd);
+        } catch {}
+      }
     }
   }
 

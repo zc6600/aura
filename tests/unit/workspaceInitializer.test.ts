@@ -226,6 +226,20 @@ describe('workspaceInitializer', () => {
       ).toContain('.aura/');
     });
 
+    it('should inject correct ignore rules inside .gitignore in .aura folder', async () => {
+      const workspacePath = path.join(tempDir, 'my-workspace');
+      fs.mkdirSync(workspacePath, { recursive: true });
+
+      await initializeWorkspaceInPlace(workspacePath);
+      const innerGitignore = path.join(workspacePath, '.aura', '.gitignore');
+      expect(fs.existsSync(innerGitignore)).toBe(true);
+      const content = fs.readFileSync(innerGitignore, 'utf-8');
+      expect(content).toContain('state/aura.db*');
+      expect(content).toContain('state/**/*.db*');
+      expect(content).toContain('state/sessions/');
+      expect(content).toContain('state/chat_sessions/');
+    });
+
     it('should bubble up error as CliError on clone failure', async () => {
       mockExecaShouldFail = true;
       await expect(initializeWorkspaceInPlace(tempDir)).rejects.toThrow(

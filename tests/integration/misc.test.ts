@@ -93,6 +93,52 @@ describe('Miscellaneous Integration', { timeout: 40000 }, () => {
       });
       expect(logRes.stdout).toContain('[Aura] Tool execution: write_file');
     });
+
+    it('synchronizes deleted files in shadow backup', async () => {
+      // Setup parent git repo in projectPath
+      await execa('git', ['init'], { cwd: projectPath });
+      await execa('git', ['config', 'user.name', 'Test User'], {
+        cwd: projectPath,
+      });
+      await execa('git', ['config', 'user.email', 'test@user.com'], {
+        cwd: projectPath,
+      });
+
+      // 1. Create a dummy file
+      const testFile = path.join(projectPath, 'test-delete.txt');
+      fs.writeFileSync(testFile, 'Hello file to delete');
+
+      // 2. Run recordChanges to sync it to the shadow backup (as an untracked file)
+      const backup = new ShadowBackup(projectPath);
+      await backup.recordChanges('write_file', {
+        file_path: 'test-delete.txt',
+      });
+
+      // Verify it exists in shadow directory
+      const shadowPath = path.join(projectPath, '.aura', 'shadow');
+      expect(fs.existsSync(path.join(shadowPath, 'test-delete.txt'))).toBe(
+        true,
+      );
+
+      // 3. Commit it in the workspace so it is tracked and can be officially deleted
+      await execa('git', ['add', 'test-delete.txt'], { cwd: projectPath });
+      await execa('git', ['commit', '-m', 'Commit test file'], {
+        cwd: projectPath,
+      });
+
+      // 4. Now, delete the file in workspace
+      fs.unlinkSync(testFile);
+
+      // 5. Run recordChanges to sync the deletion
+      await backup.recordChanges('delete_file', {
+        file_path: 'test-delete.txt',
+      });
+
+      // Verify the file is removed from shadow backup
+      expect(fs.existsSync(path.join(shadowPath, 'test-delete.txt'))).toBe(
+        false,
+      );
+    });
   });
 
   // --- 2. Sandbox ---

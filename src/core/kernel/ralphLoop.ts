@@ -101,11 +101,10 @@ export class RalphLoop {
 
     this.resetStateVariables();
     this.setupPlanningHook();
-
-    this.runner.hooks.register('before_planning', this.planningHookProc);
   }
 
   public async run(): Promise<'completed' | 'failed'> {
+    this.runner.hooks.register('before_planning', this.planningHookProc);
     this.runId = `${new Date().toISOString().replace(/[-:T.Z]/g, '')}_${crypto.randomBytes(4).toString('hex')}`;
     this.iterationCount = 1;
     const startingSession = process.env.AURA_SESSION_NAME || 'default';

@@ -80,6 +80,7 @@ export class MemoryMetabolizer {
       const retentionResult = this.policy.apply(oldEvents);
       stats.candidates_for_summary = retentionResult.to_summarize.length;
 
+      let summaryGenerated = false;
       if (retentionResult.to_summarize.length > 0) {
         const summary = await this.generateMetabolismSummary(
           retentionResult.to_summarize,
@@ -89,13 +90,19 @@ export class MemoryMetabolizer {
             content: `Metabolism: Narrative Summary - ${summary}`,
           });
           stats.summarized = retentionResult.to_summarize.length;
+          summaryGenerated = true;
           this.emit('metabolism_summary', { content: summary });
         }
       }
 
-      const idsToDelete = retentionResult.to_delete
-        .map((e: Event) => e.id)
-        .filter(Boolean);
+      // Only delete summarization candidates if they were successfully summarized,
+      // or if they are purely non-summarizable ephemeral entries.
+      const toDelete = retentionResult.to_delete.filter((event) => {
+        const needsSummary = this.policy.shouldSummarize(event);
+        return !needsSummary || summaryGenerated;
+      });
+
+      const idsToDelete = toDelete.map((e: Event) => e.id).filter(Boolean);
       if (idsToDelete.length > 0) {
         this.store.deleteEvents(idsToDelete);
         stats.deleted = idsToDelete.length;

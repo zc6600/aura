@@ -328,6 +328,27 @@ ${stderr}`.trim()
 
     if (sandbox.provider === 'docker') {
       const image = sandbox.image || 'aura-sandbox:latest';
+      const extraMounts: string[] = [];
+      let containerLogic = logic;
+      const realLogic = fs.existsSync(logic) ? fs.realpathSync(logic) : logic;
+      const realProject = fs.existsSync(this.projectPath)
+        ? fs.realpathSync(this.projectPath)
+        : this.projectPath;
+      const realEnv = fs.existsSync(this.envPath)
+        ? fs.realpathSync(this.envPath)
+        : this.envPath;
+
+      if (realLogic.startsWith(realProject)) {
+        const relLogic = path
+          .relative(realProject, realLogic)
+          .replace(/\\/g, '/');
+        containerLogic = `/app/${relLogic}`;
+      } else if (realLogic.startsWith(realEnv)) {
+        const relLogic = path.relative(realEnv, realLogic).replace(/\\/g, '/');
+        containerLogic = `/env/${relLogic}`;
+        extraMounts.push('-v', `${realEnv}:/env`);
+      }
+
       return [
         [
           'docker',
@@ -336,11 +357,12 @@ ${stderr}`.trim()
           '-i',
           '-v',
           `${this.projectPath}:/app`,
+          ...extraMounts,
           '-w',
           '/app',
           image,
           runtime,
-          logic,
+          containerLogic,
         ],
         [],
       ];
