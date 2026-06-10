@@ -20,11 +20,19 @@ Optional:
 
 ### Method 1: One-Click Setup (Recommended)
 
-Run the automated setup script to check dependencies, install packages, compile the project, configure environment templates, and link the CLI globally:
+Run the automated setup script to check dependencies, install packages, compile the project, configure environment templates, and link the CLI globally.
 
+If you have already cloned the repository locally, run:
+```bash
+bash bin/setup.sh
+```
+
+If the repository is public or you have configured credentials, you can fetch and run it via `curl`:
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/zc6600/aura/main/bin/setup.sh?t=$(date +%s)" | bash
 ```
+
+*(Note: Since this is a private repository, anonymous raw `curl` requests will return a 404. If you have the GitHub CLI installed and authenticated, you can run: `gh api repos/zc6600/aura/contents/bin/setup.sh -H "Accept: application/vnd.github.raw" | bash`)*
 
 The setup script will:
 1. Check system requirements (Node.js, npm, Git)
