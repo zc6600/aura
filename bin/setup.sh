@@ -68,7 +68,7 @@ if [ "$IS_AURA_DIR" = false ]; then
         echo -e "  - Existing repository directory $INSTALL_DIR detected. Updating code..."
         cd "$INSTALL_DIR"
         # Discard package-lock.json changes first since npm install recreates it
-        git checkout package-lock.json &> /dev/null || true
+        git checkout -- package-lock.json &> /dev/null || true
         CURRENT_BRANCH=$(git branch --show-current)
         # Pull updates safely. Stash other changes to prevent data loss.
         if ! git diff --quiet || ! git diff --cached --quiet; then
