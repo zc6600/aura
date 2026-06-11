@@ -1,4 +1,4 @@
-import type net from 'node:net';
+import type { Socket } from 'node:net';
 import * as agentHandlers from './handlers/agent.js';
 import * as daemonHandlers from './handlers/daemon.js';
 import * as gardenHandlers from './handlers/garden.js';
@@ -8,7 +8,7 @@ import type { DaemonServer } from './server.js';
 
 export interface RequestContext {
   server: DaemonServer;
-  socket: net.Socket;
+  socket: Socket;
   id: unknown;
   params: any;
 }
