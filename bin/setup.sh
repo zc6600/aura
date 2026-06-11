@@ -99,6 +99,9 @@ echo -e "${GREEN}✓ Dependencies successfully installed and compiled!${NC}\n"
 echo -e "${BLUE}[Step 3/5] Configuring Environment Credentials...${NC}"
 
 DOTENV_PATH=".env"
+if [ "$IS_AURA_DIR" = false ]; then
+    DOTENV_PATH="$HOME/.aura-framework/.env"
+fi
 EXAMPLE_PATH=".env.example"
 
 if [ ! -f "$DOTENV_PATH" ]; then
@@ -165,8 +168,8 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
                 DOTENV_PATH="$DOTENV_PATH" API_KEY="$API_KEY" node -e "const fs = require('fs'); let c = fs.readFileSync(process.env.DOTENV_PATH, 'utf8'); c = c.replace(/OPENAI_API_KEY=.*/, () => 'OPENAI_API_KEY=' + process.env.API_KEY); fs.writeFileSync(process.env.DOTENV_PATH, c);"
                 echo -e "    - OpenAI API Key saved to .env."
             fi
-            read -p "  🤖 Enter OpenAI Model name (default: gpt-4o): " OPENAI_MODEL < /dev/tty
-            SELECTED_MODEL=${OPENAI_MODEL:-"gpt-4o"}
+            read -p "  🤖 Enter OpenAI Model name (default: gpt-4o-mini): " OPENAI_MODEL < /dev/tty
+            SELECTED_MODEL=${OPENAI_MODEL:-"gpt-4o-mini"}
             read -p "  🌐 Enter Custom API Base URL (optional, press Enter to use default): " AURA_INPUT_BASE < /dev/tty
             if [ ! -z "$AURA_INPUT_BASE" ]; then
                 SELECTED_BASE=$AURA_INPUT_BASE
@@ -213,8 +216,8 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
                 fi
                 echo -e "    - Gemini API Key saved to .env."
             fi
-            read -p "  🤖 Enter Gemini Model name (default: gemini-1.5-flash): " GEM_MODEL < /dev/tty
-            SELECTED_MODEL=${GEM_MODEL:-"gemini-1.5-flash"}
+            read -p "  🤖 Enter Gemini Model name (default: gemini-2.5-flash): " GEM_MODEL < /dev/tty
+            SELECTED_MODEL=${GEM_MODEL:-"gemini-2.5-flash"}
             ;;
         anthropic)
             read -p "  🔑 Enter Anthropic API Key (or press Enter to skip): " API_KEY < /dev/tty
@@ -226,8 +229,8 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
                 fi
                 echo -e "    - Anthropic API Key saved to .env."
             fi
-            read -p "  🤖 Enter Anthropic Model name (default: claude-3-5-sonnet-20241022): " ANT_MODEL < /dev/tty
-            SELECTED_MODEL=${ANT_MODEL:-"claude-3-5-sonnet-20241022"}
+            read -p "  🤖 Enter Anthropic Model name (default: claude-3-5-haiku-20241022): " ANT_MODEL < /dev/tty
+            SELECTED_MODEL=${ANT_MODEL:-"claude-3-5-haiku-20241022"}
             ;;
     esac
 fi
@@ -263,6 +266,12 @@ if [ ! -z "$SELECTED_PROVIDER" ]; then
     if [ ! -z "$SELECTED_BASE" ]; then
         echo -e "  - Configuring global default LLM API base to ${GREEN}$SELECTED_BASE${NC}..."
         AURA_ALLOW_ROOT=true node dist/bin/aura.js config llm.api_base "$SELECTED_BASE" --global > /dev/null
+    fi
+    # Also persist the API key to global config so `aura doctor` can find it
+    # from any workspace (the .env in cli-src is not read by the global CLI).
+    if [ ! -z "$API_KEY" ]; then
+        echo -e "  - Persisting API key to global config..."
+        AURA_ALLOW_ROOT=true node dist/bin/aura.js config llm.api_key "$API_KEY" --global > /dev/null
     fi
 fi
 
