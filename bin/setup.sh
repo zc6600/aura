@@ -158,13 +158,13 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
             fi
             read -p "  🤖 Enter OpenAI Model name (default: gpt-4o): " OPENAI_MODEL < /dev/tty
             SELECTED_MODEL=${OPENAI_MODEL:-"gpt-4o"}
-            read -p "  🌐 Enter Custom API Base URL (optional, press Enter to use default): " API_BASE < /dev/tty
-            if [ ! -z "$API_BASE" ]; then
-                SELECTED_BASE=$API_BASE
+            read -p "  🌐 Enter Custom API Base URL (optional, press Enter to use default): " AURA_INPUT_BASE < /dev/tty
+            if [ ! -z "$AURA_INPUT_BASE" ]; then
+                SELECTED_BASE=$AURA_INPUT_BASE
                 if grep -q "OPENAI_API_BASE=" "$DOTENV_PATH"; then
-                    DOTENV_PATH="$DOTENV_PATH" API_BASE="$API_BASE" node -e "const fs = require('fs'); let c = fs.readFileSync(process.env.DOTENV_PATH, 'utf8'); c = c.replace(/OPENAI_API_BASE=.*/, () => 'OPENAI_API_BASE=' + process.env.API_BASE); fs.writeFileSync(process.env.DOTENV_PATH, c);"
+                    DOTENV_PATH="$DOTENV_PATH" AURA_INPUT_BASE="$AURA_INPUT_BASE" node -e "const fs = require('fs'); let c = fs.readFileSync(process.env.DOTENV_PATH, 'utf8'); c = c.replace(/OPENAI_API_BASE=.*/, () => 'OPENAI_API_BASE=' + process.env.AURA_INPUT_BASE); fs.writeFileSync(process.env.DOTENV_PATH, c);"
                 else
-                    echo "OPENAI_API_BASE=$API_BASE" >> "$DOTENV_PATH"
+                    echo "OPENAI_API_BASE=$AURA_INPUT_BASE" >> "$DOTENV_PATH"
                 fi
             fi
             ;;
