@@ -53,6 +53,30 @@ echo -e "${GREEN}✓ Diagnostics complete!${NC}\n"
 # ------------------------------------------------------------------------------
 # STEP 2: Install Project Dependencies & Build
 # ------------------------------------------------------------------------------
+# Check if we are inside a directory containing the Aura codebase (check package.json name)
+IS_AURA_DIR=false
+if [ -f "package.json" ]; then
+    if grep -q '"name": "aura-cli"' package.json; then
+        IS_AURA_DIR=true
+    fi
+fi
+
+if [ "$IS_AURA_DIR" = false ]; then
+    INSTALL_DIR="$HOME/.aura/cli-src"
+    echo -e "${YELLOW}⚠️ Aura repository not detected in current directory.${NC}"
+    if [ -d "$INSTALL_DIR" ]; then
+        echo -e "  - Existing repository directory $INSTALL_DIR detected. Updating code..."
+        cd "$INSTALL_DIR"
+        git pull
+    else
+        echo -e "  - Cloning Aura repository into $INSTALL_DIR..."
+        mkdir -p "$HOME/.aura"
+        git clone https://github.com/zc6600/aura.git "$INSTALL_DIR"
+        cd "$INSTALL_DIR"
+    fi
+    echo ""
+fi
+
 echo -e "${BLUE}[Step 2/5] Installing Framework Dependencies & Compiling...${NC}"
 npm install
 npm run build
