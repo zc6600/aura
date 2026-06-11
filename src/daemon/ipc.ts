@@ -35,7 +35,7 @@ export function resolveIpcPath(projectPath: string): string {
     }
 
     if (useFallback) {
-      const tmpSockets = path.join(os.tmpdir(), '.aura-sockets');
+      const tmpSockets = '/tmp/.aura-sockets';
       if (!fs.existsSync(tmpSockets)) {
         try {
           fs.mkdirSync(tmpSockets, { recursive: true });

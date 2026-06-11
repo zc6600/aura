@@ -515,9 +515,16 @@ class DaemonCommand extends BaseCommand {
     const { DaemonServer } = await import('../daemon/server.js');
     const server = new DaemonServer(root);
 
+    const cleanup = () => {
+      server.stop();
+      process.exit(0);
+    };
+
     process.once('exit', () => {
       server.stop();
     });
+    process.once('SIGINT', cleanup);
+    process.once('SIGTERM', cleanup);
 
     await server.start();
     // Keep event loop active

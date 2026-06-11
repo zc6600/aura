@@ -80,6 +80,7 @@ export class DaemonServer {
       });
 
       const handleClose = () => {
+        rl.close();
         this.connections.delete(socket);
         this.cancelPendingRequestsForSocket(socket);
         if (socket === this.activeJobSocket) {

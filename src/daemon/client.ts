@@ -94,6 +94,11 @@ export class DaemonClient {
 
     args.push('daemon', this.projectPath);
 
+    const hash = path.basename(this.socketPath)
+      .replace('daemon-', '')
+      .replace('.sock', '')
+      .replace('aura-', '');
+
     let logDir = path.join(os.homedir(), '.aura');
     try {
       fs.mkdirSync(logDir, { recursive: true });
@@ -101,7 +106,7 @@ export class DaemonClient {
       logDir = path.join(os.tmpdir(), '.aura-logs');
       fs.mkdirSync(logDir, { recursive: true });
     }
-    const logFile = path.join(logDir, 'daemon.log');
+    const logFile = path.join(logDir, `daemon-${hash}.log`);
     const out = fs.openSync(logFile, 'a');
     const err = fs.openSync(logFile, 'a');
 
@@ -125,7 +130,10 @@ export class DaemonClient {
               testSocket.end();
               res();
             });
-            testSocket.on('error', rej);
+            testSocket.on('error', (e) => {
+              testSocket.destroy();
+              rej(e);
+            });
           });
           return;
         } catch {
@@ -153,11 +161,13 @@ export class DaemonClient {
     });
 
     this.socket.on('close', () => {
+      rl.close();
       this.rejectAllPending(new Error('Connection to Aura Daemon closed.'));
       this.socket = null;
     });
 
     this.socket.on('error', (err) => {
+      rl.close();
       this.rejectAllPending(err);
       this.socket = null;
     });
