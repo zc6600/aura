@@ -2,17 +2,32 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import readline from 'node:readline';
-
+import yaml from 'yaml';
+import { HintProvider } from '../core/context/providers/hintProvider.js';
 import { Bridge } from '../core/interface/bridge.js';
 import { RalphLoop } from '../core/kernel/ralphLoop.js';
 import { Runner } from '../core/kernel/runner.js';
-import { resolveIpcPath } from './ipc.js';
-import Database from 'better-sqlite3';
-import yaml from 'yaml';
 import { SessionManager } from '../core/memory/sessionManager.js';
-import * as PathResolver from '../utils/pathResolver.js';
 import { SQLiteStore } from '../core/memory/sqliteStore.js';
-import { HintProvider } from '../core/context/providers/hintProvider.js';
+import * as PathResolver from '../utils/pathResolver.js';
+import { resolveIpcPath } from './ipc.js';
+
+interface FileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'dir';
+  children?: FileNode[];
+}
+
+interface AnchorInfo {
+  id: string;
+  name?: string;
+  description?: string;
+  call_when?: string[];
+  status: 'completed' | 'pending';
+  completedAt?: string;
+  summary?: string;
+}
 
 /**
  * DaemonServer acts as the local persistent engine for Aura OS.
@@ -23,6 +38,7 @@ export class DaemonServer {
   private projectPath: string;
   private socketPath: string;
   private runner: Runner | null = null;
+  private sessionManager: SessionManager;
   private activeLoopJob: {
     status: 'running' | 'idle';
     goal?: string;
@@ -30,18 +46,22 @@ export class DaemonServer {
   } = { status: 'idle' };
   private connections = new Set<net.Socket>();
   private idleTimer: NodeJS.Timeout | null = null;
-  private pendingClientRequests = new Map<string, { socket: net.Socket; resolve: (result: unknown) => void }>();
+  private pendingClientRequests = new Map<
+    string,
+    { socket: net.Socket; resolve: (result: unknown) => void }
+  >();
   private activeAbortController: AbortController | null = null;
   private activeJobSocket: net.Socket | null = null;
   private static readonly IDLE_TIMEOUT_MS = 600000; // 10 minutes
 
-
   constructor(projectPath: string) {
     this.projectPath = path.resolve(projectPath);
     this.socketPath = resolveIpcPath(this.projectPath);
+    this.sessionManager = new SessionManager(this.projectPath);
   }
 
   public async start(): Promise<void> {
+    // Named pipes on Windows are auto-released on process exit; no unlink needed.
     if (process.platform !== 'win32' && fs.existsSync(this.socketPath)) {
       const isAlive = await new Promise<boolean>((resolve) => {
         const conn = net.createConnection(this.socketPath);
@@ -96,6 +116,7 @@ export class DaemonServer {
     return new Promise((resolve, reject) => {
       this.server?.listen(this.socketPath, () => {
         console.log(`Aura Daemon listening on IPC path: ${this.socketPath}`);
+        RalphLoop.cleanupOrphanedRalphSessions(this.projectPath);
         this.resetIdleTimer();
         resolve();
       });
@@ -131,6 +152,7 @@ export class DaemonServer {
     if (this.server) {
       this.server.close();
     }
+    // Named pipes on Windows are auto-released; no unlink needed.
     if (process.platform !== 'win32' && fs.existsSync(this.socketPath)) {
       try {
         fs.unlinkSync(this.socketPath);
@@ -143,15 +165,21 @@ export class DaemonServer {
     try {
       msg = JSON.parse(line) as Record<string, unknown>;
     } catch (err: unknown) {
-      const msg = (err as Error).message ?? String(err);
-      this.sendError(socket, null, -32700, `Parse error: ${msg}`);
+      const errMsg = (err as Error).message ?? String(err);
+      this.sendError(socket, null, -32700, `Parse error: ${errMsg}`);
       return;
     }
 
     const { method, params, id, result, error } = msg;
 
-    if (!msg || typeof msg !== 'object' || msg.jsonrpc !== '2.0') {
-      this.sendError(socket, msg && msg.id !== undefined ? msg.id : null, -32600, 'Invalid Request');
+    // Validate JSON-RPC 2.0 structure. msg is null if JSON.parse('null') was executed.
+    if (msg === null || typeof msg !== 'object' || msg.jsonrpc !== '2.0') {
+      this.sendError(
+        socket,
+        msg !== null && msg.id !== undefined ? msg.id : null,
+        -32600,
+        'Invalid Request',
+      );
       return;
     }
 
@@ -176,6 +204,15 @@ export class DaemonServer {
     try {
       switch (method) {
         case 'workspace/initialize': {
+          if (this.activeLoopJob.status === 'running') {
+            this.sendError(
+              socket,
+              id,
+              -32603,
+              'Cannot initialize workspace while a goal loop is running.',
+            );
+            return;
+          }
           const p = params as Record<string, unknown> | null | undefined;
           const { sessionName } = p || {};
           this.runner = new Runner(this.projectPath);
@@ -229,8 +266,35 @@ export class DaemonServer {
             return true;
           };
 
+          const confirmHook = async (tool: unknown, _args: unknown) => {
+            const config = this.runner.loadConfig();
+            const security = config?.security as
+              | Record<string, unknown>
+              | undefined;
+            const confirmEnabled = security?.confirm_dangerous_tools === true;
+
+            if (!confirmEnabled) {
+              return true;
+            }
+
+            const isAutoJob =
+              this.runner.currentJob?.metadata?.auto_mode || false;
+            if (isAutoJob) {
+              return true;
+            }
+            const dangerousTools = ['write_file', 'bash_command'];
+            if (dangerousTools.includes(String(tool))) {
+              return await this.askClientConfirmation(
+                socket,
+                `DANGEROUS TOOL: ${tool}. Execute?`,
+              );
+            }
+            return true;
+          };
+
           this.runner.hooks.register('before_planning', disconnectHook);
           this.runner.hooks.register('before_tool_execution', disconnectHook);
+          this.runner.hooks.register('before_tool_execution', confirmHook);
 
           const eventBus = {
             emit: (ev: string, data?: unknown) => {
@@ -304,7 +368,6 @@ export class DaemonServer {
                 });
               });
               bridge.on('on_tool_result', (result: unknown) => {
-                console.log('Daemon on_tool_result:', JSON.stringify(result));
                 this.sendNotification('agent/onProgress', {
                   type: 'tool_result',
                   payload: { result },
@@ -339,44 +402,10 @@ export class DaemonServer {
                   ? optionsRecord.auto_mode
                   : true;
 
-              const confirmHook = async (tool: unknown, _args: unknown) => {
-                const config = bridge.runner.loadConfig();
-                const security = config?.security as Record<string, unknown> | undefined;
-                const confirmEnabled = security?.confirm_dangerous_tools === true;
-
-                if (!confirmEnabled) {
-                  return true;
-                }
-
-                const isAutoJob =
-                  bridge.runner.currentJob?.metadata?.auto_mode || false;
-                if (isAutoJob) {
-                  return true;
-                }
-                const dangerousTools = ['write_file', 'bash_command'];
-                if (dangerousTools.includes(String(tool))) {
-                  return await this.askClientConfirmation(
-                    socket,
-                    `DANGEROUS TOOL: ${tool}. Execute?`,
-                  );
-                }
-                return true;
-              };
-
-              bridge.runner.hooks.register(
-                'before_tool_execution',
-                confirmHook,
-              );
-
               try {
                 await bridge.chat(goal, { auto_mode: isAuto as boolean });
               } catch (_err: unknown) {
                 status = 'failed';
-              } finally {
-                bridge.runner.hooks.unregister(
-                  'before_tool_execution',
-                  confirmHook,
-                );
               }
 
               this.sendResult(socket, id, { status, final_content });
@@ -384,7 +413,14 @@ export class DaemonServer {
           } finally {
             if (this.runner) {
               this.runner.hooks.unregister('before_planning', disconnectHook);
-              this.runner.hooks.unregister('before_tool_execution', disconnectHook);
+              this.runner.hooks.unregister(
+                'before_tool_execution',
+                disconnectHook,
+              );
+              this.runner.hooks.unregister(
+                'before_tool_execution',
+                confirmHook,
+              );
             }
             this.activeLoopJob = { status: 'idle' };
             this.activeAbortController = null;
@@ -395,7 +431,7 @@ export class DaemonServer {
         }
 
         case 'session/list': {
-          const sessionMgr = new SessionManager(this.projectPath);
+          const sessionMgr = this.sessionManager;
           const list = sessionMgr.list();
           this.sendResult(socket, id, { sessions: list });
           break;
@@ -408,20 +444,29 @@ export class DaemonServer {
             this.sendError(socket, id, -32602, 'Invalid session name.');
             return;
           }
-          const sessionMgr = new SessionManager(this.projectPath);
+          const sessionMgr = this.sessionManager;
           const session = sessionMgr.create(name, p);
           this.sendResult(socket, id, { session });
           break;
         }
 
         case 'session/activate': {
+          if (this.activeLoopJob.status === 'running') {
+            this.sendError(
+              socket,
+              id,
+              -32603,
+              'Cannot activate session while a goal loop is running.',
+            );
+            return;
+          }
           const p = params as Record<string, unknown> | null | undefined;
           const name = p?.name;
           if (!name || typeof name !== 'string') {
             this.sendError(socket, id, -32602, 'Invalid session name.');
             return;
           }
-          const sessionMgr = new SessionManager(this.projectPath);
+          const sessionMgr = this.sessionManager;
           sessionMgr.activate(name);
           if (this.runner) {
             this.runner.reconnectSession(name);
@@ -431,16 +476,32 @@ export class DaemonServer {
         }
 
         case 'session/delete': {
+          if (this.activeLoopJob.status === 'running') {
+            this.sendError(
+              socket,
+              id,
+              -32603,
+              'Cannot delete session while a goal loop is running.',
+            );
+            return;
+          }
           const p = params as Record<string, unknown> | null | undefined;
           const name = p?.name;
           if (!name || typeof name !== 'string') {
             this.sendError(socket, id, -32602, 'Invalid session name.');
             return;
           }
-          const sessionMgr = new SessionManager(this.projectPath);
-          const activeSession = this.runner ? this.runner.sessionName : (sessionMgr.currentName() || 'default');
+          const sessionMgr = this.sessionManager;
+          const activeSession = this.runner
+            ? this.runner.sessionName
+            : sessionMgr.currentName() || 'default';
           if (name === activeSession) {
-            this.sendError(socket, id, -32602, `Cannot delete the active session: ${name}`);
+            this.sendError(
+              socket,
+              id,
+              -32602,
+              `Cannot delete the active session: ${name}`,
+            );
             return;
           }
           const success = sessionMgr.delete(name);
@@ -449,14 +510,28 @@ export class DaemonServer {
         }
 
         case 'session/rename': {
+          if (this.activeLoopJob.status === 'running') {
+            this.sendError(
+              socket,
+              id,
+              -32603,
+              'Cannot rename session while a goal loop is running.',
+            );
+            return;
+          }
           const p = params as Record<string, unknown> | null | undefined;
           const oldName = p?.oldName;
           const newName = p?.newName;
-          if (!oldName || typeof oldName !== 'string' || !newName || typeof newName !== 'string') {
+          if (
+            !oldName ||
+            typeof oldName !== 'string' ||
+            !newName ||
+            typeof newName !== 'string'
+          ) {
             this.sendError(socket, id, -32602, 'Invalid session names.');
             return;
           }
-          const sessionMgr = new SessionManager(this.projectPath);
+          const sessionMgr = this.sessionManager;
           const session = sessionMgr.rename(oldName, newName);
           if (this.runner && this.runner.sessionName === oldName) {
             this.runner.reconnectSession(newName);
@@ -466,14 +541,28 @@ export class DaemonServer {
         }
 
         case 'session/duplicate': {
+          if (this.activeLoopJob.status === 'running') {
+            this.sendError(
+              socket,
+              id,
+              -32603,
+              'Cannot duplicate session while a goal loop is running.',
+            );
+            return;
+          }
           const p = params as Record<string, unknown> | null | undefined;
           const sourceName = p?.sourceName;
           const newName = p?.newName;
-          if (!sourceName || typeof sourceName !== 'string' || !newName || typeof newName !== 'string') {
+          if (
+            !sourceName ||
+            typeof sourceName !== 'string' ||
+            !newName ||
+            typeof newName !== 'string'
+          ) {
             this.sendError(socket, id, -32602, 'Invalid session names.');
             return;
           }
-          const sessionMgr = new SessionManager(this.projectPath);
+          const sessionMgr = this.sessionManager;
           const session = sessionMgr.duplicate(sourceName, newName);
           this.sendResult(socket, id, { session });
           break;
@@ -488,11 +577,23 @@ export class DaemonServer {
             return;
           }
           try {
-            const safePath = PathResolver.validateSafePath(filePath, this.projectPath);
+            const safePath = PathResolver.validateSafePath(
+              filePath,
+              this.projectPath,
+            );
             const relative = path.relative(this.projectPath, safePath);
             const parts = relative.split(/[\\/]/);
-            if (parts.includes('.git') || parts.includes('.aura') || parts.includes('node_modules')) {
-              this.sendError(socket, id, -32602, `Access denied to restricted path: ${filePath}`);
+            if (
+              parts.includes('.git') ||
+              parts.includes('.aura') ||
+              parts.includes('node_modules')
+            ) {
+              this.sendError(
+                socket,
+                id,
+                -32602,
+                `Access denied to restricted path: ${filePath}`,
+              );
               return;
             }
             fs.mkdirSync(path.dirname(safePath), { recursive: true });
@@ -513,11 +614,23 @@ export class DaemonServer {
             return;
           }
           try {
-            const safePath = PathResolver.validateSafePath(filePath, this.projectPath);
+            const safePath = PathResolver.validateSafePath(
+              filePath,
+              this.projectPath,
+            );
             const relative = path.relative(this.projectPath, safePath);
             const parts = relative.split(/[\\/]/);
-            if (parts.includes('.git') || parts.includes('.aura') || parts.includes('node_modules')) {
-              this.sendError(socket, id, -32602, `Access denied to restricted path: ${filePath}`);
+            if (
+              parts.includes('.git') ||
+              parts.includes('.aura') ||
+              parts.includes('node_modules')
+            ) {
+              this.sendError(
+                socket,
+                id,
+                -32602,
+                `Access denied to restricted path: ${filePath}`,
+              );
               return;
             }
             if (!fs.existsSync(safePath) || !fs.statSync(safePath).isFile()) {
@@ -536,8 +649,11 @@ export class DaemonServer {
         case 'workspace/getFileTree': {
           try {
             let totalItemsCount = 0;
-            const buildTree = (currentDir: string, currentDepth: number): any[] => {
-              const nodes: any[] = [];
+            const buildTree = (
+              currentDir: string,
+              currentDepth: number,
+            ): FileNode[] => {
+              const nodes: FileNode[] = [];
               if (currentDepth > 4 || totalItemsCount >= 1000) return nodes;
 
               let children: string[] = [];
@@ -552,7 +668,9 @@ export class DaemonServer {
                 if (name.startsWith('.')) continue;
 
                 const fullPath = path.join(currentDir, name);
-                const relPath = path.relative(this.projectPath, fullPath).replace(/\\/g, '/');
+                const relPath = path
+                  .relative(this.projectPath, fullPath)
+                  .replace(/\\/g, '/');
 
                 const isIgnored = Runner.IGNORED_SCAN_DIRS.some(
                   (d) =>
@@ -570,13 +688,13 @@ export class DaemonServer {
                       name,
                       path: relPath,
                       type: 'dir',
-                      children: buildTree(fullPath, currentDepth + 1)
+                      children: buildTree(fullPath, currentDepth + 1),
                     });
                   } else if (stat.isFile()) {
                     nodes.push({
                       name,
                       path: relPath,
-                      type: 'file'
+                      type: 'file',
                     });
                   }
                 } catch (_e) {}
@@ -588,14 +706,19 @@ export class DaemonServer {
             this.sendResult(socket, id, { tree });
           } catch (err: unknown) {
             const msg = (err as Error).message ?? String(err);
-            this.sendError(socket, id, -32603, `Failed to get file tree: ${msg}`);
+            this.sendError(
+              socket,
+              id,
+              -32603,
+              `Failed to get file tree: ${msg}`,
+            );
           }
           break;
         }
 
         case 'garden/getStatus': {
           try {
-            const sessionMgr = new SessionManager(this.projectPath);
+            const sessionMgr = this.sessionManager;
             const sessionsList = sessionMgr.list({ includeMissing: false });
             let soilSize = 0;
             for (const session of sessionsList) {
@@ -613,42 +736,27 @@ export class DaemonServer {
             }
             const sessionsCount = sessionsList.length;
 
-            const activeSession = this.runner ? this.runner.sessionName : 'default';
-            const dbPath = PathResolver.sessionDbPath(this.projectPath, activeSession);
+            const activeSession = this.runner
+              ? this.runner.sessionName
+              : 'default';
+            const dbPath = PathResolver.sessionDbPath(
+              this.projectPath,
+              activeSession,
+            );
             let completedIds: string[] = [];
             if (fs.existsSync(dbPath)) {
-              let db: Database.Database | undefined;
+              const store = new SQLiteStore({ dbPath });
               try {
-                db = new Database(dbPath);
-                const tableRow = db
-                  .prepare(
-                    "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='events'",
-                  )
-                  .get() as { count: number } | undefined;
-                if (tableRow && tableRow.count > 0) {
-                  const anchorRows = db
-                    .prepare("SELECT payload FROM events WHERE tool = 'anchor_submit'")
-                    .all();
-                  completedIds = anchorRows
-                    .map((r: unknown) => {
-                      try {
-                        const row = r as { payload: string };
-                        const payload = JSON.parse(row.payload);
-                        return payload.anchor_id;
-                      } catch {
-                        return null;
-                      }
-                    })
-                    .filter(Boolean) as string[];
-                }
+                const events = store.fetchAnchorSubmitEvents();
+                completedIds = events
+                  .map((e) => e.payload.anchor_id)
+                  .filter(Boolean) as string[];
               } catch (e: unknown) {
-                console.warn(`Error querying database: ${(e as Error).message}`);
+                console.warn(
+                  `Error querying database: ${(e as Error).message}`,
+                );
               } finally {
-                if (db) {
-                  try {
-                    db.close();
-                  } catch {}
-                }
+                store.close();
               }
             }
 
@@ -657,7 +765,10 @@ export class DaemonServer {
             let completedAnchors = 0;
             const pendingAnchors: string[] = [];
 
-            if (fs.existsSync(anchorsDir) && fs.statSync(anchorsDir).isDirectory()) {
+            if (
+              fs.existsSync(anchorsDir) &&
+              fs.statSync(anchorsDir).isDirectory()
+            ) {
               fs.readdirSync(anchorsDir).forEach((file) => {
                 const full = path.join(anchorsDir, file);
                 if (!fs.statSync(full).isFile()) return;
@@ -681,7 +792,8 @@ export class DaemonServer {
               });
             }
 
-            const ratio = totalAnchors > 0 ? (completedAnchors / totalAnchors) * 100 : 0;
+            const ratio =
+              totalAnchors > 0 ? (completedAnchors / totalAnchors) * 100 : 0;
             const anchorsProgress = {
               completed: completedAnchors,
               total: totalAnchors,
@@ -694,7 +806,9 @@ export class DaemonServer {
               const hintsProvider = new HintProvider(this.projectPath);
               const provided = hintsProvider.provide();
               if (provided) {
-                activeHintsCount = provided.split('\n').filter(line => line.trim().length > 0).length;
+                activeHintsCount = provided
+                  .split('\n')
+                  .filter((line) => line.trim().length > 0).length;
               }
             } catch {}
 
@@ -713,49 +827,45 @@ export class DaemonServer {
 
         case 'garden/getAnchors': {
           try {
-            const activeSession = this.runner ? this.runner.sessionName : 'default';
-            const dbPath = PathResolver.sessionDbPath(this.projectPath, activeSession);
-            const completedMap = new Map<string, { summary: string, timestamp: number }>();
+            const activeSession = this.runner
+              ? this.runner.sessionName
+              : 'default';
+            const dbPath = PathResolver.sessionDbPath(
+              this.projectPath,
+              activeSession,
+            );
+            const completedMap = new Map<
+              string,
+              { summary: string; timestamp: number }
+            >();
             if (fs.existsSync(dbPath)) {
-              let db: Database.Database | undefined;
+              const store = new SQLiteStore({ dbPath });
               try {
-                db = new Database(dbPath);
-                const tableRow = db
-                  .prepare(
-                    "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='events'",
-                  )
-                  .get() as { count: number } | undefined;
-                if (tableRow && tableRow.count > 0) {
-                  const anchorRows = db
-                    .prepare("SELECT payload, timestamp FROM events WHERE tool = 'anchor_submit'")
-                    .all() as { payload: string, timestamp: number }[];
-                  for (const row of anchorRows) {
-                    try {
-                      const payload = JSON.parse(row.payload);
-                      if (payload.anchor_id) {
-                        completedMap.set(payload.anchor_id, {
-                          summary: payload.summary || '',
-                          timestamp: row.timestamp,
-                        });
-                      }
-                    } catch {}
+                const events = store.fetchAnchorSubmitEvents();
+                for (const event of events) {
+                  if (event.payload.anchor_id) {
+                    completedMap.set(event.payload.anchor_id as string, {
+                      summary: (event.payload.summary as string) || '',
+                      timestamp: event.timestamp,
+                    });
                   }
                 }
               } catch (e: unknown) {
-                console.warn(`Error querying database: ${(e as Error).message}`);
+                console.warn(
+                  `Error querying database: ${(e as Error).message}`,
+                );
               } finally {
-                if (db) {
-                  try {
-                    db.close();
-                  } catch {}
-                }
+                store.close();
               }
             }
 
             const anchorsDir = path.join(this.projectPath, 'anchors');
-            const anchors: any[] = [];
+            const anchors: AnchorInfo[] = [];
 
-            if (fs.existsSync(anchorsDir) && fs.statSync(anchorsDir).isDirectory()) {
+            if (
+              fs.existsSync(anchorsDir) &&
+              fs.statSync(anchorsDir).isDirectory()
+            ) {
               const files = fs.readdirSync(anchorsDir);
               for (const file of files) {
                 const full = path.join(anchorsDir, file);
@@ -765,7 +875,8 @@ export class DaemonServer {
 
                 try {
                   const content = fs.readFileSync(full, 'utf-8');
-                  const data = ext === '.json' ? JSON.parse(content) : yaml.parse(content);
+                  const data =
+                    ext === '.json' ? JSON.parse(content) : yaml.parse(content);
                   const id = data.id || path.basename(file, ext);
                   const completedInfo = completedMap.get(id);
 
@@ -773,9 +884,15 @@ export class DaemonServer {
                     id,
                     name: data.name || id,
                     description: data.description || '',
-                    call_when: Array.isArray(data.call_when) ? data.call_when : (data.call_when ? [data.call_when] : []),
+                    call_when: Array.isArray(data.call_when)
+                      ? data.call_when
+                      : data.call_when
+                        ? [data.call_when]
+                        : [],
                     status: completedInfo ? 'completed' : 'pending',
-                    completedAt: completedInfo ? new Date(completedInfo.timestamp * 1000).toISOString() : undefined,
+                    completedAt: completedInfo
+                      ? new Date(completedInfo.timestamp * 1000).toISOString()
+                      : undefined,
                     summary: completedInfo ? completedInfo.summary : undefined,
                   });
                 } catch {
@@ -784,7 +901,9 @@ export class DaemonServer {
                   anchors.push({
                     id,
                     status: completedInfo ? 'completed' : 'pending',
-                    completedAt: completedInfo ? new Date(completedInfo.timestamp * 1000).toISOString() : undefined,
+                    completedAt: completedInfo
+                      ? new Date(completedInfo.timestamp * 1000).toISOString()
+                      : undefined,
                     summary: completedInfo ? completedInfo.summary : undefined,
                   });
                 }
@@ -807,12 +926,22 @@ export class DaemonServer {
             return;
           }
           try {
-            const activeSession = this.runner ? this.runner.sessionName : 'default';
-            const dbPath = PathResolver.sessionDbPath(this.projectPath, activeSession);
+            const activeSession = this.runner
+              ? this.runner.sessionName
+              : 'default';
+            const dbPath = PathResolver.sessionDbPath(
+              this.projectPath,
+              activeSession,
+            );
             const store = new SQLiteStore({ dbPath });
             try {
               if (p.revoke) {
-                const rows = store.getRawDb().prepare("SELECT id, payload FROM events WHERE tool = 'anchor_submit'").all() as { id: number, payload: string }[];
+                const rows = store
+                  .getRawDb()
+                  .prepare(
+                    "SELECT id, payload FROM events WHERE tool = 'anchor_submit'",
+                  )
+                  .all() as { id: number; payload: string }[];
                 const toDelete: number[] = [];
                 for (const row of rows) {
                   try {
@@ -877,7 +1006,7 @@ export class DaemonServer {
     message: string,
   ): Promise<boolean> {
     return new Promise((resolve) => {
-      const requestId = `confirm-${Date.now()}`;
+      const requestId = `confirm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       this.pendingClientRequests.set(requestId, {
         socket,
         resolve: (result: unknown) => {

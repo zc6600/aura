@@ -1,3 +1,4 @@
+import path from 'node:path';
 import * as ConfigManager from '../../utils/configManager.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import { LLMClient } from '../llm/client.js';
@@ -154,6 +155,5 @@ export class Planner {
 }
 
 function pathResolve(p: string): string {
-  // Safe helper
-  return p.startsWith('/') || p.includes(':') ? p : p;
+  return path.resolve(p);
 }

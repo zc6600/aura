@@ -23,7 +23,7 @@ export function resolveIpcPath(projectPath: string): string {
     if (!fs.existsSync(socketsDir)) {
       try {
         fs.mkdirSync(socketsDir, { recursive: true });
-      } catch (_err: any) {
+      } catch (_err: unknown) {
         useFallback = true;
       }
     } else {
@@ -35,7 +35,8 @@ export function resolveIpcPath(projectPath: string): string {
     }
 
     if (useFallback) {
-      const tmpSockets = '/tmp/.aura-sockets';
+      const username = os.userInfo().username || 'default';
+      const tmpSockets = path.join(os.tmpdir(), `.aura-sockets-${username}`);
       if (!fs.existsSync(tmpSockets)) {
         try {
           fs.mkdirSync(tmpSockets, { recursive: true });
@@ -46,4 +47,3 @@ export function resolveIpcPath(projectPath: string): string {
     return path.join(socketsDir, `daemon-${hash}.sock`);
   }
 }
-

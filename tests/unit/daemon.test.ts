@@ -112,7 +112,9 @@ describe('Daemon IPC Protocol', () => {
     // 2. List sessions
     const listRes = await client.request('session/list');
     expect(listRes.sessions).toBeDefined();
-    expect(listRes.sessions.some((s: any) => s.name === 'test-rpc-session')).toBe(true);
+    expect(
+      listRes.sessions.some((s: any) => s.name === 'test-rpc-session'),
+    ).toBe(true);
 
     // 3. Activate session
     const activateRes = await client.request('session/activate', {
@@ -159,7 +161,11 @@ describe('Daemon IPC Protocol', () => {
     // 3. Get file tree
     const treeRes = await client.request('workspace/getFileTree');
     expect(treeRes.tree).toBeDefined();
-    expect(treeRes.tree.some((n: any) => n.name === 'test-file.txt' && n.type === 'file')).toBe(true);
+    expect(
+      treeRes.tree.some(
+        (n: any) => n.name === 'test-file.txt' && n.type === 'file',
+      ),
+    ).toBe(true);
 
     // --- Garden/Anchor APIs ---
     // 1. Set up anchor file
@@ -185,7 +191,9 @@ describe('Daemon IPC Protocol', () => {
     // 3. Get anchors list and verify completed
     const getAnchorsRes = await client.request('garden/getAnchors');
     expect(getAnchorsRes.anchors).toBeDefined();
-    const testAnchor = getAnchorsRes.anchors.find((a: any) => a.id === 'anchor-1');
+    const testAnchor = getAnchorsRes.anchors.find(
+      (a: any) => a.id === 'anchor-1',
+    );
     expect(testAnchor).toBeDefined();
     expect(testAnchor.status).toBe('completed');
     expect(testAnchor.summary).toBe('completed step 1 successfully');
@@ -199,7 +207,9 @@ describe('Daemon IPC Protocol', () => {
 
     // 5. Verify anchor is back to pending
     const getAnchorsRes2 = await client.request('garden/getAnchors');
-    const testAnchor2 = getAnchorsRes2.anchors.find((a: any) => a.id === 'anchor-1');
+    const testAnchor2 = getAnchorsRes2.anchors.find(
+      (a: any) => a.id === 'anchor-1',
+    );
     expect(testAnchor2).toBeDefined();
     expect(testAnchor2.status).toBe('pending');
 
@@ -241,7 +251,7 @@ describe('Daemon IPC Protocol', () => {
     });
 
     // 1. Invalid JSON-RPC request (bypass DaemonClient to write raw invalid JSON data)
-    const socket = net.createConnection(server['socketPath']);
+    const socket = net.createConnection(server.socketPath);
     await new Promise<void>((resolve) => {
       socket.on('connect', resolve);
     });
@@ -264,21 +274,21 @@ describe('Daemon IPC Protocol', () => {
       client.request('workspace/writeFile', {
         path: '.aura/restricted.txt',
         content: 'should fail',
-      })
+      }),
     ).rejects.toThrow();
 
     // 3. Restricted path read access (reading under .git should fail)
     await expect(
       client.request('workspace/readFile', {
         path: '.git/config',
-      })
+      }),
     ).rejects.toThrow();
 
     // 4. Delete active session (should fail)
     await expect(
       client.request('session/delete', {
         name: 'default',
-      })
+      }),
     ).rejects.toThrow();
 
     // Cleanup & Exit
@@ -293,7 +303,7 @@ describe('Daemon IPC Protocol', () => {
     fs.mkdirSync(path.join(workspacePath, '.aura', 'config'), {
       recursive: true,
     });
-    
+
     // Write config without security confirmation (disabled by default)
     fs.writeFileSync(
       path.join(workspacePath, '.aura', 'config', 'config.yml'),
@@ -303,10 +313,16 @@ describe('Daemon IPC Protocol', () => {
     const { Bridge } = await import('../../src/core/interface/bridge.js');
 
     // Spy/mock Bridge.prototype.chat to manually trigger tool execution hooks
-    const chatSpy = vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (this: any) {
-      const allowed = await this.runner.hooks.run('before_tool_execution', 'write_file', { path: 'test.txt' });
-      return allowed;
-    });
+    const chatSpy = vi
+      .spyOn(Bridge.prototype, 'chat')
+      .mockImplementation(async function (this: any) {
+        const allowed = await this.runner.hooks.run(
+          'before_tool_execution',
+          'write_file',
+          { path: 'test.txt' },
+        );
+        return allowed;
+      });
 
     const server = new DaemonServer(workspacePath);
     await server.start();
@@ -321,7 +337,7 @@ describe('Daemon IPC Protocol', () => {
     // 1. Run goal with security.confirm_dangerous_tools unset (should return true immediately)
     const runRes1 = await client.request('agent/runGoal', {
       goal: 'write a file',
-      options: { auto_mode: false }
+      options: { auto_mode: false },
     });
     expect(runRes1.status).toBe('completed');
 
@@ -338,7 +354,7 @@ describe('Daemon IPC Protocol', () => {
 
     // Register confirmation response handler on client
     let confirmPromptReceived = false;
-    client.onConfirmRequest(async (msg) => {
+    client.onConfirmRequest(async (_msg) => {
       confirmPromptReceived = true;
       return true; // approve dangerous tool
     });
@@ -346,14 +362,76 @@ describe('Daemon IPC Protocol', () => {
     // Run goal with security.confirm_dangerous_tools = true (should ask client for confirmation)
     const runRes2 = await client.request('agent/runGoal', {
       goal: 'write a file',
-      options: { auto_mode: false }
+      options: { auto_mode: false },
     });
-    
+
     expect(confirmPromptReceived).toBe(true);
     expect(runRes2.status).toBe('completed');
 
     // Cleanup & Exit
     chatSpy.mockRestore();
+    await client.request('daemon/exit');
+    client.disconnect();
+    server.stop();
+  });
+
+  it('should block mutating requests (workspace/initialize, session/*) when a goal loop is running', async () => {
+    const workspacePath = path.join(tempDir, 'test-workspace-blocking');
+    fs.mkdirSync(workspacePath, { recursive: true });
+    fs.mkdirSync(path.join(workspacePath, '.aura', 'config'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(workspacePath, '.aura', 'config', 'config.yml'),
+      'llm:\n  provider: local\n',
+    );
+
+    const server = new DaemonServer(workspacePath);
+    await server.start();
+
+    const client = new DaemonClient(workspacePath);
+    await client.connect(false);
+
+    await client.request('workspace/initialize', {
+      sessionName: 'default',
+    });
+
+    // Manually set loop job to running to simulate active job
+    server.activeLoopJob = { status: 'running', goal: 'test' };
+
+    // 1. workspace/initialize should fail
+    await expect(
+      client.request('workspace/initialize', { sessionName: 'default' }),
+    ).rejects.toThrow();
+
+    // 2. session/activate should fail
+    await expect(
+      client.request('session/activate', { name: 'some-session' }),
+    ).rejects.toThrow();
+
+    // 3. session/delete should fail
+    await expect(
+      client.request('session/delete', { name: 'some-session' }),
+    ).rejects.toThrow();
+
+    // 4. session/rename should fail
+    await expect(
+      client.request('session/rename', {
+        oldName: 'default',
+        newName: 'new-name',
+      }),
+    ).rejects.toThrow();
+
+    // 5. session/duplicate should fail
+    await expect(
+      client.request('session/duplicate', {
+        sourceName: 'default',
+        newName: 'dup-name',
+      }),
+    ).rejects.toThrow();
+
+    // Reset loop status and clean up
+    server.activeLoopJob = { status: 'idle' };
     await client.request('daemon/exit');
     client.disconnect();
     server.stop();

@@ -51,8 +51,10 @@ export class SessionManager {
       // Initialize the database structure by instantiating and closing SQLiteStore
       const store = new SQLiteStore({ dbPath });
       store.close();
-    } catch (e: any) {
-      throw new Error(`Failed to initialize session DB: ${e.message}`);
+    } catch (e: unknown) {
+      throw new Error(
+        `Failed to initialize session DB: ${(e as Error).message}`,
+      );
     }
 
     const sessionInfo: SessionInfo = {
@@ -191,8 +193,12 @@ export class SessionManager {
           fs.unlinkSync(sidecar);
         }
       }
-    } catch (_e) {
-      // Ignore filesystem errors
+    } catch (e: any) {
+      if (e.code !== 'ENOENT') {
+        throw new Error(
+          `Failed to delete session database files: ${e.message}`,
+        );
+      }
     }
 
     const sessions = this.loadMetadata();

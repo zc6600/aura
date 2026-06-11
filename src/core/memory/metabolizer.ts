@@ -165,7 +165,10 @@ export class MemoryMetabolizer {
       }
 
       const maxSteps = policy.max_steps ?? this.recentEventsN;
-      const hasManifestPolicy = tool ? (typeof this.policy.getManifestRetention === 'function' && this.policy.getManifestRetention(tool) !== null) : false;
+      const hasManifestPolicy = tool
+        ? typeof this.policy.getManifestRetention === 'function' &&
+          this.policy.getManifestRetention(tool) !== null
+        : false;
       const key = hasManifestPolicy ? `${phase}:${tool}` : phase;
 
       counts[key] = (counts[key] || 0) + 1;

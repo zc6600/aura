@@ -5,7 +5,6 @@ import { execa } from 'execa';
 import * as PathResolver from '../../utils/pathResolver.js';
 import { ContextAssembler } from '../context/assembler.js';
 import { ContextPayload } from '../context/payload.js';
-import type { LLMMessage } from '../llm/adapters/base.js';
 import { ResponseParser } from '../llm/parsers/responseParser.js';
 import type { ChatMessage, ToolSchema } from '../llm/types.js';
 import { AgentLoop, type AgentLoopResult } from './agentLoop.js';
@@ -23,7 +22,7 @@ export class RalphPayload {
     public readonly tools: ToolSchema[] = [],
   ) {}
 
-  public toMessages(): ChatMessage[] {
+  public toMessages(_options?: { goal?: string | null }): ChatMessage[] {
     return this.messages;
   }
 
@@ -43,6 +42,40 @@ export class RalphPayload {
 }
 
 export class RalphLoop {
+  public static cleanupOrphanedRalphSessions(projectPath: string): void {
+    try {
+      const resolvedEnv =
+        PathResolver.environmentPath(projectPath) || projectPath;
+      const sessionsDir = path.join(resolvedEnv, 'state', 'sessions');
+      if (!fs.existsSync(sessionsDir)) return;
+
+      const files = fs.readdirSync(sessionsDir);
+      const now = Date.now();
+      const maxAgeMs = 24 * 60 * 60 * 1000; // 24 hours
+
+      for (const file of files) {
+        if (file.startsWith('ralph_') && file.endsWith('.db')) {
+          const filePath = path.join(sessionsDir, file);
+          const stats = fs.statSync(filePath);
+          if (now - stats.mtimeMs > maxAgeMs) {
+            fs.unlinkSync(filePath);
+            // Also delete SQLite sidecars if they exist
+            for (const suffix of ['-journal', '-wal', '-shm']) {
+              const sidecar = `${filePath}${suffix}`;
+              if (fs.existsSync(sidecar)) {
+                fs.unlinkSync(sidecar);
+              }
+            }
+          }
+        }
+      }
+    } catch (err: unknown) {
+      console.warn(
+        `[RalphLoop] Failed to clean up orphaned sessions: ${(err as Error).message}`,
+      );
+    }
+  }
+
   public static readonly DEFAULT_MAX_STEPS = 100;
   public static readonly DEFAULT_TIMEOUT = 45; // seconds
   public static readonly MAX_UNTRACKED_FILES = 15;
@@ -196,6 +229,13 @@ export class RalphLoop {
           this.eventBus.emit('thought', {
             content: `Developer AgentLoop raised an exception: ${msg}`,
           });
+          if (
+            msg.includes('disconnected') ||
+            msg.includes('abort') ||
+            msg.includes('Interrupted')
+          ) {
+            throw e;
+          }
           result = { status: 'failed', steps: [], failure_reason: msg };
         }
 
@@ -375,7 +415,12 @@ export class RalphLoop {
       const output = `STDOUT:\n${res.stdout}\nSTDERR:\n${res.stderr}`;
       return { passed, output };
     } catch (e: unknown) {
-      if (e && typeof e === 'object' && 'timedOut' in e && (e as { timedOut?: boolean }).timedOut) {
+      if (
+        e &&
+        typeof e === 'object' &&
+        'timedOut' in e &&
+        (e as { timedOut?: boolean }).timedOut
+      ) {
         return {
           passed: false,
           output: `Verification command timed out after ${timeoutSec} seconds.`,
@@ -436,7 +481,7 @@ export class RalphLoop {
         });
         const messages = criticPayload.toMessages({
           goal: 'Audit changes',
-        }) as LLMMessage[];
+        });
         const options = {
           temperature: this.runner.planner.temp,
           max_tokens: this.runner.planner.maxTokens,

@@ -100,10 +100,12 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       for (let i = 0; i < 10; i++) {
         policyMemory.recorder.recordUser(`User event ${i}`);
       }
-      
+
       // Insert 10 execution events (max_steps is 5)
       for (let i = 0; i < 10; i++) {
-        policyMemory.recorder.recordExecution('tool_name', { output: `Exec ${i}` });
+        policyMemory.recorder.recordExecution('tool_name', {
+          output: `Exec ${i}`,
+        });
       }
 
       const countBefore = policyMemory.store.countEvents();
@@ -115,7 +117,7 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       // The 10 user events are kept. 5 execution events are deleted. Total = 15.
       const countAfter = policyMemory.store.countEvents();
       expect(countAfter).toBe(15);
-      
+
       policyMemory.store.close();
     });
 
@@ -134,16 +136,20 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       });
 
       const userEventId = summaryMemory.recorder.recordUser('Start turn');
-      
+
       for (let i = 0; i < 10; i++) {
-        summaryMemory.recorder.recordExecution(`tool${i}`, { output: `output${i}` });
+        summaryMemory.recorder.recordExecution(`tool${i}`, {
+          output: `output${i}`,
+        });
       }
 
       await summaryMemory.metabolize();
 
       const summaries = summaryMemory.store.fetchSummaries();
       expect(summaries.length).toBeGreaterThan(0);
-      const metSummary = summaries.find(s => s.content.includes('Metabolism: Narrative Summary'));
+      const metSummary = summaries.find((s) =>
+        s.content.includes('Metabolism: Narrative Summary'),
+      );
       expect(metSummary).toBeDefined();
       expect(metSummary?.source_event_id).toBeGreaterThanOrEqual(userEventId);
 
@@ -151,7 +157,9 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       expect(undoOk).toBe(true);
 
       const summariesAfter = summaryMemory.store.fetchSummaries();
-      const metSummaryAfter = summariesAfter.find(s => s.content.includes('Metabolism: Narrative Summary'));
+      const metSummaryAfter = summariesAfter.find((s) =>
+        s.content.includes('Metabolism: Narrative Summary'),
+      );
       expect(metSummaryAfter).toBeUndefined();
 
       summaryMemory.store.close();

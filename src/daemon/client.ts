@@ -3,10 +3,9 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { resolveIpcPath } from './ipc.js';
-import readline from 'node:readline';
-
 
 /**
  * DaemonClient provides the programmatic API wrapper for interacting
@@ -94,7 +93,8 @@ export class DaemonClient {
 
     args.push('daemon', this.projectPath);
 
-    const hash = path.basename(this.socketPath)
+    const hash = path
+      .basename(this.socketPath)
       .replace('daemon-', '')
       .replace('.sock', '')
       .replace('aura-', '');
@@ -110,7 +110,6 @@ export class DaemonClient {
     const out = fs.openSync(logFile, 'a');
     const err = fs.openSync(logFile, 'a');
 
-
     // Spawn detached Node process running 'aura daemon'
     const child = spawn(command, args, {
       detached: true,
@@ -118,10 +117,31 @@ export class DaemonClient {
       env: { ...process.env, AURA_ALLOW_ROOT: 'true' },
     });
 
+    let childExited = false;
+    let exitCode: number | null = null;
+    let signalReceived: string | null = null;
+    child.on('exit', (code, sig) => {
+      childExited = true;
+      exitCode = code;
+      signalReceived = sig;
+    });
+
     child.unref();
 
     // Wait for the socket connection to become available
     for (let attempts = 0; attempts < 30; attempts++) {
+      if (childExited) {
+        let logTail = '';
+        try {
+          if (fs.existsSync(logFile)) {
+            const content = fs.readFileSync(logFile, 'utf-8');
+            logTail = content.split('\n').slice(-15).join('\n');
+          }
+        } catch {}
+        throw new Error(
+          `Aura Daemon exited unexpectedly during start-up with code ${exitCode} (signal: ${signalReceived}).\nLast log lines:\n${logTail}`,
+        );
+      }
       if (fs.existsSync(this.socketPath)) {
         try {
           const testSocket = net.createConnection(this.socketPath);
@@ -173,7 +193,6 @@ export class DaemonClient {
     });
   }
 
-
   private handleMessage(line: string): void {
     try {
       const msg = JSON.parse(line);
@@ -198,7 +217,9 @@ export class DaemonClient {
           }
         }
       }
-    } catch {}
+    } catch (err: unknown) {
+      console.warn('[DaemonClient] Failed to parse server message:', line, err);
+    }
   }
 
   public request(

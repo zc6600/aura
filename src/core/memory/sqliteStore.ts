@@ -26,31 +26,31 @@ export interface SummaryRecord {
 
 export class SQLiteStore {
   public readonly dbPath: string;
-  public readonly db!: Database.Database;
+  public readonly db: Database.Database;
 
   constructor(config: SQLiteStoreConfig = {}) {
     if (config.db) {
       this.db = config.db;
       this.dbPath = (config.db as import('better-sqlite3').Database).name || '';
-    } else if (config.dbPath) {
-      this.dbPath = path.resolve(config.dbPath);
-    } else if (config.projectPath) {
-      this.dbPath = PathResolver.sessionDbPath(config.projectPath);
     } else {
-      throw new Error(
-        'ArgumentError: Either db, dbPath or projectPath must be provided',
-      );
-    }
-
-    // Ensure the folder exists
-    if (this.dbPath) {
-      const dir = path.dirname(this.dbPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+      if (config.dbPath) {
+        this.dbPath = path.resolve(config.dbPath);
+      } else if (config.projectPath) {
+        this.dbPath = PathResolver.sessionDbPath(config.projectPath);
+      } else {
+        throw new Error(
+          'ArgumentError: Either db, dbPath or projectPath must be provided',
+        );
       }
-    }
 
-    if (!config.db) {
+      // Ensure the folder exists
+      if (this.dbPath) {
+        const dir = path.dirname(this.dbPath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+      }
+
       this.db = new Database(this.dbPath);
     }
 
@@ -63,6 +63,33 @@ export class SQLiteStore {
 
   public getRawDb(): Database.Database {
     return this.db;
+  }
+
+  public fetchAnchorSubmitEvents(): {
+    payload: Record<string, unknown>;
+    timestamp: number;
+  }[] {
+    try {
+      const rows = this.db
+        .prepare(
+          "SELECT payload, timestamp FROM events WHERE tool = 'anchor_submit'",
+        )
+        .all() as { payload: string; timestamp: number }[];
+      return rows.map((row) => {
+        let parsedPayload: Record<string, unknown> = {};
+        try {
+          parsedPayload = JSON.parse(row.payload);
+        } catch {
+          // Ignore
+        }
+        return {
+          payload: parsedPayload,
+          timestamp: row.timestamp,
+        };
+      });
+    } catch {
+      return [];
+    }
   }
 
   public insertEvent(options: {

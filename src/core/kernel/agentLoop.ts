@@ -130,9 +130,17 @@ export class AgentLoop {
       try {
         result = await this.executeTool(plan);
       } catch (err: unknown) {
+        const errMsg = (err as Error).message || String(err);
+        if (
+          errMsg.includes('disconnected') ||
+          errMsg.includes('abort') ||
+          errMsg.includes('Interrupted')
+        ) {
+          throw err;
+        }
         result = {
           status: 'failed',
-          error: (err as Error).message || String(err),
+          error: errMsg,
           advice: 'The tool execution process crashed unexpectedly.',
         };
       }
@@ -203,10 +211,15 @@ export class AgentLoop {
   }
 
   private async executeTool(plan: ParseResult): Promise<ToolResult> {
+    const planAsAny = plan as any;
+    const tool = plan.type === 'tool_call' ? plan.tool : (planAsAny.tool as string | undefined);
+    if (!tool) {
+      throw new Error('Expected tool_call plan');
+    }
     const call: ToolCall = {
-      tool: (plan as any).tool,
-      args: (plan as any).args || {},
-      summary: (plan as any).summary,
+      tool,
+      args: (plan.type === 'tool_call' ? plan.args : planAsAny.args) || {},
+      summary: (plan.type === 'tool_call' ? plan.summary : planAsAny.summary) ?? undefined,
     };
     return await this.runner.runCall(call);
   }
