@@ -322,23 +322,32 @@ export class Chat {
             : inputStr;
           messages.push({ role: 'user', content: qContent });
 
-          console.log(
-            picocolors.blue(
-              `🤖 Connecting to ${provider} (${model || 'default model'})...\n`,
-            ),
+          // Show inline status — cleared by \r\x1b[K when first token arrives
+          process.stdout.write(
+            picocolors.dim(`⏳ ${provider}/${model || 'default'}...`),
           );
 
           let responseText = '';
+          let firstToken = true;
+          const t0 = Date.now();
           try {
             await client.completeStream(
               messages,
               { temperature: temp, max_tokens: maxTokens },
               (delta) => {
+                if (firstToken) {
+                  // Erase the "Connecting..." line, print a model tag header
+                  process.stdout.write(
+                    `\r\x1b[K${picocolors.dim(`[${provider}/${model || 'default'}]`)} `,
+                  );
+                  firstToken = false;
+                }
                 process.stdout.write(delta);
                 responseText += delta;
               },
             );
-            console.log('\n');
+            const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+            console.log(`\n${picocolors.dim(`(${elapsed}s)`)}\n`);
 
             if (responseText.trim().length > 0) {
               history.push({ role: 'user', content: inputStr });
@@ -356,6 +365,7 @@ export class Chat {
               }
             }
           } catch (e: unknown) {
+            process.stdout.write('\r\x1b[K'); // clear status line on error
             console.error(
               picocolors.red(`\n⛔️ Error calling LLM: ${(e as Error).message}`),
             );
@@ -435,23 +445,31 @@ export class Chat {
       : question;
     messages.push({ role: 'user', content: qContent });
 
-    console.log(
-      picocolors.blue(
-        `🤖 Connecting to ${provider} (${model || 'default model'})...\n`,
-      ),
+    // Show inline status — cleared by \r\x1b[K when first token arrives
+    process.stdout.write(
+      picocolors.dim(`⏳ ${provider}/${model || 'default'}...`),
     );
 
     let responseText = '';
+    let firstToken = true;
+    const t0 = Date.now();
     try {
       await client.completeStream(
         messages,
         { temperature: temp, max_tokens: maxTokens },
         (delta) => {
+          if (firstToken) {
+            process.stdout.write(
+              `\r\x1b[K${picocolors.dim(`[${provider}/${model || 'default'}]`)} `,
+            );
+            firstToken = false;
+          }
           process.stdout.write(delta);
           responseText += delta;
         },
       );
-      console.log();
+      const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+      console.log(`\n${picocolors.dim(`(${elapsed}s)`)}`);
 
       if (responseText.trim().length > 0) {
         history.push({ role: 'user', content: question });
@@ -469,6 +487,7 @@ export class Chat {
         }
       }
     } catch (e: unknown) {
+      process.stdout.write('\r\x1b[K');
       throw new UI.CliError(`Error calling LLM: ${(e as Error).message}`);
     }
   }
