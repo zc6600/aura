@@ -67,7 +67,9 @@ if [ "$IS_AURA_DIR" = false ]; then
     if [ -d "$INSTALL_DIR" ]; then
         echo -e "  - Existing repository directory $INSTALL_DIR detected. Updating code..."
         cd "$INSTALL_DIR"
-        git pull
+        # Discard local changes (e.g. package-lock.json) to ensure a clean forced update
+        git fetch --all --quiet
+        git reset --hard "origin/$(git branch --show-current)" --quiet
     else
         echo -e "  - Cloning Aura repository into $INSTALL_DIR..."
         mkdir -p "$HOME/.aura"
