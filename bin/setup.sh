@@ -90,15 +90,21 @@ echo -e "${GREEN}✓ Dependencies successfully installed and compiled!${NC}\n"
 echo -e "${BLUE}[Step 3/5] Configuring Environment Credentials...${NC}"
 
 DOTENV_PATH=".env"
+EXAMPLE_PATH=".env.example"
 
 if [ ! -f "$DOTENV_PATH" ]; then
     echo -e "  - Creating workspace environment file ${YELLOW}.env${NC}..."
-    cat <<EOT > "$DOTENV_PATH"
+    if [ -f "$EXAMPLE_PATH" ]; then
+        cp "$EXAMPLE_PATH" "$DOTENV_PATH"
+        echo -e "  - Copied ${GREEN}.env.example${NC} to ${GREEN}.env${NC}."
+    else
+        cat <<EOT > "$DOTENV_PATH"
 # ==============================================================================
 # Aura OS Workspace Environment Credentials
 # ==============================================================================
 
 # LLM Providers API Keys
+OPENROUTER_API_KEY=
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 DEEPSEEK_API_KEY=
@@ -110,7 +116,8 @@ GEMINI_API_KEY=
 # Agent Target Parameters
 AURA_ENV=development
 EOT
-    echo -e "  - Empty ${GREEN}.env${NC} template initialized."
+        echo -e "  - Empty ${GREEN}.env${NC} template initialized (fallback)."
+    fi
 else
     echo -e "  - Existing ${GREEN}.env${NC} file detected. Skipping creation."
 fi
@@ -146,7 +153,7 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         openai)
             read -p "  🔑 Enter OpenAI API Key (or press Enter to skip): " API_KEY < /dev/tty
             if [ ! -z "$API_KEY" ]; then
-                node -e "const fs = require('fs'); let c = fs.readFileSync('$DOTENV_PATH', 'utf8'); c = c.replace('OPENAI_API_KEY=', 'OPENAI_API_KEY=$API_KEY'); fs.writeFileSync('$DOTENV_PATH', c);"
+                DOTENV_PATH="$DOTENV_PATH" API_KEY="$API_KEY" node -e "const fs = require('fs'); let c = fs.readFileSync(process.env.DOTENV_PATH, 'utf8'); c = c.replace(/OPENAI_API_KEY=.*/, () => 'OPENAI_API_KEY=' + process.env.API_KEY); fs.writeFileSync(process.env.DOTENV_PATH, c);"
                 echo -e "    - OpenAI API Key saved to .env."
             fi
             read -p "  🤖 Enter OpenAI Model name (default: gpt-4o): " OPENAI_MODEL < /dev/tty
@@ -154,13 +161,21 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
             read -p "  🌐 Enter Custom API Base URL (optional, press Enter to use default): " API_BASE < /dev/tty
             if [ ! -z "$API_BASE" ]; then
                 SELECTED_BASE=$API_BASE
-                echo "OPENAI_API_BASE=$API_BASE" >> "$DOTENV_PATH"
+                if grep -q "OPENAI_API_BASE=" "$DOTENV_PATH"; then
+                    DOTENV_PATH="$DOTENV_PATH" API_BASE="$API_BASE" node -e "const fs = require('fs'); let c = fs.readFileSync(process.env.DOTENV_PATH, 'utf8'); c = c.replace(/OPENAI_API_BASE=.*/, () => 'OPENAI_API_BASE=' + process.env.API_BASE); fs.writeFileSync(process.env.DOTENV_PATH, c);"
+                else
+                    echo "OPENAI_API_BASE=$API_BASE" >> "$DOTENV_PATH"
+                fi
             fi
             ;;
         openrouter)
             read -p "  🔑 Enter OpenRouter API Key (or press Enter to skip): " API_KEY < /dev/tty
             if [ ! -z "$API_KEY" ]; then
-                echo "OPENROUTER_API_KEY=$API_KEY" >> "$DOTENV_PATH"
+                if grep -q "OPENROUTER_API_KEY=" "$DOTENV_PATH"; then
+                    DOTENV_PATH="$DOTENV_PATH" API_KEY="$API_KEY" node -e "const fs = require('fs'); let c = fs.readFileSync(process.env.DOTENV_PATH, 'utf8'); c = c.replace(/OPENROUTER_API_KEY=.*/, () => 'OPENROUTER_API_KEY=' + process.env.API_KEY); fs.writeFileSync(process.env.DOTENV_PATH, c);"
+                else
+                    echo "OPENROUTER_API_KEY=$API_KEY" >> "$DOTENV_PATH"
+                fi
                 echo -e "    - OpenRouter API Key saved to .env."
             fi
             read -p "  🤖 Enter OpenRouter Model name (default: google/gemini-2.5-flash): " OR_MODEL < /dev/tty
@@ -169,7 +184,11 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         deepseek)
             read -p "  🔑 Enter DeepSeek API Key (or press Enter to skip): " API_KEY < /dev/tty
             if [ ! -z "$API_KEY" ]; then
-                node -e "const fs = require('fs'); let c = fs.readFileSync('$DOTENV_PATH', 'utf8'); c = c.replace('DEEPSEEK_API_KEY=', 'DEEPSEEK_API_KEY=$API_KEY'); fs.writeFileSync('$DOTENV_PATH', c);"
+                if grep -q "DEEPSEEK_API_KEY=" "$DOTENV_PATH"; then
+                    DOTENV_PATH="$DOTENV_PATH" API_KEY="$API_KEY" node -e "const fs = require('fs'); let c = fs.readFileSync(process.env.DOTENV_PATH, 'utf8'); c = c.replace(/DEEPSEEK_API_KEY=.*/, () => 'DEEPSEEK_API_KEY=' + process.env.API_KEY); fs.writeFileSync(process.env.DOTENV_PATH, c);"
+                else
+                    echo "DEEPSEEK_API_KEY=$API_KEY" >> "$DOTENV_PATH"
+                fi
                 echo -e "    - DeepSeek API Key saved to .env."
             fi
             read -p "  🤖 Enter DeepSeek Model name (default: deepseek-chat): " DS_MODEL < /dev/tty
@@ -178,7 +197,11 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         gemini)
             read -p "  🔑 Enter Gemini API Key (or press Enter to skip): " API_KEY < /dev/tty
             if [ ! -z "$API_KEY" ]; then
-                node -e "const fs = require('fs'); let c = fs.readFileSync('$DOTENV_PATH', 'utf8'); c = c.replace('GEMINI_API_KEY=', 'GEMINI_API_KEY=$API_KEY'); fs.writeFileSync('$DOTENV_PATH', c);"
+                if grep -q "GEMINI_API_KEY=" "$DOTENV_PATH"; then
+                    DOTENV_PATH="$DOTENV_PATH" API_KEY="$API_KEY" node -e "const fs = require('fs'); let c = fs.readFileSync(process.env.DOTENV_PATH, 'utf8'); c = c.replace(/GEMINI_API_KEY=.*/, () => 'GEMINI_API_KEY=' + process.env.API_KEY); fs.writeFileSync(process.env.DOTENV_PATH, c);"
+                else
+                    echo "GEMINI_API_KEY=$API_KEY" >> "$DOTENV_PATH"
+                fi
                 echo -e "    - Gemini API Key saved to .env."
             fi
             read -p "  🤖 Enter Gemini Model name (default: gemini-1.5-flash): " GEM_MODEL < /dev/tty
@@ -187,7 +210,11 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         anthropic)
             read -p "  🔑 Enter Anthropic API Key (or press Enter to skip): " API_KEY < /dev/tty
             if [ ! -z "$API_KEY" ]; then
-                node -e "const fs = require('fs'); let c = fs.readFileSync('$DOTENV_PATH', 'utf8'); c = c.replace('ANTHROPIC_API_KEY=', 'ANTHROPIC_API_KEY=$API_KEY'); fs.writeFileSync('$DOTENV_PATH', c);"
+                if grep -q "ANTHROPIC_API_KEY=" "$DOTENV_PATH"; then
+                    DOTENV_PATH="$DOTENV_PATH" API_KEY="$API_KEY" node -e "const fs = require('fs'); let c = fs.readFileSync(process.env.DOTENV_PATH, 'utf8'); c = c.replace(/ANTHROPIC_API_KEY=.*/, () => 'ANTHROPIC_API_KEY=' + process.env.API_KEY); fs.writeFileSync(process.env.DOTENV_PATH, c);"
+                else
+                    echo "ANTHROPIC_API_KEY=$API_KEY" >> "$DOTENV_PATH"
+                fi
                 echo -e "    - Anthropic API Key saved to .env."
             fi
             read -p "  🤖 Enter Anthropic Model name (default: claude-3-5-sonnet-20241022): " ANT_MODEL < /dev/tty
