@@ -238,7 +238,7 @@ export const Doctor = {
     Doctor.checkOverridesSync(workspacePath);
   },
 
-  validateAndPrintPrompt(_mode: string, prompt: string): void {
+  validateAndPrintPrompt(mode: string, prompt: string): void {
     const charCount = prompt.length;
     console.log(
       `  Compiled Length: ${charCount} chars (~${Math.round(charCount / 4.0)} tokens)`,
@@ -260,7 +260,7 @@ export const Doctor = {
       console.log(`  Length constraint: ${picocolors.green('OK')}`);
     }
 
-    const issues = PromptRegistry.validatePrompt(prompt);
+    const issues = PromptRegistry.validatePrompt(prompt, mode);
     if (issues.length > 0) {
       for (const iss of issues) {
         console.log(picocolors.yellow(`  ⚠� ${iss}`));

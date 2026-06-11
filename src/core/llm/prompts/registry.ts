@@ -242,7 +242,7 @@ export function resolve(
 /**
  * Basic validation rules for dry-runs and sync checks.
  */
-export function validatePrompt(content: string): string[] {
+export function validatePrompt(content: string, mode?: string): string[] {
   const issues: string[] = [];
   if (!content || content.trim().length === 0) {
     return ['Prompt content is empty'];
@@ -252,7 +252,13 @@ export function validatePrompt(content: string): string[] {
     issues.push('Warning: Prompt does not mention JSON output structure.');
   }
 
-  if (!content.includes('tool') || !content.includes('args')) {
+  // Only check tool-calling rules for prompts that are expected to call tools.
+  // ralph_critic in light mode does not call tools, so we skip this check.
+  const isCritic = mode === 'ralph_critic';
+  const isHeavyCritic = isCritic && content.toLowerCase().includes('critic loop');
+  const expectsTools = !isCritic || isHeavyCritic;
+
+  if (expectsTools && (!content.includes('tool') || !content.includes('args'))) {
     issues.push(
       "Warning: Prompt may lack structural tool calling rules (missing 'tool' or 'args').",
     );
