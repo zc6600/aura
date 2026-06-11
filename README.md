@@ -12,9 +12,9 @@ To keep your code repository perfectly clean and isolate the agent's operations 
 
 ```
 my_project/                 <-- Clean User Workspace (Files visible to LLM)
-├── .gitignore              <-- Automatically ignores the hidden .aura/ folder
+├── .gitignore              <-- Automatically ignores the hidden .aura-workspace/ folder
 ├── src/                    <-- Your code files
-└── .aura/                  <-- Hidden Isolated Environment (Agent resources)
+└── .aura-workspace/        <-- Hidden Isolated Environment (Agent resources)
     ├── config/
     │   └── config.yml      <-- Local workspace runtime settings
     ├── state/
@@ -27,8 +27,8 @@ my_project/                 <-- Clean User Workspace (Files visible to LLM)
             └── scripts/    <-- Optional helper scripts
 ```
 
-* **Clean User Workspace**: The host workspace is kept pristine. Transient files, sqlite databases, memory summaries, and test runs are completely isolated within `.aura/`.
-* **Security & Sandboxing**: Tools run within the parent user workspace (enabling sandboxed read/writes of code), but they fetch configurations, schemas, and credentials safely from the hidden `.aura/` folder.
+* **Clean User Workspace**: The host workspace is kept pristine. Transient files, sqlite databases, memory summaries, and test runs are completely isolated within `.aura-workspace/`.
+* **Security & Sandboxing**: Tools run within the parent user workspace (enabling sandboxed read/writes of code), but they fetch configurations, schemas, and credentials safely from the hidden `.aura-workspace/` folder.
 
 ---
 
@@ -106,7 +106,7 @@ aura info      # Display two-tier system and workspace information
 
 ### 2. Initialize a Project
 
-Initialize a new project environment (this clones universal templates from your global storage in `~/.aura/repo` into your target directory's hidden `.aura/` folder):
+Initialize a new project environment (this clones universal templates from your global storage in `~/.aura-framework/repo` into your target directory's hidden `.aura-workspace/` folder):
 
 ```bash
 aura new my_agent_project
@@ -131,7 +131,7 @@ aura config llm.provider anthropic --global
 
 ### 4. Git-Powered Version Control (VCS)
 
-Aura packages a full local version control workflow inside `.aura/` so you can stage, commit, and push/sync your newly developed custom tools back to your parent templates globally:
+Aura packages a full local version control workflow inside `.aura-workspace/` so you can stage, commit, and push/sync your newly developed custom tools back to your parent templates globally:
 
 ```bash
 # 1. Inspect what's modified or untracked in your local environment
@@ -143,7 +143,7 @@ aura add tools/my_custom_tool
 # 3. Commit the changes
 aura commit -m "Added standard enterprise search tool"
 
-# 4. Sync (push) the tool back to your global templates (~/.aura/repo)
+# 4. Sync (push) the tool back to your global templates (~/.aura-framework/repo)
 aura sync
 
 # 5. Pull template updates from the global repository into your active workspace
@@ -224,10 +224,10 @@ aura kernel run_call . read_file '{"file_path": "README.md"}'
 Since Aura stores state in **SQLite**, you can inspect event narratives directly:
 ```bash
 # View last 5 event stages
-sqlite3 .aura/state/sessions/default.db "SELECT * FROM events ORDER BY id DESC LIMIT 5;"
+sqlite3 .aura-workspace/state/sessions/default.db "SELECT * FROM events ORDER BY id DESC LIMIT 5;"
 
 # Read the latest context summary after metabolism
-sqlite3 .aura/state/sessions/default.db "SELECT content FROM summaries ORDER BY id DESC LIMIT 1;"
+sqlite3 .aura-workspace/state/sessions/default.db "SELECT content FROM summaries ORDER BY id DESC LIMIT 1;"
 ```
 
 ---
@@ -236,7 +236,7 @@ sqlite3 .aura/state/sessions/default.db "SELECT content FROM summaries ORDER BY 
 
 Aura OS supports stdio and SSE transports for the Model Context Protocol, enabling agents to tap into hundreds of community-built capabilities.
 
-To add MCP servers, edit your local `.aura/tools/mcp/config.yml` or global `~/.aura/repo/tools/mcp/config.yml`:
+To add MCP servers, edit your local `.aura-workspace/tools/mcp/config.yml` or global `~/.aura-framework/repo/tools/mcp/config.yml`:
 ```yaml
 servers:
   - name: google-search

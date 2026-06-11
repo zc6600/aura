@@ -379,7 +379,7 @@ ${'#'.repeat(110000)}`,
     const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     // Create workspace directory config
-    const auraDir = path.join(projectPath, '.aura');
+    const auraDir = path.join(projectPath, '.aura-workspace');
     fs.mkdirSync(path.join(auraDir, 'config'), { recursive: true });
     fs.writeFileSync(path.join(projectPath, 'AURA_README.md'), 'README_RULE');
     fs.writeFileSync(

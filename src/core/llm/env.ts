@@ -14,15 +14,21 @@ export function loadFrom(projectPath: string): void {
 }
 
 /**
- * Loads global settings from global template repo and ~/.aura/.env.
+ * Loads global settings from global template repo and ~/.aura-framework/.env (or legacy ~/.aura/.env).
  */
 export function loadGlobal(): void {
-  const globalRepoEnv = path.join(os.homedir(), '.aura', 'repo', '.env');
+  let globalRepoEnv = path.join(os.homedir(), '.aura-framework', 'repo', '.env');
+  if (!fs.existsSync(globalRepoEnv)) {
+    globalRepoEnv = path.join(os.homedir(), '.aura', 'repo', '.env');
+  }
   if (fs.existsSync(globalRepoEnv)) {
     loadFile(globalRepoEnv);
   }
 
-  const homeAuraEnv = path.join(os.homedir(), '.aura', '.env');
+  let homeAuraEnv = path.join(os.homedir(), '.aura-framework', '.env');
+  if (!fs.existsSync(homeAuraEnv)) {
+    homeAuraEnv = path.join(os.homedir(), '.aura', '.env');
+  }
   if (fs.existsSync(homeAuraEnv)) {
     loadFile(homeAuraEnv);
   }

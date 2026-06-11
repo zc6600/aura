@@ -81,9 +81,12 @@ export class GlobalRulesProvider {
       rules.push(`### Project Instructions (AURA_README.md):\n${readmeRule.content}`);
     }
 
-    // 2. Read ~/.aura/global_hint.md
+    // 2. Read ~/.aura-framework/global_hint.md (fallback to ~/.aura/global_hint.md)
     try {
-      const globalHintFile = path.join(os.homedir(), '.aura', 'global_hint.md');
+      let globalHintFile = path.join(os.homedir(), '.aura-framework', 'global_hint.md');
+      if (!fs.existsSync(globalHintFile) || !fs.statSync(globalHintFile).isFile()) {
+        globalHintFile = path.join(os.homedir(), '.aura', 'global_hint.md');
+      }
       if (
         fs.existsSync(globalHintFile) &&
         fs.statSync(globalHintFile).isFile()

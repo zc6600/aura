@@ -71,10 +71,13 @@ export class WorkspaceProvider {
   private readFile(filename: string): string | null {
     const candidates = [
       path.join(this.projectPath, filename),
+      path.join(this.projectPath, '.aura-workspace', 'prompts', 'system', filename),
       path.join(this.projectPath, '.aura', 'prompts', 'system', filename),
       path.join(this.projectPath, 'prompts', 'system', filename),
+      path.join(this.projectPath, '.aura-workspace', 'prompts', filename),
       path.join(this.projectPath, '.aura', 'prompts', filename),
       path.join(this.projectPath, 'prompts', filename),
+      path.join(this.projectPath, '.aura-workspace', 'instructions', filename),
       path.join(this.projectPath, '.aura', 'instructions', filename),
       path.join(this.projectPath, 'instructions', filename),
     ];

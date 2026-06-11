@@ -83,7 +83,9 @@ export async function createSystemWorkspace(
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `aura-system-${prefix}-`));
   await initializeWorkspaceInPlace(root);
 
-  const auraDir = path.join(root, '.aura');
+  const auraDir = fs.existsSync(path.join(root, '.aura-workspace'))
+    ? path.join(root, '.aura-workspace')
+    : path.join(root, '.aura');
   const configPath = path.join(auraDir, 'config', 'config.yml');
   const rawConfig = yaml.parse(fs.readFileSync(configPath, 'utf-8')) || {};
 
