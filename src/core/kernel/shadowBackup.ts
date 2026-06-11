@@ -82,7 +82,12 @@ export class ShadowBackup {
             continue;
           }
 
-          if (relPath.startsWith('.aura/') || relPath.includes('/.aura/')) {
+          if (
+            relPath.startsWith('.aura/') ||
+            relPath.includes('/.aura/') ||
+            relPath.startsWith('shadow/') ||
+            relPath.includes('/shadow/')
+          ) {
             continue;
           }
 
@@ -105,12 +110,13 @@ export class ShadowBackup {
         await execa('git', ['commit', '-m', message], { cwd: this.shadowPath });
       }
     } catch (e: unknown) {
+      const errMsg = e instanceof Error ? e.message : String(e);
       const isClean =
-        (e as Error).message &&
-        ((e as Error).message.includes('nothing to commit') ||
-          (e as Error).message.includes('working tree clean'));
+        errMsg &&
+        (errMsg.includes('nothing to commit') ||
+          errMsg.includes('working tree clean'));
       if (!isClean) {
-        console.warn(`ShadowBackup Error: ${(e as Error).message}`);
+        console.warn(`ShadowBackup Error: ${errMsg}`);
       }
     }
   }

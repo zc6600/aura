@@ -30,7 +30,6 @@ export class SessionManager {
     this.stateDir = path.join(this.envPath, 'state');
     this.sessionsDir = path.join(this.stateDir, 'sessions');
     this.metadataFile = path.join(this.stateDir, 'sessions.json');
-    fs.mkdirSync(this.sessionsDir, { recursive: true });
   }
 
   public get projectPath(): string {
@@ -84,6 +83,7 @@ export class SessionManager {
       throw new Error(`Session '${name}' does not exist`);
     }
 
+    fs.mkdirSync(this.stateDir, { recursive: true });
     const activeFile = path.join(this.stateDir, 'active_session.txt');
     const tempPath = `${activeFile}.tmp`;
     fs.writeFileSync(tempPath, name, 'utf-8');
@@ -261,6 +261,7 @@ export class SessionManager {
       throw new Error(`Session '${sourceName}' does not exist`);
     }
 
+    fs.mkdirSync(this.sessionsDir, { recursive: true });
     const newDb = this.dbPathFor(newName);
     if (fs.existsSync(newDb)) {
       throw new Error(`Session '${newName}' already exists`);
@@ -314,6 +315,7 @@ export class SessionManager {
       throw new Error(`Source file '${sourcePath}' does not exist`);
     }
 
+    fs.mkdirSync(this.sessionsDir, { recursive: true });
     const dbPath = this.dbPathFor(name);
     if (fs.existsSync(dbPath)) {
       throw new Error(`Session '${name}' already exists`);
@@ -368,12 +370,13 @@ export class SessionManager {
 
   private saveMetadata(sessions: Record<string, SessionInfo>): void {
     try {
+      fs.mkdirSync(this.stateDir, { recursive: true });
       const tempPath = `${this.metadataFile}.tmp`;
       fs.writeFileSync(tempPath, JSON.stringify(sessions, null, 2), 'utf-8');
       fs.renameSync(tempPath, this.metadataFile);
     } catch (e: unknown) {
       console.warn(
-        `[SessionManager] Failed to save metadata: ${(e as Error).message}`,
+        `[SessionManager] Failed to save metadata: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
   }

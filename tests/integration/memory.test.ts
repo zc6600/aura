@@ -81,6 +81,81 @@ describe('Memory Integration', { timeout: 30000 }, () => {
       expect(result).toHaveProperty('total_events');
       expect(result.total_events).toBe(50);
     });
+
+    it('metabolizer respects phase max_steps', async () => {
+      const policyMemory = new MemoryBase({
+        config: new MemoryConfig({
+          store: {
+            project_path: testDir,
+            db_path: path.join(testDir, 'state', 'policy_test.db'),
+          },
+          metabolism: {
+            max_chars: 10,
+            recent_events_n: 10,
+          },
+        }),
+      });
+
+      // Insert 10 user events (max_steps is 100)
+      for (let i = 0; i < 10; i++) {
+        policyMemory.recorder.recordUser(`User event ${i}`);
+      }
+      
+      // Insert 10 execution events (max_steps is 5)
+      for (let i = 0; i < 10; i++) {
+        policyMemory.recorder.recordExecution('tool_name', { output: `Exec ${i}` });
+      }
+
+      const countBefore = policyMemory.store.countEvents();
+      expect(countBefore).toBe(20);
+
+      // Run metabolize
+      await policyMemory.metabolize();
+
+      // The 10 user events are kept. 5 execution events are deleted. Total = 15.
+      const countAfter = policyMemory.store.countEvents();
+      expect(countAfter).toBe(15);
+      
+      policyMemory.store.close();
+    });
+
+    it('metabolism summary has source_event_id and rolls back on undo', async () => {
+      const summaryMemory = new MemoryBase({
+        config: new MemoryConfig({
+          store: {
+            project_path: testDir,
+            db_path: path.join(testDir, 'state', 'summary_undo_test.db'),
+          },
+          metabolism: {
+            max_chars: 10,
+            recent_events_n: 2,
+          },
+        }),
+      });
+
+      const userEventId = summaryMemory.recorder.recordUser('Start turn');
+      
+      for (let i = 0; i < 10; i++) {
+        summaryMemory.recorder.recordExecution(`tool${i}`, { output: `output${i}` });
+      }
+
+      await summaryMemory.metabolize();
+
+      const summaries = summaryMemory.store.fetchSummaries();
+      expect(summaries.length).toBeGreaterThan(0);
+      const metSummary = summaries.find(s => s.content.includes('Metabolism: Narrative Summary'));
+      expect(metSummary).toBeDefined();
+      expect(metSummary?.source_event_id).toBeGreaterThanOrEqual(userEventId);
+
+      const undoOk = summaryMemory.undo();
+      expect(undoOk).toBe(true);
+
+      const summariesAfter = summaryMemory.store.fetchSummaries();
+      const metSummaryAfter = summariesAfter.find(s => s.content.includes('Metabolism: Narrative Summary'));
+      expect(metSummaryAfter).toBeUndefined();
+
+      summaryMemory.store.close();
+    });
   });
 
   // 2. Runner Integration

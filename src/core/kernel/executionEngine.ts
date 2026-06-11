@@ -104,7 +104,7 @@ export class ExecutionEngine {
           const diagnostics = this.lspManager.getDiagnostics(file);
           return { status: 'ok' as const, diagnostics };
         } catch (e: unknown) {
-          return { error: (e as Error).message, status: 'failed' as const };
+          return { error: e instanceof Error ? e.message : String(e), status: 'failed' as const };
         }
       }) as Promise<ToolResult>;
     }
@@ -227,7 +227,7 @@ ${stderr}`.trim()
           await this.shadowBackup.recordChanges(toolName, cleanArgs);
         } catch (e: unknown) {
           console.warn(
-            `[ExecutionEngine] Shadow backup failed for ${toolName}: ${(e as Error).message}`,
+            `[ExecutionEngine] Shadow backup failed for ${toolName}: ${e instanceof Error ? e.message : String(e)}`,
           );
         }
 
@@ -244,13 +244,13 @@ ${stderr}`.trim()
         };
       }
     } catch (e: unknown) {
-      if ((e as { timedOut?: boolean }).timedOut) {
+      if (e && typeof e === 'object' && 'timedOut' in e && (e as { timedOut?: boolean }).timedOut) {
         return {
           error: `Tool execution timed out after ${resolvedTimeout / 1000} seconds.`,
           status: 'failed' as const,
         };
       }
-      return { error: (e as Error).message, status: 'failed' as const };
+      return { error: e instanceof Error ? e.message : String(e), status: 'failed' as const };
     }
   }
 
@@ -258,8 +258,9 @@ ${stderr}`.trim()
     ms: number,
     fn: () => Promise<T>,
   ): Promise<T | { error: string; status: 'failed' }> {
+    let timerId: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_, reject) => {
-      setTimeout(
+      timerId = setTimeout(
         () =>
           reject(
             new Error(`Tool execution timed out after ${ms / 1000} seconds.`),
@@ -270,7 +271,11 @@ ${stderr}`.trim()
     try {
       return await Promise.race([fn(), timeout]);
     } catch (e: unknown) {
-      return { error: (e as Error).message, status: 'failed' };
+      return { error: e instanceof Error ? e.message : String(e), status: 'failed' };
+    } finally {
+      if (timerId) {
+        clearTimeout(timerId);
+      }
     }
   }
 

@@ -263,6 +263,8 @@ export class Chat {
               } else {
                 provider = args.trim();
                 llmCfg.provider = provider;
+                delete llmCfg.api_key;
+                delete llmCfg.api_key_env;
                 apiKey = Env.resolveApiKey(provider);
                 client = Client.fromConfig(llmCfg, projectPath);
                 console.log(

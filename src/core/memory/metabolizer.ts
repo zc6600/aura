@@ -86,8 +86,17 @@ export class MemoryMetabolizer {
           retentionResult.to_summarize,
         );
         if (summary?.trim()) {
+          let latestEventId: number | null = null;
+          try {
+            const latestEvents = this.store.fetchEvents({ limit: 1 });
+            if (latestEvents.length > 0) {
+              latestEventId = latestEvents[0].id;
+            }
+          } catch (_e) {}
+
           this.store.insertSummary({
             content: `Metabolism: Narrative Summary - ${summary}`,
+            source_event_id: latestEventId,
           });
           stats.summarized = retentionResult.to_summarize.length;
           summaryGenerated = true;
@@ -141,8 +150,32 @@ export class MemoryMetabolizer {
   }
 
   private selectOldEvents(): Event[] {
-    const keepRecent = this.recentEventsN;
-    return this.store.fetchEvents({ offset: keepRecent });
+    const allEvents = this.store.fetchEvents();
+    const oldEvents: Event[] = [];
+    const reversed = [...allEvents].reverse();
+    const counts: Record<string, number> = {};
+
+    for (const event of reversed) {
+      const phase = event.phase;
+      const tool = event.tool;
+      const policy = this.policy.getRetentionPolicy(phase, tool);
+
+      if (policy.permanent === true) {
+        continue;
+      }
+
+      const maxSteps = policy.max_steps ?? this.recentEventsN;
+      const hasManifestPolicy = tool ? (typeof this.policy.getManifestRetention === 'function' && this.policy.getManifestRetention(tool) !== null) : false;
+      const key = hasManifestPolicy ? `${phase}:${tool}` : phase;
+
+      counts[key] = (counts[key] || 0) + 1;
+
+      if (counts[key] > maxSteps) {
+        oldEvents.push(event);
+      }
+    }
+
+    return oldEvents.reverse();
   }
 
   private async generateMetabolismSummary(

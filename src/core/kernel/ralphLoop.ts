@@ -120,7 +120,7 @@ export class RalphLoop {
           'utf-8',
         );
       } catch (e: unknown) {
-        const msg = (e as Error).message ?? String(e);
+        const msg = e instanceof Error ? e.message : String(e);
         this.eventBus.emit('warning', {
           message: `Failed to create task.md checklist: ${msg}`,
         });
@@ -180,7 +180,7 @@ export class RalphLoop {
         try {
           result = await agentLoop.run(this.goal, { ctx: null });
         } catch (e: unknown) {
-          const msg = (e as Error).message ?? String(e);
+          const msg = e instanceof Error ? e.message : String(e);
           this.eventBus.emit('thought', {
             content: `Developer AgentLoop raised an exception: ${msg}`,
           });
@@ -221,7 +221,7 @@ export class RalphLoop {
         }
       }
     } catch (e: unknown) {
-      const msg = (e as Error).message ?? String(e);
+      const msg = e instanceof Error ? e.message : String(e);
       this.eventBus.emit('thought', {
         content: `Ralph Loop encountered a fatal error: ${msg}`,
       });
@@ -231,7 +231,7 @@ export class RalphLoop {
       try {
         this.runner.reconnectSession(startingSession);
       } catch (e: unknown) {
-        const msg = (e as Error).message ?? String(e);
+        const msg = e instanceof Error ? e.message : String(e);
         this.eventBus.emit('warning', {
           message: `Error reconnecting starting session: ${msg}`,
         });
@@ -266,7 +266,7 @@ export class RalphLoop {
           }
         }
       } catch (e: unknown) {
-        const msg = (e as Error).message ?? String(e);
+        const msg = e instanceof Error ? e.message : String(e);
         this.eventBus.emit('warning', {
           message: `Error deleting temporary session files for ${sessionName}: ${msg}`,
         });
@@ -363,7 +363,7 @@ export class RalphLoop {
       const output = `STDOUT:\n${res.stdout}\nSTDERR:\n${res.stderr}`;
       return { passed, output };
     } catch (e: unknown) {
-      if ((e as { timedOut?: boolean }).timedOut) {
+      if (e && typeof e === 'object' && 'timedOut' in e && (e as { timedOut?: boolean }).timedOut) {
         return {
           passed: false,
           output: `Verification command timed out after ${timeoutSec} seconds.`,
@@ -371,7 +371,7 @@ export class RalphLoop {
       }
       return {
         passed: false,
-        output: `Error running test command: ${(e as Error).message}`,
+        output: `Error running test command: ${e instanceof Error ? e.message : String(e)}`,
       };
     }
   }
@@ -409,12 +409,13 @@ export class RalphLoop {
           });
           content = result.final_content || '';
         } catch (e: unknown) {
+          const errMsg = e instanceof Error ? e.message : String(e);
           this.eventBus.emit('thought', {
-            content: `Critic AgentLoop failed: ${(e as Error).message}`,
+            content: `Critic AgentLoop failed: ${errMsg}`,
           });
           return {
             passed: false,
-            output: `Critic LLM loop error: ${(e as Error).message}`,
+            output: `Critic LLM loop error: ${errMsg}`,
           };
         }
       } else {
@@ -606,7 +607,7 @@ export class RalphLoop {
       fs.mkdirSync(path.dirname(auditPath), { recursive: true });
       fs.writeFileSync(auditPath, content, 'utf-8');
     } catch (e: unknown) {
-      const msg = (e as Error).message ?? String(e);
+      const msg = e instanceof Error ? e.message : String(e);
       this.eventBus.emit('warning', {
         message: `Error writing critic audit file: ${msg}`,
       });
