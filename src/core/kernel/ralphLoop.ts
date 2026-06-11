@@ -137,8 +137,20 @@ export class RalphLoop {
         : `Physical command: '${this.verifyCommand}'`,
     });
 
+    const signal = this.options.signal as AbortSignal | undefined;
+    if (signal?.aborted) {
+      return 'failed';
+    }
+
     try {
       while (true) {
+        if (signal?.aborted) {
+          this.eventBus.emit('loop_aborted', {
+            reason: 'Session aborted (client disconnected)',
+          });
+          return 'failed';
+        }
+
         if (this.iterationCount > this.maxSteps) {
           this.eventBus.emit('loop_aborted', {
             reason: `Max steps limit reached (${this.maxSteps})`,

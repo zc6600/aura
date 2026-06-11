@@ -19,18 +19,31 @@ export function resolveIpcPath(projectPath: string): string {
     return `\\\\.\\pipe\\aura-${hash}`;
   } else {
     const socketsDir = path.join(os.homedir(), '.aura', 'sockets');
+    let useFallback = false;
     if (!fs.existsSync(socketsDir)) {
       try {
         fs.mkdirSync(socketsDir, { recursive: true });
       } catch (_err: any) {
-        // Fallback to temp directory if home dir is not writable
-        const tmpSockets = path.join(os.tmpdir(), '.aura-sockets');
-        if (!fs.existsSync(tmpSockets)) {
-          fs.mkdirSync(tmpSockets, { recursive: true });
-        }
-        return path.join(tmpSockets, `daemon-${hash}.sock`);
+        useFallback = true;
       }
+    } else {
+      try {
+        fs.accessSync(socketsDir, fs.constants.W_OK);
+      } catch {
+        useFallback = true;
+      }
+    }
+
+    if (useFallback) {
+      const tmpSockets = path.join(os.tmpdir(), '.aura-sockets');
+      if (!fs.existsSync(tmpSockets)) {
+        try {
+          fs.mkdirSync(tmpSockets, { recursive: true });
+        } catch {}
+      }
+      return path.join(tmpSockets, `daemon-${hash}.sock`);
     }
     return path.join(socketsDir, `daemon-${hash}.sock`);
   }
 }
+

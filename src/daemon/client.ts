@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveIpcPath } from './ipc.js';
+import readline from 'node:readline';
+
 
 /**
  * DaemonClient provides the programmatic API wrapper for interacting
@@ -92,9 +94,17 @@ export class DaemonClient {
 
     args.push('daemon', this.projectPath);
 
-    const logFile = path.join(os.homedir(), '.aura', 'daemon.log');
+    let logDir = path.join(os.homedir(), '.aura');
+    try {
+      fs.mkdirSync(logDir, { recursive: true });
+    } catch {
+      logDir = path.join(os.tmpdir(), '.aura-logs');
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    const logFile = path.join(logDir, 'daemon.log');
     const out = fs.openSync(logFile, 'a');
     const err = fs.openSync(logFile, 'a');
+
 
     // Spawn detached Node process running 'aura daemon'
     const child = spawn(command, args, {
@@ -130,17 +140,15 @@ export class DaemonClient {
   private startReadLoop(): void {
     if (!this.socket) return;
 
-    let buffer = '';
-    this.socket.on('data', (data) => {
-      buffer += data.toString();
-      let idx = buffer.indexOf('\n');
-      while (idx !== -1) {
-        const line = buffer.substring(0, idx).trim();
-        buffer = buffer.substring(idx + 1);
-        if (line) {
-          this.handleMessage(line);
-        }
-        idx = buffer.indexOf('\n');
+    const rl = readline.createInterface({
+      input: this.socket,
+      terminal: false,
+    });
+
+    rl.on('line', (line) => {
+      const trimmed = line.trim();
+      if (trimmed) {
+        this.handleMessage(trimmed);
       }
     });
 
@@ -154,6 +162,7 @@ export class DaemonClient {
       this.socket = null;
     });
   }
+
 
   private handleMessage(line: string): void {
     try {

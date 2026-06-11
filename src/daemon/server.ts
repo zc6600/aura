@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
+import readline from 'node:readline';
+
 import { Bridge } from '../core/interface/bridge.js';
 import { RalphLoop } from '../core/kernel/ralphLoop.js';
 import { Runner } from '../core/kernel/runner.js';
@@ -28,8 +30,11 @@ export class DaemonServer {
   } = { status: 'idle' };
   private connections = new Set<net.Socket>();
   private idleTimer: NodeJS.Timeout | null = null;
-  private pendingClientRequests = new Map<string, (result: unknown) => void>();
+  private pendingClientRequests = new Map<string, { socket: net.Socket; resolve: (result: unknown) => void }>();
+  private activeAbortController: AbortController | null = null;
+  private activeJobSocket: net.Socket | null = null;
   private static readonly IDLE_TIMEOUT_MS = 600000; // 10 minutes
+
 
   constructor(projectPath: string) {
     this.projectPath = path.resolve(projectPath);
@@ -38,6 +43,21 @@ export class DaemonServer {
 
   public async start(): Promise<void> {
     if (process.platform !== 'win32' && fs.existsSync(this.socketPath)) {
+      const isAlive = await new Promise<boolean>((resolve) => {
+        const conn = net.createConnection(this.socketPath);
+        conn.on('connect', () => {
+          conn.end();
+          resolve(true);
+        });
+        conn.on('error', () => {
+          resolve(false);
+        });
+      });
+      if (isAlive) {
+        throw new Error(
+          `Another Aura Daemon is already running on IPC path: ${this.socketPath}`,
+        );
+      }
       try {
         fs.unlinkSync(this.socketPath);
       } catch {}
@@ -47,29 +67,29 @@ export class DaemonServer {
       this.connections.add(socket);
       this.resetIdleTimer();
 
-      let buffer = '';
-      socket.on('data', (data) => {
-        buffer += data.toString();
-        let idx = buffer.indexOf('\n');
-        while (idx !== -1) {
-          const line = buffer.substring(0, idx).trim();
-          buffer = buffer.substring(idx + 1);
-          if (line) {
-            this.handleMessage(socket, line);
-          }
-          idx = buffer.indexOf('\n');
+      const rl = readline.createInterface({
+        input: socket,
+        terminal: false,
+      });
+
+      rl.on('line', (line) => {
+        const trimmed = line.trim();
+        if (trimmed) {
+          this.handleMessage(socket, trimmed);
         }
       });
 
-      socket.on('close', () => {
+      const handleClose = () => {
         this.connections.delete(socket);
+        this.cancelPendingRequestsForSocket(socket);
+        if (socket === this.activeJobSocket) {
+          this.activeAbortController?.abort();
+        }
         this.resetIdleTimer();
-      });
+      };
 
-      socket.on('error', () => {
-        this.connections.delete(socket);
-        this.resetIdleTimer();
-      });
+      socket.on('close', handleClose);
+      socket.on('error', handleClose);
     });
 
     return new Promise((resolve, reject) => {
@@ -135,10 +155,10 @@ export class DaemonServer {
     }
 
     if (typeof id === 'string') {
-      const resolveFn = this.pendingClientRequests.get(id);
-      if (resolveFn) {
+      const req = this.pendingClientRequests.get(id);
+      if (req) {
         this.pendingClientRequests.delete(id);
-        resolveFn(result !== undefined ? result : error);
+        req.resolve(result !== undefined ? result : error);
         return;
       }
     }
@@ -197,6 +217,20 @@ export class DaemonServer {
           };
           if (this.idleTimer) clearTimeout(this.idleTimer);
 
+          this.activeAbortController = new AbortController();
+          this.activeJobSocket = socket;
+          const signal = this.activeAbortController.signal;
+
+          const disconnectHook = () => {
+            if (signal.aborted || socket.destroyed) {
+              throw new Error('Client socket disconnected');
+            }
+            return true;
+          };
+
+          this.runner.hooks.register('before_planning', disconnectHook);
+          this.runner.hooks.register('before_tool_execution', disconnectHook);
+
           const eventBus = {
             emit: (ev: string, data?: unknown) => {
               this.sendNotification('agent/onProgress', {
@@ -211,6 +245,7 @@ export class DaemonServer {
               const ralph = new RalphLoop(this.runner, goal, {
                 ...((options as Record<string, unknown>) || {}),
                 eventBus,
+                signal,
               });
               const status = await ralph.run();
               this.sendResult(socket, id, { status });
@@ -346,7 +381,13 @@ export class DaemonServer {
               this.sendResult(socket, id, { status, final_content });
             }
           } finally {
+            if (this.runner) {
+              this.runner.hooks.unregister('before_planning', disconnectHook);
+              this.runner.hooks.unregister('before_tool_execution', disconnectHook);
+            }
             this.activeLoopJob = { status: 'idle' };
+            this.activeAbortController = null;
+            this.activeJobSocket = null;
             this.resetIdleTimer();
           }
           break;
@@ -508,10 +549,17 @@ export class DaemonServer {
               for (const name of children) {
                 if (totalItemsCount >= 1000) break;
                 if (name.startsWith('.')) continue;
-                if (['node_modules', 'vendor', 'tmp', 'log', 'build', 'dist', 'coverage', 'state'].includes(name)) continue;
 
                 const fullPath = path.join(currentDir, name);
                 const relPath = path.relative(this.projectPath, fullPath).replace(/\\/g, '/');
+
+                const isIgnored = Runner.IGNORED_SCAN_DIRS.some(
+                  (d) =>
+                    relPath === d ||
+                    relPath.startsWith(`${d}/`) ||
+                    relPath.includes(`/${d}/`),
+                );
+                if (isIgnored) continue;
 
                 try {
                   const stat = fs.statSync(fullPath);
@@ -564,7 +612,8 @@ export class DaemonServer {
             }
             const sessionsCount = sessionsList.length;
 
-            const dbPath = PathResolver.sessionDbPath(this.projectPath);
+            const activeSession = this.runner ? this.runner.sessionName : 'default';
+            const dbPath = PathResolver.sessionDbPath(this.projectPath, activeSession);
             let completedIds: string[] = [];
             if (fs.existsSync(dbPath)) {
               let db: Database.Database | undefined;
@@ -663,7 +712,8 @@ export class DaemonServer {
 
         case 'garden/getAnchors': {
           try {
-            const dbPath = PathResolver.sessionDbPath(this.projectPath);
+            const activeSession = this.runner ? this.runner.sessionName : 'default';
+            const dbPath = PathResolver.sessionDbPath(this.projectPath, activeSession);
             const completedMap = new Map<string, { summary: string, timestamp: number }>();
             if (fs.existsSync(dbPath)) {
               let db: Database.Database | undefined;
@@ -756,7 +806,8 @@ export class DaemonServer {
             return;
           }
           try {
-            const dbPath = PathResolver.sessionDbPath(this.projectPath);
+            const activeSession = this.runner ? this.runner.sessionName : 'default';
+            const dbPath = PathResolver.sessionDbPath(this.projectPath, activeSession);
             const store = new SQLiteStore({ dbPath });
             try {
               if (p.revoke) {
@@ -826,8 +877,11 @@ export class DaemonServer {
   ): Promise<boolean> {
     return new Promise((resolve) => {
       const requestId = `confirm-${Date.now()}`;
-      this.pendingClientRequests.set(requestId, (result: unknown) => {
-        resolve(!!result);
+      this.pendingClientRequests.set(requestId, {
+        socket,
+        resolve: (result: unknown) => {
+          resolve(!!result);
+        },
       });
       if (!socket.destroyed) {
         socket.write(
@@ -842,6 +896,15 @@ export class DaemonServer {
         resolve(false);
       }
     });
+  }
+
+  private cancelPendingRequestsForSocket(socket: net.Socket): void {
+    for (const [requestId, req] of this.pendingClientRequests.entries()) {
+      if (req.socket === socket) {
+        req.resolve(false);
+        this.pendingClientRequests.delete(requestId);
+      }
+    }
   }
 
   private sendResult(socket: net.Socket, id: unknown, result: unknown): void {
