@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -210,6 +211,75 @@ describe('Daemon IPC Protocol', () => {
     expect(statusRes.anchorsProgress.total).toBe(1);
     expect(statusRes.anchorsProgress.completed).toBe(0);
     expect(statusRes.activeHintsCount).toBeDefined();
+
+    // Cleanup & Exit
+    await client.request('daemon/exit');
+    client.disconnect();
+    server.stop();
+  });
+
+  it('should enforce security and safety bounds on daemon requests', async () => {
+    const workspacePath = path.join(tempDir, 'test-workspace-safety');
+    fs.mkdirSync(workspacePath, { recursive: true });
+    fs.mkdirSync(path.join(workspacePath, '.aura', 'config'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(workspacePath, '.aura', 'config', 'config.yml'),
+      'llm:\n  provider: local\n',
+    );
+
+    const server = new DaemonServer(workspacePath);
+    await server.start();
+
+    const client = new DaemonClient(workspacePath);
+    await client.connect(false);
+
+    // Initialize workspace
+    await client.request('workspace/initialize', {
+      sessionName: 'default',
+    });
+
+    // 1. Invalid JSON-RPC request (bypass DaemonClient to write raw invalid JSON data)
+    const socket = net.createConnection(server['socketPath']);
+    await new Promise<void>((resolve) => {
+      socket.on('connect', resolve);
+    });
+
+    const errorPromise = new Promise<string>((resolve) => {
+      socket.on('data', (data) => {
+        resolve(data.toString());
+      });
+    });
+
+    socket.write('{"invalid": "data"}\n');
+    const rawResponse = await errorPromise;
+    const response = JSON.parse(rawResponse);
+    expect(response.error).toBeDefined();
+    expect(response.error.code).toBe(-32600); // Invalid Request
+    socket.destroy();
+
+    // 2. Restricted path write access (writing under .aura should fail)
+    await expect(
+      client.request('workspace/writeFile', {
+        path: '.aura/restricted.txt',
+        content: 'should fail',
+      })
+    ).rejects.toThrow();
+
+    // 3. Restricted path read access (reading under .git should fail)
+    await expect(
+      client.request('workspace/readFile', {
+        path: '.git/config',
+      })
+    ).rejects.toThrow();
+
+    // 4. Delete active session (should fail)
+    await expect(
+      client.request('session/delete', {
+        name: 'default',
+      })
+    ).rejects.toThrow();
 
     // Cleanup & Exit
     await client.request('daemon/exit');

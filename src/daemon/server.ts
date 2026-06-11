@@ -129,6 +129,11 @@ export class DaemonServer {
 
     const { method, params, id, result, error } = msg;
 
+    if (!msg || typeof msg !== 'object' || msg.jsonrpc !== '2.0') {
+      this.sendError(socket, msg && msg.id !== undefined ? msg.id : null, -32600, 'Invalid Request');
+      return;
+    }
+
     if (typeof id === 'string') {
       const resolveFn = this.pendingClientRequests.get(id);
       if (resolveFn) {
@@ -383,6 +388,11 @@ export class DaemonServer {
             return;
           }
           const sessionMgr = new SessionManager(this.projectPath);
+          const activeSession = this.runner ? this.runner.sessionName : (sessionMgr.currentName() || 'default');
+          if (name === activeSession) {
+            this.sendError(socket, id, -32602, `Cannot delete the active session: ${name}`);
+            return;
+          }
           const success = sessionMgr.delete(name);
           this.sendResult(socket, id, { success });
           break;
@@ -429,6 +439,12 @@ export class DaemonServer {
           }
           try {
             const safePath = PathResolver.validateSafePath(filePath, this.projectPath);
+            const relative = path.relative(this.projectPath, safePath);
+            const parts = relative.split(/[\\/]/);
+            if (parts.includes('.git') || parts.includes('.aura') || parts.includes('node_modules')) {
+              this.sendError(socket, id, -32602, `Access denied to restricted path: ${filePath}`);
+              return;
+            }
             fs.mkdirSync(path.dirname(safePath), { recursive: true });
             fs.writeFileSync(safePath, content, 'utf-8');
             this.sendResult(socket, id, { success: true });
@@ -448,6 +464,12 @@ export class DaemonServer {
           }
           try {
             const safePath = PathResolver.validateSafePath(filePath, this.projectPath);
+            const relative = path.relative(this.projectPath, safePath);
+            const parts = relative.split(/[\\/]/);
+            if (parts.includes('.git') || parts.includes('.aura') || parts.includes('node_modules')) {
+              this.sendError(socket, id, -32602, `Access denied to restricted path: ${filePath}`);
+              return;
+            }
             if (!fs.existsSync(safePath) || !fs.statSync(safePath).isFile()) {
               this.sendError(socket, id, -32602, `File not found: ${filePath}`);
               return;
@@ -463,9 +485,10 @@ export class DaemonServer {
 
         case 'workspace/getFileTree': {
           try {
+            let totalItemsCount = 0;
             const buildTree = (currentDir: string, currentDepth: number): any[] => {
               const nodes: any[] = [];
-              if (currentDepth > 4) return nodes;
+              if (currentDepth > 4 || totalItemsCount >= 1000) return nodes;
 
               let children: string[] = [];
               try {
@@ -475,6 +498,7 @@ export class DaemonServer {
               }
 
               for (const name of children) {
+                if (totalItemsCount >= 1000) break;
                 if (name.startsWith('.')) continue;
                 if (['node_modules', 'vendor', 'tmp', 'log', 'build', 'dist', 'coverage', 'state'].includes(name)) continue;
 
@@ -483,6 +507,7 @@ export class DaemonServer {
 
                 try {
                   const stat = fs.statSync(fullPath);
+                  totalItemsCount++;
                   if (stat.isDirectory()) {
                     nodes.push({
                       name,
