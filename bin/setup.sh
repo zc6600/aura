@@ -219,14 +219,14 @@ echo -e "${GREEN}✓ CLI linked!${NC}\n"
 # Apply selected LLM configurations globally
 if [ ! -z "$SELECTED_PROVIDER" ]; then
     echo -e "  - Configuring global default LLM provider to ${GREEN}$SELECTED_PROVIDER${NC}..."
-    node dist/bin/aura.js config llm.provider "$SELECTED_PROVIDER" --global > /dev/null
+    AURA_ALLOW_ROOT=true node dist/bin/aura.js config llm.provider "$SELECTED_PROVIDER" --global > /dev/null
     if [ ! -z "$SELECTED_MODEL" ]; then
         echo -e "  - Configuring global default LLM model to ${GREEN}$SELECTED_MODEL${NC}..."
-        node dist/bin/aura.js config llm.model "$SELECTED_MODEL" --global > /dev/null
+        AURA_ALLOW_ROOT=true node dist/bin/aura.js config llm.model "$SELECTED_MODEL" --global > /dev/null
     fi
     if [ ! -z "$SELECTED_BASE" ]; then
         echo -e "  - Configuring global default LLM API base to ${GREEN}$SELECTED_BASE${NC}..."
-        node dist/bin/aura.js config llm.api_base "$SELECTED_BASE" --global > /dev/null
+        AURA_ALLOW_ROOT=true node dist/bin/aura.js config llm.api_base "$SELECTED_BASE" --global > /dev/null
     fi
 fi
 

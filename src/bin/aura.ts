@@ -65,6 +65,8 @@ function checkRootGuard(commandName: string): void {
         'completion',
         'chat',
         'branch',
+        'config',
+        'session',
       ];
       if (!exempted.includes(commandName)) {
         throw new UI.WorkspaceError(
