@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import fg from 'fast-glob';
 import * as ConfigManager from '../../../utils/configManager.js';
+import { isPathIgnored } from '../../../utils/ignoreMatcher.js';
+import { hasMagicHint } from '../../../utils/fsUtils.js';
 
 interface HintConfig {
   hints?: {
@@ -16,6 +18,14 @@ interface HintProviderOptions {
   envPath?: string;
 }
 
+export interface ScannedHint {
+  type: '.hint File' | 'Magic Hint (@aura-hint)';
+  path: string;
+  status: 'INJECTED' | 'IGNORED';
+  reason: string | null;
+  content?: string;
+}
+
 export class HintProvider {
   private projectPath: string;
   private envPath: string;
@@ -27,8 +37,8 @@ export class HintProvider {
     this.configCache = this.loadConfig();
   }
 
-  public provide(): string | null {
-    const hints: string[] = [];
+  public scan(): ScannedHint[] {
+    const results: ScannedHint[] = [];
     const maxChars = this.fetchMaxHintChars();
     const maxScanLines = this.fetchMaxScanLines();
     const maxFilesLimit = 1000;
@@ -70,13 +80,6 @@ export class HintProvider {
     }
 
     for (const file of files) {
-      if (fileCount >= maxFilesLimit) {
-        console.warn(
-          `[WARNING] Magic hint scan reached file limit (${maxFilesLimit}). Truncating scan.`,
-        );
-        break;
-      }
-
       const fullPath = file.path;
       const size = file.stats?.size ?? 0;
 
@@ -85,52 +88,109 @@ export class HintProvider {
 
       const name = path.basename(fullPath);
       const isHintFile = name.endsWith('.hint');
-
       const relPath = path
         .relative(this.projectPath, fullPath)
         .replace(/\\/g, '/');
-      if (this.isIgnored(relPath)) continue;
-      if (isHintFile && relPath.startsWith('knowledge/')) continue;
 
-      fileCount++;
+      const type = isHintFile ? '.hint File' : 'Magic Hint (@aura-hint)';
 
-      try {
-        if (isHintFile) {
-          let hintContent = fs.readFileSync(fullPath, 'utf-8').trim();
-          if (hintContent) {
-            if (hintContent.length > maxChars) {
-              console.warn(
-                `[WARNING] Sidecar hint in ${relPath} was truncated because it exceeds the ${maxChars} character limit!`,
-              );
-              hintContent =
-                hintContent.substring(0, maxChars) +
-                ` ... [truncated: hint exceeds ${maxChars} character limit]`;
-            }
-            hints.push(`- [From ${relPath}]: ${hintContent}`);
-          }
-        } else {
+      // If it's a knowledge hint file, check if it's a valid sidecar or standalone
+      if (isHintFile && relPath.startsWith('knowledge/')) {
+        const baseFile = fullPath.substring(0, fullPath.length - 5);
+        const hasBase = fs.existsSync(baseFile) && fs.statSync(baseFile).isFile();
+        if (!hasBase) {
+          results.push({
+            type,
+            path: relPath,
+            status: 'IGNORED',
+            reason: 'standalone hint in knowledge base (unsupported)',
+          });
+          continue;
+        }
+      }
+
+      // Check ignore
+      const isIgnored = this.isIgnored(relPath);
+
+      // Check if it has magic hint tag (if it's not a .hint file)
+      let hasHint = isHintFile;
+      let hintContent = '';
+
+      if (!isHintFile) {
+        if (!this.hasMagicHint(fullPath)) continue;
+        hasHint = true;
+        try {
           const fileContent = fs.readFileSync(fullPath, 'utf-8');
           const lines = fileContent.split('\n');
           const scanCount = Math.min(lines.length, maxScanLines);
           for (let i = 0; i < scanCount; i++) {
             const match = lines[i].match(/@aura-hint:\s*(.*)/);
             if (match) {
-              let hintContent = match[1].trim();
-              if (hintContent.length > maxChars) {
-                console.warn(
-                  `[WARNING] Aura-hint in ${relPath} was truncated because it exceeds the ${maxChars} character limit!`,
-                );
-                hintContent =
-                  hintContent.substring(0, maxChars) +
-                  ` ... [truncated: hint exceeds ${maxChars} character limit]`;
-              }
-              hints.push(`- [From ${relPath}]: ${hintContent}`);
+              hintContent = match[1].trim();
+              break;
             }
           }
+        } catch (_e) {}
+      }
+
+      if (!hasHint) continue;
+
+      if (fileCount >= maxFilesLimit) {
+        results.push({
+          type,
+          path: relPath,
+          status: 'IGNORED',
+          reason: 'reached file limit',
+        });
+        continue;
+      }
+
+      if (isIgnored) {
+        results.push({
+          type,
+          path: relPath,
+          status: 'IGNORED',
+          reason: 'in ignore_list',
+        });
+        continue;
+      }
+
+      fileCount++;
+
+      if (isHintFile) {
+        try {
+          hintContent = fs.readFileSync(fullPath, 'utf-8').trim();
+        } catch (_e) {}
+      }
+
+      if (hintContent) {
+        if (hintContent.length > maxChars) {
+          console.warn(
+            `[WARNING] ${type === '.hint File' ? 'Sidecar hint' : 'Aura-hint'} in ${relPath} was truncated because it exceeds the ${maxChars} character limit!`,
+          );
+          hintContent =
+            hintContent.substring(0, maxChars) +
+            ` ... [truncated: hint exceeds ${maxChars} character limit]`;
         }
-      } catch (_e) {}
+      }
+
+      results.push({
+        type,
+        path: relPath,
+        status: 'INJECTED',
+        reason: null,
+        content: hintContent || undefined,
+      });
     }
 
+    return results;
+  }
+
+  public provide(): string | null {
+    const scanned = this.scan();
+    const hints = scanned
+      .filter((f) => f.status === 'INJECTED' && f.content && !f.path.startsWith('knowledge/'))
+      .map((f) => `- [From ${f.path}]: ${f.content}`);
     return hints.length > 0 ? hints.join('\n') : null;
   }
 
@@ -154,11 +214,10 @@ export class HintProvider {
 
   private isIgnored(relPath: string): boolean {
     const ignoreList: string[] = this.configCache.hints?.ignore_list || [];
-    return ignoreList.some((pattern) => {
-      if (pattern === relPath || relPath.includes(pattern)) {
-        return true;
-      }
-      return false;
-    });
+    return isPathIgnored(relPath, ignoreList);
+  }
+
+  private hasMagicHint(file: string): boolean {
+    return hasMagicHint(file);
   }
 }

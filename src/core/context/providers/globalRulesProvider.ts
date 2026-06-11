@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import * as ConfigManager from '../../../utils/configManager.js';
+import { isPathIgnored } from '../../../utils/ignoreMatcher.js';
 
 interface GlobalRulesProviderOptions {
   envPath?: string;
@@ -15,6 +16,14 @@ interface GlobalRulesConfig {
   };
 }
 
+export interface ScannedGlobalRule {
+  type: 'Global Rules';
+  path: string;
+  status: 'INJECTED' | 'IGNORED';
+  reason: string | null;
+  content?: string;
+}
+
 export class GlobalRulesProvider {
   private projectPath: string;
   private envPath: string;
@@ -24,28 +33,52 @@ export class GlobalRulesProvider {
     this.envPath = options.envPath || this.projectPath;
   }
 
-  public provide(): string | null {
-    const rules: string[] = [];
+  public scan(): ScannedGlobalRule[] {
+    const results: ScannedGlobalRule[] = [];
+    const readmeFile = path.join(this.projectPath, 'AURA_README.md');
+    if (fs.existsSync(readmeFile) && fs.statSync(readmeFile).isFile()) {
+      const autoInject = this.shouldAutoInjectReadme();
+      const ignored = this.isIgnored('AURA_README.md');
 
-    // 1. Read AURA_README.md
-    if (this.shouldAutoInjectReadme() && !this.isIgnored('AURA_README.md')) {
-      const readmeFile = path.join(this.projectPath, 'AURA_README.md');
-      if (fs.existsSync(readmeFile) && fs.statSync(readmeFile).isFile()) {
+      const status = (!autoInject || ignored) ? 'IGNORED' : 'INJECTED';
+      const reason = !autoInject
+        ? 'auto_inject_readme: false'
+        : ignored
+          ? 'in ignore_list'
+          : null;
+
+      let content = '';
+      if (status === 'INJECTED') {
         try {
-          let content = fs.readFileSync(readmeFile, 'utf-8').trim();
-          if (content) {
-            const limit = this.fetchMaxFileChars();
-            if (content.length > limit) {
-              content =
-                content.substring(0, limit) +
-                ` ... [truncated: exceeds ${limit} character limit]`;
-            }
-            rules.push(
-              `### Project Instructions (AURA_README.md):\n${content}`,
-            );
+          content = fs.readFileSync(readmeFile, 'utf-8').trim();
+          const limit = this.fetchMaxFileChars();
+          if (content.length > limit) {
+            content =
+              content.substring(0, limit) +
+              ` ... [truncated: exceeds ${limit} character limit]`;
           }
         } catch (_e) {}
       }
+
+      results.push({
+        type: 'Global Rules',
+        path: 'AURA_README.md',
+        status,
+        reason,
+        content: content || undefined,
+      });
+    }
+    return results;
+  }
+
+  public provide(): string | null {
+    const rules: string[] = [];
+
+    // 1. Read AURA_README.md via scan()
+    const scanned = this.scan();
+    const readmeRule = scanned.find((r) => r.path === 'AURA_README.md' && r.status === 'INJECTED');
+    if (readmeRule && readmeRule.content) {
+      rules.push(`### Project Instructions (AURA_README.md):\n${readmeRule.content}`);
     }
 
     // 2. Read ~/.aura/global_hint.md
@@ -87,13 +120,7 @@ export class GlobalRulesProvider {
   private isIgnored(relPath: string): boolean {
     const cfg = this.loadConfig();
     const ignoreList: string[] = cfg.hints?.ignore_list || [];
-    // Basic glob/match
-    return ignoreList.some((pattern) => {
-      if (pattern === relPath || relPath.includes(pattern)) {
-        return true;
-      }
-      return false;
-    });
+    return isPathIgnored(relPath, ignoreList);
   }
 
   private loadConfig(): GlobalRulesConfig {
