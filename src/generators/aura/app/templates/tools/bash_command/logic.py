@@ -66,7 +66,7 @@ def execute_command(command, chdir=None, timeout_seconds=None, max_output_chars=
                 pid = int(pid)
             except Exception:
                 return {"error": "Invalid pid", "status": "error"}
-            state_root = os.path.join(cwd, ".aura", "state") if os.path.exists(os.path.join(cwd, ".aura")) else os.path.join(cwd, "state")
+            state_root = os.path.join(cwd, ".aura-workspace", "state") if os.path.exists(os.path.join(cwd, ".aura-workspace")) else (os.path.join(cwd, ".aura", "state") if os.path.exists(os.path.join(cwd, ".aura")) else os.path.join(cwd, "state"))
             state_dir = os.path.join(state_root, "commands")
             out_file = os.path.join(state_dir, f"{pid}.out")
             err_file = os.path.join(state_dir, f"{pid}.err")
@@ -128,7 +128,7 @@ def execute_command(command, chdir=None, timeout_seconds=None, max_output_chars=
                     time.sleep(wait_seconds)
                 except Exception:
                     pass
-            state_root = os.path.join(cwd, ".aura", "state") if os.path.exists(os.path.join(cwd, ".aura")) else os.path.join(cwd, "state")
+            state_root = os.path.join(cwd, ".aura-workspace", "state") if os.path.exists(os.path.join(cwd, ".aura-workspace")) else (os.path.join(cwd, ".aura", "state") if os.path.exists(os.path.join(cwd, ".aura")) else os.path.join(cwd, "state"))
             state_dir = os.path.join(state_root, "commands")
             items = []
             try:
@@ -186,7 +186,7 @@ def execute_command(command, chdir=None, timeout_seconds=None, max_output_chars=
         else:
             eff_timeout = 60
 
-        state_root = os.path.join(cwd, ".aura", "state") if os.path.exists(os.path.join(cwd, ".aura")) else os.path.join(cwd, "state")
+        state_root = os.path.join(cwd, ".aura-workspace", "state") if os.path.exists(os.path.join(cwd, ".aura-workspace")) else (os.path.join(cwd, ".aura", "state") if os.path.exists(os.path.join(cwd, ".aura")) else os.path.join(cwd, "state"))
         state_dir = os.path.join(state_root, "commands")
         try:
             os.makedirs(state_dir, exist_ok=True)

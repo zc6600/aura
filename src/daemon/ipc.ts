@@ -18,7 +18,7 @@ export function resolveIpcPath(projectPath: string): string {
   if (os.platform() === 'win32') {
     return `\\\\.\\pipe\\aura-${hash}`;
   } else {
-    const socketsDir = path.join(os.homedir(), '.aura', 'sockets');
+    const socketsDir = path.join(os.homedir(), '.aura-framework', 'sockets');
     let useFallback = false;
     if (!fs.existsSync(socketsDir)) {
       try {

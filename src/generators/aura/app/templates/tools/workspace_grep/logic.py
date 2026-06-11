@@ -27,7 +27,7 @@ def main():
     file_pattern = args.get("file_pattern")
 
     # Exclude directories
-    exclude_dirs = {".git", ".aura", "node_modules", "vendor", "tmp", "log", "state"}
+    exclude_dirs = {".git", ".aura", ".aura-workspace", "node_modules", "vendor", "tmp", "log", "state"}
 
     results = []
     max_results = 50

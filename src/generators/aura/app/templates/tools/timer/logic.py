@@ -74,7 +74,7 @@ def main():
 
         # Once finished, fetch output files if they exist in state/commands
         base_dir = os.getcwd()
-        state_root = os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state")
+        state_root = os.path.join(base_dir, ".aura-workspace", "state") if os.path.exists(os.path.join(base_dir, ".aura-workspace")) else (os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state"))
         state_dir = os.path.join(state_root, "commands")
         out_file = os.path.join(state_dir, f"{pid}.out")
         err_file = os.path.join(state_dir, f"{pid}.err")

@@ -403,6 +403,13 @@ export class ToolProvider {
 function PathResolverEnvironment(projectPath: string): string | null {
   // Simple fallback inline helper
   try {
+    const auraWorkspaceDir = path.join(projectPath, '.aura-workspace');
+    if (
+      fs.existsSync(auraWorkspaceDir) &&
+      fs.statSync(auraWorkspaceDir).isDirectory()
+    ) {
+      return auraWorkspaceDir;
+    }
     const auraDir = path.join(projectPath, '.aura');
     if (fs.existsSync(auraDir) && fs.statSync(auraDir).isDirectory()) {
       return auraDir;

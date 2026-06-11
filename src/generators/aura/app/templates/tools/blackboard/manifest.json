@@ -6,7 +6,7 @@
   "auto_load": false,
   "permissions": {
     "file_system": "read-write",
-    "allow_paths": ["./state", "./.aura/state"]
+    "allow_paths": ["./state", "./.aura-workspace/state", "./.aura/state"]
   },
   "input_schema": {
     "type": "object",

@@ -125,7 +125,7 @@ export function validateMaxSteps(steps: string | number): number {
  */
 export function environmentPath(projectPath?: string): string | null {
   if (process.env.AURA_GLOBAL_ENV === 'true') {
-    const globalEnv = path.resolve(os.homedir(), '.aura', 'global');
+    const globalEnv = path.resolve(os.homedir(), '.aura-framework', 'global');
     if (!fs.existsSync(globalEnv) || !fs.statSync(globalEnv).isDirectory()) {
       fs.mkdirSync(globalEnv, { recursive: true });
     }
@@ -135,7 +135,11 @@ export function environmentPath(projectPath?: string): string | null {
   if (!projectPath) return null;
 
   const expanded = path.resolve(projectPath);
-  const hiddenDir = path.join(expanded, '.aura');
+  let hiddenDir = path.join(expanded, '.aura-workspace');
+  if (fs.existsSync(hiddenDir) && fs.statSync(hiddenDir).isDirectory()) {
+    return hiddenDir;
+  }
+  hiddenDir = path.join(expanded, '.aura');
   if (fs.existsSync(hiddenDir) && fs.statSync(hiddenDir).isDirectory()) {
     return hiddenDir;
   }
@@ -143,7 +147,7 @@ export function environmentPath(projectPath?: string): string | null {
 }
 
 /**
- * Finds the workspace root path (parent of .aura if it exists).
+ * Finds the workspace root path (parent of .aura-workspace or .aura if it exists).
  */
 export function workspacePath(projectPath?: string): string | null {
   if (!projectPath) return null;
@@ -153,27 +157,42 @@ export function workspacePath(projectPath?: string): string | null {
   }
 
   const expanded = path.resolve(projectPath);
-  if (path.basename(expanded) === '.aura') {
+  const base = path.basename(expanded);
+  if (base === '.aura-workspace' || base === '.aura') {
     return path.dirname(expanded);
   }
   return expanded;
 }
 
 /**
- * Climb parent directories to locate a valid .aura folder.
+ * Climb parent directories to locate a valid .aura-workspace or .aura folder.
  */
 export function findAuraDir(startDir: string = process.cwd()): string | null {
   let dir = path.resolve(startDir);
-  const globalAura = path.resolve(os.homedir(), '.aura');
+  const homeDir = os.homedir();
+  const globalAura = path.resolve(homeDir, '.aura-framework');
 
   while (true) {
-    const hidden = path.join(dir, '.aura');
+    if (dir === homeDir) {
+      break;
+    }
+
+    const hiddenNew = path.join(dir, '.aura-workspace');
     if (
-      fs.existsSync(hidden) &&
-      fs.statSync(hidden).isDirectory() &&
-      hidden !== globalAura
+      fs.existsSync(hiddenNew) &&
+      fs.statSync(hiddenNew).isDirectory() &&
+      hiddenNew !== globalAura
     ) {
-      return hidden;
+      return hiddenNew;
+    }
+
+    const hiddenOld = path.join(dir, '.aura');
+    if (
+      fs.existsSync(hiddenOld) &&
+      fs.statSync(hiddenOld).isDirectory() &&
+      hiddenOld !== globalAura
+    ) {
+      return hiddenOld;
     }
 
     const parent = path.dirname(dir);
@@ -210,7 +229,7 @@ export function resolveProjectPath(projectPath?: string): string | null {
  */
 export function ensureWorkspace(startDir: string = process.cwd()): string {
   if (process.env.AURA_GLOBAL_ENV === 'true') {
-    const globalEnv = path.resolve(os.homedir(), '.aura', 'global');
+    const globalEnv = path.resolve(os.homedir(), '.aura-framework', 'global');
     if (!fs.existsSync(globalEnv) || !fs.statSync(globalEnv).isDirectory()) {
       fs.mkdirSync(globalEnv, { recursive: true });
     }
@@ -220,7 +239,7 @@ export function ensureWorkspace(startDir: string = process.cwd()): string {
   const auraDir = findAuraDir(startDir);
   if (!auraDir) {
     throw new WorkspaceError(
-      'Not in an Aura workspace (no .aura folder found in parent directories).',
+      'Not in an Aura workspace (no .aura-workspace folder found in parent directories).',
     );
   }
   return auraDir;

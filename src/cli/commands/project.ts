@@ -28,10 +28,10 @@ export class Project {
 
     for (const name of keys) {
       const p = projects[name];
-      const hasAura = fs.existsSync(path.join(p, '.aura'));
+      const hasAura = fs.existsSync(path.join(p, '.aura-workspace')) || fs.existsSync(path.join(p, '.aura'));
       const status = hasAura
         ? picocolors.green('Active')
-        : picocolors.red('Missing (.aura folder not found)');
+        : picocolors.red('Missing (.aura-workspace folder not found)');
       console.log(
         Project.padRight(name, 20) + Project.padRight(p, 45) + status,
       );
@@ -52,17 +52,20 @@ export class Project {
     console.log(`⚠️ WARNING: You are about to delete project '${projectName}'.`);
     console.log(`   - Registered Path: ${pPath}`);
 
-    const hidden = path.join(pPath, '.aura');
+    let hidden = path.join(pPath, '.aura-workspace');
+    if (!fs.existsSync(hidden) || !fs.statSync(hidden).isDirectory()) {
+      hidden = path.join(pPath, '.aura');
+    }
     const physicalExists =
       fs.existsSync(hidden) && fs.statSync(hidden).isDirectory();
 
     if (physicalExists) {
       console.log(
-        '   - Local environment (.aura/) will be physically deleted.',
+        `   - Local environment (${path.basename(hidden)}/) will be physically deleted.`,
       );
     } else {
       console.log(
-        '   - Local environment (.aura/) does not exist physically (already deleted or moved).',
+        '   - Local environment (.aura-workspace/) does not exist physically (already deleted or moved).',
       );
     }
 
@@ -152,7 +155,7 @@ export class Project {
     let prunedCount = 0;
     for (const name of keys) {
       const pPath = projects[name];
-      if (!fs.existsSync(path.join(pPath, '.aura'))) {
+      if (!fs.existsSync(path.join(pPath, '.aura-workspace')) && !fs.existsSync(path.join(pPath, '.aura'))) {
         ProjectRegistry.unregister(name);
         console.log(
           picocolors.yellow(

@@ -87,7 +87,7 @@ class MockRunner {
 
   constructor(client: MockLLMClient, projectPath: string) {
     this.projectPath = projectPath;
-    this.envPath = path.join(projectPath, '.aura');
+    this.envPath = path.join(projectPath, '.aura-workspace');
     this.planner = { client };
     this.config = {
       ralph: {
@@ -151,7 +151,7 @@ class MockRunner {
 
 describe('RalphLoop', () => {
   const tempDir = path.resolve(__dirname, 'temp-ralph-test');
-  const envPath = path.join(tempDir, '.aura');
+  const envPath = path.join(tempDir, '.aura-workspace');
   let mockClient: MockLLMClient;
   let mockRunner: any;
 

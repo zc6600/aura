@@ -19,7 +19,7 @@ export class Git {
     const res = await GlobalConfig.gitRun(auraDir, 'add', ...resolvedPaths);
     if (res.success) {
       console.log(
-        picocolors.green('Successfully staged changes inside .aura.'),
+        picocolors.green('Successfully staged changes inside .aura-workspace.'),
       );
     } else {
       console.error(picocolors.red(`Error staging changes:\n${res.stderr}`));
@@ -31,7 +31,7 @@ export class Git {
     const res = await GlobalConfig.gitRun(auraDir, 'commit', '-m', message);
     if (res.success) {
       console.log(
-        picocolors.green('Successfully committed changes inside .aura:'),
+        picocolors.green('Successfully committed changes inside .aura-workspace:'),
       );
       console.log(res.stdout);
     } else {
@@ -51,7 +51,7 @@ export class Git {
   public static async sync(): Promise<void> {
     const auraDir = Git.ensureWorkspace();
     console.log(
-      'Syncing changes back to the global repository (~/.aura/repo)...',
+      'Syncing changes back to the global repository (~/.aura-framework/repo)...',
     );
     const res = await GlobalConfig.gitRun(auraDir, 'push', 'origin', 'main');
     if (res.success) {
@@ -65,7 +65,7 @@ export class Git {
 
   public static async pull(): Promise<void> {
     const auraDir = Git.ensureWorkspace();
-    console.log('Pulling updates from the global repository (~/.aura/repo)...');
+    console.log('Pulling updates from the global repository (~/.aura-framework/repo)...');
     const res = await GlobalConfig.gitRun(auraDir, 'pull', 'origin', 'main');
     if (res.success) {
       console.log(

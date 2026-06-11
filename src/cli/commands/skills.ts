@@ -226,7 +226,7 @@ export class Skills {
     const walk = (d: string) => {
       const files = fs.readdirSync(d);
       for (const f of files) {
-        if (f === 'node_modules' || f === '.git' || f === '.aura') continue;
+        if (f === 'node_modules' || f === '.git' || f === '.aura-workspace' || f === '.aura') continue;
         const full = path.join(d, f);
         const stat = fs.statSync(full);
         if (stat.isDirectory()) {

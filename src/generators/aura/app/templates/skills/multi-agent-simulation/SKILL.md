@@ -164,7 +164,7 @@ Loop (直到满意):
 ## 进阶特技 (Advanced Scaling)
 
 ### 层级观测 (Hierarchical Observability)
-系统在 `.aura/state/subagents/{parent_id}/{child_id}` 下组织日志。
+系统在 `.aura-workspace/state/subagents/{parent_id}/{child_id}` 下组织日志（旧版工作区为 `.aura/state/subagents/...`）。
 - **轨迹导出**：同步执行的 Subagent 会自动导出 `trajectory.txt`，用于追溯子进程的思维路径。
 
 ### 动态重编排 (Re-Orchestration)

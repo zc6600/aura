@@ -159,7 +159,7 @@ describe('CLI config Subcommand Integration', { timeout: 60000 }, () => {
     // Verify raw YAML file contents
     const localCfgPath = path.join(
       testWorkspace,
-      '.aura',
+      '.aura-workspace',
       'config',
       'config.yml',
     );

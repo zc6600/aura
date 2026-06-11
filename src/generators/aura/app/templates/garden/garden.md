@@ -17,14 +17,14 @@ A cornerstone of executing complex tasks on Aura OS is the clean separation of *
 
 ## Aura System & Garden Scaffolding Overview
 
-Aura OS is an AI-native operating system that treats the filesystem as an agent's workspace and extended memory. Rather than relying solely on linear prompt histories, it uses structured workspace files, custom tools, and metadata hooks to guide agent reasoning, persistence, and execution. All execution states (events, variables, plans, summaries) are persisted in a session-specific SQLite database under `.aura/state/sessions/<session_name>.db`.
+Aura OS is an AI-native operating system that treats the filesystem as an agent's workspace and extended memory. Rather than relying solely on linear prompt histories, it uses structured workspace files, custom tools, and metadata hooks to guide agent reasoning, persistence, and execution. All execution states (events, variables, plans, summaries) are persisted in a session-specific SQLite database under `.aura-workspace/state/sessions/<session_name>.db` (or `.aura/state/...` fallback).
 
 ### Built-in Scaffolding for Agent-Gardening
 
 Aura provides several native mechanisms to construct dynamic execution constraints, guide agent reasoning, and set up task-specific scaffolding:
 
 1. **Modular Prompts & Persona Customization (提示词与角色定制)**
-   - Modular prompt files are loaded from a priority-ordered set of candidate paths. The recommended location for new workspaces is `prompts/system/<FILE>` (e.g. `prompts/system/SOUL.md`), which mirrors the generated template structure. The `.aura/prompts/system/<FILE>` path is also supported as an alternative.
+    - Modular prompt files are loaded from a priority-ordered set of candidate paths. The recommended location for new workspaces is `prompts/system/<FILE>` (e.g. `prompts/system/SOUL.md`), which mirrors the generated template structure. The `.aura-workspace/prompts/system/<FILE>` path (or `.aura/prompts/system/<FILE>` fallback) is also supported as an alternative.
    - Supported named files: `SOUL.md` (persona & tone boundaries), `AGENTS.md` (operating instructions & safety rules), `USER.md` (user profile preferences), `TOOLS.md` (tool usage tips), `IDENTITY.md` (agent name & self-concept), `MEMORY.md` (curated long-term memory).
 
 2. **Task Nodes & Anchors (任务锚点图)**
@@ -52,9 +52,9 @@ Aura provides several native mechanisms to construct dynamic execution constrain
 5. **Autonomous Loop Controls (Ralph Loop 双智能体循环控制)**
    - **`ralph` Loop Mode**: Starts a stateful, iterative developer-critic loop running up to `max_steps`. Each step runs in an isolated SQLite session, dynamically swapping database connections to prevent context and memory bloat.
    - **Verification Modes**:
-     - *Physical command*: Set `ralph.verify_command` in `.aura/config/config.yml` to a shell command (e.g. `bundle exec rspec`). The loop passes only when this command exits with code 0.
+     - *Physical command*: Set `ralph.verify_command` in `.aura-workspace/config/config.yml` (or `.aura/config/config.yml` fallback) to a shell command (e.g. `bundle exec rspec`). The loop passes only when this command exits with code 0.
      - *Critic LLM — `light` mode* (default): After each developer step, a single LLM call audits the git diff and outputs a `{"completed": true/false, "critique": "...", "advice": "..."}` JSON verdict.
-     - *Critic LLM — `heavy` mode*: The critic runs as a full AgentLoop with access to tools, enabling deeper multi-step inspection. Set `ralph.critic_mode: heavy` in `.aura/config/config.yml`.
+     - *Critic LLM — `heavy` mode*: The critic runs as a full AgentLoop with access to tools, enabling deeper multi-step inspection. Set `ralph.critic_mode: heavy` in `.aura-workspace/config/config.yml` (or `.aura/config/config.yml` fallback).
      - *Audit Trail*: Each critic evaluation writes a `state/critic_audit_<run_id>_step_<n>.md` file with the full critique and advice, allowing post-hoc review of every iteration decision.
      - *Ralph Prompt Customizations*: Overrides default behaviors by creating `prompts/ralph/ralph_system.md` (developer directives) and `prompts/ralph/critic_rules.md` (critic checklist rules) in the workspace.
      - *When to use Ralph Loop vs. Direct Execution*:
@@ -122,6 +122,6 @@ Examine the user's requirements and goal. Categorize the task into one of the fo
 
 ### 3. Initialize Execution
 - Log the selected reference playbook path to `task.md`.
-- Verify that required tools (`subagent`, `blackboard`) are present in the workspace's `.aura/tools/` directory before dispatching multi-agent workflows.
+- Verify that required tools (`subagent`, `blackboard`) are present in the workspace's `.aura-workspace/tools/` (or `.aura/tools/` fallback) directory before dispatching multi-agent workflows.
 - Begin execution under the compiled garden constraints.
-- Upon task completion, commit changes manually (`git commit`) or rely on automatic snapshots if `security.git_snapshots: true` is set in `.aura/config/config.yml`.
+- Upon task completion, commit changes manually (`git commit`) or rely on automatic snapshots if `security.git_snapshots: true` is set in `.aura-workspace/config/config.yml` (or `.aura/config/config.yml` fallback).

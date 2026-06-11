@@ -31,7 +31,7 @@ def resolve_db_path():
         except Exception:
             pass
     base_dir = os.getcwd()
-    state_root = os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state")
+    state_root = os.path.join(base_dir, ".aura-workspace", "state") if os.path.exists(os.path.join(base_dir, ".aura-workspace")) else (os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state"))
     db_dir = state_root
     preferred = os.path.join(db_dir, "aura.db")
     fallback = os.path.join(db_dir, "aura_state.db")

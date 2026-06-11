@@ -209,7 +209,7 @@ export class SessionCmd {
     }
 
     // Fallback to global config path for read-only queries (list, current)
-    const globalEnv = path.resolve(os.homedir(), '.aura', 'global');
+    const globalEnv = path.resolve(os.homedir(), '.aura-framework', 'global');
     return new SessionManager(globalEnv);
   }
 }

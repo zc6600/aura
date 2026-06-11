@@ -10,6 +10,8 @@
     "allow_paths": [
       "./state",
       "./state/bus",
+      "./.aura-workspace/state",
+      "./.aura-workspace/state/bus",
       "./.aura/state",
       "./.aura/state/bus"
     ]

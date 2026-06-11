@@ -57,11 +57,11 @@ export class Update {
       '-1',
     );
 
-    console.log('Local (.aura):');
+    console.log('Local (.aura-workspace):');
     console.log(`  Commit: ${localCommit.stdout.trim()}`);
     console.log(`  Message: ${localLog.stdout.trim()}`);
 
-    console.log('\nGlobal (~/.aura/repo):');
+    console.log('\nGlobal (~/.aura-framework/repo):');
     console.log(`  Commit: ${remoteCommit.stdout.trim()}`);
     console.log(`  Message: ${remoteLog.stdout.trim()}`);
 
@@ -105,10 +105,13 @@ export class Update {
       const pPath = projects[name];
       console.log(`\n${picocolors.bold(`[${name}]`)} ${pPath}`);
 
-      const auraDir = path.join(pPath, '.aura');
+      let auraDir = path.join(pPath, '.aura-workspace');
+      if (!fs.existsSync(auraDir) || !fs.statSync(auraDir).isDirectory()) {
+        auraDir = path.join(pPath, '.aura');
+      }
       if (!fs.existsSync(auraDir) || !fs.statSync(auraDir).isDirectory()) {
         console.log(
-          `  ${picocolors.yellow('⚠️  Skipped (no .aura directory)')}`,
+          `  ${picocolors.yellow('⚠️  Skipped (no .aura-workspace directory)')}`,
         );
         continue;
       }
@@ -162,7 +165,11 @@ export class Update {
     if (projects[pathOrName]) {
       projectName = pathOrName;
       projectPath = projects[pathOrName];
-      auraDir = path.join(projectPath, '.aura');
+      let resolvedAura = path.join(projectPath, '.aura-workspace');
+      if (!fs.existsSync(resolvedAura) || !fs.statSync(resolvedAura).isDirectory()) {
+        resolvedAura = path.join(projectPath, '.aura');
+      }
+      auraDir = resolvedAura;
     } else {
       const normalizedPath = path.resolve(pathOrName);
       const keys = Object.keys(projects);
@@ -170,7 +177,11 @@ export class Update {
         if (path.resolve(projects[name]) === normalizedPath) {
           projectName = name;
           projectPath = projects[name];
-          auraDir = path.join(projectPath, '.aura');
+          let resolvedAura = path.join(projectPath, '.aura-workspace');
+          if (!fs.existsSync(resolvedAura) || !fs.statSync(resolvedAura).isDirectory()) {
+            resolvedAura = path.join(projectPath, '.aura');
+          }
+          auraDir = resolvedAura;
           break;
         }
       }
@@ -180,21 +191,31 @@ export class Update {
         fs.existsSync(normalizedPath) &&
         fs.statSync(normalizedPath).isDirectory()
       ) {
-        const potentialAura = path.join(normalizedPath, '.aura');
+        const potentialAuraNew = path.join(normalizedPath, '.aura-workspace');
         if (
-          fs.existsSync(potentialAura) &&
-          fs.statSync(potentialAura).isDirectory()
+          fs.existsSync(potentialAuraNew) &&
+          fs.statSync(potentialAuraNew).isDirectory()
         ) {
           projectName = path.basename(normalizedPath);
           projectPath = normalizedPath;
-          auraDir = potentialAura;
+          auraDir = potentialAuraNew;
+        } else {
+          const potentialAuraOld = path.join(normalizedPath, '.aura');
+          if (
+            fs.existsSync(potentialAuraOld) &&
+            fs.statSync(potentialAuraOld).isDirectory()
+          ) {
+            projectName = path.basename(normalizedPath);
+            projectPath = normalizedPath;
+            auraDir = potentialAuraOld;
+          }
         }
       }
     }
 
     if (!auraDir || !fs.existsSync(auraDir) || !projectName) {
       throw new UI.WorkspaceError(
-        `Project '${pathOrName}' not found or has no .aura directory`,
+        `Project '${pathOrName}' not found or has no .aura-workspace directory`,
       );
     }
 
@@ -349,7 +370,7 @@ export class Update {
         console.log(picocolors.green('✓ Changes stashed.'));
       } else {
         console.log(
-          picocolors.yellow('⚠️  You have uncommitted changes in .aura/'),
+          picocolors.yellow(`⚠️  You have uncommitted changes in ${path.basename(auraDir)}/`),
         );
         console.log('\nOptions:');
         console.log('  1. Commit changes first (recommended)');
@@ -386,10 +407,10 @@ export class Update {
       }
     } else {
       console.error(picocolors.red('⛔️ Merge conflicts detected!'));
-      console.log('\nPlease resolve conflicts manually in .aura/ directory');
+      console.log(`\nPlease resolve conflicts manually in ${path.basename(auraDir)}/ directory`);
       console.log('After resolving, run:');
       console.log(
-        "  cd .aura && git add . && git commit -m 'Resolved merge conflicts'",
+        `  cd ${path.basename(auraDir)} && git add . && git commit -m 'Resolved merge conflicts'`,
       );
     }
   }

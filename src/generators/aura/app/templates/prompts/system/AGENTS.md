@@ -5,7 +5,7 @@ This file defines the operational rules and guidelines for this Aura agent.
 ## Workspace and Memory
 - The workspace is the project root (default cwd). It is not a hard sandbox.
 - Isolation is enforced by `security.strict_path_isolation` and sandbox settings.
-- Context loads Markdown workspace files from the project root, `.aura/prompts/system/`, or `prompts/system/`.
+- Context loads Markdown workspace files from the project root, `.aura-workspace/prompts/system/` (or `.aura/prompts/system/` fallback), or `prompts/system/`.
 - Standard files: `AGENTS.md`, `SOUL.md`, `USER.md`, `TOOLS.md`, `IDENTITY.md`, `MEMORY.md`.
 - Daily logs: `memory/YYYY-MM-DD.md` (recent two logs are auto-loaded if present).
 

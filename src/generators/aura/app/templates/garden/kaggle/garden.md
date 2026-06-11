@@ -28,7 +28,7 @@ graph TD
 ### Phase 1: Environment Setup & Data Cataloging
 1. Install core ML libraries (`pandas`, `numpy`, `scikit-learn`, `lightgbm`, `xgboost`, `catboost`, `optuna`, `torch`) via the package manager or setup script.
 2. Custom modular prompts:
-   - Edit `prompts/system/SOUL.md` (or `.aura/prompts/system/SOUL.md`) to define a competitive, analytical Machine Learning Expert persona.
+   - Edit `prompts/system/SOUL.md` (or `.aura-workspace/prompts/system/SOUL.md` / `.aura/prompts/system/SOUL.md` — these paths are scanned) to define a competitive, analytical Machine Learning Expert persona.
    - Edit `prompts/system/TOOLS.md` to specify hardware/GPU constraints, memory usage rules, and output path boundaries.
 3. Unpack competition datasets under `data/raw/`. Keep large raw training/test sets out of the system context.
 4. **Catalog Files with Data Hints**: Create a companion `.hint` file for each data source (e.g. `data/raw/train.csv.hint`) listing:
@@ -103,4 +103,4 @@ graph TD
 ### Troubleshooting & Failure Recovery
 - **GPU Out-of-Memory (OOM)**: PyTorch or XGBoost training may fail due to GPU RAM limits. Adjust batch sizes down or enable mixed-precision training (`fp16`). Instruct the agent to run garbage collection (`gc.collect()`, `torch.cuda.empty_cache()`) between folds.
 - **Data Leakage**: If local CV score is exceptionally high (e.g., 0.999 AUC) but public leaderboard or baseline test is poor, inspect for feature leakage (e.g., using target values inside feature extraction, or using future data in time-series splits).
-- **Subagent Failures**: If a tuning sweep fails to report results, check the subagent's trajectory log under `state/subagents/{parent_id}/{child_id}/trajectory.txt`. Verify if libraries were missing or convergence/evaluation criteria failed.
+- **Subagent Failures**: If a tuning sweep fails to report results, check the subagent's trajectory log under `.aura-workspace/state/subagents/{parent_id}/{child_id}/trajectory.txt` (or `.aura/...` fallback). Verify if libraries were missing or convergence/evaluation criteria failed.

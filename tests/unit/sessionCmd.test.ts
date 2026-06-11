@@ -42,7 +42,7 @@ describe('SessionCmd', () => {
     vi.spyOn(PathResolver, 'resolveProjectPath').mockReturnValue(null);
 
     // Ensure global session directory is created if needed
-    const globalPath = path.join(mockHome, '.aura', 'global');
+    const globalPath = path.join(mockHome, '.aura-framework', 'global');
     fs.mkdirSync(globalPath, { recursive: true });
 
     // Should not throw, and should print list info or "No sessions found"
@@ -81,7 +81,7 @@ describe('SessionCmd', () => {
     vi.spyOn(PathResolver, 'resolveProjectPath').mockReturnValue(null);
     const sessionMgr = (SessionCmd as any).resolveSessionMgr(false);
     expect(sessionMgr.projectPath).toBe(
-      path.resolve(mockHome, '.aura', 'global'),
+      path.resolve(mockHome, '.aura-framework', 'global'),
     );
   });
 });

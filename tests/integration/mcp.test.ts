@@ -51,7 +51,7 @@ rl.on('line', (line) => {
     );
 
     // Setup configuration
-    const envPath = path.join(projectPath, '.aura');
+    const envPath = path.join(projectPath, '.aura-workspace');
     const mcpToolsDir = path.join(envPath, 'tools', 'mcp');
     fs.mkdirSync(mcpToolsDir, { recursive: true });
 

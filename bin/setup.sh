@@ -62,7 +62,7 @@ if [ -f "package.json" ]; then
 fi
 
 if [ "$IS_AURA_DIR" = false ]; then
-    INSTALL_DIR="$HOME/.aura/cli-src"
+    INSTALL_DIR="$HOME/.aura-framework/cli-src"
     echo -e "${YELLOW}⚠️ Aura repository not detected in current directory.${NC}"
     if [ -d "$INSTALL_DIR" ]; then
         echo -e "  - Existing repository directory $INSTALL_DIR detected. Updating code..."
@@ -72,7 +72,7 @@ if [ "$IS_AURA_DIR" = false ]; then
         git reset --hard "origin/$(git branch --show-current)" --quiet
     else
         echo -e "  - Cloning Aura repository into $INSTALL_DIR..."
-        mkdir -p "$HOME/.aura"
+        mkdir -p "$HOME/.aura-framework"
         git clone https://github.com/zc6600/aura.git "$INSTALL_DIR"
         cd "$INSTALL_DIR"
     fi

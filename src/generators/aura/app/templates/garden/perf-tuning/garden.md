@@ -33,7 +33,7 @@ Before making any optimizations, establish a reliable, noise-isolated baseline:
 
 ### Phase 2: Define Target Optimization Scope
 1. Custom modular prompts:
-   - Edit `prompts/system/SOUL.md` (or `.aura/prompts/system/SOUL.md`) to define a meticulous, detail-oriented Performance Engineer persona.
+   - Edit `prompts/system/SOUL.md` (or `.aura-workspace/prompts/system/SOUL.md` / `.aura/prompts/system/SOUL.md` — these paths are scanned) to define a meticulous, detail-oriented Performance Engineer persona.
    - Edit `prompts/system/TOOLS.md` to specify CPU pinning, memory limit rules, and profiling constraints.
 2. Annotate the target optimization module using `@aura-hint:` comment tag:
    ```python

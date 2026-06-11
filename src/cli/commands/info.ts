@@ -125,7 +125,7 @@ export class Info {
     if (keys.length > 0) {
       for (const name of keys) {
         const p = projects[name];
-        const status = fs.existsSync(path.join(p, '.aura'))
+        const status = (fs.existsSync(path.join(p, '.aura-workspace')) || fs.existsSync(path.join(p, '.aura')))
           ? picocolors.green('Active')
           : picocolors.red('Missing');
         console.log(`  - ${name} (${status})`);
@@ -146,7 +146,7 @@ export class Info {
       );
       console.log('='.repeat(70));
       console.log(
-        '\n  Not currently in an Aura workspace (no .aura directory found).',
+        '\n  Not currently in an Aura workspace (no .aura-workspace directory found).',
       );
       console.log(
         `  To create a workspace, run: ${picocolors.bold('aura new <project_name>')}`,
@@ -171,7 +171,7 @@ export class Info {
 
     console.log(`\n${picocolors.bold('📍 Workspace:')}`);
     console.log(`  Workspace Root: ${projectRoot}`);
-    console.log(`  .aura Path: ${workspacePath}`);
+    console.log(`  ${path.basename(workspacePath)} Path: ${workspacePath}`);
 
     Info.displayWorkspaceConfig(workspacePath);
     Info.displayWorkspaceDatabase(workspacePath);

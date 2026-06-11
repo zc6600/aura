@@ -47,7 +47,7 @@ describe('Kernel Integration', { timeout: 30000 }, () => {
     const res = await execa('npx', ['tsx', auraBinPath, 'new', projectPath]);
     expect(res.exitCode).toBe(0);
 
-    envPath = path.join(projectPath, '.aura');
+    envPath = path.join(projectPath, '.aura-workspace');
     toolsPath = path.join(envPath, 'tools');
     configPath = path.join(envPath, 'config', 'config.yml');
 

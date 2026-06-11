@@ -99,11 +99,11 @@ export class DaemonClient {
       .replace('.sock', '')
       .replace('aura-', '');
 
-    let logDir = path.join(os.homedir(), '.aura');
+    let logDir = path.join(os.homedir(), '.aura-framework');
     try {
       fs.mkdirSync(logDir, { recursive: true });
     } catch {
-      logDir = path.join(os.tmpdir(), '.aura-logs');
+      logDir = path.join(os.tmpdir(), '.aura-framework-logs');
       fs.mkdirSync(logDir, { recursive: true });
     }
     const logFile = path.join(logDir, `daemon-${hash}.log`);

@@ -26,7 +26,7 @@ describe('Web Server Integration', { timeout: 30000 }, () => {
     // 2. Run once to populate at least one event in database
     const payload = JSON.stringify({
       tool: 'read_file',
-      args: { file_path: '.aura/config/config.yml' },
+      args: { file_path: '.aura-workspace/config/config.yml' },
       summary: 'Read config file',
     });
     const resOnce = await execa('npx', [

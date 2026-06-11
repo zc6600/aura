@@ -88,10 +88,10 @@ describe('workspaceInitializer', () => {
     };
 
     // Set paths relative to mockHome
-    process.env.AURA_GLOBAL_REPO_PATH = path.join(mockHome, '.aura', 'repo');
+    process.env.AURA_GLOBAL_REPO_PATH = path.join(mockHome, '.aura-framework', 'repo');
     process.env.AURA_GLOBAL_PROJECTS_CONFIG_PATH = path.join(
       mockHome,
-      '.aura',
+      '.aura-framework',
       'projects.yml',
     );
   });
@@ -140,9 +140,9 @@ describe('workspaceInitializer', () => {
   });
 
   describe('resolveProjectPath', () => {
-    it('should resolve direct path if it contains .aura directory', async () => {
+    it('should resolve direct path if it contains .aura-workspace directory', async () => {
       const projectPath = path.join(tempDir, 'my-project');
-      fs.mkdirSync(path.join(projectPath, '.aura'), { recursive: true });
+      fs.mkdirSync(path.join(projectPath, '.aura-workspace'), { recursive: true });
 
       const resolved = await resolveProjectPath(projectPath);
       expect(resolved).toBe(path.resolve(projectPath));
@@ -151,7 +151,7 @@ describe('workspaceInitializer', () => {
     it('should resolve workspace path by climbing directories', async () => {
       const projectPath = path.join(tempDir, 'my-project');
       const subDir = path.join(projectPath, 'src', 'components');
-      fs.mkdirSync(path.join(projectPath, '.aura'), { recursive: true });
+      fs.mkdirSync(path.join(projectPath, '.aura-workspace'), { recursive: true });
       fs.mkdirSync(subDir, { recursive: true });
 
       const resolved = await resolveProjectPath(subDir);
@@ -164,7 +164,7 @@ describe('workspaceInitializer', () => {
 
       const resolved = await resolveProjectPath(nonexistentPath);
       // Under test/CI env handleNoWorkspace defaults to sandbox
-      expect(resolved).toBe(path.join(mockHome, '.aura', 'sandbox'));
+      expect(resolved).toBe(path.join(mockHome, '.aura-framework', 'sandbox'));
     });
   });
 
@@ -177,7 +177,7 @@ describe('workspaceInitializer', () => {
 
       const startDir = path.join(tempDir, 'some-dir');
       const resolved = await handleNoWorkspace(startDir);
-      expect(resolved).toBe(path.join(mockHome, '.aura', 'sandbox'));
+      expect(resolved).toBe(path.join(mockHome, '.aura-framework', 'sandbox'));
       expect(UI.confirm).toHaveBeenCalled();
     });
 
@@ -193,17 +193,17 @@ describe('workspaceInitializer', () => {
       const resolved = await handleNoWorkspace(startDir);
       expect(resolved).toBe(path.resolve(startDir));
       expect(UI.confirm).toHaveBeenCalled();
-      expect(fs.existsSync(path.join(startDir, '.aura'))).toBe(true);
+      expect(fs.existsSync(path.join(startDir, '.aura-workspace'))).toBe(true);
     });
   });
 
   describe('initializeSandbox', () => {
     it('should initialize sandbox and create correct file structure', async () => {
       const sandboxPath = await initializeSandbox();
-      expect(sandboxPath).toBe(path.join(mockHome, '.aura', 'sandbox'));
-      expect(fs.existsSync(path.join(sandboxPath, '.aura'))).toBe(true);
+      expect(sandboxPath).toBe(path.join(mockHome, '.aura-framework', 'sandbox'));
+      expect(fs.existsSync(path.join(sandboxPath, '.aura-workspace'))).toBe(true);
       expect(
-        fs.existsSync(path.join(sandboxPath, '.aura', 'config', 'config.yml')),
+        fs.existsSync(path.join(sandboxPath, '.aura-workspace', 'config', 'config.yml')),
       ).toBe(true);
     });
 
@@ -223,7 +223,7 @@ describe('workspaceInitializer', () => {
       expect(fs.existsSync(path.join(workspacePath, '.gitignore'))).toBe(true);
       expect(
         fs.readFileSync(path.join(workspacePath, '.gitignore'), 'utf-8'),
-      ).toContain('.aura/');
+      ).toContain('.aura-workspace/');
     });
 
     it('should inject correct ignore rules inside .gitignore in .aura folder', async () => {
@@ -231,7 +231,7 @@ describe('workspaceInitializer', () => {
       fs.mkdirSync(workspacePath, { recursive: true });
 
       await initializeWorkspaceInPlace(workspacePath);
-      const innerGitignore = path.join(workspacePath, '.aura', '.gitignore');
+      const innerGitignore = path.join(workspacePath, '.aura-workspace', '.gitignore');
       expect(fs.existsSync(innerGitignore)).toBe(true);
       const content = fs.readFileSync(innerGitignore, 'utf-8');
       expect(content).toContain('state/aura.db*');
@@ -251,7 +251,7 @@ describe('workspaceInitializer', () => {
   describe('initializeGlobalEnv', () => {
     it('should initialize global environment correctly', async () => {
       const globalEnvPath = await initializeGlobalEnv();
-      expect(globalEnvPath).toBe(path.join(mockHome, '.aura', 'global'));
+      expect(globalEnvPath).toBe(path.join(mockHome, '.aura-framework', 'global'));
       expect(fs.existsSync(globalEnvPath)).toBe(true);
     });
 

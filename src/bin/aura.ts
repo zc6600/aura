@@ -173,7 +173,7 @@ class NewCommand extends BaseCommand {
   static usage = Command.Usage({
     description: 'Initialize a new Aura workspace',
     details:
-      'Creates a .aura/ directory in the target path and sets up the local agent environment.',
+      'Creates a .aura-workspace/ directory in the target path and sets up the local agent environment.',
     examples: [
       ['Initialize in current directory', 'aura new .'],
       ['Initialize in a specific path', 'aura new ./my-project'],
@@ -255,7 +255,7 @@ class ListCommand extends BaseCommand {
 class DeleteCommand extends BaseCommand {
   static paths = [['delete']];
   static usage = Command.Usage({
-    description: 'Unregister an Aura project and delete its .aura sandbox',
+    description: 'Unregister an Aura project and delete its .aura-workspace sandbox',
   });
   projectName = Option.String({ required: true });
 
@@ -483,7 +483,7 @@ class PullCommand extends BaseCommand {
 class StatusCommand extends BaseCommand {
   static paths = [['status']];
   static usage = Command.Usage({
-    description: 'Show what files are modified or untracked inside .aura',
+    description: 'Show what files are modified or untracked inside .aura-workspace',
   });
 
   async run() {

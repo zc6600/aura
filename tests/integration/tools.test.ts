@@ -534,7 +534,7 @@ describe('Tools Integration', { timeout: 30000 }, () => {
 
   // 12. Dynamic Custom Workflow Tool Loading and Run
   it('custom workflow tool loading and run', async () => {
-    const workflowDir = path.join(projectPath, '.aura', 'tools', 'workflow');
+    const workflowDir = path.join(projectPath, '.aura-workspace', 'tools', 'workflow');
     fs.mkdirSync(workflowDir, { recursive: true });
 
     const manifest = {
@@ -632,6 +632,7 @@ if __name__ == "__main__":
       summary: 'Generate changes walkthrough report',
     })) as any;
 
+    console.log('ACTUAL MODIFIED FILES:', res.modified_files);
     expect(res.status).toBe('success');
     expect(res.run_id).toBe('run_test_123');
     expect(res.modified_files).toContain('lib/new_logic.py');

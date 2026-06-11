@@ -14,7 +14,7 @@ def resolve_db_path():
             return raw
         return os.path.abspath(os.path.join(os.getcwd(), raw))
     base_dir = os.getcwd()
-    state_root = os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state")
+    state_root = os.path.join(base_dir, ".aura-workspace", "state") if os.path.exists(os.path.join(base_dir, ".aura-workspace")) else (os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state"))
     return os.path.abspath(os.path.join(state_root, "aura.db"))
 
 def get_db_connection(db_path):

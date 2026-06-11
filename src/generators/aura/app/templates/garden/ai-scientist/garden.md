@@ -34,7 +34,7 @@ graph TD
    - This ensures the agent is aware of document contents without reading large files repeatedly.
 
 ### Phase 2: Simulation Prototype & Local Validation
-1. Custom modular prompts: Edit `prompts/system/SOUL.md` (or `.aura/prompts/system/SOUL.md` — both paths are scanned) to define a rigorous scientific persona, and specify plot formatting preferences (e.g., HSL tailored color palette, Outfit font) in `prompts/system/USER.md`.
+1. Custom modular prompts: Edit `prompts/system/SOUL.md` (or `.aura-workspace/prompts/system/SOUL.md` / `.aura/prompts/system/SOUL.md` — these paths are scanned) to define a rigorous scientific persona, and specify plot formatting preferences (e.g., HSL tailored color palette, Outfit font) in `prompts/system/USER.md`.
 2. Write a single-run prototype script (e.g. `src/simulate_once.py`) using the extracted parameters.
 3. Run the prototype locally with a single parameter set to verify the logic runs without crashing. Do not spawn sweeps yet.
 
@@ -77,6 +77,6 @@ graph TD
    ```
 
 ### Troubleshooting & Failure Recovery
-- **Failed Subagent Sweeps**: If a subagent sweep fails, do not proceed to plotting. Inspect the subagent's execution trajectory under `state/subagents/{parent_id}/{child_id}/trajectory.txt` to diagnose issues (e.g., convergence failures, parameter out of bounds, library missing).
+- **Failed Subagent Sweeps**: If a subagent sweep fails, do not proceed to plotting. Inspect the subagent's execution trajectory under `.aura-workspace/state/subagents/{parent_id}/{child_id}/trajectory.txt` (or `.aura/...` fallback) to diagnose issues (e.g., convergence failures, parameter out of bounds, library missing).
 - **Incomplete Sweeps**: If some sweep tasks timeout, use the blackboard or temporary CSVs to identify which parameter sets are missing, adjust the step limits/timeouts, and rerun only the missing sweeps.
 - **Corrupted Plots**: If the visualization script crashes, check that all CSV files in `state/simulation_runs/` are fully written and not truncated. Empty files should be removed and the corresponding sweep rerun.

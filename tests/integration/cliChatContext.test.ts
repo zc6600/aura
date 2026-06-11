@@ -41,7 +41,7 @@ describe('CLI Chat Context & Commands Integration', { timeout: 60000 }, () => {
   it('test_chat_context_populated', async () => {
     const sessionDir = path.join(
       tempWorkspace,
-      '.aura',
+      '.aura-workspace',
       'state',
       'chat_sessions',
     );
@@ -68,7 +68,7 @@ describe('CLI Chat Context & Commands Integration', { timeout: 60000 }, () => {
   it('test_chat_context_custom_session', async () => {
     const sessionDir = path.join(
       tempWorkspace,
-      '.aura',
+      '.aura-workspace',
       'state',
       'chat_sessions',
     );
@@ -125,7 +125,7 @@ describe('CLI Chat Context & Commands Integration', { timeout: 60000 }, () => {
   it('test_chat_context_clear', async () => {
     const sessionDir = path.join(
       tempWorkspace,
-      '.aura',
+      '.aura-workspace',
       'state',
       'chat_sessions',
     );
@@ -169,7 +169,7 @@ describe('CLI Chat Context & Commands Integration', { timeout: 60000 }, () => {
   it('test_chat_loop_clear', async () => {
     const sessionDir = path.join(
       tempWorkspace,
-      '.aura',
+      '.aura-workspace',
       'state',
       'chat_sessions',
     );
@@ -197,7 +197,7 @@ describe('CLI Chat Context & Commands Integration', { timeout: 60000 }, () => {
   it('test_chat_loop_context', async () => {
     const sessionDir = path.join(
       tempWorkspace,
-      '.aura',
+      '.aura-workspace',
       'state',
       'chat_sessions',
     );
@@ -238,7 +238,7 @@ describe('CLI Chat Context & Commands Integration', { timeout: 60000 }, () => {
   it('test_chat_loop_slash_clear', async () => {
     const sessionDir = path.join(
       tempWorkspace,
-      '.aura',
+      '.aura-workspace',
       'state',
       'chat_sessions',
     );
@@ -266,7 +266,7 @@ describe('CLI Chat Context & Commands Integration', { timeout: 60000 }, () => {
   it('test_chat_loop_slash_context', async () => {
     const sessionDir = path.join(
       tempWorkspace,
-      '.aura',
+      '.aura-workspace',
       'state',
       'chat_sessions',
     );
@@ -380,7 +380,7 @@ describe('CLI Chat Context & Commands Integration', { timeout: 60000 }, () => {
   it('test_chat_loop_slash_undo', async () => {
     const sessionDir = path.join(
       tempWorkspace,
-      '.aura',
+      '.aura-workspace',
       'state',
       'chat_sessions',
     );

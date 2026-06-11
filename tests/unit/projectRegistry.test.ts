@@ -41,7 +41,7 @@ describe('projectRegistry', () => {
   it('should fall back to default path if environment variable is not set', () => {
     delete process.env.AURA_GLOBAL_PROJECTS_CONFIG_PATH;
     const fallbackPath = configPath();
-    expect(fallbackPath).toContain('.aura');
+    expect(fallbackPath).toContain('.aura-framework');
     expect(fallbackPath).toContain('projects.yml');
   });
 

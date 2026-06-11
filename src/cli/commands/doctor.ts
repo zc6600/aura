@@ -87,8 +87,10 @@ export const Doctor = {
               picocolors.yellow(`⚠️ Sandbox Image: '${sandboxImage}' not found`),
             );
             console.log('💡 To build it for the current workspace:');
+            const auraDir = PathResolver.findAuraDir(process.cwd());
+            const displayDir = auraDir ? path.basename(auraDir) : '.aura-workspace';
             console.log(
-              `   $ docker build -t ${sandboxImage} -f .aura/Dockerfile.sandbox .aura`,
+              `   $ docker build -t ${sandboxImage} -f ${displayDir}/Dockerfile.sandbox ${displayDir}`,
             );
           }
         } catch {
@@ -128,7 +130,7 @@ export const Doctor = {
     try {
       await GlobalConfig.ensureRepo();
       console.log(
-        `Global Repository (~/.aura/repo): ${picocolors.green('OK')}`,
+        `Global Repository (~/.aura-framework/repo): ${picocolors.green('OK')}`,
       );
     } catch (e: any) {
       console.log(
@@ -313,7 +315,7 @@ export const Doctor = {
 
   loadDotenvFiles(): void {
     const candidates = [
-      path.join(os.homedir(), '.aura', '.env'),
+      path.join(os.homedir(), '.aura-framework', '.env'),
       path.join(process.cwd(), '.env'),
     ];
 

@@ -74,7 +74,7 @@ describe('Miscellaneous Integration', { timeout: 40000 }, () => {
       await backup.recordChanges('write_file', { file_path: 'test.txt' });
 
       // Verify shadow directory
-      const shadowPath = path.join(projectPath, '.aura', 'shadow');
+      const shadowPath = path.join(projectPath, '.aura-workspace', 'shadow');
       expect(fs.existsSync(shadowPath)).toBe(true);
       expect(fs.existsSync(path.join(shadowPath, '.git'))).toBe(true);
 
@@ -115,7 +115,7 @@ describe('Miscellaneous Integration', { timeout: 40000 }, () => {
       });
 
       // Verify it exists in shadow directory
-      const shadowPath = path.join(projectPath, '.aura', 'shadow');
+      const shadowPath = path.join(projectPath, '.aura-workspace', 'shadow');
       expect(fs.existsSync(path.join(shadowPath, 'test-delete.txt'))).toBe(
         true,
       );
@@ -146,7 +146,7 @@ describe('Miscellaneous Integration', { timeout: 40000 }, () => {
     it('executes tools via local sandbox wrapper when enabled', async () => {
       const configPath = path.join(
         projectPath,
-        '.aura',
+        '.aura-workspace',
         'config',
         'config.yml',
       );
@@ -161,7 +161,7 @@ describe('Miscellaneous Integration', { timeout: 40000 }, () => {
       fs.writeFileSync(configPath, yaml.stringify(config));
 
       // Create sandbox wrapper
-      const binDir = path.join(projectPath, '.aura', 'bin');
+      const binDir = path.join(projectPath, '.aura-workspace', 'bin');
       fs.mkdirSync(binDir, { recursive: true });
       const wrapperPath = path.join(binDir, 'sandbox-wrapper');
       fs.writeFileSync(
@@ -174,7 +174,7 @@ exec "$@"
       fs.chmodSync(wrapperPath, 0o755);
 
       // Create dummy tool
-      const toolDir = path.join(projectPath, '.aura', 'tools', 'hello');
+      const toolDir = path.join(projectPath, '.aura-workspace', 'tools', 'hello');
       fs.mkdirSync(toolDir, { recursive: true });
       fs.writeFileSync(
         path.join(toolDir, 'manifest.json'),
@@ -211,7 +211,7 @@ print(json.dumps({"status": "ok", "message": "hello from tool"}))`,
 
       try {
         const envPath = PathResolver.environmentPath('/some/random/workspace');
-        const expected = path.resolve(tempHome, '.aura', 'global');
+        const expected = path.resolve(tempHome, '.aura-framework', 'global');
         expect(envPath).toBe(expected);
       } finally {
         spy.mockRestore();

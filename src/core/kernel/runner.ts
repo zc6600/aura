@@ -44,6 +44,7 @@ export class Runner extends EventEmitter implements IRunner {
   public static readonly IGNORED_SCAN_DIRS = [
     '.git',
     '.aura',
+    '.aura-workspace',
     'node_modules',
     '.bundle',
     'vendor/bundle',

@@ -32,12 +32,12 @@ export async function gitRun(
 export function repoPath(): string {
   return (
     process.env.AURA_GLOBAL_REPO_PATH ||
-    path.join(os.homedir(), '.aura', 'repo')
+    path.join(os.homedir(), '.aura-framework', 'repo')
   );
 }
 
 export function configPath(): string {
-  return path.join(os.homedir(), '.aura', 'config.yml');
+  return path.join(os.homedir(), '.aura-framework', 'config.yml');
 }
 
 export async function ensureRepo(): Promise<void> {

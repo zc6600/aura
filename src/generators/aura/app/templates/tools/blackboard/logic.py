@@ -9,7 +9,7 @@ def resolve_bus_dir():
     # Resolve active session name to isolate blackboard key-value bus!
     session_name = os.environ.get("AURA_SESSION_NAME")
     base_dir = os.getcwd()
-    state_root = os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state")
+    state_root = os.path.join(base_dir, ".aura-workspace", "state") if os.path.exists(os.path.join(base_dir, ".aura-workspace")) else (os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state"))
     
     if not session_name:
         active_txt = os.path.join(state_root, "active_session.txt")

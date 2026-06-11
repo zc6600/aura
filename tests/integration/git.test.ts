@@ -19,7 +19,7 @@ describe('CLI git Subcommand Integration', { timeout: 30000 }, () => {
     // Initialize workspace
     await initializeWorkspaceInPlace(tempWorkspace);
 
-    const auraDir = path.join(tempWorkspace, '.aura');
+    const auraDir = path.join(tempWorkspace, '.aura-workspace');
 
     // Configure local git within the test repo
     await execa('git', ['init'], { cwd: auraDir });
@@ -36,7 +36,7 @@ describe('CLI git Subcommand Integration', { timeout: 30000 }, () => {
   });
 
   it('test_git_vcs_pipeline', async () => {
-    const auraDir = path.join(tempWorkspace, '.aura');
+    const auraDir = path.join(tempWorkspace, '.aura-workspace');
 
     // Check status
     const resStatus = await execa('npx', ['tsx', auraBinPath, 'status'], {

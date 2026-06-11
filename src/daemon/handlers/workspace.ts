@@ -55,6 +55,7 @@ export const writeFile: HandlerFunction = async (ctx) => {
     if (
       parts.includes('.git') ||
       parts.includes('.aura') ||
+      parts.includes('.aura-workspace') ||
       parts.includes('node_modules')
     ) {
       server.sendError(
@@ -92,6 +93,7 @@ export const readFile: HandlerFunction = async (ctx) => {
     if (
       parts.includes('.git') ||
       parts.includes('.aura') ||
+      parts.includes('.aura-workspace') ||
       parts.includes('node_modules')
     ) {
       server.sendError(

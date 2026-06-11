@@ -13,7 +13,7 @@ describe('Prompt Registry', () => {
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
-    fs.mkdirSync(path.join(tempDir, '.aura'), { recursive: true });
+    fs.mkdirSync(path.join(tempDir, '.aura-workspace'), { recursive: true });
     Registry.clearCache();
   });
 

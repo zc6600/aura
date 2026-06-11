@@ -26,7 +26,7 @@ function findPackageRoot(startDir: string): string {
 export class Template {
   public static async sync(): Promise<void> {
     console.log(
-      '📦 Syncing templates from framework to global repo (~/.aura/repo)...',
+      '📦 Syncing templates from framework to global repo (~/.aura-framework/repo)...',
     );
     console.log('='.repeat(60));
 
@@ -171,7 +171,7 @@ export class Template {
       console.log(`  Status: ${picocolors.red('Not found')}`);
     }
 
-    console.log(`\nGlobal Repository (~/.aura/repo):`);
+    console.log(`\nGlobal Repository (~/.aura-framework/repo):`);
     console.log(`  Path: ${globalRepo}`);
     if (fs.existsSync(globalRepo)) {
       console.log(`  Status: ${picocolors.green('Exists')}`);

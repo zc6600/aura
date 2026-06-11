@@ -40,7 +40,7 @@ export function safeLoadYaml(filePath: string): Record<string, unknown> {
 
 export async function handleNoWorkspace(startDir: string): Promise<string> {
   console.warn(
-    '\x1b[33m⚠️ Warning: Not in an Aura workspace (no .aura folder found in parent directories).\x1b[0m',
+    '\x1b[33m⚠️ Warning: Not in an Aura workspace (no .aura-workspace folder found in parent directories).\x1b[0m',
   );
 
   const isTest = process.env.NODE_ENV === 'test' || process.env.CI === 'true';
@@ -61,8 +61,8 @@ export async function handleNoWorkspace(startDir: string): Promise<string> {
 }
 
 export async function initializeSandbox(): Promise<string> {
-  const sandboxPath = path.join(os.homedir(), '.aura', 'sandbox');
-  const sandboxAura = path.join(sandboxPath, '.aura');
+  const sandboxPath = path.join(os.homedir(), '.aura-framework', 'sandbox');
+  const sandboxAura = path.join(sandboxPath, '.aura-workspace');
 
   console.log(
     `\x1b[34mℹ️ Routing to global sandbox workspace: ${sandboxPath}\x1b[0m`,
@@ -156,7 +156,7 @@ export async function initializeWorkspaceInPlace(
   if (!projectName) {
     projectName = 'aura_workspace';
   }
-  const hidden = path.join(projectPath, '.aura');
+  const hidden = path.join(projectPath, '.aura-workspace');
 
   await GlobalConfig.ensureRepo();
 
@@ -184,10 +184,10 @@ export async function initializeWorkspaceInPlace(
     const existingRules = fs.existsSync(gitIgnorePath)
       ? fs.readFileSync(gitIgnorePath, 'utf-8')
       : '';
-    if (!existingRules.includes('.aura/')) {
-      fs.writeFileSync(gitIgnorePath, `${existingRules}\n.aura/\n`, 'utf-8');
+    if (!existingRules.includes('.aura-workspace/')) {
+      fs.writeFileSync(gitIgnorePath, `${existingRules}\n.aura-workspace/\n`, 'utf-8');
       console.log(
-        '\x1b[32mInjected .gitignore rule for hidden .aura environment.\x1b[0m',
+        '\x1b[32mInjected .gitignore rule for hidden .aura-workspace environment.\x1b[0m',
       );
     }
 
@@ -239,7 +239,7 @@ export async function initializeWorkspaceInPlace(
 }
 
 export async function initializeGlobalEnv(): Promise<string> {
-  const globalEnv = path.resolve(os.homedir(), '.aura', 'global');
+  const globalEnv = path.resolve(os.homedir(), '.aura-framework', 'global');
 
   if (!fs.existsSync(globalEnv)) {
     fs.mkdirSync(path.dirname(globalEnv), { recursive: true });

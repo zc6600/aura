@@ -75,7 +75,7 @@ class MockLLMClient {
 
 describe('Planner', () => {
   const tempDir = path.resolve(__dirname, 'temp-planner-test');
-  const envPath = path.join(tempDir, '.aura');
+  const envPath = path.join(tempDir, '.aura-workspace');
   const configDir = path.join(envPath, 'config');
   let mockClient: MockLLMClient;
 

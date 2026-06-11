@@ -34,7 +34,7 @@ def build_subagent_paths(subagent_id, base_dir=None):
         base_dir = os.getcwd()
     
     parent_id = os.environ.get("AURA_SUBAGENT_ID", "root")
-    state_root = os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state")
+    state_root = os.path.join(base_dir, ".aura-workspace", "state") if os.path.exists(os.path.join(base_dir, ".aura-workspace")) else (os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state"))
     state_dir = os.path.join(state_root, "subagents", parent_id, subagent_id)
     bus_dir = os.path.join(state_root, "bus")
     
@@ -84,7 +84,7 @@ def load_persona(persona_name, base_dir=None):
     if base_dir is None:
         base_dir = os.getcwd()
     
-    state_root = os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state")
+    state_root = os.path.join(base_dir, ".aura-workspace", "state") if os.path.exists(os.path.join(base_dir, ".aura-workspace")) else (os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state"))
     persona_path = os.path.join(state_root, "personas", f"{persona_name}.json")
     if not os.path.exists(persona_path):
         return None
@@ -104,7 +104,7 @@ def check_subagent_status(job_id, base_dir=None):
     if base_dir is None:
         base_dir = os.getcwd()
     
-    state_root = os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state")
+    state_root = os.path.join(base_dir, ".aura-workspace", "state") if os.path.exists(os.path.join(base_dir, ".aura-workspace")) else (os.path.join(base_dir, ".aura", "state") if os.path.exists(os.path.join(base_dir, ".aura")) else os.path.join(base_dir, "state"))
     subagents_root = os.path.join(state_root, "subagents")
     
     if not os.path.exists(subagents_root):

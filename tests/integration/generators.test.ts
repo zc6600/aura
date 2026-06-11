@@ -35,7 +35,7 @@ describe('Generators Integration', { timeout: 30000 }, () => {
     const res = await execa('npx', ['tsx', auraBinPath, 'new', appPath]);
     expect(res.exitCode).toBe(0);
 
-    const hidden = path.join(appPath, '.aura');
+    const hidden = path.join(appPath, '.aura-workspace');
     expect(fs.existsSync(path.join(hidden, 'config', 'config.yml'))).toBe(true);
 
     const requiredFiles = ['logic.py', 'manifest.json', 'logic.py.hint'];
@@ -132,7 +132,7 @@ describe('Generators Integration', { timeout: 30000 }, () => {
 
       const projectPath = path.join(testDir, 'proj');
       fs.mkdirSync(projectPath, { recursive: true });
-      fs.mkdirSync(path.join(projectPath, '.aura'), { recursive: true });
+      fs.mkdirSync(path.join(projectPath, '.aura-workspace'), { recursive: true });
 
       vi.spyOn(process, 'cwd').mockReturnValue(projectPath);
       const consoleLogSpy = vi
@@ -160,7 +160,7 @@ describe('Generators Integration', { timeout: 30000 }, () => {
 
       const projectPath = path.join(testDir, 'proj');
       fs.mkdirSync(projectPath, { recursive: true });
-      fs.mkdirSync(path.join(projectPath, '.aura'), { recursive: true });
+      fs.mkdirSync(path.join(projectPath, '.aura-workspace'), { recursive: true });
 
       vi.spyOn(process, 'cwd').mockReturnValue(projectPath);
       await expect(Tools.add('non_existent_tool')).rejects.toThrow(

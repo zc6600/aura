@@ -6,7 +6,7 @@ import yaml from 'yaml';
 export function configPath(): string {
   return (
     process.env.AURA_GLOBAL_PROJECTS_CONFIG_PATH ||
-    path.join(os.homedir(), '.aura', 'projects.yml')
+    path.join(os.homedir(), '.aura-framework', 'projects.yml')
   );
 }
 

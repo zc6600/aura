@@ -134,7 +134,7 @@ export class Hints {
   }
 
   public static global(): void {
-    const globalHintFile = path.join(os.homedir(), '.aura', 'global_hint.md');
+    const globalHintFile = path.join(os.homedir(), '.aura-framework', 'global_hint.md');
     console.log('\n=== Global Operational Guidance & User Preferences ===');
     console.log(`File Path: ${globalHintFile.replace(os.homedir(), '~')}`);
     console.log('-'.repeat(60));
@@ -149,7 +149,7 @@ export class Hints {
     } else {
       console.log(picocolors.yellow('(File does not exist yet)'));
       console.log('\n💡 To create it, run:');
-      console.log('   mkdir -p ~/.aura && touch ~/.aura/global_hint.md');
+      console.log('   mkdir -p ~/.aura-framework && touch ~/.aura-framework/global_hint.md');
       console.log(
         '   Then edit the file with your preferences, global instructions, or target models/rules.',
       );

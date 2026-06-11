@@ -39,11 +39,11 @@ describe('Daemon IPC Protocol', () => {
   it('should start DaemonServer, connect with DaemonClient, and exchange JSON-RPC messages', async () => {
     const workspacePath = path.join(tempDir, 'test-workspace');
     fs.mkdirSync(workspacePath, { recursive: true });
-    fs.mkdirSync(path.join(workspacePath, '.aura', 'config'), {
+    fs.mkdirSync(path.join(workspacePath, '.aura-workspace', 'config'), {
       recursive: true,
     });
     fs.writeFileSync(
-      path.join(workspacePath, '.aura', 'config', 'config.yml'),
+      path.join(workspacePath, '.aura-workspace', 'config', 'config.yml'),
       'llm:\n  provider: local\n',
     );
 
@@ -80,11 +80,11 @@ describe('Daemon IPC Protocol', () => {
   it('should handle Session, Filesystem, and Garden JSON-RPC API requests', async () => {
     const workspacePath = path.join(tempDir, 'test-workspace-rpc');
     fs.mkdirSync(workspacePath, { recursive: true });
-    fs.mkdirSync(path.join(workspacePath, '.aura', 'config'), {
+    fs.mkdirSync(path.join(workspacePath, '.aura-workspace', 'config'), {
       recursive: true,
     });
     fs.writeFileSync(
-      path.join(workspacePath, '.aura', 'config', 'config.yml'),
+      path.join(workspacePath, '.aura-workspace', 'config', 'config.yml'),
       'llm:\n  provider: local\n',
     );
 
@@ -231,11 +231,11 @@ describe('Daemon IPC Protocol', () => {
   it('should enforce security and safety bounds on daemon requests', async () => {
     const workspacePath = path.join(tempDir, 'test-workspace-safety');
     fs.mkdirSync(workspacePath, { recursive: true });
-    fs.mkdirSync(path.join(workspacePath, '.aura', 'config'), {
+    fs.mkdirSync(path.join(workspacePath, '.aura-workspace', 'config'), {
       recursive: true,
     });
     fs.writeFileSync(
-      path.join(workspacePath, '.aura', 'config', 'config.yml'),
+      path.join(workspacePath, '.aura-workspace', 'config', 'config.yml'),
       'llm:\n  provider: local\n',
     );
 
@@ -269,10 +269,10 @@ describe('Daemon IPC Protocol', () => {
     expect(response.error.code).toBe(-32600); // Invalid Request
     socket.destroy();
 
-    // 2. Restricted path write access (writing under .aura should fail)
+    // 2. Restricted path write access (writing under .aura-workspace should fail)
     await expect(
       client.request('workspace/writeFile', {
-        path: '.aura/restricted.txt',
+        path: '.aura-workspace/restricted.txt',
         content: 'should fail',
       }),
     ).rejects.toThrow();
@@ -300,13 +300,13 @@ describe('Daemon IPC Protocol', () => {
   it('should only request confirmation for dangerous tools when security.confirm_dangerous_tools is enabled', async () => {
     const workspacePath = path.join(tempDir, 'test-workspace-confirm-tools');
     fs.mkdirSync(workspacePath, { recursive: true });
-    fs.mkdirSync(path.join(workspacePath, '.aura', 'config'), {
+    fs.mkdirSync(path.join(workspacePath, '.aura-workspace', 'config'), {
       recursive: true,
     });
 
     // Write config without security confirmation (disabled by default)
     fs.writeFileSync(
-      path.join(workspacePath, '.aura', 'config', 'config.yml'),
+      path.join(workspacePath, '.aura-workspace', 'config', 'config.yml'),
       'llm:\n  provider: local\n',
     );
 
@@ -343,7 +343,7 @@ describe('Daemon IPC Protocol', () => {
 
     // 2. Now write config enabling confirmation
     fs.writeFileSync(
-      path.join(workspacePath, '.aura', 'config', 'config.yml'),
+      path.join(workspacePath, '.aura-workspace', 'config', 'config.yml'),
       'llm:\n  provider: local\nsecurity:\n  confirm_dangerous_tools: true\n',
     );
 
@@ -378,11 +378,11 @@ describe('Daemon IPC Protocol', () => {
   it('should block mutating requests (workspace/initialize, session/*) when a goal loop is running', async () => {
     const workspacePath = path.join(tempDir, 'test-workspace-blocking');
     fs.mkdirSync(workspacePath, { recursive: true });
-    fs.mkdirSync(path.join(workspacePath, '.aura', 'config'), {
+    fs.mkdirSync(path.join(workspacePath, '.aura-workspace', 'config'), {
       recursive: true,
     });
     fs.writeFileSync(
-      path.join(workspacePath, '.aura', 'config', 'config.yml'),
+      path.join(workspacePath, '.aura-workspace', 'config', 'config.yml'),
       'llm:\n  provider: local\n',
     );
 
