@@ -36,10 +36,10 @@ interface AnchorInfo {
 export class DaemonServer {
   private server: net.Server | null = null;
   private projectPath: string;
-  private socketPath: string;
+  public readonly socketPath: string;
   private runner: Runner | null = null;
   private sessionManager: SessionManager;
-  private activeLoopJob: {
+  public activeLoopJob: {
     status: 'running' | 'idle';
     goal?: string;
     mode?: string;

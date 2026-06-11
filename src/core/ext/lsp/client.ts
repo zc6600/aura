@@ -233,6 +233,9 @@ export class LSPClient extends EventEmitter {
       handler.reject(err);
     }
     this.handlers.clear();
+    this.running = false;
+    this.initialized = false;
+    this.process = null;
   }
 
   private clientCapabilities(): Record<string, unknown> {

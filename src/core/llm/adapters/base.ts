@@ -36,6 +36,7 @@ export interface CompletionOptions {
     | 'none'
     | { type: 'function'; function: { name: string } };
   stream?: boolean;
+  signal?: AbortSignal;
   [key: string]: unknown;
 }
 

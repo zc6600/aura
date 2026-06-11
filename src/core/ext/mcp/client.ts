@@ -181,5 +181,8 @@ export class StdioClient {
       handler.reject(err);
     }
     this.handlers.clear();
+    this.process = null;
+    this.initialized = false;
+    this.rl = null;
   }
 }

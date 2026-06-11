@@ -95,6 +95,7 @@ export class OpenAIAdapter extends BaseAdapter {
 
     const json = (await HttpClient.post(this.apiBase, headers, body, {
       timeout: options.timeout,
+      signal: options.signal,
     })) as OpenAIResponse;
     const content = json?.choices?.[0]?.message?.content || '';
     const finish_reason = json?.choices?.[0]?.finish_reason || null;
@@ -147,6 +148,7 @@ export class OpenAIAdapter extends BaseAdapter {
     await HttpClient.post(this.apiBase, headers, body, {
       timeout: options.timeout,
       stream: true,
+      signal: options.signal,
       onChunk: (chunk: string) => {
         buffer += chunk;
         while (true) {

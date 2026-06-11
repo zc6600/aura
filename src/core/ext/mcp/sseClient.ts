@@ -174,5 +174,9 @@ export class SseClient {
       handler.reject(err);
     }
     this.handlers.clear();
+    this.running = false;
+    this.listenPromise = null;
+    this.initialized = false;
+    this.abort = null;
   }
 }

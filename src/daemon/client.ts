@@ -147,7 +147,7 @@ export class DaemonClient {
           const testSocket = net.createConnection(this.socketPath);
           await new Promise<void>((res, rej) => {
             testSocket.on('connect', () => {
-              testSocket.end();
+              testSocket.destroy();
               res();
             });
             testSocket.on('error', (e) => {

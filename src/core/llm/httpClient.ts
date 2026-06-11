@@ -19,6 +19,7 @@ export class HttpClient {
       timeout?: number;
       stream?: boolean;
       onChunk?: (chunk: string) => void;
+      signal?: AbortSignal;
     } = {},
   ): Promise<Record<string, unknown> | null> {
     const timeoutSeconds = options.timeout ?? 120;
@@ -28,6 +29,18 @@ export class HttpClient {
       timeoutSeconds * 1000,
     );
 
+    const onAbort = () => {
+      controller.abort();
+    };
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        controller.abort();
+      } else {
+        options.signal.addEventListener('abort', onAbort);
+      }
+    }
+
     try {
       const response = await fetch(urlStr, {
         method: 'POST',
@@ -35,8 +48,6 @@ export class HttpClient {
         body: JSON.stringify(bodyHash),
         signal: controller.signal,
       });
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         let bodyText = '';
@@ -71,14 +82,21 @@ export class HttpClient {
         return json as Record<string, unknown>;
       }
     } catch (err: unknown) {
-      clearTimeout(timeoutId);
       if (err instanceof Error && err.name === 'AbortError') {
+        if (options.signal?.aborted) {
+          throw new LLMError(`LLM request aborted: ${err.message}`);
+        }
         throw new LLMTimeoutError(`LLM request timed out: ${err.message}`);
       }
       if (err instanceof LLMError) {
         throw err;
       }
       throw new LLMError(`LLM connection failed: ${(err as Error).message}`);
+    } finally {
+      clearTimeout(timeoutId);
+      if (options.signal) {
+        options.signal.removeEventListener('abort', onAbort);
+      }
     }
   }
 

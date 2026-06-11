@@ -44,7 +44,7 @@ describe('GardenProvider', () => {
     fs.mkdirSync(gardensPath, { recursive: true });
 
     const gardenMd = path.join(gardensPath, 'garden.md');
-    const content = `A---
+    const content = `---
 name: mock-garden
 description: A mock garden description
 requires:
@@ -54,8 +54,7 @@ Some body text.
 
 ## Requirements
 - \`dep2\`
-- dep3
-Z`;
+- dep3`;
     fs.writeFileSync(gardenMd, content, 'utf-8');
 
     const result = provider.provide();
@@ -74,7 +73,7 @@ Z`;
     fs.mkdirSync(subDir, { recursive: true });
 
     const gardenFile = path.join(subDir, 'GARDEN.md');
-    const content = `A---
+    const content = `---
 name: my-sub
 description: Sub garden example
 requires:

@@ -64,7 +64,7 @@ describe('SkillProvider', () => {
     const skillFile = path.join(skillSubdir, 'SKILL.md');
     // available tools are ['available-tool-1', 'available-tool-2']
     // mock-tool is missing
-    const content = `A---
+    const content = `---
 name: Mock Skill
 description: A mock skill that requires tools
 requires:

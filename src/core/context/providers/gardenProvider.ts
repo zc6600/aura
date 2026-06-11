@@ -33,7 +33,7 @@ export class GardenProvider {
         try {
           const c = fs.readFileSync(file, 'utf-8').trim();
           if (c) {
-            const fmMatch = c.match(/A---\s+([\s\S]+?)\s+---/);
+            const fmMatch = c.match(/^---\s+([\s\S]+?)\s+---/);
             if (fmMatch) {
               const frontmatter = fmMatch[1];
               const meta = yaml.parse(frontmatter) || {};
@@ -46,7 +46,7 @@ export class GardenProvider {
                 : [];
 
               const reqHeaderMatch = c.match(
-                /^##\s+(?:Requirements|Dependencies)\s*\n([\s\S]*?)(?=\n##|Z)/m,
+                /(?:^|\n)##\s+(?:Requirements|Dependencies)\s*\n([\s\S]*?)(?=\n##|$)/,
               );
               if (reqHeaderMatch) {
                 const lines = reqHeaderMatch[1].split('\n');
@@ -74,7 +74,7 @@ export class GardenProvider {
                 content += `\nPath: ${relPath}\n`;
               }
 
-              const body = c.replace(/A---\s+[\s\S]+?\s+---\n*/m, '');
+              const body = c.replace(/^---\s+[\s\S]+?\s+---\n*/m, '');
               content += `\n${body}\n\n`;
             } else {
               content += `${c}\n\n`;
@@ -124,7 +124,7 @@ export class GardenProvider {
     for (const gardenFile of uniqueGardenFiles) {
       try {
         const raw = fs.readFileSync(gardenFile, 'utf-8');
-        const fmMatch = raw.match(/A---\s+([\s\S]+?)\s+---/);
+        const fmMatch = raw.match(/^---\s+([\s\S]+?)\s+---/);
         if (fmMatch) {
           const frontmatter = fmMatch[1];
           const meta = yaml.parse(frontmatter) || {};
@@ -136,7 +136,7 @@ export class GardenProvider {
             : [];
 
           const reqHeaderMatch = raw.match(
-            /^##\s+(?:Requirements|Dependencies)\s*\n([\s\S]*?)(?=\n##|Z)/m,
+            /(?:^|\n)##\s+(?:Requirements|Dependencies)\s*\n([\s\S]*?)(?=\n##|$)/,
           );
           if (reqHeaderMatch) {
             const lines = reqHeaderMatch[1].split('\n');

@@ -73,7 +73,7 @@ export class SkillProvider {
       try {
         const raw = fs.readFileSync(skillFile, 'utf-8');
         // Parse frontmatter
-        const fmMatch = raw.match(/A---\s+([\s\S]+?)\s+---/);
+        const fmMatch = raw.match(/^---\s+([\s\S]+?)\s+---/);
         if (fmMatch) {
           const frontmatter = fmMatch[1];
           const meta = yaml.parse(frontmatter) || {};
@@ -86,7 +86,7 @@ export class SkillProvider {
 
           // Parse requirements from body (Anthropic style)
           const reqHeaderMatch = raw.match(
-            /^##\s+(?:Requirements|Dependencies)\s*\n([\s\S]*?)(?=\n##|Z)/m,
+            /(?:^|\n)##\s+(?:Requirements|Dependencies)\s*\n([\s\S]*?)(?=\n##|$)/,
           );
           if (reqHeaderMatch) {
             const lines = reqHeaderMatch[1].split('\n');

@@ -84,14 +84,24 @@ export class AnchorProvider {
       fs.existsSync(dbPath) &&
       fs.statSync(dbPath).isFile()
     ) {
-      const db = new Database(dbPath);
-      const row = db
-        .prepare("SELECT value FROM variables WHERE key = 'plan' LIMIT 1")
-        .get() as { value: string };
-      if (row) {
-        planText = String(row.value);
+      let db: Database.Database | null = null;
+      try {
+        db = new Database(dbPath);
+        const row = db
+          .prepare("SELECT value FROM variables WHERE key = 'plan' LIMIT 1")
+          .get() as { value: string } | undefined;
+        if (row) {
+          planText = String(row.value);
+        }
+      } catch (_e) {
+        // Ignore errors reading database file if not initialized yet
+      } finally {
+        if (db) {
+          try {
+            db.close();
+          } catch (_e) {}
+        }
       }
-      db.close();
     }
 
     // 3. Scan anchors/ directory

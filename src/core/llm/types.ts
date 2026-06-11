@@ -13,6 +13,7 @@ export interface CompletionOptions {
   top_k?: number;
   stream?: boolean;
   invoked_tools?: any[];
+  signal?: AbortSignal;
   [key: string]: any;
 }
 

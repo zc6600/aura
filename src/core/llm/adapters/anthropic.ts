@@ -60,6 +60,7 @@ export class AnthropicAdapter extends BaseAdapter {
 
     const json = (await HttpClient.post(this.apiBase, headers, body, {
       timeout: options.timeout,
+      signal: options.signal,
     })) as AnthropicResponse;
     const content = json?.content?.[0]?.text || '';
     const finish_reason = json?.stop_reason || null;
@@ -101,6 +102,7 @@ export class AnthropicAdapter extends BaseAdapter {
     await HttpClient.post(this.apiBase, headers, body, {
       timeout: options.timeout,
       stream: true,
+      signal: options.signal,
       onChunk: (chunk: string) => {
         buffer += chunk;
         while (true) {
