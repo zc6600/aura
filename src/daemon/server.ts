@@ -267,7 +267,11 @@ export class DaemonServer {
           };
 
           const confirmHook = async (tool: unknown, _args: unknown) => {
-            const config = this.runner.loadConfig();
+            const runner = this.runner;
+            if (!runner) {
+              return true;
+            }
+            const config = runner.loadConfig();
             const security = config?.security as
               | Record<string, unknown>
               | undefined;
@@ -277,8 +281,7 @@ export class DaemonServer {
               return true;
             }
 
-            const isAutoJob =
-              this.runner.currentJob?.metadata?.auto_mode || false;
+            const isAutoJob = runner.currentJob?.metadata?.auto_mode || false;
             if (isAutoJob) {
               return true;
             }

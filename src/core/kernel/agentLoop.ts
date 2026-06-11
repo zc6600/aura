@@ -212,14 +212,19 @@ export class AgentLoop {
 
   private async executeTool(plan: ParseResult): Promise<ToolResult> {
     const planAsAny = plan as any;
-    const tool = plan.type === 'tool_call' ? plan.tool : (planAsAny.tool as string | undefined);
+    const tool =
+      plan.type === 'tool_call'
+        ? plan.tool
+        : (planAsAny.tool as string | undefined);
     if (!tool) {
       throw new Error('Expected tool_call plan');
     }
     const call: ToolCall = {
       tool,
       args: (plan.type === 'tool_call' ? plan.args : planAsAny.args) || {},
-      summary: (plan.type === 'tool_call' ? plan.summary : planAsAny.summary) ?? undefined,
+      summary:
+        (plan.type === 'tool_call' ? plan.summary : planAsAny.summary) ??
+        undefined,
     };
     return await this.runner.runCall(call);
   }
