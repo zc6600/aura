@@ -8,6 +8,7 @@ import picocolors from 'picocolors';
 import { Branch } from '../cli/commands/branch.js';
 import { Chat } from '../cli/commands/chat.js';
 import { Config } from '../cli/commands/config.js';
+import { Env } from '../cli/commands/env.js';
 // Subcommand imports
 import { Doctor } from '../cli/commands/doctor.js';
 import { Garden } from '../cli/commands/garden.js';
@@ -226,6 +227,26 @@ class ConfigCommand extends BaseCommand {
 
   async run() {
     await Config.run(this.key, this.value, { global: this.global });
+  }
+}
+
+class EnvSetCommand extends BaseCommand {
+  static paths = [['env', 'set']];
+  static usage = Command.Usage({
+    description: 'Set an environment variable in the .env file',
+    details:
+      'Writes KEY=VALUE into ~/.aura-framework/.env (--global) or the local workspace .env.',
+    examples: [
+      ['Set Gemini API key globally', 'aura env set GEMINI_API_KEY sk-...  --global'],
+      ['Set a local workspace variable', 'aura env set MY_VAR value'],
+    ],
+  });
+  key   = Option.String({ required: true });
+  value = Option.String({ required: true });
+  global = Option.Boolean('-g,--global', false);
+
+  async run() {
+    await Env.set(this.key, this.value, { global: this.global });
   }
 }
 
@@ -1041,6 +1062,7 @@ export function createCli(): Cli {
   cli.register(DoctorCommand);
   cli.register(InfoCommand);
   cli.register(ConfigCommand);
+  cli.register(EnvSetCommand);
   cli.register(BranchCommand);
   cli.register(ListCommand);
   cli.register(DeleteCommand);
