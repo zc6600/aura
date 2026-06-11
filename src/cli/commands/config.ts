@@ -16,6 +16,7 @@ export const Config = {
     let cfgPath: string | null = null;
 
     if (isGlobal) {
+      await GlobalConfig.ensureRepo();
       cfgPath = PathResolver.resolveConfigPath(GlobalConfig.repoPath());
     } else {
       const auraDir = PathResolver.findAuraDir(process.cwd());

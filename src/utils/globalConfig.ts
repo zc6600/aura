@@ -144,7 +144,9 @@ function copyFolderSync(from: string, to: string) {
     if (fs.lstatSync(fromPath).isDirectory()) {
       copyFolderSync(fromPath, toPath);
     } else {
-      fs.copyFileSync(fromPath, toPath);
+      if (!fs.existsSync(toPath)) {
+        fs.copyFileSync(fromPath, toPath);
+      }
     }
   });
 }
