@@ -117,6 +117,11 @@ export class DaemonClient {
       env: { ...process.env, AURA_ALLOW_ROOT: 'true' },
     });
 
+    try {
+      fs.closeSync(out);
+      fs.closeSync(err);
+    } catch {}
+
     let childExited = false;
     let exitCode: number | null = null;
     let signalReceived: string | null = null;

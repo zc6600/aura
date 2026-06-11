@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import readline from 'node:readline';
+import { VERSION } from '../../../utils/version.js';
 
 export class StdioClient {
   private command: string;
@@ -104,7 +105,7 @@ export class StdioClient {
   private async ensureInitialized(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
-    const version = '0.1.0';
+    const version = VERSION;
     try {
       const resp = await this.requestRaw('initialize', {
         protocolVersion: '2025-11-25',

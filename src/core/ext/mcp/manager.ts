@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
+import { VERSION } from '../../../utils/version.js';
 import type { ToolResult } from '../../kernel/interfaces.js';
 import { StdioClient } from './client.js';
 import { SseClient } from './sseClient.js';
@@ -125,7 +126,7 @@ child.stdin.write(JSON.stringify({
   params: {
     protocolVersion: '2025-11-25',
     capabilities: {},
-    clientInfo: { name: 'aura-helper', version: '0.1.0' }
+    clientInfo: { name: 'aura-helper', version: '${VERSION}' }
   }
 }) + '\\n');
 `;
@@ -227,7 +228,7 @@ const handleLine = async (line) => {
     params: {
       protocolVersion: '2025-11-25',
       capabilities: {},
-      clientInfo: { name: 'aura-helper', version: '0.1.0' }
+      clientInfo: { name: 'aura-helper', version: '${VERSION}' }
     }
   });
 

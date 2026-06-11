@@ -99,9 +99,11 @@ export class WebServer {
 
             let lastId = 0;
             const interval = setInterval(() => {
-              if (!this.running) {
+              if (!this.running || res.destroyed) {
                 clearInterval(interval);
-                res.end();
+                if (!res.destroyed) {
+                  res.end();
+                }
                 return;
               }
               if (fs.existsSync(this.dbPath)) {
@@ -114,11 +116,18 @@ export class WebServer {
                     )
                     .all(lastId) as { id: number; payload: string }[];
                   for (const row of rows) {
+                    if (res.destroyed) {
+                      break;
+                    }
                     res.write(`data: ${row.payload}\n\n`);
                     lastId = Number(row.id);
                   }
                 } catch (e: any) {
-                  res.write(`event: error\ndata: ${e.message}\n\n`);
+                  if (!res.destroyed) {
+                    try {
+                      res.write(`event: error\ndata: ${e.message}\n\n`);
+                    } catch {}
+                  }
                 } finally {
                   if (db) db.close();
                 }
