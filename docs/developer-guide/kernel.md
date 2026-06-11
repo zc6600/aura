@@ -39,14 +39,14 @@ The Ralph Loop swaps standard system prompts with specialized, loop-compliant in
 
 - **Ralph Developer Prompt (`:ralph_developer`)**
   - **Base Protocol (`RALPH_PROTOCOL_PROMPT`)**: Tells the LLM that there is no session history, instructions are read from files, troubleshooting must be persistent, and outputs must strictly be a single valid tool-calling JSON block (or raw plain text when completing).
-  - **Custom Override**: Scans the workspace for `prompts/ralph/ralph_system.md` (or `.aura/prompts/ralph/ralph_system.md` / `prompts/ralph_system.md` / `.aura/prompts/ralph_system.md` / `skills/ralph_system.md` / `.aura/skills/ralph_system.md`).
+  - **Custom Override**: Scans the workspace for `prompts/ralph/ralph_system.md` (or `.aura-workspace/prompts/ralph/ralph_system.md` / `prompts/ralph_system.md` / `.aura-workspace/prompts/ralph_system.md` / `skills/ralph_system.md` / `.aura-workspace/skills/ralph_system.md`).
   - **Fallback**: Falls back to `DEFAULT_RALPH_USER_DIRECTIVES` (general coding quality guidelines).
 
 - **Ralph Critic Prompt (`:ralph_critic`)**
   - **Base Protocol**:
     - **Light Mode (`CRITIC_PROTOCOL_PROMPT`)**: Instructs a secondary critic LLM to audit changes, set `"completed": true/false`, and provide a structured JSON containing a `critique` and actionable `advice`.
     - **Heavy Mode (`CRITIC_HEAVY_PROTOCOL_PROMPT`)**: Instructs the critic to execute tools as needed in a Critic Agent Loop and output ONLY a final audit JSON block upon completion.
-  - **Custom Override**: Scans the workspace for `prompts/ralph/critic_rules.md` (or `.aura/prompts/ralph/critic_rules.md` / `prompts/critic_rules.md` / `.aura/prompts/critic_rules.md` / `skills/critic_rules.md` / `.aura/skills/critic_rules.md`).
+  - **Custom Override**: Scans the workspace for `prompts/ralph/critic_rules.md` (or `.aura-workspace/prompts/ralph/critic_rules.md` / `prompts/critic_rules.md` / `.aura-workspace/prompts/critic_rules.md` / `skills/critic_rules.md` / `.aura-workspace/skills/critic_rules.md`).
   - **Fallback**: Falls back to `DEFAULT_CRIC_AUDIT_RULES` (general code quality criteria checklist).
 
 ### 3. The Runner (`Runner` in `src/core/kernel/runner.ts`)

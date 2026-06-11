@@ -92,7 +92,7 @@ Docker Daemon: Running
 Docker Buildx: v0.14.0
 Sandbox Image: aura-sandbox found
 SQLite3: 3.45.3
-Global Repository (~/.aura/repo): OK
+Global Repository (~/.aura-framework/repo): OK
 LLM Config (Provider: openai): OK
 Aura CLI: OK
 ```
@@ -105,7 +105,7 @@ Aura CLI: OK
 
 #### `aura info`
 
-Display comprehensive two-tier system information: **System-level** (global) and **Workspace-level** (local `.aura`).
+Display comprehensive two-tier system information: **System-level** (global) and **Workspace-level** (local `.aura-workspace`).
 
 **System-Level Information:**
 - 📦 **System**: OS, Node version, architecture
@@ -115,8 +115,8 @@ Display comprehensive two-tier system information: **System-level** (global) and
 - 🐳 **Docker Environment**: Version, daemon status, container count
 - 📋 **Registered Projects**: All projects and their paths
 
-**Workspace-Level Information** (only when inside a `.aura` workspace):
-- 📍 **Workspace**: Root path and `.aura` location
+**Workspace-Level Information** (only when inside a `.aura-workspace` workspace):
+- 📍 **Workspace**: Root path and `.aura-workspace` location
 - ⚙️ **Workspace Configuration**: Local config overrides
 - 💾 **Workspace Database**: Local `aura.db` status
 - 🎨 **Workspace Skills**: Installed skills list
@@ -139,8 +139,8 @@ Display comprehensive two-tier system information: **System-level** (global) and
 Initialize a new Aura workspace in the current directory.
 
 **What it does:**
-- Creates `.aura/` directory structure
-- Clones universal templates from `~/.aura/repo`
+- Creates `.aura-workspace/` directory structure
+- Clones universal templates from `~/.aura-framework/repo`
 - Registers the project globally
 - Initializes Git repository
 
@@ -179,7 +179,7 @@ aura commit -m "Added standard enterprise search tool"
 
 #### `aura pull`
 
-Pull template updates from the global repository (`~/.aura/repo`) into your active workspace.
+Pull template updates from the global repository (`~/.aura-framework/repo`) into your active workspace.
 
 **Example:**
 ```bash
@@ -188,7 +188,7 @@ aura pull
 
 #### `aura sync`
 
-Push (sync) local workspace changes back to the global templates (`~/.aura/repo`).
+Push (sync) local workspace changes back to the global templates (`~/.aura-framework/repo`).
 
 **Example:**
 ```bash
@@ -256,12 +256,12 @@ aura config llm.provider anthropic --global
 
 Aura uses a **two-level configuration system**:
 
-1. **Global Config** (`~/.aura/repo/config/config.yml`)
+1. **Global Config** (`~/.aura-framework/repo/config/config.yml`)
    - Default settings for all workspaces
    - Set with `--global` flag
    - Templates for new workspaces
 
-2. **Workspace Config** (`<project>/.aura/config/config.yml`)
+2. **Workspace Config** (`<project>/.aura-workspace/config/config.yml`)
    - Project-specific overrides
    - Takes precedence over global config
    - Isolated per workspace
@@ -281,7 +281,7 @@ aura config llm.provider anthropic
 
 #### `aura branch`
 
-List, switch, or create customized agent profiles (Git branches) inside `.aura/`.
+List, switch, or create customized agent profiles (Git branches) inside `.aura-workspace/`.
 
 **Examples:**
 ```bash
@@ -473,10 +473,10 @@ aura update status
 ```
 📊 Template Update Status
 ============================================================
-Local (.aura):
+Local (.aura-workspace):
   Commit: abc1234 Initial template commit
 
-Global (~/.aura/repo):
+Global (~/.aura-framework/repo):
   Commit: def5678 Template update from framework v0.1.0
 
 ⚠️  Updates available from global repo!
@@ -559,7 +559,7 @@ Manage template synchronization.
 
 ##### `aura template sync`
 
-Sync framework templates to global repository `~/.aura/repo`.
+Sync framework templates to global repository `~/.aura-framework/repo`.
 
 **What it does:**
 1. Backs up user custom modifications

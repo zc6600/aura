@@ -198,7 +198,7 @@ MCP allows agents to connect to external tool servers and services.
 
 ### Configuration
 
-Edit `.aura/tools/mcp/config.yml` for workspace-level, or `~/.aura/repo/tools/mcp/config.yml` for global:
+Edit `.aura-workspace/tools/mcp/config.yml` for workspace-level, or `~/.aura-framework/repo/tools/mcp/config.yml` for global:
 
 ```yaml
 servers:
@@ -377,7 +377,7 @@ ls -la tools/my_tool/
 npx -y @modelcontextprotocol/server-sqlite --db state/aura.db
 
 # Check config syntax
-cat .aura/tools/mcp/config.yml
+cat .aura-workspace/tools/mcp/config.yml
 ```
 
 ### Tool execution fails

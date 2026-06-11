@@ -84,7 +84,7 @@ bundle exec rubocop lib/aura/state.rb  # Check specific file
 **Configuration highlights**:
 - Line length: 150 chars (relaxed from 120)
 - Method length: 50 lines (relaxed from 10)
-- Excludes: test/, tests/, vendor/, .aura/
+- Excludes: test/, tests/, vendor/, .aura-workspace/
 - Allows Chinese comments
 
 ---

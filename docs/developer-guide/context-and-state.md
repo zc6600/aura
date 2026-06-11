@@ -89,13 +89,13 @@ Resolves the core system instructions and guidelines that govern the agent's beh
 **Features:**
 - **Modular System Prompts**: Combines modular default files from the framework prompts directory.
 - **Skill-Based Operating Protocol**: If an active workflow skill is specified, loads its corresponding `SKILL.md` template.
-- **Legacy Single-File Directives**: Detects and loads workspace overrides like `skills/system.md` or `.aura/skills/system.md`.
+- **Legacy Single-File Directives**: Detects and loads workspace overrides like `skills/system.md` or `.aura-workspace/skills/system.md`.
 - **Ralph Loop Support**: Resolves specialized prompts for Ralph developer (`:ralph_developer`) and critic (`:ralph_critic`) execution modes, loading corresponding workspace rules or falling back to default loop instructions.
 - **Template Substitution**: Automatically interpolates `{{project_path}}` in instructions.
 
 ### 2. Workspace Provider (`WorkspaceProvider`)
 
-Loads markdown configuration files from the project workspace or `.aura/prompts/system/` / `prompts/system/` subdirectories to guide agent persona, rules, and long-term memory.
+Loads markdown configuration files from the project workspace or `.aura-workspace/prompts/system/` / `prompts/system/` subdirectories to guide agent persona, rules, and long-term memory.
 
 **Files Scanned:**
 - **`SOUL.md`** (`# AGENT PERSONA (SOUL)`): Defines the persona, tone, style guidelines, and boundaries.
@@ -111,10 +111,10 @@ Loads markdown configuration files from the project workspace or `.aura/prompts/
 The `# SYSTEM & ENVIRONMENT` section is compiled directly by `ContextBase` utilizing several specialized sub-providers to present environmental, workspace structure, and tag-sensing capabilities:
 
 **Subsections & Contributors:**
-- **Global Rules**: Handled by `GlobalRulesProvider`. Loads project-specific `AURA_README.md` instructions and user-global guidelines from `~/.aura/global_hint.md`.
+- **Global Rules**: Handled by `GlobalRulesProvider`. Loads project-specific `AURA_README.md` instructions and user-global guidelines from `~/.aura-framework/global_hint.md`.
 - **Workspace Overview**: Handled by `DirectoryTreeProvider`. Displays a recursive list of files and directories up to `directory_tree.max_depth` (default 3) levels deep, showing at most `directory_tree.max_files_per_dir` (default 10) files per directory to prevent context bloat.
 - **Active Tags & Guidance (`@aura-hint`)**: Handled by `HintProvider`. Scans workspace files ending in `.py`, `.rb`, `.sh`, `.md`, or `.txt` (up to 100KB in size and 1000 files total) up to `hints.max_scan_lines` lines deep (default 2000) for comments matching the `@aura-hint:` pattern. **It also scans the entire workspace for sidecar `.hint` files (e.g. `src/core/parser.ts.hint`)** outside of the `knowledge/` directory, loading their entire contents as active constraints.
-- **Skills Knowledge**: Handled by `SkillProvider`. Parses YAML metadata from `SKILL.md` files (in `skills/` or `.aura/skills/`) to display skill name, description, requirements, and missing workspace tools, plus lists related scripts, references, and assets.
+- **Skills Knowledge**: Handled by `SkillProvider`. Parses YAML metadata from `SKILL.md` files (in `skills/` or `.aura-workspace/skills/`) to display skill name, description, requirements, and missing workspace tools, plus lists related scripts, references, and assets.
 - **Garden Playbooks**: Handled by `GardenProvider`. Surfaces active playbooks and garden rules.
 - **User Tasks**: Handled by `AnchorProvider`. Extracts the current plan stored as active variables in the SQLite database and summarizes node actions from `anchors/*.json` or `anchors/*.yaml` / `anchors/*.yml` files.
 

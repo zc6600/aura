@@ -8,7 +8,7 @@ Aura has **two configuration levels**:
 
 ### 1. Global Configuration
 
-**Location**: `~/.aura/repo/config/config.yml`
+**Location**: `~/.aura-framework/repo/config/config.yml`
 
 - Default settings for all workspaces
 - Templates for new projects
@@ -16,7 +16,7 @@ Aura has **two configuration levels**:
 
 ### 2. Workspace Configuration
 
-**Location**: `<project>/.aura/config/config.yml`
+**Location**: `<project>/.aura-workspace/config/config.yml`
 
 - Project-specific overrides
 - Takes precedence over global config
@@ -76,7 +76,7 @@ aura agent
 
 Aura loads `.env` from:
 1. Project directory (`./.env`)
-2. Global Aura directory (`~/.aura/.env`)
+2. Global Aura directory (`~/.aura-framework/.env`)
 
 ### Manual Configuration
 
@@ -112,7 +112,7 @@ export OPENROUTER_API_KEY=your-key
 
 ## Agent Profiles (Branches)
 
-Aura supports multiple agent profiles using Git branches within `.aura/`.
+Aura supports multiple agent profiles using Git branches within `.aura-workspace/`.
 
 ### List Profiles
 
@@ -285,7 +285,7 @@ aura info
 # Look for "Workspace Configuration" section
 
 # View global config
-cat ~/.aura/repo/config/config.yml
+cat ~/.aura-framework/repo/config/config.yml
 ```
 
 ---
@@ -348,7 +348,7 @@ aura config llm.model gpt-4o
 aura info
 
 # Verify config file syntax
-cat .aura/config/config.yml
+cat .aura-workspace/config/config.yml
 ```
 
 ### LLM provider not detected

@@ -34,7 +34,7 @@ Returns the shell command to launch the autonomous agent's loop solver.
 *   **Command**: `aura kernel loop --goal <escaped_goal> --max-steps <max_steps>`
 
 #### `get_config_update_command(provider: str, model: str) -> str`
-Returns an inline Node.js command string that modifies `.aura/config/config.yml` inside the sandbox to route LLM queries to the target provider/model.
+Returns an inline Node.js command string that modifies `.aura-workspace/config/config.yml` inside the sandbox to route LLM queries to the target provider/model.
 *   **Command**: `node -e '...'`
 
 ---
@@ -52,7 +52,7 @@ Executes the solver loop locally on the host machine.
 *   **Action**: Runs `aura kernel loop` (which maps to `aura agent --goal` in the TS implementation) with the requested goal.
 
 #### `update_config(provider: str, model: str)`
-Directly parses, updates, and serializes the YAML configuration file (`.aura/config/config.yml`) under the workspace.
+Directly parses, updates, and serializes the YAML configuration file (`.aura-workspace/config/config.yml`) under the workspace.
 
 ---
 

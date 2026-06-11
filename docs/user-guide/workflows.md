@@ -6,7 +6,7 @@ This guide covers version control workflows and update procedures for Aura OS.
 
 ## Git-Powered Version Control
 
-Aura packages a full local version control workflow inside `.aura/` using Git under the hood.
+Aura packages a full local version control workflow inside `.aura-workspace/` using Git under the hood.
 
 ### Basic Workflow
 
@@ -33,7 +33,7 @@ aura pull
 aura status
 ```
 
-Shows modified and untracked files in your `.aura/` workspace.
+Shows modified and untracked files in your `.aura-workspace/` workspace.
 
 ### Stage Changes
 
@@ -53,7 +53,7 @@ aura commit -m "Updated read_file tool to support larger files"
 
 ### Sync to Global Repository
 
-Push your local changes to the global template repository (`~/.aura/repo`):
+Push your local changes to the global template repository (`~/.aura-framework/repo`):
 
 ```bash
 aura sync
@@ -144,7 +144,7 @@ Update Aura CLI itself.
 
 **Behavior:**
 - Displays instructions to upgrade globally via npm or rebuild locally if developing in the source repository.
-- Automatically triggers a template synchronization to your global user repository (`~/.aura/repo`).
+- Automatically triggers a template synchronization to your global user repository (`~/.aura-framework/repo`).
 
 ```bash
 # Running framework update
@@ -171,11 +171,11 @@ aura update status
 ```
 📊 Template Update Status
 ============================================================
-Local (.aura):
+Local (.aura-workspace):
   Commit: abc1234 Initial template commit
   Message: abc1234 Initial template commit
 
-Global (~/.aura/repo):
+Global (~/.aura-framework/repo):
   Commit: def5678 Template update from framework v0.1.0
   Message: def5678 Template update from framework v0.1.0
 
@@ -279,7 +279,7 @@ aura template sync
 
 🔄 Syncing templates...
   Source: /path/to/aura/generators/aura/app/templates
-  Target: /Users/user/.aura/repo
+  Target: /Users/user/.aura-workspace/repo
   ✓ Removed old global repo
   ✓ Copied new templates
 
@@ -308,7 +308,7 @@ aura template diff
 ⚠️  Differences found:
 
 Only in /path/to/aura/generators/aura/app/templates/skills: new-skill
-Files /path/to/aura/generators/aura/app/templates/config.yml and /Users/user/.aura/repo/config.yml differ
+Files /path/to/aura/generators/aura/app/templates/config.yml and /Users/user/.aura-workspace/repo/config.yml differ
 
 To sync, run: aura template sync
 ```
@@ -330,8 +330,8 @@ Framework Templates:
   Status: ✓ Exists
   Files: 114
 
-Global Repository (~/.aura/repo):
-  Path: /Users/user/.aura/repo
+Global Repository (~/.aura-framework/repo):
+  Path: /Users/user/.aura-workspace/repo
   Status: ✓ Exists
   Git: ✓ Initialized
   Last Commit: def5678 Template update from framework v0.1.0
@@ -358,11 +358,11 @@ Global Repository (~/.aura/repo):
 ### 1. Backup Before Updating
 
 ```bash
-# Backup entire .aura directory
-cp -r .aura .aura.backup
+# Backup entire .aura-workspace directory
+cp -r .aura-workspace .aura-workspace.backup
 
 # Or commit current state
-cd .aura
+cd .aura-workspace
 git add .
 git commit -m "Before update backup"
 ```
@@ -398,7 +398,7 @@ aura update all
 aura update merge
 
 # Manually resolve conflicts
-cd .aura
+cd .aura-workspace
 git status  # View conflicted files
 # Edit conflict files...
 git add .
@@ -412,7 +412,7 @@ git commit -m "Resolved merge conflicts"
 ### Rollback to Previous Commit
 
 ```bash
-cd .aura
+cd .aura-workspace
 git log  # Find the commit to rollback to
 git reset --hard <commit-hash>
 ```
@@ -420,11 +420,11 @@ git reset --hard <commit-hash>
 ### Restore from Backup
 
 ```bash
-# Remove current .aura
-rm -rf .aura
+# Remove current .aura-workspace
+rm -rf .aura-workspace
 
 # Restore from backup
-cp -r .aura.backup .aura
+cp -r .aura-workspace.backup .aura-workspace
 ```
 
 ### Revert Template Sync
@@ -432,7 +432,7 @@ cp -r .aura.backup .aura
 If template sync caused issues:
 
 ```bash
-cd ~/.aura/repo
+cd ~/.aura-framework/repo
 git log  # Find commit before sync
 git reset --hard <commit-hash>
 ```
@@ -503,7 +503,7 @@ aura update merge --stash
 # Verify functionality...
 
 # If issues, rollback
-cd .aura
+cd .aura-workspace
 git reset --hard HEAD~1
 ```
 
@@ -516,7 +516,7 @@ git reset --hard HEAD~1
 **Solution:** Use `--stash` option or commit changes first:
 
 ```bash
-cd .aura
+cd .aura-workspace
 git add .
 git commit -m "Save custom configs"
 cd ..
@@ -534,7 +534,7 @@ aura update merge --force
 Or resolve manually:
 
 ```bash
-cd .aura
+cd .aura-workspace
 git mergetool  # Use graphical tool
 git add .
 git commit -m "Resolved conflicts"

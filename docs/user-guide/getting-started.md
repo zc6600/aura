@@ -115,7 +115,7 @@ aura agent
 
 ### Manual Override
 
-You can manually configure LLM settings in `.aura/config/config.yml`:
+You can manually configure LLM settings in `.aura-workspace/config/config.yml`:
 
 ```yaml
 llm:
@@ -139,13 +139,13 @@ aura new my_agent_project
 cd my_agent_project
 ```
 
-This creates a hidden `.aura/` directory with configuration, state, and tools:
+This creates a hidden `.aura-workspace/` directory with configuration, state, and tools:
 
 ```
 my_agent_project/
-├── .gitignore              # Automatically ignores .aura/
+├── .gitignore              # Automatically ignores .aura-workspace/
 ├── src/                    # Your code files
-└── .aura/                  # Hidden Aura environment
+└── .aura-workspace/                  # Hidden Aura environment
     ├── config/
     │   └── config.yml      # Workspace settings
     ├── state/

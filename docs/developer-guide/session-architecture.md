@@ -72,7 +72,7 @@ Technical design of Aura's session isolation system.
 ┌─────────────────────────────────────────────────────────┐
 │         Environment Provider (Cross-Session Config)       │
 │                                                         │
-│  Stored in .aura/config/ or environment variables:       │
+│  Stored in .aura-workspace/config/ or environment variables:       │
 │  - User preferences                                      │
 │  - Project conventions                                   │
 │  - Tool configurations                                   │
@@ -189,7 +189,7 @@ Provider (Read)
 
 ```
 project/
-├── .aura/
+├── .aura-workspace/
 │   ├── config/
 │   │   └── config.yml              # Environment Provider (cross-session)
 │   └── .env                        # API keys (cross-session)

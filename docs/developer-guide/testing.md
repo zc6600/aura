@@ -10,7 +10,7 @@ The tests under `tests/` validate the framework code in this repository.
 
 **Scope:**
 - CLI entry and dispatch: `src/bin/aura.ts`, `src/cli/commands/`
-- Workspace initializer: `src/utils/workspaceInitializer.ts` (mapped to `aura new` in `src/bin/aura.ts`, creates `.aura/` by copying templates)
+- Workspace initializer: `src/utils/workspaceInitializer.ts` (mapped to `aura new` in `src/bin/aura.ts`, creates `.aura-workspace/` by copying templates)
 - Templates: `src/generators/aura/app/templates/config.yml` and tool templates
 - Isolation verification: many tests generate a temporary Agent project via `aura new <tmp_path>` and assert files/databases under that generated project.
 
