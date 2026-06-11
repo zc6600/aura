@@ -304,6 +304,14 @@ export class DaemonServer {
                   : true;
 
               const confirmHook = async (tool: unknown, _args: unknown) => {
+                const config = bridge.runner.loadConfig();
+                const security = config?.security as Record<string, unknown> | undefined;
+                const confirmEnabled = security?.confirm_dangerous_tools === true;
+
+                if (!confirmEnabled) {
+                  return true;
+                }
+
                 const isAutoJob =
                   bridge.runner.currentJob?.metadata?.auto_mode || false;
                 if (isAutoJob) {

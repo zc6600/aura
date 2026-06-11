@@ -32,6 +32,10 @@ export interface StateManagementConfig {
   [key: string]: unknown;
 }
 
+export interface SecurityConfig {
+  confirm_dangerous_tools?: boolean;
+}
+
 /**
  * Top-level structure of .aura/config.yml
  */
@@ -41,6 +45,7 @@ export interface AuraConfig {
   hints?: HintsConfig;
   ralph?: RalphConfig;
   state_management?: StateManagementConfig;
+  security?: SecurityConfig;
   verbose?: boolean;
   [key: string]: unknown;
 }

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DaemonClient } from '../../src/daemon/client.js';
 import { resolveIpcPath } from '../../src/daemon/ipc.js';
 import { DaemonServer } from '../../src/daemon/server.js';
@@ -282,6 +282,78 @@ describe('Daemon IPC Protocol', () => {
     ).rejects.toThrow();
 
     // Cleanup & Exit
+    await client.request('daemon/exit');
+    client.disconnect();
+    server.stop();
+  });
+
+  it('should only request confirmation for dangerous tools when security.confirm_dangerous_tools is enabled', async () => {
+    const workspacePath = path.join(tempDir, 'test-workspace-confirm-tools');
+    fs.mkdirSync(workspacePath, { recursive: true });
+    fs.mkdirSync(path.join(workspacePath, '.aura', 'config'), {
+      recursive: true,
+    });
+    
+    // Write config without security confirmation (disabled by default)
+    fs.writeFileSync(
+      path.join(workspacePath, '.aura', 'config', 'config.yml'),
+      'llm:\n  provider: local\n',
+    );
+
+    const { Bridge } = await import('../../src/core/interface/bridge.js');
+
+    // Spy/mock Bridge.prototype.chat to manually trigger tool execution hooks
+    const chatSpy = vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (this: any) {
+      const allowed = await this.runner.hooks.run('before_tool_execution', 'write_file', { path: 'test.txt' });
+      return allowed;
+    });
+
+    const server = new DaemonServer(workspacePath);
+    await server.start();
+
+    const client = new DaemonClient(workspacePath);
+    await client.connect(false);
+
+    await client.request('workspace/initialize', {
+      sessionName: 'default',
+    });
+
+    // 1. Run goal with security.confirm_dangerous_tools unset (should return true immediately)
+    const runRes1 = await client.request('agent/runGoal', {
+      goal: 'write a file',
+      options: { auto_mode: false }
+    });
+    expect(runRes1.status).toBe('completed');
+
+    // 2. Now write config enabling confirmation
+    fs.writeFileSync(
+      path.join(workspacePath, '.aura', 'config', 'config.yml'),
+      'llm:\n  provider: local\nsecurity:\n  confirm_dangerous_tools: true\n',
+    );
+
+    // Re-initialize runner with new config
+    await client.request('workspace/initialize', {
+      sessionName: 'default',
+    });
+
+    // Register confirmation response handler on client
+    let confirmPromptReceived = false;
+    client.onConfirmRequest(async (msg) => {
+      confirmPromptReceived = true;
+      return true; // approve dangerous tool
+    });
+
+    // Run goal with security.confirm_dangerous_tools = true (should ask client for confirmation)
+    const runRes2 = await client.request('agent/runGoal', {
+      goal: 'write a file',
+      options: { auto_mode: false }
+    });
+    
+    expect(confirmPromptReceived).toBe(true);
+    expect(runRes2.status).toBe('completed');
+
+    // Cleanup & Exit
+    chatSpy.mockRestore();
     await client.request('daemon/exit');
     client.disconnect();
     server.stop();
