@@ -256,6 +256,8 @@ fi
 echo -e "${GREEN}✓ CLI linked!${NC}\n"
 
 # Apply selected LLM configurations globally
+# NOTE: API keys are NOT stored in config (they live in ~/.aura-framework/.env).
+# Only non-secret settings (provider, model, api_base) go into config.yml.
 if [ ! -z "$SELECTED_PROVIDER" ]; then
     echo -e "  - Configuring global default LLM provider to ${GREEN}$SELECTED_PROVIDER${NC}..."
     AURA_ALLOW_ROOT=true node dist/bin/aura.js config llm.provider "$SELECTED_PROVIDER" --global > /dev/null
@@ -266,12 +268,6 @@ if [ ! -z "$SELECTED_PROVIDER" ]; then
     if [ ! -z "$SELECTED_BASE" ]; then
         echo -e "  - Configuring global default LLM API base to ${GREEN}$SELECTED_BASE${NC}..."
         AURA_ALLOW_ROOT=true node dist/bin/aura.js config llm.api_base "$SELECTED_BASE" --global > /dev/null
-    fi
-    # Also persist the API key to global config so `aura doctor` can find it
-    # from any workspace (the .env in cli-src is not read by the global CLI).
-    if [ ! -z "$API_KEY" ]; then
-        echo -e "  - Persisting API key to global config..."
-        AURA_ALLOW_ROOT=true node dist/bin/aura.js config llm.api_key "$API_KEY" --global > /dev/null
     fi
 fi
 

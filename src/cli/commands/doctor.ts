@@ -160,10 +160,9 @@ export const Doctor = {
         provider = llmCfg.provider;
         if (provider?.trim()) {
           envVarName = Doctor.getEnvVarName(provider);
-          apiKeySet = !!(
-            (envVarName && process.env[envVarName]?.trim()) ||
-            llmCfg.api_key?.trim()
-          );
+          // API keys must come from environment variables (.env), not config.yml.
+          // config.yml is for non-secret settings (provider, model, api_base) only.
+          apiKeySet = !!(envVarName && process.env[envVarName]?.trim());
         }
       } catch {}
     }

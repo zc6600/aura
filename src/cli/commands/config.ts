@@ -59,6 +59,23 @@ export const Config = {
         console.log(val);
       }
     } else {
+      // Guard: API keys are secrets and must not be stored in config.yml.
+      // config.yml lives inside ~/.aura-framework/repo (a git repo) and is
+      // not the right place for credentials.
+      if (key === 'llm.api_key') {
+        const envVar = value ? `${value.substring(0, 4)}...` : '<key>';
+        console.error(
+          picocolors.red(
+            '⛔️ API keys must not be stored in config.yml (it lives in a git repo).',
+          ),
+        );
+        console.error('💡 Store your API key in the environment file instead:');
+        console.error(
+          picocolors.cyan(`   echo "GEMINI_API_KEY=${envVar}" >> ~/.aura-framework/.env`),
+        );
+        console.error('   (Replace GEMINI_API_KEY with the env var for your provider)');
+        process.exit(1);
+      }
       // Set key value
       Config.setHashValue(hash, key, value);
       fs.writeFileSync(cfgPath, yaml.stringify(hash), 'utf-8');
