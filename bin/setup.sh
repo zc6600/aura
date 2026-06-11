@@ -67,9 +67,18 @@ if [ "$IS_AURA_DIR" = false ]; then
     if [ -d "$INSTALL_DIR" ]; then
         echo -e "  - Existing repository directory $INSTALL_DIR detected. Updating code..."
         cd "$INSTALL_DIR"
-        # Discard local changes (e.g. package-lock.json) to ensure a clean forced update
-        git fetch --all --quiet
-        git reset --hard "origin/$(git branch --show-current)" --quiet
+        # Discard package-lock.json changes first since npm install recreates it
+        git checkout package-lock.json &> /dev/null || true
+        CURRENT_BRANCH=$(git branch --show-current)
+        # Pull updates safely. Stash other changes to prevent data loss.
+        if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo -e "  - Local changes detected. Stashing to preserve them..."
+            git stash --quiet
+            git pull origin "$CURRENT_BRANCH" --quiet || true
+            git stash pop --quiet || true
+        else
+            git pull origin "$CURRENT_BRANCH" --quiet || true
+        fi
     else
         echo -e "  - Cloning Aura repository into $INSTALL_DIR..."
         mkdir -p "$HOME/.aura-framework"
