@@ -5,6 +5,12 @@ import { Bridge } from '../core/interface/bridge.js';
 import { RalphLoop } from '../core/kernel/ralphLoop.js';
 import { Runner } from '../core/kernel/runner.js';
 import { resolveIpcPath } from './ipc.js';
+import Database from 'better-sqlite3';
+import yaml from 'yaml';
+import { SessionManager } from '../core/memory/sessionManager.js';
+import * as PathResolver from '../utils/pathResolver.js';
+import { SQLiteStore } from '../core/memory/sqliteStore.js';
+import { HintProvider } from '../core/context/providers/hintProvider.js';
 
 /**
  * DaemonServer acts as the local persistent engine for Aura OS.
@@ -329,6 +335,429 @@ export class DaemonServer {
           } finally {
             this.activeLoopJob = { status: 'idle' };
             this.resetIdleTimer();
+          }
+          break;
+        }
+
+        case 'session/list': {
+          const sessionMgr = new SessionManager(this.projectPath);
+          const list = sessionMgr.list();
+          this.sendResult(socket, id, { sessions: list });
+          break;
+        }
+
+        case 'session/create': {
+          const p = params as Record<string, unknown> | null | undefined;
+          const name = p?.name;
+          if (!name || typeof name !== 'string') {
+            this.sendError(socket, id, -32602, 'Invalid session name.');
+            return;
+          }
+          const sessionMgr = new SessionManager(this.projectPath);
+          const session = sessionMgr.create(name, p);
+          this.sendResult(socket, id, { session });
+          break;
+        }
+
+        case 'session/activate': {
+          const p = params as Record<string, unknown> | null | undefined;
+          const name = p?.name;
+          if (!name || typeof name !== 'string') {
+            this.sendError(socket, id, -32602, 'Invalid session name.');
+            return;
+          }
+          const sessionMgr = new SessionManager(this.projectPath);
+          sessionMgr.activate(name);
+          if (this.runner) {
+            this.runner.reconnectSession(name);
+          }
+          this.sendResult(socket, id, { activeSession: name });
+          break;
+        }
+
+        case 'session/delete': {
+          const p = params as Record<string, unknown> | null | undefined;
+          const name = p?.name;
+          if (!name || typeof name !== 'string') {
+            this.sendError(socket, id, -32602, 'Invalid session name.');
+            return;
+          }
+          const sessionMgr = new SessionManager(this.projectPath);
+          const success = sessionMgr.delete(name);
+          this.sendResult(socket, id, { success });
+          break;
+        }
+
+        case 'session/rename': {
+          const p = params as Record<string, unknown> | null | undefined;
+          const oldName = p?.oldName;
+          const newName = p?.newName;
+          if (!oldName || typeof oldName !== 'string' || !newName || typeof newName !== 'string') {
+            this.sendError(socket, id, -32602, 'Invalid session names.');
+            return;
+          }
+          const sessionMgr = new SessionManager(this.projectPath);
+          const session = sessionMgr.rename(oldName, newName);
+          if (this.runner && this.runner.sessionName === oldName) {
+            this.runner.reconnectSession(newName);
+          }
+          this.sendResult(socket, id, { session });
+          break;
+        }
+
+        case 'session/duplicate': {
+          const p = params as Record<string, unknown> | null | undefined;
+          const sourceName = p?.sourceName;
+          const newName = p?.newName;
+          if (!sourceName || typeof sourceName !== 'string' || !newName || typeof newName !== 'string') {
+            this.sendError(socket, id, -32602, 'Invalid session names.');
+            return;
+          }
+          const sessionMgr = new SessionManager(this.projectPath);
+          const session = sessionMgr.duplicate(sourceName, newName);
+          this.sendResult(socket, id, { session });
+          break;
+        }
+
+        case 'workspace/writeFile': {
+          const p = params as Record<string, unknown> | null | undefined;
+          const filePath = p?.path;
+          const content = p?.content;
+          if (typeof filePath !== 'string' || typeof content !== 'string') {
+            this.sendError(socket, id, -32602, 'Invalid path or content.');
+            return;
+          }
+          try {
+            const safePath = PathResolver.validateSafePath(filePath, this.projectPath);
+            fs.mkdirSync(path.dirname(safePath), { recursive: true });
+            fs.writeFileSync(safePath, content, 'utf-8');
+            this.sendResult(socket, id, { success: true });
+          } catch (err: unknown) {
+            const msg = (err as Error).message ?? String(err);
+            this.sendError(socket, id, -32603, `Write error: ${msg}`);
+          }
+          break;
+        }
+
+        case 'workspace/readFile': {
+          const p = params as Record<string, unknown> | null | undefined;
+          const filePath = p?.path;
+          if (typeof filePath !== 'string') {
+            this.sendError(socket, id, -32602, 'Invalid path.');
+            return;
+          }
+          try {
+            const safePath = PathResolver.validateSafePath(filePath, this.projectPath);
+            if (!fs.existsSync(safePath) || !fs.statSync(safePath).isFile()) {
+              this.sendError(socket, id, -32602, `File not found: ${filePath}`);
+              return;
+            }
+            const content = fs.readFileSync(safePath, 'utf-8');
+            this.sendResult(socket, id, { content });
+          } catch (err: unknown) {
+            const msg = (err as Error).message ?? String(err);
+            this.sendError(socket, id, -32603, `Read error: ${msg}`);
+          }
+          break;
+        }
+
+        case 'workspace/getFileTree': {
+          try {
+            const buildTree = (currentDir: string, currentDepth: number): any[] => {
+              const nodes: any[] = [];
+              if (currentDepth > 4) return nodes;
+
+              let children: string[] = [];
+              try {
+                children = fs.readdirSync(currentDir).sort();
+              } catch (_e) {
+                return nodes;
+              }
+
+              for (const name of children) {
+                if (name.startsWith('.')) continue;
+                if (['node_modules', 'vendor', 'tmp', 'log', 'build', 'dist', 'coverage', 'state'].includes(name)) continue;
+
+                const fullPath = path.join(currentDir, name);
+                const relPath = path.relative(this.projectPath, fullPath).replace(/\\/g, '/');
+
+                try {
+                  const stat = fs.statSync(fullPath);
+                  if (stat.isDirectory()) {
+                    nodes.push({
+                      name,
+                      path: relPath,
+                      type: 'dir',
+                      children: buildTree(fullPath, currentDepth + 1)
+                    });
+                  } else if (stat.isFile()) {
+                    nodes.push({
+                      name,
+                      path: relPath,
+                      type: 'file'
+                    });
+                  }
+                } catch (_e) {}
+              }
+              return nodes;
+            };
+
+            const tree = buildTree(this.projectPath, 1);
+            this.sendResult(socket, id, { tree });
+          } catch (err: unknown) {
+            const msg = (err as Error).message ?? String(err);
+            this.sendError(socket, id, -32603, `Failed to get file tree: ${msg}`);
+          }
+          break;
+        }
+
+        case 'garden/getStatus': {
+          try {
+            const sessionMgr = new SessionManager(this.projectPath);
+            const sessionsList = sessionMgr.list({ includeMissing: false });
+            let soilSize = 0;
+            for (const session of sessionsList) {
+              try {
+                if (fs.existsSync(session.db_path)) {
+                  soilSize += fs.statSync(session.db_path).size;
+                }
+                for (const suffix of ['-journal', '-wal', '-shm']) {
+                  const sidecar = `${session.db_path}${suffix}`;
+                  if (fs.existsSync(sidecar)) {
+                    soilSize += fs.statSync(sidecar).size;
+                  }
+                }
+              } catch {}
+            }
+            const sessionsCount = sessionsList.length;
+
+            const dbPath = PathResolver.sessionDbPath(this.projectPath);
+            let completedIds: string[] = [];
+            if (fs.existsSync(dbPath)) {
+              let db: Database.Database | undefined;
+              try {
+                db = new Database(dbPath);
+                const tableRow = db
+                  .prepare(
+                    "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='events'",
+                  )
+                  .get() as { count: number } | undefined;
+                if (tableRow && tableRow.count > 0) {
+                  const anchorRows = db
+                    .prepare("SELECT payload FROM events WHERE tool = 'anchor_submit'")
+                    .all();
+                  completedIds = anchorRows
+                    .map((r: unknown) => {
+                      try {
+                        const row = r as { payload: string };
+                        const payload = JSON.parse(row.payload);
+                        return payload.anchor_id;
+                      } catch {
+                        return null;
+                      }
+                    })
+                    .filter(Boolean) as string[];
+                }
+              } catch (e: unknown) {
+                console.warn(`Error querying database: ${(e as Error).message}`);
+              } finally {
+                if (db) {
+                  try {
+                    db.close();
+                  } catch {}
+                }
+              }
+            }
+
+            const anchorsDir = path.join(this.projectPath, 'anchors');
+            let totalAnchors = 0;
+            let completedAnchors = 0;
+            const pendingAnchors: string[] = [];
+
+            if (fs.existsSync(anchorsDir) && fs.statSync(anchorsDir).isDirectory()) {
+              fs.readdirSync(anchorsDir).forEach((file) => {
+                const full = path.join(anchorsDir, file);
+                if (!fs.statSync(full).isFile()) return;
+                const ext = path.extname(file).toLowerCase();
+                if (!['.json', '.yaml', '.yml'].includes(ext)) return;
+
+                totalAnchors++;
+                try {
+                  const content = fs.readFileSync(full, 'utf-8');
+                  const data =
+                    ext === '.json' ? JSON.parse(content) : yaml.parse(content);
+                  const id = data.id || path.basename(file, ext);
+                  if (completedIds.includes(id)) {
+                    completedAnchors++;
+                  } else {
+                    pendingAnchors.push(id);
+                  }
+                } catch {
+                  pendingAnchors.push(path.basename(file, ext));
+                }
+              });
+            }
+
+            const ratio = totalAnchors > 0 ? (completedAnchors / totalAnchors) * 100 : 0;
+            const anchorsProgress = {
+              completed: completedAnchors,
+              total: totalAnchors,
+              ratio: Number(ratio.toFixed(1)),
+              pending: pendingAnchors,
+            };
+
+            let activeHintsCount = 0;
+            try {
+              const hintsProvider = new HintProvider(this.projectPath);
+              const provided = hintsProvider.provide();
+              if (provided) {
+                activeHintsCount = provided.split('\n').filter(line => line.trim().length > 0).length;
+              }
+            } catch {}
+
+            this.sendResult(socket, id, {
+              soilSize,
+              sessionsCount,
+              anchorsProgress,
+              activeHintsCount,
+            });
+          } catch (err: unknown) {
+            const msg = (err as Error).message ?? String(err);
+            this.sendError(socket, id, -32603, `Garden status error: ${msg}`);
+          }
+          break;
+        }
+
+        case 'garden/getAnchors': {
+          try {
+            const dbPath = PathResolver.sessionDbPath(this.projectPath);
+            const completedMap = new Map<string, { summary: string, timestamp: number }>();
+            if (fs.existsSync(dbPath)) {
+              let db: Database.Database | undefined;
+              try {
+                db = new Database(dbPath);
+                const tableRow = db
+                  .prepare(
+                    "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='events'",
+                  )
+                  .get() as { count: number } | undefined;
+                if (tableRow && tableRow.count > 0) {
+                  const anchorRows = db
+                    .prepare("SELECT payload, timestamp FROM events WHERE tool = 'anchor_submit'")
+                    .all() as { payload: string, timestamp: number }[];
+                  for (const row of anchorRows) {
+                    try {
+                      const payload = JSON.parse(row.payload);
+                      if (payload.anchor_id) {
+                        completedMap.set(payload.anchor_id, {
+                          summary: payload.summary || '',
+                          timestamp: row.timestamp,
+                        });
+                      }
+                    } catch {}
+                  }
+                }
+              } catch (e: unknown) {
+                console.warn(`Error querying database: ${(e as Error).message}`);
+              } finally {
+                if (db) {
+                  try {
+                    db.close();
+                  } catch {}
+                }
+              }
+            }
+
+            const anchorsDir = path.join(this.projectPath, 'anchors');
+            const anchors: any[] = [];
+
+            if (fs.existsSync(anchorsDir) && fs.statSync(anchorsDir).isDirectory()) {
+              const files = fs.readdirSync(anchorsDir);
+              for (const file of files) {
+                const full = path.join(anchorsDir, file);
+                if (!fs.statSync(full).isFile()) continue;
+                const ext = path.extname(file).toLowerCase();
+                if (!['.json', '.yaml', '.yml'].includes(ext)) continue;
+
+                try {
+                  const content = fs.readFileSync(full, 'utf-8');
+                  const data = ext === '.json' ? JSON.parse(content) : yaml.parse(content);
+                  const id = data.id || path.basename(file, ext);
+                  const completedInfo = completedMap.get(id);
+
+                  anchors.push({
+                    id,
+                    name: data.name || id,
+                    description: data.description || '',
+                    call_when: Array.isArray(data.call_when) ? data.call_when : (data.call_when ? [data.call_when] : []),
+                    status: completedInfo ? 'completed' : 'pending',
+                    completedAt: completedInfo ? new Date(completedInfo.timestamp * 1000).toISOString() : undefined,
+                    summary: completedInfo ? completedInfo.summary : undefined,
+                  });
+                } catch {
+                  const id = path.basename(file, ext);
+                  const completedInfo = completedMap.get(id);
+                  anchors.push({
+                    id,
+                    status: completedInfo ? 'completed' : 'pending',
+                    completedAt: completedInfo ? new Date(completedInfo.timestamp * 1000).toISOString() : undefined,
+                    summary: completedInfo ? completedInfo.summary : undefined,
+                  });
+                }
+              }
+            }
+
+            this.sendResult(socket, id, { anchors });
+          } catch (err: unknown) {
+            const msg = (err as Error).message ?? String(err);
+            this.sendError(socket, id, -32603, `Get anchors error: ${msg}`);
+          }
+          break;
+        }
+
+        case 'garden/submitAnchor': {
+          const p = params as Record<string, unknown> | null | undefined;
+          const anchorId = p?.anchor_id;
+          if (!anchorId || typeof anchorId !== 'string') {
+            this.sendError(socket, id, -32602, 'Invalid anchor_id parameter.');
+            return;
+          }
+          try {
+            const dbPath = PathResolver.sessionDbPath(this.projectPath);
+            const store = new SQLiteStore({ dbPath });
+            try {
+              if (p.revoke) {
+                const rows = store.getRawDb().prepare("SELECT id, payload FROM events WHERE tool = 'anchor_submit'").all() as { id: number, payload: string }[];
+                const toDelete: number[] = [];
+                for (const row of rows) {
+                  try {
+                    const payload = JSON.parse(row.payload);
+                    if (payload.anchor_id === anchorId) {
+                      toDelete.push(row.id);
+                    }
+                  } catch {}
+                }
+                if (toDelete.length > 0) {
+                  store.deleteEvents(toDelete);
+                }
+              } else {
+                store.insertEvent({
+                  timestamp: Math.floor(Date.now() / 1000),
+                  phase: 'tool',
+                  tool: 'anchor_submit',
+                  payload: {
+                    anchor_id: anchorId,
+                    summary: p.summary || '',
+                  },
+                });
+              }
+              this.sendResult(socket, id, { success: true });
+            } finally {
+              store.close();
+            }
+          } catch (err: unknown) {
+            const msg = (err as Error).message ?? String(err);
+            this.sendError(socket, id, -32603, `Submit anchor error: ${msg}`);
           }
           break;
         }
