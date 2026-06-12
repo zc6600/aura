@@ -76,13 +76,7 @@ Alternatively, if you have already cloned the repository locally, you can run:
 bash bin/setup.sh
 ```
 
-#### Method B: Global NPM Installation
-Once published, you can install the CLI globally:
-```bash
-npm install -g aura-cli
-```
-
-#### Method C: Local Source Installation
+#### Method B: Local Source Installation
 Alternatively, you can build and link the CLI locally:
 ```bash
 # Clone the repository

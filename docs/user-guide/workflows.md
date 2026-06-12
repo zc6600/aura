@@ -150,10 +150,7 @@ Update Aura CLI itself.
 # Running framework update
 aura update framework
 
-# If updating globally:
-npm update -g aura-cli
-
-# If developing locally in the source root:
+# Rebuild the CLI after git pull (in the source root or ~/.aura-framework/cli-src):
 npm run build
 ```
 

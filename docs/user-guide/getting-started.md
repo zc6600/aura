@@ -39,14 +39,7 @@ The setup script will:
 5. Link the CLI globally via `npm link`
 6. Run `aura doctor` to verify the installation
 
-### Method 2: Global NPM Installation (Once Published)
-
-Once published, you can install the CLI globally:
-```bash
-npm install -g aura-cli
-```
-
-### Method 3: Manual Installation (From Source)
+### Method 2: Manual Installation (From Source)
 
 If you prefer manual control:
 

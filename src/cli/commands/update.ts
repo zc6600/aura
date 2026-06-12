@@ -14,9 +14,7 @@ export class Update {
     _options: { force?: boolean } = {},
   ): Promise<void> {
     console.log('🔄 Updating Aura Framework...');
-    console.log('In TypeScript version, please run:');
-    console.log(picocolors.cyan('  npm update -g aura-cli'));
-    console.log('or if developing locally, run:');
+    console.log('To update, please pull the latest changes from Git and run:');
     console.log(picocolors.cyan('  npm run build'));
     console.log(
       '\nAutomatically triggering template sync to global repository...',
