@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import picocolors from 'picocolors';
 import * as GlobalConfig from '../../utils/globalConfig.js';
@@ -70,14 +72,42 @@ export class Git {
     console.log(
       'Pulling updates from the global repository (~/.aura-framework/repo)...',
     );
-    const res = await GlobalConfig.gitRun(auraDir, 'pull', 'origin', 'main');
-    if (res.success) {
-      console.log(
-        picocolors.green('Successfully pulled updates from global repo!'),
-      );
-      console.log(res.stdout);
-    } else {
-      console.error(picocolors.red(`Error pulling updates:\n${res.stderr}`));
+
+    let configBackup: string | null = null;
+    let tmpDir: string | null = null;
+    const configPath = PathResolver.resolveConfigPath(auraDir);
+
+    try {
+      if (configPath && fs.existsSync(configPath)) {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-git-pull-'));
+        configBackup = path.join(tmpDir, 'config.yml');
+        fs.copyFileSync(configPath, configBackup);
+        console.log(`  ${picocolors.yellow('⚠️  Backed up user config.yml')}`);
+      }
+
+      const res = await GlobalConfig.gitRun(auraDir, 'pull', 'origin', 'main');
+      if (res.success) {
+        console.log(
+          picocolors.green('Successfully pulled updates from global repo!'),
+        );
+        console.log(res.stdout);
+      } else {
+        console.error(picocolors.red(`Error pulling updates:\n${res.stderr}`));
+      }
+
+      if (configBackup && configPath) {
+        GlobalConfig.restoreAndMergeConfig(configBackup, configPath);
+      }
+    } finally {
+      if (tmpDir) {
+        try {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch {}
+      } else if (configBackup && fs.existsSync(configBackup)) {
+        try {
+          fs.unlinkSync(configBackup);
+        } catch {}
+      }
     }
   }
 

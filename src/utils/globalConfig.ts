@@ -3,7 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
+import picocolors from 'picocolors';
 import yaml from 'yaml';
+import { deepMerge } from './fsUtils.js';
 
 // Helper to get directory name safely in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -59,19 +61,7 @@ export async function ensureRepo(): Promise<void> {
         const templateCfg = yaml.parse(templateRaw) || {};
 
         // Deep merge user overrides on top of templates
-        const mergedCfg = { ...templateCfg, ...existingCfg };
-        if (templateCfg.llm && existingCfg.llm) {
-          mergedCfg.llm = { ...templateCfg.llm, ...existingCfg.llm };
-        }
-        if (templateCfg.state_management && existingCfg.state_management) {
-          mergedCfg.state_management = {
-            ...templateCfg.state_management,
-            ...existingCfg.state_management,
-          };
-        }
-        if (templateCfg.ralph && existingCfg.ralph) {
-          mergedCfg.ralph = { ...templateCfg.ralph, ...existingCfg.ralph };
-        }
+        const mergedCfg = deepMerge(templateCfg, existingCfg);
 
         fs.writeFileSync(targetConfigFile, yaml.stringify(mergedCfg), 'utf-8');
         fs.unlinkSync(repoConfigFile);
@@ -150,3 +140,70 @@ function copyFolderSync(from: string, to: string) {
     }
   });
 }
+
+/**
+ * Restores the backed up user/global config, recursively deep merges it with the new configuration,
+ * and writes the result back to configPath.
+ */
+export function restoreAndMergeConfig(
+  configBackup: string,
+  configPath: string,
+  options: { label?: string; templateConfigPath?: string } = {},
+): void {
+  if (!fs.existsSync(configBackup)) return;
+
+  const label = options.label || 'user';
+  const newConfigSrc = options.templateConfigPath || configPath;
+
+  try {
+    const backupCfg = yaml.parse(fs.readFileSync(configBackup, 'utf-8')) || {};
+    const newCfg = fs.existsSync(newConfigSrc)
+      ? yaml.parse(fs.readFileSync(newConfigSrc, 'utf-8')) || {}
+      : {};
+
+    const merged = deepMerge(newCfg, backupCfg);
+
+    const dir = path.dirname(configPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    fs.writeFileSync(configPath, yaml.stringify(merged), 'utf-8');
+    console.log(
+      `  ${picocolors.green(`✓ Restored and merged ${label} config.yml`)}`,
+    );
+
+    // Clean up template config if it was copied to root and is different from configPath
+    if (
+      options.templateConfigPath &&
+      fs.existsSync(options.templateConfigPath) &&
+      options.templateConfigPath !== configPath
+    ) {
+      try {
+        fs.unlinkSync(options.templateConfigPath);
+      } catch {}
+    }
+  } catch (e: any) {
+    try {
+      const dir = path.dirname(configPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.copyFileSync(configBackup, configPath);
+      console.log(
+        `  ${picocolors.yellow(
+          `⚠️  Merge failed: ${e.message}. Restored ${label} config.yml from backup.`,
+        )}`,
+      );
+    } catch (err: any) {
+      console.error(
+        `  🔴 Critical: Failed to restore config.yml backup: ${err.message}`,
+      );
+    }
+  } finally {
+    try {
+      fs.unlinkSync(configBackup);
+    } catch {}
+  }
+}
+

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { readLastLinesSync } from '../../src/utils/fsUtils.js';
+import { deepMerge, readLastLinesSync } from '../../src/utils/fsUtils.js';
 
 describe('readLastLinesSync', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-fsutils-test-'));
@@ -81,5 +81,81 @@ describe('readLastLinesSync', () => {
 
     const res = readLastLinesSync(filePath, 2, 5);
     expect(res).toBe('你好世界\nline3');
+  });
+});
+
+describe('deepMerge', () => {
+  it('should recursively deep merge config objects', () => {
+    const target = {
+      system: {
+        name: 'aura',
+        workspace_root: '/ws',
+      },
+      llm: {
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        fallbacks: [
+          { provider: 'anthropic', model: 'claude-3-haiku' }
+        ],
+      },
+    };
+
+    const source = {
+      llm: {
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+      },
+      security: {
+        strict_path_isolation: true,
+      },
+    };
+
+    const merged = deepMerge(target, source);
+
+    expect(merged).toEqual({
+      system: {
+        name: 'aura',
+        workspace_root: '/ws',
+      },
+      llm: {
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+        fallbacks: [
+          { provider: 'anthropic', model: 'claude-3-haiku' }
+        ],
+      },
+      security: {
+        strict_path_isolation: true,
+      },
+    });
+  });
+
+  it('should let array values in source completely override array values in target', () => {
+    const target = {
+      llm: {
+        fallbacks: [
+          { provider: 'openai', model: 'gpt-4' }
+        ]
+      }
+    };
+    const source = {
+      llm: {
+        fallbacks: [
+          { provider: 'gemini', model: 'gemini-2.5-flash' }
+        ]
+      }
+    };
+    const merged = deepMerge(target, source);
+    expect(merged.llm.fallbacks).toEqual([
+      { provider: 'gemini', model: 'gemini-2.5-flash' }
+    ]);
+  });
+
+  it('should handle primitives and null values correctly', () => {
+    expect(deepMerge(null, { a: 1 })).toEqual({ a: 1 });
+    expect(deepMerge({ a: 1 }, null)).toEqual({ a: 1 });
+    expect(deepMerge({ a: 1 }, undefined)).toEqual({ a: 1 });
+    expect(deepMerge(undefined, { a: 1 })).toEqual({ a: 1 });
+    expect(deepMerge({ a: 1 }, { a: 2 })).toEqual({ a: 2 });
   });
 });

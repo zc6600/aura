@@ -81,3 +81,43 @@ export function readLastLinesSync(
     } catch {}
   }
 }
+
+/**
+ * Performs a deep merge of two configuration objects recursively.
+ * If properties are both objects, they are merged. Otherwise, the source overrides the target.
+ */
+export function deepMerge(target: any, source: any): any {
+  if (target === null || target === undefined) return source;
+  if (source === null || source === undefined) return target;
+
+  if (Array.isArray(target) || Array.isArray(source)) {
+    return source !== undefined ? source : target;
+  }
+
+  if (typeof target !== 'object' || typeof source !== 'object') {
+    return source !== undefined ? source : target;
+  }
+
+  const output = { ...target };
+
+  for (const key of Object.keys(source)) {
+    const sourceVal = source[key];
+    const targetVal = target[key];
+
+    if (
+      typeof sourceVal === 'object' &&
+      sourceVal !== null &&
+      !Array.isArray(sourceVal) &&
+      typeof targetVal === 'object' &&
+      targetVal !== null &&
+      !Array.isArray(targetVal)
+    ) {
+      output[key] = deepMerge(targetVal, sourceVal);
+    } else {
+      output[key] = sourceVal;
+    }
+  }
+
+  return output;
+}
+

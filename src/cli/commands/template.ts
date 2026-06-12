@@ -119,45 +119,19 @@ export class Template {
     Template.copyFolderSync(gemTemplates, globalRepo);
     console.log(`  ${picocolors.green('✓ Copied new templates')}`);
 
-    // Restore and merge config if backed up
+    // Restore and merge config if backed up, or migrate config.yml if not
+    const templateRootConfig = path.join(globalRepo, 'config.yml');
     if (configBackup && fs.existsSync(configBackup)) {
+      GlobalConfig.restoreAndMergeConfig(configBackup, configPath, {
+        label: 'global',
+        templateConfigPath: templateRootConfig,
+      });
+    } else if (fs.existsSync(templateRootConfig)) {
       try {
-        const backupCfg = yaml.parse(fs.readFileSync(configBackup, 'utf-8')) || {};
-        const newCfg = yaml.parse(fs.readFileSync(configPath, 'utf-8')) || {};
-
-        // Deep merge
-        const merged = { ...newCfg, ...backupCfg };
-        if (newCfg.llm && backupCfg.llm) {
-          merged.llm = { ...newCfg.llm, ...backupCfg.llm };
-        }
-        if (newCfg.state_management && backupCfg.state_management) {
-          merged.state_management = {
-            ...newCfg.state_management,
-            ...backupCfg.state_management,
-          };
-        }
-        if (newCfg.ralph && backupCfg.ralph) {
-          merged.ralph = { ...newCfg.ralph, ...backupCfg.ralph };
-        }
-
-        fs.writeFileSync(configPath, yaml.stringify(merged), 'utf-8');
-        console.log(
-          `  ${picocolors.green('✓ Restored and merged global config.yml')}`,
-        );
-      } catch (e: any) {
-        if (fs.existsSync(configBackup)) {
-          fs.copyFileSync(configBackup, configPath);
-          console.log(
-            `  ${picocolors.yellow(`⚠️  Merge failed: ${e.message}. Restored global config.yml from backup.`)}`,
-          );
-        }
-      } finally {
-        if (tmpDir) {
-          try {
-            fs.rmSync(tmpDir, { recursive: true, force: true });
-          } catch {}
-        }
-      }
+        const dir = path.dirname(configPath);
+        fs.mkdirSync(dir, { recursive: true });
+        fs.renameSync(templateRootConfig, configPath);
+      } catch {}
     }
 
     // Reinitialize Git

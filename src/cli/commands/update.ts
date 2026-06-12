@@ -166,7 +166,17 @@ export class Update {
         continue;
       }
 
+      let configBackup: string | null = null;
+      let tmpDir: string | null = null;
       try {
+        const configPath = PathResolver.resolveConfigPath(auraDir);
+        if (configPath && fs.existsSync(configPath)) {
+          tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-update-'));
+          configBackup = path.join(tmpDir, 'config.yml');
+          fs.copyFileSync(configPath, configBackup);
+          console.log(`  ${picocolors.yellow('⚠️  Backed up user config.yml')}`);
+        }
+
         if (options.merge) {
           console.log('  Merging updates...');
           const ok = await Update.mergeProject(name, auraDir);
@@ -190,9 +200,23 @@ export class Update {
             failCount++;
           }
         }
+
+        if (configBackup && configPath) {
+          GlobalConfig.restoreAndMergeConfig(configBackup, configPath);
+        }
       } catch (e: any) {
         console.log(`  ${picocolors.red(`✗ Error: ${e.message}`)}`);
         failCount++;
+      } finally {
+        if (tmpDir) {
+          try {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+          } catch {}
+        } else if (configBackup && fs.existsSync(configBackup)) {
+          try {
+            fs.unlinkSync(configBackup);
+          } catch {}
+        }
       }
     }
 
@@ -309,7 +333,7 @@ export class Update {
       }
 
       if (configBackup && configPath) {
-        Update.restoreAndMergeConfig(configBackup, configPath);
+        GlobalConfig.restoreAndMergeConfig(configBackup, configPath);
       }
     } catch (e: any) {
       console.log(`  ${picocolors.red(`✗ Error: ${e.message}`)}`);
@@ -367,7 +391,7 @@ export class Update {
       }
 
       if (configBackup && configPath) {
-        Update.restoreAndMergeConfig(configBackup, configPath);
+        GlobalConfig.restoreAndMergeConfig(configBackup, configPath);
       }
     } catch (e: any) {
       console.log(`  ${picocolors.red(`✗ Error: ${e.message}`)}`);
@@ -392,89 +416,119 @@ export class Update {
     console.log('🔀 Merging template updates from global repo...');
     console.log('='.repeat(60));
 
-    // Fetch latest remote tracking branch state
-    await GlobalConfig.gitRun(auraDir, 'fetch', 'origin');
+    let configBackup: string | null = null;
+    let tmpDir: string | null = null;
 
-    const statusOut = await GlobalConfig.gitRun(
-      auraDir,
-      'status',
-      '--porcelain',
-    );
-    const hasChanges = statusOut.stdout.trim().length > 0;
-
-    if (hasChanges) {
-      if (options.force) {
-        console.log(
-          picocolors.yellow(
-            '⚠️  Force merging (remote changes will override local)...',
-          ),
-        );
-        const res = await GlobalConfig.gitRun(
-          auraDir,
-          'merge',
-          '-X',
-          'theirs',
-          'origin/main',
-        );
-        if (res.success) {
-          console.log(picocolors.green('✓ Force merge completed!'));
-          if (res.stdout.trim()) console.log(res.stdout);
-        } else {
-          console.error(picocolors.red('⛔️ Merge failed!'));
-          console.error(res.stderr);
-        }
-        return;
-      } else if (options.stash) {
-        await GlobalConfig.gitRun(auraDir, 'stash');
-        console.log(picocolors.green('✓ Changes stashed.'));
-      } else {
-        console.log(
-          picocolors.yellow(
-            `⚠️  You have uncommitted changes in ${path.basename(auraDir)}/`,
-          ),
-        );
-        console.log('\nOptions:');
-        console.log('  1. Commit changes first (recommended)');
-        console.log('  2. Use --stash to temporarily save changes');
-        console.log('  3. Use --force to override with remote changes');
-        throw new UI.CliError(
-          'Merge cancelled: uncommitted changes present. Use --stash or --force.',
-        );
+    try {
+      const configPath = PathResolver.resolveConfigPath(auraDir);
+      if (configPath && fs.existsSync(configPath)) {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-update-'));
+        configBackup = path.join(tmpDir, 'config.yml');
+        fs.copyFileSync(configPath, configBackup);
+        console.log(`  ${picocolors.yellow('⚠️  Backed up user config.yml')}`);
       }
-    }
 
-    const res = await GlobalConfig.gitRun(
-      auraDir,
-      'pull',
-      '--no-edit',
-      'origin',
-      'main',
-    );
-    if (res.success) {
-      console.log(picocolors.green('✓ Successfully merged template updates!'));
-      console.log(res.stdout);
+      // Fetch latest remote tracking branch state
+      await GlobalConfig.gitRun(auraDir, 'fetch', 'origin');
 
-      if (options.stash) {
-        const stashRes = await GlobalConfig.gitRun(auraDir, 'stash', 'pop');
-        if (stashRes.success) {
-          console.log(picocolors.green('✓ Stashed changes restored.'));
+      const statusOut = await GlobalConfig.gitRun(
+        auraDir,
+        'status',
+        '--porcelain',
+      );
+      const hasChanges = statusOut.stdout.trim().length > 0;
+
+      if (hasChanges) {
+        if (options.force) {
+          console.log(
+            picocolors.yellow(
+              '⚠️  Force merging (remote changes will override local)...',
+            ),
+          );
+          const res = await GlobalConfig.gitRun(
+            auraDir,
+            'merge',
+            '-X',
+            'theirs',
+            'origin/main',
+          );
+          if (res.success) {
+            console.log(picocolors.green('✓ Force merge completed!'));
+            if (res.stdout.trim()) console.log(res.stdout);
+          } else {
+            console.error(picocolors.red('⛔️ Merge failed!'));
+            console.error(res.stderr);
+          }
+          if (configBackup && configPath) {
+            GlobalConfig.restoreAndMergeConfig(configBackup, configPath);
+          }
+          return;
+        } else if (options.stash) {
+          await GlobalConfig.gitRun(auraDir, 'stash');
+          console.log(picocolors.green('✓ Changes stashed.'));
         } else {
           console.log(
             picocolors.yellow(
-              '⚠️  Failed to pop stash (may need manual resolution)',
+              `⚠️  You have uncommitted changes in ${path.basename(auraDir)}/`,
             ),
+          );
+          console.log('\nOptions:');
+          console.log('  1. Commit changes first (recommended)');
+          console.log('  2. Use --stash to temporarily save changes');
+          console.log('  3. Use --force to override with remote changes');
+          throw new UI.CliError(
+            'Merge cancelled: uncommitted changes present. Use --stash or --force.',
           );
         }
       }
-    } else {
-      console.error(picocolors.red('⛔️ Merge conflicts detected!'));
-      console.log(
-        `\nPlease resolve conflicts manually in ${path.basename(auraDir)}/ directory`,
+
+      const res = await GlobalConfig.gitRun(
+        auraDir,
+        'pull',
+        '--no-edit',
+        'origin',
+        'main',
       );
-      console.log('After resolving, run:');
-      console.log(
-        `  cd ${path.basename(auraDir)} && git add . && git commit -m 'Resolved merge conflicts'`,
-      );
+      if (res.success) {
+        console.log(picocolors.green('✓ Successfully merged template updates!'));
+        console.log(res.stdout);
+
+        if (options.stash) {
+          const stashRes = await GlobalConfig.gitRun(auraDir, 'stash', 'pop');
+          if (stashRes.success) {
+            console.log(picocolors.green('✓ Stashed changes restored.'));
+          } else {
+            console.log(
+              picocolors.yellow(
+                '⚠️  Failed to pop stash (may need manual resolution)',
+              ),
+            );
+          }
+        }
+      } else {
+        console.error(picocolors.red('⛔️ Merge conflicts detected!'));
+        console.log(
+          `\nPlease resolve conflicts manually in ${path.basename(auraDir)}/ directory`,
+        );
+        console.log('After resolving, run:');
+        console.log(
+          `  cd ${path.basename(auraDir)} && git add . && git commit -m 'Resolved merge conflicts'`,
+        );
+      }
+
+      if (configBackup && configPath) {
+        GlobalConfig.restoreAndMergeConfig(configBackup, configPath);
+      }
+    } finally {
+      if (tmpDir) {
+        try {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch {}
+      } else if (configBackup && fs.existsSync(configBackup)) {
+        try {
+          fs.unlinkSync(configBackup);
+        } catch {}
+      }
     }
   }
 
@@ -502,48 +556,6 @@ export class Update {
         console.log(`  ${picocolors.red(`✗ Failed: ${firstLine}`)}`);
       }
       return false;
-    }
-  }
-
-  private static restoreAndMergeConfig(
-    configBackup: string,
-    configPath: string,
-  ): void {
-    if (!fs.existsSync(configBackup)) return;
-
-    try {
-      const backupCfg =
-        yaml.parse(fs.readFileSync(configBackup, 'utf-8')) || {};
-      const newCfg = yaml.parse(fs.readFileSync(configPath, 'utf-8')) || {};
-
-      // Deep merge
-      const merged = { ...newCfg, ...backupCfg };
-      if (newCfg.llm && backupCfg.llm) {
-        merged.llm = { ...newCfg.llm, ...backupCfg.llm };
-      }
-      if (newCfg.state_management && backupCfg.state_management) {
-        merged.state_management = {
-          ...newCfg.state_management,
-          ...backupCfg.state_management,
-        };
-      }
-      if (newCfg.ralph && backupCfg.ralph) {
-        merged.ralph = { ...newCfg.ralph, ...backupCfg.ralph };
-      }
-
-      fs.writeFileSync(configPath, yaml.stringify(merged), 'utf-8');
-      console.log(
-        `  ${picocolors.green('✓ Restored and merged user config.yml')}`,
-      );
-    } catch (e: any) {
-      fs.copyFileSync(configBackup, configPath);
-      console.log(
-        `  ${picocolors.yellow(`⚠️  Merge failed: ${e.message}. Restored user config.yml from backup.`)}`,
-      );
-    } finally {
-      try {
-        fs.unlinkSync(configBackup);
-      } catch {}
     }
   }
 
