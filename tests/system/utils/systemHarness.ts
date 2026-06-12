@@ -36,23 +36,22 @@ export function resolveSystemLlmConfig(): SystemLlmConfig | null {
   const explicitProvider = process.env.AURA_SYSTEM_LLM_PROVIDER;
   const explicitKeyEnv = process.env.AURA_SYSTEM_LLM_API_KEY_ENV;
 
-  const candidates = [
-    { provider: 'openrouter', apiKeyEnv: 'OPENROUTER_API_KEY', defaultModel: 'google/gemini-2.5-flash' },
-    { provider: 'openai', apiKeyEnv: 'OPENAI_API_KEY', defaultModel: 'gpt-4o-mini' },
-    { provider: 'anthropic', apiKeyEnv: 'ANTHROPIC_API_KEY', defaultModel: 'claude-3-5-haiku-20241022' },
-    { provider: 'deepseek', apiKeyEnv: 'DEEPSEEK_API_KEY', defaultModel: 'deepseek-chat' },
-    { provider: 'gemini', apiKeyEnv: 'GEMINI_API_KEY', defaultModel: 'gemini-2.5-flash' },
-  ];
-
   if (explicitProvider && explicitKeyEnv && process.env[explicitKeyEnv]) {
-    const candidate = candidates.find((c) => c.provider === explicitProvider);
     return {
       provider: explicitProvider,
-      model: process.env.AURA_SYSTEM_LLM_MODEL || candidate?.defaultModel,
+      model: process.env.AURA_SYSTEM_LLM_MODEL,
       apiBase: process.env.AURA_SYSTEM_LLM_API_BASE,
       apiKeyEnv: explicitKeyEnv,
     };
   }
+
+  const candidates: Array<Pick<SystemLlmConfig, 'provider' | 'apiKeyEnv'>> = [
+    { provider: 'openrouter', apiKeyEnv: 'OPENROUTER_API_KEY' },
+    { provider: 'openai', apiKeyEnv: 'OPENAI_API_KEY' },
+    { provider: 'anthropic', apiKeyEnv: 'ANTHROPIC_API_KEY' },
+    { provider: 'deepseek', apiKeyEnv: 'DEEPSEEK_API_KEY' },
+    { provider: 'gemini', apiKeyEnv: 'GEMINI_API_KEY' },
+  ];
 
   const detected = candidates.find(({ apiKeyEnv }) => {
     return !!process.env[apiKeyEnv]?.trim();
@@ -61,9 +60,8 @@ export function resolveSystemLlmConfig(): SystemLlmConfig | null {
   if (!detected) return null;
 
   return {
-    provider: detected.provider,
-    apiKeyEnv: detected.apiKeyEnv,
-    model: process.env.AURA_SYSTEM_LLM_MODEL || detected.defaultModel,
+    ...detected,
+    model: process.env.AURA_SYSTEM_LLM_MODEL,
     apiBase: process.env.AURA_SYSTEM_LLM_API_BASE,
   };
 }
@@ -73,6 +71,11 @@ export function requireSystemLlmConfig(): SystemLlmConfig {
   if (!config) {
     throw new Error(
       'RUN_SYSTEM_TESTS=1 requires a real LLM key. Set OPENROUTER_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, GEMINI_API_KEY, or AURA_SYSTEM_LLM_PROVIDER + AURA_SYSTEM_LLM_API_KEY_ENV.',
+    );
+  }
+  if (!config.model?.trim()) {
+    throw new Error(
+      'RUN_SYSTEM_TESTS=1 requires AURA_SYSTEM_LLM_MODEL to be explicitly configured in your .env or environment variables.',
     );
   }
   return config;
