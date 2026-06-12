@@ -32,7 +32,10 @@ export class SessionCmd {
 
     console.log('Sessions:');
     for (const s of sessions) {
-      const marker = s.name === current ? ' → ' : '   ';
+      const isCurrent = s.name === current;
+      const marker = isCurrent ? picocolors.green(' → ') : '   ';
+      const namePad = s.name.padEnd(30);
+      const nameStr = isCurrent ? picocolors.green(picocolors.bold(namePad)) : namePad;
       const events = s.event_count || 0;
       const lastActive = s.last_active_at
         ? new Date(s.last_active_at)
@@ -41,7 +44,7 @@ export class SessionCmd {
             .substring(0, 16)
         : 'never';
       console.log(
-        `${marker}${s.name.padEnd(30)} ${String(events).padStart(5)} events  (last: ${lastActive})`,
+        `${marker}${nameStr} ${String(events).padStart(5)} events  (last: ${lastActive})`,
       );
     }
     console.log();

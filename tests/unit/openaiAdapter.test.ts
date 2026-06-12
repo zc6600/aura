@@ -122,6 +122,6 @@ describe('OpenAIAdapter', () => {
     expect(underlying.apiBase).toBe(
       'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     );
-    expect(underlying.model).toBe('gemini-1.5-flash');
+    expect(underlying.model).toBe('gemini-2.5-flash');
   });
 });

@@ -53,7 +53,7 @@ describe('AnthropicAdapter', () => {
       'anthropic-version': '2023-06-01',
       'Content-Type': 'application/json',
     });
-    expect(body.model).toBe('claude-3-5-sonnet-20241022');
+    expect(body.model).toBe('claude-3-5-haiku-20241022');
     expect(body.temperature).toBe(0.5);
     expect(body.system).toBe('SYS_RULE');
     expect(body.messages).toEqual([{ role: 'user', content: 'hello' }]);

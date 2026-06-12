@@ -26,17 +26,44 @@ export class Project {
     );
     console.log('-'.repeat(80));
 
-    for (const name of keys) {
+    let activeCount = 0;
+    let missingCount = 0;
+
+    // Sort projects so active ones appear first, and then alphabetically
+    const sortedKeys = [...keys].sort((a, b) => {
+      const pA = projects[a];
+      const pB = projects[b];
+      const hasA = fs.existsSync(path.join(pA, '.aura-workspace')) || fs.existsSync(path.join(pA, '.aura'));
+      const hasB = fs.existsSync(path.join(pB, '.aura-workspace')) || fs.existsSync(path.join(pB, '.aura'));
+      if (hasA && !hasB) return -1;
+      if (!hasA && hasB) return 1;
+      return a.localeCompare(b);
+    });
+
+    for (const name of sortedKeys) {
       const p = projects[name];
       const hasAura = fs.existsSync(path.join(p, '.aura-workspace')) || fs.existsSync(path.join(p, '.aura'));
       const status = hasAura
         ? picocolors.green('Active')
-        : picocolors.red('Missing (.aura-workspace folder not found)');
+        : picocolors.red('Missing');
+      if (hasAura) {
+        activeCount++;
+      } else {
+        missingCount++;
+      }
       console.log(
         Project.padRight(name, 20) + Project.padRight(p, 45) + status,
       );
     }
     console.log('-'.repeat(80));
+
+    if (missingCount > 0) {
+      console.log(
+        picocolors.dim(
+          `💡 Tip: You have ${missingCount} missing project(s). Run 'aura prune' to clean them up.`,
+        ),
+      );
+    }
   }
 
   public static async delete(projectName: string): Promise<void> {

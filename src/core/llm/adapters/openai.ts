@@ -244,6 +244,6 @@ export class GeminiAdapter extends OpenAIAdapter {
     return 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
   }
   protected get defaultModel(): string {
-    return 'gemini-1.5-flash';
+    return 'gemini-2.5-flash';
   }
 }

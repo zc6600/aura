@@ -319,39 +319,54 @@ export class SlashCommandManager {
       let models: { value: string; label: string; hint?: string }[] = [];
       if (provider === 'openai') {
         models = [
-          { value: 'gpt-4o', label: 'gpt-4o', hint: 'Recommended' },
+          { value: 'gpt-4o-mini', label: 'gpt-4o-mini', hint: 'Recommended' },
+          { value: 'gpt-4o', label: 'gpt-4o' },
           { value: 'gpt-4-turbo', label: 'gpt-4-turbo' },
-          { value: 'gpt-3.5-turbo', label: 'gpt-3.5-turbo' },
           { value: 'o1-mini', label: 'o1-mini' },
         ];
       } else if (provider === 'anthropic') {
         models = [
           {
-            value: 'claude-3-5-sonnet-latest',
-            label: 'claude-3-5-sonnet-latest',
+            value: 'claude-3-5-haiku-latest',
+            label: 'claude-3-5-haiku-latest',
             hint: 'Recommended',
           },
-          { value: 'claude-3-opus-latest', label: 'claude-3-opus-latest' },
           {
-            value: 'claude-3-haiku-20240307',
-            label: 'claude-3-haiku-20240307',
+            value: 'claude-3-5-sonnet-latest',
+            label: 'claude-3-5-sonnet-latest',
           },
+          { value: 'claude-3-opus-latest', label: 'claude-3-opus-latest' },
         ];
       } else if (provider === 'openrouter') {
         models = [
           {
-            value: 'openai/gpt-4o',
-            label: 'openai/gpt-4o',
+            value: 'google/gemini-2.5-flash',
+            label: 'google/gemini-2.5-flash',
             hint: 'Recommended',
           },
           {
-            value: 'anthropic/claude-3.5-sonnet',
-            label: 'anthropic/claude-3.5-sonnet',
+            value: 'openai/gpt-4o-mini',
+            label: 'openai/gpt-4o-mini',
           },
           {
-            value: 'meta-llama/llama-3.1-70b-instruct',
-            label: 'llama-3.1-70b',
+            value: 'anthropic/claude-3.5-haiku',
+            label: 'anthropic/claude-3.5-haiku',
           },
+          {
+            value: 'meta-llama/llama-3.3-70b-instruct',
+            label: 'llama-3.3-70b',
+          },
+        ];
+      } else if (provider === 'gemini') {
+        models = [
+          { value: 'gemini-2.5-flash', label: 'gemini-2.5-flash', hint: 'Recommended' },
+          { value: 'gemini-1.5-flash', label: 'gemini-1.5-flash' },
+          { value: 'gemini-2.5-pro', label: 'gemini-2.5-pro' },
+        ];
+      } else if (provider === 'deepseek') {
+        models = [
+          { value: 'deepseek-chat', label: 'deepseek-chat', hint: 'Recommended' },
+          { value: 'deepseek-reasoner', label: 'deepseek-reasoner' },
         ];
       } else {
         models = [
@@ -399,6 +414,8 @@ export class SlashCommandManager {
         { value: 'openai', label: 'OpenAI' },
         { value: 'anthropic', label: 'Anthropic' },
         { value: 'openrouter', label: 'OpenRouter' },
+        { value: 'gemini', label: 'Gemini' },
+        { value: 'deepseek', label: 'DeepSeek' },
         { value: 'local', label: 'Local (Ollama/LM Studio/etc.)' },
         { value: '__cancel__', label: 'Cancel' },
       ];

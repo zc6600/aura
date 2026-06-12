@@ -123,13 +123,28 @@ export class Info {
     const projects = ProjectRegistry.registeredProjects();
     const keys = Object.keys(projects);
     if (keys.length > 0) {
+      let activeCount = 0;
+      let missingCount = 0;
       for (const name of keys) {
         const p = projects[name];
-        const status = (fs.existsSync(path.join(p, '.aura-workspace')) || fs.existsSync(path.join(p, '.aura')))
-          ? picocolors.green('Active')
-          : picocolors.red('Missing');
-        console.log(`  - ${name} (${status})`);
-        console.log(`    Path: ${p}`);
+        const hasAura = fs.existsSync(path.join(p, '.aura-workspace')) || fs.existsSync(path.join(p, '.aura'));
+        if (hasAura) {
+          console.log(`  - ${name} (${picocolors.green('Active')})`);
+          console.log(`    Path: ${p}`);
+          activeCount++;
+        } else {
+          missingCount++;
+        }
+      }
+      if (activeCount === 0 && missingCount > 0) {
+        console.log('  No active projects registered');
+      }
+      if (missingCount > 0) {
+        console.log(
+          picocolors.dim(
+            `  - and ${missingCount} missing project(s). Run 'aura prune' to clean up.`,
+          ),
+        );
       }
     } else {
       console.log('  No projects registered');

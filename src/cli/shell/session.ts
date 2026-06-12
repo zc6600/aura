@@ -208,11 +208,15 @@ export class Session {
     let model = llmConfig.model as string;
     if (!model || model.trim() === '') {
       if (provider === 'openrouter') {
-        model = 'openai/gpt-4o';
+        model = 'openai/gpt-4o-mini';
       } else if (provider === 'openai') {
-        model = 'gpt-4o';
+        model = 'gpt-4o-mini';
       } else if (provider === 'anthropic') {
-        model = 'claude-3-5-sonnet-latest';
+        model = 'claude-3-5-haiku-latest';
+      } else if (provider === 'gemini') {
+        model = 'gemini-2.5-flash';
+      } else if (provider === 'deepseek') {
+        model = 'deepseek-chat';
       }
       if (model && this.options.verbose) {
         console.log(picocolors.green(`ℹ️ Using default model: ${model}`));

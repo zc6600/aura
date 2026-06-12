@@ -28,7 +28,7 @@ state_management:
   summarization:
     enabled: true
     max_chars: 500              # 代谢总结的最大字符数
-    model: "gpt-4o"             # 总结使用的模型（可选，默认用 llm.model）
+    model: "gpt-4o-mini"             # 总结使用的模型（可选，默认用 llm.model）
     focus_on:                   # 总结时关注的重点
       - "key_files_modified"
       - "critical_test_results"

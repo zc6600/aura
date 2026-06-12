@@ -20,6 +20,11 @@ export const Doctor = {
       return;
     }
 
+    console.log('='.repeat(70));
+    console.log(
+      picocolors.bold(picocolors.blue('🌟 Aura OS - Environment Health Checks')),
+    );
+    console.log('='.repeat(70));
     console.log(`Node: ${process.version}`);
 
     // Check Git
@@ -177,11 +182,14 @@ export const Doctor = {
       console.log(
         picocolors.yellow(`⚠️ LLM API Key: Missing for provider '${provider}'`),
       );
-      console.log('💡 To set the API key in config, run:');
-      console.log('   $ aura config llm.api_key <your_api_key>');
       if (envVarName) {
+        console.log('💡 To set the API key in your environment (.env), run:');
+        console.log(`   $ aura env set ${envVarName} <your_api_key> --global`);
         console.log('💡 Or export the environment variable in your terminal:');
         console.log(`   $ export ${envVarName}=<your_api_key>`);
+      } else {
+        console.log('💡 To set the API key in config, run:');
+        console.log('   $ aura config llm.api_key <your_api_key>');
       }
     } else {
       console.log(
@@ -193,6 +201,7 @@ export const Doctor = {
 
     console.log('\nChecking prompt templates...');
     Doctor.checkPrompts();
+    console.log('='.repeat(70));
   },
 
   checkPrompts(): void {

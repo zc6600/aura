@@ -19,7 +19,19 @@ export const Branch = {
     if (res.success) {
       console.log('Customized Agent Profiles (Branches):');
       console.log('-'.repeat(60));
-      console.log(res.stdout);
+      const lines = res.stdout.split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        if (line.startsWith('*')) {
+          const name = line.substring(1).trim();
+          console.log(
+            `  ${picocolors.green('●')} ${picocolors.green(picocolors.bold(name))} ${picocolors.dim('(active)')}`,
+          );
+        } else {
+          const name = line.trim();
+          console.log(`    ${name}`);
+        }
+      }
       console.log('-'.repeat(60));
     } else {
       console.error(

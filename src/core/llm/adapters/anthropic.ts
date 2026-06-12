@@ -29,7 +29,7 @@ export class AnthropicAdapter extends BaseAdapter {
   constructor(config: { apiBase?: string; apiKey?: string; model?: string }) {
     super(config);
     if (!this.apiBase) this.apiBase = 'https://api.anthropic.com/v1/messages';
-    if (!this.model) this.model = 'claude-3-5-sonnet-20241022';
+    if (!this.model) this.model = 'claude-3-5-haiku-20241022';
   }
 
   public async complete(

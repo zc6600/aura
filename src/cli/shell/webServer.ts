@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import Database from 'better-sqlite3';
@@ -16,6 +17,8 @@ export class WebServer {
   private dbPath: string;
   private projectName: string;
   private server?: http.Server;
+  private dbInstance: Database.Database | null = null;
+  private cachedDbPath: string | null = null;
 
   constructor(projectPath: string, port = 9299, host = '127.0.0.1') {
     this.projectPath = path.resolve(projectPath);
@@ -25,6 +28,64 @@ export class WebServer {
       PathResolver.environmentPath(this.projectPath) || this.projectPath;
     this.dbPath = PathResolver.sessionDbPath(this.projectPath);
     this.projectName = this.extractProjectName();
+  }
+
+  private getDbPath(): string {
+    this.dbPath = PathResolver.sessionDbPath(this.projectPath);
+    return this.dbPath;
+  }
+
+  private getDb(): Database.Database | null {
+    const currentPath = this.getDbPath();
+    if (!fs.existsSync(currentPath)) {
+      if (this.dbInstance) {
+        this.closeDb();
+      }
+      return null;
+    }
+
+    if (this.dbInstance && this.cachedDbPath === currentPath) {
+      return this.dbInstance;
+    }
+
+    this.closeDb();
+    try {
+      this.dbInstance = new Database(currentPath, { readonly: true });
+      this.cachedDbPath = currentPath;
+      return this.dbInstance;
+    } catch (err) {
+      console.error(`Failed to open database at ${currentPath}:`, err);
+      return null;
+    }
+  }
+
+  private closeDb(): void {
+    if (this.dbInstance) {
+      try {
+        this.dbInstance.close();
+      } catch (_err) {
+        // ignore
+      }
+      this.dbInstance = null;
+    }
+    this.cachedDbPath = null;
+  }
+
+  private getCorsOrigin(origin?: string): string {
+    if (!origin) return 'http://127.0.0.1';
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return origin;
+    }
+    return 'http://127.0.0.1';
+  }
+
+  private async fileExists(p: string): Promise<boolean> {
+    try {
+      await fsPromises.access(p, fs.constants.F_OK);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   public start(): Promise<void> {
@@ -39,10 +100,13 @@ export class WebServer {
         const method = req.method || 'GET';
         const pathname = urlObj.pathname;
 
+        const reqOrigin = req.headers.origin;
+        const allowedOrigin = this.getCorsOrigin(reqOrigin);
+
         // Handle CORS preflight
         if (method === 'OPTIONS') {
           res.writeHead(200, {
-            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Origin': allowedOrigin,
             'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type',
             'Access-Control-Max-Age': '86400',
@@ -54,7 +118,7 @@ export class WebServer {
         // Add common CORS headers to all JSON API responses
         const jsonHeaders = {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': allowedOrigin,
           'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type',
         };
@@ -66,8 +130,8 @@ export class WebServer {
         try {
           if (pathname === '/events') {
             let body = '';
-            if (fs.existsSync(this.dbPath)) {
-              const db = new Database(this.dbPath, { readonly: true });
+            const db = this.getDb();
+            if (db) {
               try {
                 const rows = db
                   .prepare(
@@ -78,8 +142,6 @@ export class WebServer {
                 body = lines.reverse().join('\n');
               } catch (_err) {
                 // ignore
-              } finally {
-                db.close();
               }
             }
             res.writeHead(200, jsonHeaders);
@@ -93,7 +155,7 @@ export class WebServer {
               'Content-Type': 'text/event-stream',
               'Cache-Control': 'no-cache',
               Connection: 'keep-alive',
-              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Origin': allowedOrigin,
             });
             res.flushHeaders();
 
@@ -106,10 +168,9 @@ export class WebServer {
                 }
                 return;
               }
-              if (fs.existsSync(this.dbPath)) {
-                let db: Database.Database | null = null;
+              const db = this.getDb();
+              if (db) {
                 try {
-                  db = new Database(this.dbPath, { readonly: true });
                   const rows = db
                     .prepare(
                       'SELECT id, payload FROM events WHERE id > ? ORDER BY id ASC',
@@ -128,8 +189,6 @@ export class WebServer {
                       res.write(`event: error\ndata: ${e.message}\n\n`);
                     } catch {}
                   }
-                } finally {
-                  if (db) db.close();
                 }
               }
             }, 500);
@@ -143,8 +202,8 @@ export class WebServer {
             setTimeout(() => this.stop(), 200);
           } else if (pathname === '/api/sessions') {
             let sessions: string[] = [];
-            if (fs.existsSync(this.dbPath)) {
-              const db = new Database(this.dbPath, { readonly: true });
+            const db = this.getDb();
+            if (db) {
               try {
                 const rows = db
                   .prepare(
@@ -154,8 +213,6 @@ export class WebServer {
                 sessions = rows.map((r) => r.phase);
               } catch (_err) {
                 // ignore
-              } finally {
-                db.close();
               }
             }
             res.writeHead(200, jsonHeaders);
@@ -163,8 +220,8 @@ export class WebServer {
           } else if (pathname.startsWith('/api/sessions/')) {
             const sessionId = pathname.substring('/api/sessions/'.length);
             let events: any[] = [];
-            if (fs.existsSync(this.dbPath)) {
-              const db = new Database(this.dbPath, { readonly: true });
+            const db = this.getDb();
+            if (db) {
               try {
                 const rows = db
                   .prepare(
@@ -180,14 +237,12 @@ export class WebServer {
                 });
               } catch (_err) {
                 // ignore
-              } finally {
-                db.close();
               }
             }
             res.writeHead(200, jsonHeaders);
             res.end(JSON.stringify({ session_id: sessionId, events }));
           } else if (pathname === '/api/status') {
-            const status = this.getStatusInfo();
+            const status = await this.getStatusInfo();
             res.writeHead(200, jsonHeaders);
             res.end(JSON.stringify(status));
           } else {
@@ -215,6 +270,7 @@ export class WebServer {
   public stop(): void {
     this.running = false;
     console.log('\nShutting down Aura Web server...');
+    this.closeDb();
     if (this.server) {
       this.server.close(() => {
         console.log('Server stopped.');
@@ -236,43 +292,53 @@ export class WebServer {
     }
   }
 
-  private getStatusInfo() {
+  private async getStatusInfo() {
     let totalEvents = 0;
     let totalSessions = 0;
     const cfgFile = PathResolver.resolveConfigPath(this.projectPath) || '';
     let cfg: any = {};
-    if (cfgFile && fs.existsSync(cfgFile)) {
+    if (cfgFile && (await this.fileExists(cfgFile))) {
       try {
-        cfg = yaml.parse(fs.readFileSync(cfgFile, 'utf-8')) || {};
+        cfg = yaml.parse(await fsPromises.readFile(cfgFile, 'utf-8')) || {};
       } catch {}
     }
     const llmConfig = cfg.llm || {};
 
-    if (fs.existsSync(this.dbPath)) {
-      const db = new Database(this.dbPath, { readonly: true });
-      try {
-        const countRow = db
-          .prepare('SELECT COUNT(*) as count FROM events')
-          .get() as { count: number };
-        totalEvents = countRow?.count || 0;
-        const sessionsRow = db
-          .prepare(
-            "SELECT DISTINCT phase FROM events WHERE phase IS NOT NULL AND phase != ''",
-          )
-          .all() as { phase: string }[];
-        totalSessions = sessionsRow.length;
-      } catch {
-        // ignore
-      } finally {
-        db.close();
+    const currentPath = this.getDbPath();
+    const dbExists = await this.fileExists(currentPath);
+    if (dbExists) {
+      const db = this.getDb();
+      if (db) {
+        try {
+          const countRow = db
+            .prepare('SELECT COUNT(*) as count FROM events')
+            .get() as { count: number };
+          totalEvents = countRow?.count || 0;
+          const sessionsRow = db
+            .prepare(
+              "SELECT DISTINCT phase FROM events WHERE phase IS NOT NULL AND phase != ''",
+            )
+            .all() as { phase: string }[];
+          totalSessions = sessionsRow.length;
+        } catch {
+          // ignore
+        }
       }
+    }
+
+    let dbSize = 0;
+    if (dbExists) {
+      try {
+        const stats = await fsPromises.stat(currentPath);
+        dbSize = stats.size;
+      } catch {}
     }
 
     return {
       project_name: this.projectName,
       project_path: this.projectPath,
-      session_name: path.basename(this.dbPath, '.db'),
-      db_size: fs.existsSync(this.dbPath) ? fs.statSync(this.dbPath).size : 0,
+      session_name: path.basename(currentPath, '.db'),
+      db_size: dbSize,
       model: llmConfig.model || 'Unknown',
       provider: llmConfig.provider || 'Unknown',
       temperature:
@@ -289,7 +355,7 @@ export class WebServer {
     const shadowPath = path.join(this.envPath, 'shadow');
     let diffBody = 'No changes recorded in the shadow workspace yet.';
 
-    if (fs.existsSync(path.join(shadowPath, '.git'))) {
+    if (await this.fileExists(path.join(shadowPath, '.git'))) {
       try {
         const { stdout, exitCode } = await execa(
           'git',
