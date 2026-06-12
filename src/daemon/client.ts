@@ -71,9 +71,20 @@ export class DaemonClient {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
 
-    let entryScript = path.resolve(__dirname, '..', 'bin', 'aura.js');
+    let entryScript = path.resolve(__dirname, 'bin', 'aura.js');
     if (!fs.existsSync(entryScript)) {
       entryScript = path.resolve(__dirname, '..', 'bin', 'aura.ts');
+    }
+    if (!fs.existsSync(entryScript)) {
+      // Fallback relative to project root
+      const rootDir = path.resolve(__dirname, '..');
+      const prodScript = path.resolve(rootDir, 'dist', 'bin', 'aura.js');
+      const devScript = path.resolve(rootDir, 'src', 'bin', 'aura.ts');
+      if (fs.existsSync(prodScript)) {
+        entryScript = prodScript;
+      } else if (fs.existsSync(devScript)) {
+        entryScript = devScript;
+      }
     }
 
     let command = process.execPath;
