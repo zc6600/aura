@@ -66,6 +66,9 @@ export class Update {
       );
     }
 
+    // Fetch latest remote tracking branch state
+    await GlobalConfig.gitRun(auraDir, 'fetch', 'origin');
+
     console.log('📊 Template Update Status\n');
     console.log('='.repeat(60));
 
@@ -367,6 +370,9 @@ export class Update {
 
     console.log('🔀 Merging template updates from global repo...');
     console.log('='.repeat(60));
+
+    // Fetch latest remote tracking branch state
+    await GlobalConfig.gitRun(auraDir, 'fetch', 'origin');
 
     const statusOut = await GlobalConfig.gitRun(
       auraDir,
