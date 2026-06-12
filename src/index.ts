@@ -1,6 +1,7 @@
 // Aura OS TypeScript SDK Entrypoint
 
 import { VERSION } from './utils/version.js';
+
 export { VERSION };
 
 export function getVersion(): string {

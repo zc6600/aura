@@ -168,14 +168,28 @@ export class ResponseParser {
   }
 
   public static extractJsonBlock(s: string): string | null {
-    if (s.includes('```')) {
-      // Remove ```json and ```
-      const a = s.replace(/^\s*```json\s*/gm, '').replace(/^\s*```\s*/gm, '');
-      const b = a.split('```')[0].trim();
-      if (b.startsWith('{')) {
-        return b;
+    const jsonBlockRegex = /```json\s*([\s\S]*?)\s*```/i;
+    const jsonMatch = jsonBlockRegex.exec(s);
+    if (jsonMatch?.[1]) {
+      const candidate = jsonMatch[1].trim();
+      if (candidate.startsWith('{')) {
+        return candidate;
       }
     }
+
+    const genericBlockRegex = /```\s*([\s\S]*?)\s*```/g;
+    genericBlockRegex.lastIndex = 0;
+    while (true) {
+      const match = genericBlockRegex.exec(s);
+      if (match === null) {
+        break;
+      }
+      const candidate = match[1].trim();
+      if (candidate.startsWith('{')) {
+        return candidate;
+      }
+    }
+
     const start = s.indexOf('{');
     const endi = s.lastIndexOf('}');
     if (start !== -1 && endi !== -1 && endi > start) {

@@ -127,7 +127,9 @@ export class Info {
       let missingCount = 0;
       for (const name of keys) {
         const p = projects[name];
-        const hasAura = fs.existsSync(path.join(p, '.aura-workspace')) || fs.existsSync(path.join(p, '.aura'));
+        const hasAura =
+          fs.existsSync(path.join(p, '.aura-workspace')) ||
+          fs.existsSync(path.join(p, '.aura'));
         if (hasAura) {
           console.log(`  - ${name} (${picocolors.green('Active')})`);
           console.log(`    Path: ${p}`);

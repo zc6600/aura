@@ -359,13 +359,21 @@ export class SlashCommandManager {
         ];
       } else if (provider === 'gemini') {
         models = [
-          { value: 'gemini-2.5-flash', label: 'gemini-2.5-flash', hint: 'Recommended' },
+          {
+            value: 'gemini-2.5-flash',
+            label: 'gemini-2.5-flash',
+            hint: 'Recommended',
+          },
           { value: 'gemini-1.5-flash', label: 'gemini-1.5-flash' },
           { value: 'gemini-2.5-pro', label: 'gemini-2.5-pro' },
         ];
       } else if (provider === 'deepseek') {
         models = [
-          { value: 'deepseek-chat', label: 'deepseek-chat', hint: 'Recommended' },
+          {
+            value: 'deepseek-chat',
+            label: 'deepseek-chat',
+            hint: 'Recommended',
+          },
           { value: 'deepseek-reasoner', label: 'deepseek-reasoner' },
         ];
       } else {

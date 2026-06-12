@@ -41,10 +41,6 @@ export class AgentLoop {
     const maxFmtErrs = systemConfig.max_format_errors ?? 5;
     const maxToolErrs = systemConfig.max_tool_errors ?? 3;
 
-    if (goal?.trim() && typeof this.runner.recordUserInput === 'function') {
-      this.runner.recordUserInput(goal);
-    }
-
     let ctx = options.ctx || (await this.observe());
     let formatErrors = 0;
     let toolErrors = 0;
@@ -63,7 +59,10 @@ export class AgentLoop {
       const finishReason = String(plan.finish_reason || '');
 
       // 2. Check stop conditions
-      if (finishReason === 'stop') {
+      const isStop = ['stop', 'end_turn', 'stop_sequence', ''].includes(
+        finishReason,
+      );
+      if (isStop && plan.type !== 'tool_call') {
         const content = this.extractStopContent(plan);
         this.eventBus.emit('final_answer', { content });
         return {
@@ -74,7 +73,13 @@ export class AgentLoop {
         };
       }
 
-      if (['length', 'content_filter', 'error'].includes(finishReason)) {
+      const isAbnormal = [
+        'length',
+        'content_filter',
+        'error',
+        'max_tokens',
+      ].includes(finishReason);
+      if (isAbnormal) {
         const reason = `Loop terminated due to finish_reason: ${finishReason}`;
         this.eventBus.emit('loop_aborted', { reason });
         return { status: 'failed', steps, failure_reason: reason };
@@ -179,8 +184,22 @@ export class AgentLoop {
         toolErrors = 0;
       }
 
-      // 5. Observe step
-      ctx = await this.observe();
+      // 5. Observe step — if agent just woke from sleep, annotate the fresh context
+      if (status === 'sleeping') {
+        const freshCtx = await this.observe();
+        const sleptFor = (result as Record<string, unknown>).slept_seconds;
+        const reason = (result as Record<string, unknown>).reason;
+        const banner = [
+          `[WAKE] You slept for ${sleptFor} seconds and have been automatically resumed.`,
+          reason ? `Reason you gave: ${reason}` : null,
+          'Review the context below — check your background processes and decide next steps.',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        ctx = `${banner}\n\n${freshCtx}`;
+      } else {
+        ctx = await this.observe();
+      }
     }
   }
 

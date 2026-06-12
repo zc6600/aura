@@ -2,7 +2,9 @@ import path from 'node:path';
 import { DaemonServer } from '../daemon/server.js';
 
 // Get target project path from command arguments (defaults to process.cwd())
-const projectPath = process.argv[2] ? path.resolve(process.argv[2]) : process.cwd();
+const projectPath = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : process.cwd();
 process.title = `aura-daemon[${path.basename(projectPath)}]`;
 const server = new DaemonServer(projectPath);
 

@@ -35,7 +35,9 @@ export class SessionCmd {
       const isCurrent = s.name === current;
       const marker = isCurrent ? picocolors.green(' → ') : '   ';
       const namePad = s.name.padEnd(30);
-      const nameStr = isCurrent ? picocolors.green(picocolors.bold(namePad)) : namePad;
+      const nameStr = isCurrent
+        ? picocolors.green(picocolors.bold(namePad))
+        : namePad;
       const events = s.event_count || 0;
       const lastActive = s.last_active_at
         ? new Date(s.last_active_at)

@@ -132,7 +132,9 @@ describe('Generators Integration', { timeout: 30000 }, () => {
 
       const projectPath = path.join(testDir, 'proj');
       fs.mkdirSync(projectPath, { recursive: true });
-      fs.mkdirSync(path.join(projectPath, '.aura-workspace'), { recursive: true });
+      fs.mkdirSync(path.join(projectPath, '.aura-workspace'), {
+        recursive: true,
+      });
 
       vi.spyOn(process, 'cwd').mockReturnValue(projectPath);
       const consoleLogSpy = vi
@@ -160,7 +162,9 @@ describe('Generators Integration', { timeout: 30000 }, () => {
 
       const projectPath = path.join(testDir, 'proj');
       fs.mkdirSync(projectPath, { recursive: true });
-      fs.mkdirSync(path.join(projectPath, '.aura-workspace'), { recursive: true });
+      fs.mkdirSync(path.join(projectPath, '.aura-workspace'), {
+        recursive: true,
+      });
 
       vi.spyOn(process, 'cwd').mockReturnValue(projectPath);
       await expect(Tools.add('non_existent_tool')).rejects.toThrow(

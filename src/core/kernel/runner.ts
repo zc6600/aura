@@ -40,6 +40,8 @@ export class Runner extends EventEmitter implements IRunner {
   private configCache: AuraConfig | null = null;
   private lastUserEventId: number | null = null;
   private _autoMode: boolean = false;
+  /** Optional abort signal set by the Daemon on socket disconnect. */
+  public abortSignal: AbortSignal | null = null;
 
   public static readonly IGNORED_SCAN_DIRS = [
     '.git',
@@ -58,6 +60,13 @@ export class Runner extends EventEmitter implements IRunner {
     '__pycache__',
     '.pytest_cache',
     '.mypy_cache',
+    '.venv',
+    'venv',
+    'env',
+    '.cargo',
+    'target',
+    '.idea',
+    '.vscode',
   ];
 
   constructor(
@@ -107,6 +116,10 @@ export class Runner extends EventEmitter implements IRunner {
 
   public getLSPManager(): LSPManager {
     return this.lspManager;
+  }
+
+  public getEngine(): ExecutionEngine {
+    return this.engine;
   }
 
   public get workspacePath(): string {
@@ -240,7 +253,13 @@ export class Runner extends EventEmitter implements IRunner {
     let res: ToolResult = { status: 'ok' };
     const dbPath = this.memory.store?.dbPath;
     const modifiedFiles = await this.trackFileModifications(async () => {
-      res = (await this.engine.execute(tool, args, {
+      // For sleep_and_wake: inject the current abort signal so disconnects
+      // cancel the sleep immediately rather than blocking for the full duration.
+      const effectiveArgs: Record<string, unknown> =
+        tool === 'sleep_and_wake' && this.abortSignal
+          ? { ...args, __abortSignal__: this.abortSignal }
+          : args;
+      res = (await this.engine.execute(tool, effectiveArgs, {
         sessionDbPath: dbPath,
         sessionName: this.sessionName,
       })) as ToolResult;

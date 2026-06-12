@@ -30,9 +30,13 @@ describe('CLI new Subcommand Integration', { timeout: 30000 }, () => {
 
     expect(fs.existsSync(projectPath)).toBe(true);
     expect(fs.existsSync(path.join(projectPath, '.aura-workspace'))).toBe(true);
-    expect(fs.existsSync(path.join(projectPath, '.aura-workspace', 'config'))).toBe(true);
     expect(
-      fs.existsSync(path.join(projectPath, '.aura-workspace', 'config', 'config.yml')),
+      fs.existsSync(path.join(projectPath, '.aura-workspace', 'config')),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(projectPath, '.aura-workspace', 'config', 'config.yml'),
+      ),
     ).toBe(true);
     expect(fs.existsSync(path.join(projectPath, '.gitignore'))).toBe(true);
 

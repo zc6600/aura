@@ -139,6 +139,52 @@ describe('Miscellaneous Integration', { timeout: 40000 }, () => {
         false,
       );
     });
+
+    it('synchronizes renamed files in shadow backup', async () => {
+      // Setup parent git repo in projectPath
+      await execa('git', ['init'], { cwd: projectPath });
+      await execa('git', ['config', 'user.name', 'Test User'], {
+        cwd: projectPath,
+      });
+      await execa('git', ['config', 'user.email', 'test@user.com'], {
+        cwd: projectPath,
+      });
+
+      // 1. Create a dummy file
+      const oldPath = path.join(projectPath, 'old-name.txt');
+      fs.writeFileSync(oldPath, 'Content of renamed file');
+
+      // 2. Sync creation to shadow backup
+      const backup = new ShadowBackup(projectPath);
+      await backup.recordChanges('write_file', { file_path: 'old-name.txt' });
+
+      // Verify it exists in shadow directory
+      const shadowPath = path.join(projectPath, '.aura-workspace', 'shadow');
+      expect(fs.existsSync(path.join(shadowPath, 'old-name.txt'))).toBe(true);
+
+      // 3. Track and commit it in the workspace git repo so git can track renames
+      await execa('git', ['add', 'old-name.txt'], { cwd: projectPath });
+      await execa('git', ['commit', '-m', 'Commit old file'], {
+        cwd: projectPath,
+      });
+
+      // 4. Perform rename using git mv
+      await execa('git', ['mv', 'old-name.txt', 'new-name.txt'], {
+        cwd: projectPath,
+      });
+
+      // 5. Run recordChanges to sync the rename
+      await backup.recordChanges('rename_file', {
+        file_path: 'new-name.txt',
+      });
+
+      // Verify the old file is removed and new file exists in shadow backup
+      expect(fs.existsSync(path.join(shadowPath, 'old-name.txt'))).toBe(false);
+      expect(fs.existsSync(path.join(shadowPath, 'new-name.txt'))).toBe(true);
+      expect(
+        fs.readFileSync(path.join(shadowPath, 'new-name.txt'), 'utf-8'),
+      ).toBe('Content of renamed file');
+    });
   });
 
   // --- 2. Sandbox ---
@@ -174,7 +220,12 @@ exec "$@"
       fs.chmodSync(wrapperPath, 0o755);
 
       // Create dummy tool
-      const toolDir = path.join(projectPath, '.aura-workspace', 'tools', 'hello');
+      const toolDir = path.join(
+        projectPath,
+        '.aura-workspace',
+        'tools',
+        'hello',
+      );
       fs.mkdirSync(toolDir, { recursive: true });
       fs.writeFileSync(
         path.join(toolDir, 'manifest.json'),

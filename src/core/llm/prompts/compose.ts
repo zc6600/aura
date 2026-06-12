@@ -45,7 +45,11 @@ export function messagesAndTools(
   }
 
   // Fallback: treat as string context
-  const messages: ChatMessage[] = [{ role: 'user', content: String(context) }];
+  let content = String(context);
+  if (goal && goal.trim().length > 0) {
+    content = `${content}\n\n## CURRENT USER TASK\n${goal.trim()}`;
+  }
+  const messages: ChatMessage[] = [{ role: 'user', content }];
   const nativeTools: ToolSchema[] = [];
   return [messages, nativeTools];
 }

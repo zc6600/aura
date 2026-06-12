@@ -27,7 +27,12 @@ describe('Hierarchical Lifecycle Integration', { timeout: 30000 }, () => {
     runner = new Runner(projectPath);
 
     // Setup browser tool group
-    const browserDir = path.join(projectPath, '.aura-workspace', 'tools', 'browser');
+    const browserDir = path.join(
+      projectPath,
+      '.aura-workspace',
+      'tools',
+      'browser',
+    );
     fs.mkdirSync(browserDir, { recursive: true });
 
     // 1. group_manifest.json
@@ -126,7 +131,12 @@ print(json.dumps({"success": True, "context_destroyed": args.get("context_id")})
     );
 
     // Set configuration
-    const configPath = path.join(projectPath, '.aura-workspace', 'config', 'config.yml');
+    const configPath = path.join(
+      projectPath,
+      '.aura-workspace',
+      'config',
+      'config.yml',
+    );
     fs.writeFileSync(configPath, 'tool_protocol: { core_tools: [] }');
   });
 

@@ -2,13 +2,19 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import picocolors from 'picocolors';
+import {
+  GlobalRulesProvider,
+  type ScannedGlobalRule,
+} from '../../core/context/providers/globalRulesProvider.js';
+import {
+  HintProvider,
+  type ScannedHint,
+} from '../../core/context/providers/hintProvider.js';
 import * as ConfigManager from '../../utils/configManager.js';
 import type { AuraConfig } from '../../utils/configSchema.js';
+import { hasMagicHint as hasMagicHintUtil } from '../../utils/fsUtils.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import * as UI from '../ui.js';
-import { GlobalRulesProvider, ScannedGlobalRule } from '../../core/context/providers/globalRulesProvider.js';
-import { HintProvider, ScannedHint } from '../../core/context/providers/hintProvider.js';
-import { hasMagicHint as hasMagicHintUtil } from '../../utils/fsUtils.js';
 
 type Injectable = ScannedGlobalRule | ScannedHint;
 
@@ -26,7 +32,9 @@ export class Hints {
     const auraDir = PathResolver.findAuraDir(resolvedPath);
     const envPath = auraDir || resolvedPath;
 
-    const globalRulesProvider = new GlobalRulesProvider(resolvedPath, { envPath });
+    const globalRulesProvider = new GlobalRulesProvider(resolvedPath, {
+      envPath,
+    });
     const hintProvider = new HintProvider(resolvedPath, { envPath });
 
     const globalRules = globalRulesProvider.scan();
@@ -134,7 +142,11 @@ export class Hints {
   }
 
   public static global(): void {
-    const globalHintFile = path.join(os.homedir(), '.aura-framework', 'global_hint.md');
+    const globalHintFile = path.join(
+      os.homedir(),
+      '.aura-framework',
+      'global_hint.md',
+    );
     console.log('\n=== Global Operational Guidance & User Preferences ===');
     console.log(`File Path: ${globalHintFile.replace(os.homedir(), '~')}`);
     console.log('-'.repeat(60));
@@ -149,7 +161,9 @@ export class Hints {
     } else {
       console.log(picocolors.yellow('(File does not exist yet)'));
       console.log('\n💡 To create it, run:');
-      console.log('   mkdir -p ~/.aura-framework && touch ~/.aura-framework/global_hint.md');
+      console.log(
+        '   mkdir -p ~/.aura-framework && touch ~/.aura-framework/global_hint.md',
+      );
       console.log(
         '   Then edit the file with your preferences, global instructions, or target models/rules.',
       );

@@ -91,6 +91,9 @@ export class Session {
 
       // Interactive loop runs via Daemon!
       try {
+        if (!goal || goal.trim().length === 0) {
+          new Dashboard(this.projectPath, this.config, 'daemon').render();
+        }
         await this.runLoopWithDaemon(client, renderer);
       } finally {
         client.disconnect();
@@ -154,7 +157,7 @@ export class Session {
       }
     } else {
       if (!goal || goal.trim().length === 0) {
-        new Dashboard(this.projectPath, this.config).render();
+        new Dashboard(this.projectPath, this.config, 'local').render();
       }
       await this.runLoop();
     }
@@ -253,11 +256,6 @@ export class Session {
       return;
     }
 
-    console.log(
-      picocolors.cyan(picocolors.bold('Welcome to Aura Shell. Type /help for commands, /exit to exit.')),
-    );
-    console.log('');
-
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
@@ -330,7 +328,9 @@ export class Session {
           continue;
         }
         if (['auto', '/auto'].includes(input.toLowerCase())) {
-          console.log('Usage: /auto on/off (Toggle auto-pilot/interactive mode)');
+          console.log(
+            'Usage: /auto on/off (Toggle auto-pilot/interactive mode)',
+          );
           continue;
         }
 
@@ -359,11 +359,6 @@ export class Session {
     client: DaemonClient,
     renderer: ConsoleRenderer,
   ): Promise<void> {
-    console.log(
-      picocolors.cyan(picocolors.bold('Welcome to Aura Shell (Daemon Mode). Type /help for commands, /exit to exit.')),
-    );
-    console.log('');
-
     const removeListener = client.onNotification(
       (method: string, params: Record<string, unknown>) => {
         if (method === 'agent/onProgress') {

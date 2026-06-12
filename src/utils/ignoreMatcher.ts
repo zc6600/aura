@@ -3,7 +3,10 @@ export function isPathIgnored(relPath: string, ignoreList: string[]): boolean {
 
   return ignoreList.some((pattern) => {
     const normalizedPattern = pattern.replace(/\\/g, '/');
-    if (normalizedPattern === normalizedPath || normalizedPath.includes(normalizedPattern)) {
+    if (
+      normalizedPattern === normalizedPath ||
+      normalizedPath.includes(normalizedPattern)
+    ) {
       return true;
     }
 
@@ -11,7 +14,7 @@ export function isPathIgnored(relPath: string, ignoreList: string[]): boolean {
     const regexStr =
       '^' +
       normalizedPattern
-        .replace(/\./g, '\\.')
+        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
         .replace(/\*/g, '.*')
         .replace(/\?/g, '.') +
       '$';

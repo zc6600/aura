@@ -22,7 +22,9 @@ export const Doctor = {
 
     console.log('='.repeat(70));
     console.log(
-      picocolors.bold(picocolors.blue('🌟 Aura OS - Environment Health Checks')),
+      picocolors.bold(
+        picocolors.blue('🌟 Aura OS - Environment Health Checks'),
+      ),
     );
     console.log('='.repeat(70));
     console.log(`Node: ${process.version}`);
@@ -93,7 +95,9 @@ export const Doctor = {
             );
             console.log('💡 To build it for the current workspace:');
             const auraDir = PathResolver.findAuraDir(process.cwd());
-            const displayDir = auraDir ? path.basename(auraDir) : '.aura-workspace';
+            const displayDir = auraDir
+              ? path.basename(auraDir)
+              : '.aura-workspace';
             console.log(
               `   $ docker build -t ${sandboxImage} -f ${displayDir}/Dockerfile.sandbox ${displayDir}`,
             );

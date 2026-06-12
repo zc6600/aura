@@ -534,7 +534,12 @@ describe('Tools Integration', { timeout: 30000 }, () => {
 
   // 12. Dynamic Custom Workflow Tool Loading and Run
   it('custom workflow tool loading and run', async () => {
-    const workflowDir = path.join(projectPath, '.aura-workspace', 'tools', 'workflow');
+    const workflowDir = path.join(
+      projectPath,
+      '.aura-workspace',
+      'tools',
+      'workflow',
+    );
     fs.mkdirSync(workflowDir, { recursive: true });
 
     const manifest = {

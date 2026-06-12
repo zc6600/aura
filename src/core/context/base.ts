@@ -11,6 +11,7 @@ import {
   ContextPrompt,
 } from './payload.js';
 import { AnchorProvider } from './providers/anchorProvider.js';
+import { BackgroundProcessProvider } from './providers/backgroundProcessProvider.js';
 import { DirectiveProvider } from './providers/directiveProvider.js';
 import { DirectoryTreeProvider } from './providers/directoryTreeProvider.js';
 import { GardenProvider } from './providers/gardenProvider.js';
@@ -54,6 +55,7 @@ export class ContextBase {
   private knowledgeProvider: KnowledgeProvider;
   private toolProvider: ToolProvider;
   private stateProvider: StateProvider;
+  private backgroundProcessProvider: BackgroundProcessProvider;
 
   // ... other providers
 
@@ -104,6 +106,10 @@ export class ContextBase {
     });
 
     this.stateProvider = new StateProvider(db, this.options);
+    this.backgroundProcessProvider = new BackgroundProcessProvider(
+      this.projectPath,
+      envOpts,
+    );
   }
 
   public assemble(): ContextPayload {
@@ -414,6 +420,11 @@ ${gardenKnowledge}`);
     if (userTask)
       sections.push(`## User Tasks
 ${userTask}`);
+
+    const backgroundProcesses = this.backgroundProcessProvider.provide();
+    if (backgroundProcesses) {
+      sections.push(backgroundProcesses);
+    }
 
     if (sections.length <= 1) {
       return null;

@@ -24,10 +24,16 @@ export class Dashboard {
 
   private projectPath: string;
   private llmConfig: LLMConfig;
+  private mode: 'local' | 'daemon';
 
-  constructor(projectPath: string, config: AuraConfig) {
+  constructor(
+    projectPath: string,
+    config: AuraConfig,
+    mode: 'local' | 'daemon' = 'local',
+  ) {
     this.projectPath = projectPath;
     this.llmConfig = config?.llm ?? { provider: 'local', fallbacks: [] };
+    this.mode = mode;
   }
 
   public render(): void {
@@ -41,7 +47,8 @@ export class Dashboard {
   }
 
   private printTopBorder(): void {
-    const title = ` Aura Shell v${VERSION} `;
+    const modeLabel = this.mode === 'daemon' ? 'Daemon' : 'Local';
+    const title = ` Aura Shell v${VERSION} [${modeLabel}] `;
     const line =
       Dashboard.BOX_CHARS.top_left +
       Dashboard.BOX_CHARS.horizontal.repeat(3) +

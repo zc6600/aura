@@ -185,7 +185,11 @@ export async function initializeWorkspaceInPlace(
       ? fs.readFileSync(gitIgnorePath, 'utf-8')
       : '';
     if (!existingRules.includes('.aura-workspace/')) {
-      fs.writeFileSync(gitIgnorePath, `${existingRules}\n.aura-workspace/\n`, 'utf-8');
+      fs.writeFileSync(
+        gitIgnorePath,
+        `${existingRules}\n.aura-workspace/\n`,
+        'utf-8',
+      );
       console.log(
         '\x1b[32mInjected .gitignore rule for hidden .aura-workspace environment.\x1b[0m',
       );

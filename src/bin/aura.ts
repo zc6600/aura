@@ -8,9 +8,9 @@ import picocolors from 'picocolors';
 import { Branch } from '../cli/commands/branch.js';
 import { Chat } from '../cli/commands/chat.js';
 import { Config } from '../cli/commands/config.js';
-import { Env } from '../cli/commands/env.js';
 // Subcommand imports
 import { Doctor } from '../cli/commands/doctor.js';
+import { Env } from '../cli/commands/env.js';
 import { Garden } from '../cli/commands/garden.js';
 import { Git } from '../cli/commands/git.js';
 import { Hints } from '../cli/commands/hints.js';
@@ -22,73 +22,21 @@ import { Skills } from '../cli/commands/skills.js';
 import { Template } from '../cli/commands/template.js';
 import { Tools } from '../cli/commands/tools.js';
 import { Update } from '../cli/commands/update.js';
+import { completionBash, completionZsh } from '../cli/completion.js';
 import { Session } from '../cli/shell/session.js';
 import { WebServer } from '../cli/shell/webServer.js';
 import * as UI from '../cli/ui.js';
 import { Runner } from '../core/kernel/runner.js';
 import { VERSION } from '../index.js';
-import { completionBash, completionZsh } from '../cli/completion.js';
 import * as PathResolver from '../utils/pathResolver.js';
 import { initializeWorkspaceInPlace } from '../utils/workspaceInitializer.js';
 
-// Root block guard
-function checkRootGuard(commandName: string): void {
-  if (
-    process.env.AURA_ALLOW_ROOT === 'true' ||
-    process.argv.includes('--allow-root')
-  ) {
-    return;
-  }
-  const hasGemspec =
-    fs.existsSync('aura.gemspec') || fs.existsSync('package.json');
-  if (hasGemspec) {
-    let isAuraPkg = false;
-    if (fs.existsSync('package.json')) {
-      try {
-        isAuraPkg =
-          JSON.parse(fs.readFileSync('package.json', 'utf-8')).name === 'aura-cli';
-      } catch {}
-    }
-
-    if (isAuraPkg) {
-      const exempted = [
-        'help',
-        'version',
-        'new',
-        'doctor',
-        'info',
-        'list',
-        'delete',
-        'register',
-        'prune',
-        'web',
-        'template',
-        'completion',
-        'chat',
-        'branch',
-        'config',
-        'session',
-      ];
-      if (!exempted.includes(commandName)) {
-        throw new UI.WorkspaceError(
-          'You are trying to run Aura from the source root directory. Please run it in a separate workspace directory (e.g., run `aura new my_project` first).',
-        );
-      }
-    }
-  }
-}
-
-
 // ---------------------------------------------------------------------------
-// Base Command with checkRootGuard
+// Base Command
 // ---------------------------------------------------------------------------
 abstract class BaseCommand extends Command {
   async execute() {
     try {
-      const cmdName = this.path[0];
-      if (cmdName) {
-        checkRootGuard(cmdName);
-      }
       await this.run();
     } catch (e: unknown) {
       if (e instanceof UI.CliError) {
@@ -237,11 +185,14 @@ class EnvSetCommand extends BaseCommand {
     details:
       'Writes KEY=VALUE into ~/.aura-framework/.env (--global) or the local workspace .env.',
     examples: [
-      ['Set Gemini API key globally', 'aura env set GEMINI_API_KEY sk-...  --global'],
+      [
+        'Set Gemini API key globally',
+        'aura env set GEMINI_API_KEY sk-...  --global',
+      ],
       ['Set a local workspace variable', 'aura env set MY_VAR value'],
     ],
   });
-  key   = Option.String({ required: true });
+  key = Option.String({ required: true });
   value = Option.String({ required: true });
   global = Option.Boolean('-g,--global', false);
 
@@ -276,7 +227,8 @@ class ListCommand extends BaseCommand {
 class DeleteCommand extends BaseCommand {
   static paths = [['delete']];
   static usage = Command.Usage({
-    description: 'Unregister an Aura project and delete its .aura-workspace sandbox',
+    description:
+      'Unregister an Aura project and delete its .aura-workspace sandbox',
   });
   projectName = Option.String({ required: true });
 
@@ -504,7 +456,8 @@ class PullCommand extends BaseCommand {
 class StatusCommand extends BaseCommand {
   static paths = [['status']];
   static usage = Command.Usage({
-    description: 'Show what files are modified or untracked inside .aura-workspace',
+    description:
+      'Show what files are modified or untracked inside .aura-workspace',
   });
 
   async run() {

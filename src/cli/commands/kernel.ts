@@ -179,6 +179,10 @@ export class Kernel {
     const root = Kernel.resolveProjectPath(projectPath);
     const runner = new Runner(root);
 
+    if (options.goal?.trim()) {
+      runner.recordUserInput(options.goal.trim());
+    }
+
     const prefix = process.env.AURA_SUBAGENT_ID
       ? `[Subagent ${process.env.AURA_SUBAGENT_ID}]`
       : '[Agent]';

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import { readLastLinesSync } from '../utils/fsUtils.js';
 import { resolveIpcPath } from './ipc.js';
 
 /**
@@ -150,8 +151,7 @@ export class DaemonClient {
         let logTail = '';
         try {
           if (fs.existsSync(logFile)) {
-            const content = fs.readFileSync(logFile, 'utf-8');
-            logTail = content.split('\n').slice(-15).join('\n');
+            logTail = readLastLinesSync(logFile, 15);
           }
         } catch {}
         throw new Error(

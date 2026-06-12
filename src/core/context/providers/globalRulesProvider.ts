@@ -40,7 +40,7 @@ export class GlobalRulesProvider {
       const autoInject = this.shouldAutoInjectReadme();
       const ignored = this.isIgnored('AURA_README.md');
 
-      const status = (!autoInject || ignored) ? 'IGNORED' : 'INJECTED';
+      const status = !autoInject || ignored ? 'IGNORED' : 'INJECTED';
       const reason = !autoInject
         ? 'auto_inject_readme: false'
         : ignored
@@ -76,15 +76,26 @@ export class GlobalRulesProvider {
 
     // 1. Read AURA_README.md via scan()
     const scanned = this.scan();
-    const readmeRule = scanned.find((r) => r.path === 'AURA_README.md' && r.status === 'INJECTED');
-    if (readmeRule && readmeRule.content) {
-      rules.push(`### Project Instructions (AURA_README.md):\n${readmeRule.content}`);
+    const readmeRule = scanned.find(
+      (r) => r.path === 'AURA_README.md' && r.status === 'INJECTED',
+    );
+    if (readmeRule?.content) {
+      rules.push(
+        `### Project Instructions (AURA_README.md):\n${readmeRule.content}`,
+      );
     }
 
     // 2. Read ~/.aura-framework/global_hint.md (fallback to ~/.aura/global_hint.md)
     try {
-      let globalHintFile = path.join(os.homedir(), '.aura-framework', 'global_hint.md');
-      if (!fs.existsSync(globalHintFile) || !fs.statSync(globalHintFile).isFile()) {
+      let globalHintFile = path.join(
+        os.homedir(),
+        '.aura-framework',
+        'global_hint.md',
+      );
+      if (
+        !fs.existsSync(globalHintFile) ||
+        !fs.statSync(globalHintFile).isFile()
+      ) {
         globalHintFile = path.join(os.homedir(), '.aura', 'global_hint.md');
       }
       if (

@@ -1,8 +1,11 @@
+import { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execa } from 'execa';
 import { loadTyped } from '../../utils/configManager.js';
 import { type AuraConfig, parseAuraConfig } from '../../utils/configSchema.js';
+import { readLastLinesSync } from '../../utils/fsUtils.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import type { LSPManager } from '../ext/lsp/manager.js';
 import { MCPManager } from '../ext/mcp/manager.js';
@@ -18,7 +21,7 @@ export interface ExecutionOptions {
   sessionName?: string;
 }
 
-export class ExecutionEngine {
+export class ExecutionEngine extends EventEmitter {
   private projectPath: string;
   private envPath: string;
   private registry: ToolRegistry;
@@ -26,11 +29,15 @@ export class ExecutionEngine {
   private lspManager?: LSPManager;
   private shadowBackup: ShadowBackup;
   private gitState: GitState;
+  /** Active PTY processes keyed by PID (populated when background:true + pty:true). */
+  private ptyProcesses = new Map<number, import('node:stream').Writable>();
+  private ptyStates = new Map<number, { resetPromptPending: () => void }>();
 
   constructor(
     projectPath: string,
     options: { envPath?: string; lsp_manager?: LSPManager } = {},
   ) {
+    super();
     this.projectPath = path.resolve(projectPath);
     this.envPath =
       options.envPath ||
@@ -79,7 +86,19 @@ export class ExecutionEngine {
         ? Number(argsTimeout)
         : Number(baseTimeout);
 
-    resolvedTimeout = Math.min(resolvedTimeout, Number(maxTimeout)) * 1000; // convert to ms
+    if (Number.isNaN(resolvedTimeout) || resolvedTimeout <= 0) {
+      resolvedTimeout = Number(baseTimeout);
+    }
+    if (Number.isNaN(resolvedTimeout) || resolvedTimeout <= 0) {
+      resolvedTimeout = 300;
+    }
+
+    let finalMaxTimeout = Number(maxTimeout);
+    if (Number.isNaN(finalMaxTimeout) || finalMaxTimeout <= 0) {
+      finalMaxTimeout = 1200;
+    }
+
+    resolvedTimeout = Math.min(resolvedTimeout, finalMaxTimeout) * 1000; // convert to ms
 
     // Dispatching MCP tools
     if (this.mcpManager.mcpTool(toolName)) {
@@ -110,6 +129,196 @@ export class ExecutionEngine {
           };
         }
       }) as Promise<ToolResult>;
+    }
+
+    // Dispatching wait_for_process
+    if (toolName === 'wait_for_process') {
+      return this.executeWithTimeout(resolvedTimeout, async () => {
+        const pid = Number(cleanArgs.pid);
+        if (Number.isNaN(pid)) {
+          return {
+            status: 'failed',
+            error: 'Invalid or missing "pid" parameter.',
+          };
+        }
+        const timeoutSeconds = Number(cleanArgs.timeout_seconds ?? 30);
+        const startTime = Date.now();
+        const commandsDir = path.join(this.envPath, 'state', 'commands');
+
+        while (true) {
+          let isAlive = false;
+          try {
+            process.kill(pid, 0);
+            isAlive = true;
+          } catch (err: any) {
+            isAlive = err.code === 'EPERM';
+          }
+
+          if (!isAlive) {
+            // Give a tiny window (50ms) for the exit event handler to run and update the status file
+            await new Promise((resolve) => setTimeout(resolve, 50));
+
+            let status = 'finished';
+            let exitCode: number | null = null;
+            let stdoutFile: string | undefined;
+            const metadataPath = path.join(commandsDir, `${pid}.json`);
+            if (fs.existsSync(metadataPath)) {
+              try {
+                const raw = fs.readFileSync(metadataPath, 'utf-8');
+                const meta = JSON.parse(raw);
+                if (meta.status === 'running') {
+                  meta.status = 'finished';
+                  meta.ended_at = Date.now() / 1000;
+                  fs.writeFileSync(
+                    metadataPath,
+                    JSON.stringify(meta, null, 2),
+                    'utf-8',
+                  );
+                }
+                status = meta.status || 'finished';
+                exitCode = meta.exit_code ?? null;
+                stdoutFile = meta.stdout_file;
+              } catch {}
+            }
+
+            const outPath = stdoutFile || path.join(commandsDir, `${pid}.out`);
+            if (fs.existsSync(outPath)) {
+              try {
+                const stdout = readLastLinesSync(outPath, 10).trim();
+                const lines = stdout.split('\n').filter(Boolean);
+                for (let i = lines.length - 1; i >= 0; i--) {
+                  const line = lines[i].trim();
+                  if (line.startsWith('{') && line.endsWith('}')) {
+                    try {
+                      const result = JSON.parse(line);
+                      if (result && typeof result === 'object') {
+                        return result;
+                      }
+                    } catch {}
+                  }
+                }
+              } catch {}
+            }
+
+            if (status === 'failed') {
+              return {
+                status: 'failed',
+                error: `Process exited with error (exit code: ${exitCode ?? 'unknown'}).`,
+              };
+            }
+            return { status: 'ok', output: 'Process exited.' };
+          }
+
+          if (Date.now() - startTime >= timeoutSeconds * 1000) {
+            return {
+              status: 'running',
+              pid,
+              message: 'Process is still running.',
+            };
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }) as Promise<ToolResult>;
+    }
+
+    // Dispatching sleep_and_wake
+    if (toolName === 'sleep_and_wake') {
+      const rawSeconds = Number(cleanArgs.seconds ?? 0);
+      const MAX_SLEEP_SECONDS = 3600;
+      const clampedSeconds = Math.max(
+        0,
+        Math.min(rawSeconds, MAX_SLEEP_SECONDS),
+      );
+      if (Number.isNaN(clampedSeconds) || clampedSeconds === 0) {
+        return {
+          status: 'failed',
+          error:
+            'Invalid or missing "seconds" parameter (must be > 0, max 3600).',
+        };
+      }
+      const reason =
+        typeof cleanArgs.reason === 'string' ? cleanArgs.reason : null;
+      const wakeAt = new Date(Date.now() + clampedSeconds * 1000).toISOString();
+      const abortSignal = cleanArgs.__abortSignal__ as AbortSignal | undefined;
+
+      // Race sleep against an optional abort signal so socket disconnects cancel the sleep.
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          cleanup();
+          resolve();
+        }, clampedSeconds * 1000);
+
+        let onAbort: (() => void) | undefined;
+        if (abortSignal) {
+          onAbort = () => {
+            clearTimeout(timer);
+            cleanup();
+            resolve();
+          };
+          abortSignal.addEventListener('abort', onAbort, { once: true });
+        }
+
+        function cleanup() {
+          if (abortSignal && onAbort) {
+            abortSignal.removeEventListener('abort', onAbort);
+          }
+        }
+      });
+
+      // If aborted mid-sleep, surface a clear error instead of resuming the loop.
+      if (abortSignal?.aborted) {
+        throw new Error('Sleep interrupted: client disconnected');
+      }
+
+      return {
+        status: 'sleeping' as const,
+        slept_seconds: clampedSeconds,
+        wake_at: wakeAt,
+        reason,
+        message: `Slept for ${clampedSeconds} seconds. Resuming with fresh context.`,
+      };
+    }
+
+    // Dispatching send_process_input
+    if (toolName === 'send_process_input') {
+      const pid = Number(cleanArgs.pid);
+      if (Number.isNaN(pid)) {
+        return {
+          status: 'failed',
+          error: 'Invalid or missing "pid" parameter.',
+        };
+      }
+      const input =
+        typeof cleanArgs.input === 'string' ? cleanArgs.input : null;
+      if (input === null) {
+        return {
+          status: 'failed',
+          error: 'Missing required "input" parameter.',
+        };
+      }
+      const ptyStdin = this.ptyProcesses.get(pid);
+      if (!ptyStdin) {
+        return {
+          status: 'failed',
+          error: `No active PTY process found for PID ${pid}. Only processes started with background:true and pty:true support interactive input.`,
+        };
+      }
+      const normalizedInput = input.replace(/[\r\n]+$/, '');
+      try {
+        const ptyState = this.ptyStates.get(pid);
+        if (ptyState) {
+          ptyState.resetPromptPending();
+        }
+        // node-pty uses write(), plain Writable streams also use write()
+        (ptyStdin as any).write(`${normalizedInput}\r`);
+        return { status: 'ok', message: `Input sent to process ${pid}.` };
+      } catch (e: unknown) {
+        return {
+          status: 'failed',
+          error: `Failed to write to process stdin: ${e instanceof Error ? e.message : String(e)}`,
+        };
+      }
     }
 
     if (!toolData) {
@@ -188,7 +397,252 @@ export class ExecutionEngine {
     } catch (_e) {}
 
     const payload = JSON.stringify(cleanArgs);
-    const [cmd, finalArgs] = this.applySandbox(cfg, runtime, logic, payload);
+    const [cmd, finalArgs] = this.applySandbox(
+      cfg,
+      runtime,
+      logic,
+      payload,
+      options,
+    );
+
+    const isBackground = cleanArgs.background === true;
+    const isPty = isBackground && cleanArgs.pty === true;
+
+    if (isBackground) {
+      const commandsDir = path.join(this.envPath, 'state', 'commands');
+      if (!fs.existsSync(commandsDir)) {
+        fs.mkdirSync(commandsDir, { recursive: true });
+      }
+
+      const taskTag = `task-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      const outPath = path.join(commandsDir, `${taskTag}.out`);
+      const errPath = path.join(commandsDir, `${taskTag}.err`);
+
+      if (isPty) {
+        // ── PTY path: interactive background process ─────────────────────
+        const ptyModule = await import('node-pty');
+        const allArgs = [...cmd.slice(1), ...finalArgs];
+        const ptyProcess = ptyModule.spawn(cmd[0], allArgs, {
+          name: 'xterm-256color',
+          cols: 220,
+          rows: 50,
+          cwd: this.projectPath,
+          env: {
+            ...process.env,
+            ...(options.sessionDbPath
+              ? { AURA_STATE_DB_PATH: options.sessionDbPath }
+              : {}),
+            ...(options.sessionName
+              ? { AURA_SESSION_NAME: options.sessionName }
+              : {}),
+          },
+        });
+        // Write JSON payload as first stdin line (same contract as non-PTY)
+        ptyProcess.write(`${payload}\r`);
+
+        const outStream = fs.createWriteStream(outPath, { flags: 'a' });
+        outStream.on('error', (err) => {
+          console.error(
+            `[ExecutionEngine] PTY outStream error for PID ${ptyProcess.pid}:`,
+            err,
+          );
+        });
+
+        const PROMPT_PATTERNS = [
+          /\[y\/n\]\s*$/i,
+          /\(yes\/no\)\s*$/i,
+          /\[Y\/n\]\s*$/,
+          /\(y\/N\)\s*$/,
+          /password[:\s]*$/i,
+          /passphrase[:\s]*$/i,
+          /enter\s+.+:\s*$/i,
+          /confirm[:\s]*$/i,
+          // Deliberately omit bare /> \s*$/ — too many false positives from
+          // shell prompts in normal output. Only match prompt-like ? at line end.
+          /[^\w]\?\s*$/,
+        ];
+
+        let silenceTimer: NodeJS.Timeout | null = null;
+        let recentOutput = '';
+        let promptPending = false; // guard: don't spam duplicate events
+        const SILENCE_MS = 5000;
+
+        const resetSilenceTimer = (pid: number) => {
+          if (silenceTimer) clearTimeout(silenceTimer);
+          silenceTimer = setTimeout(() => {
+            if (recentOutput.trim() && !promptPending) {
+              promptPending = true;
+              this.emit('interactive_prompt', {
+                pid,
+                prompt: recentOutput.slice(-512),
+                trigger: 'silence_timeout',
+              });
+            }
+          }, SILENCE_MS);
+        };
+
+        const pid = ptyProcess.pid;
+        const jsonPath = path.join(commandsDir, `${pid}.json`);
+
+        this.ptyStates.set(pid, {
+          resetPromptPending: () => {
+            promptPending = false;
+            resetSilenceTimer(pid);
+          },
+        });
+
+        ptyProcess.onData((data: string) => {
+          outStream.write(data);
+          recentOutput = (recentOutput + data).slice(-1024);
+          // Any new output means the process is not stuck waiting — reset guard.
+          promptPending = false;
+          resetSilenceTimer(pid);
+          for (const pattern of PROMPT_PATTERNS) {
+            if (pattern.test(recentOutput) && !promptPending) {
+              promptPending = true;
+              if (silenceTimer) {
+                clearTimeout(silenceTimer);
+                silenceTimer = null;
+              }
+              this.emit('interactive_prompt', {
+                pid,
+                prompt: recentOutput.slice(-512),
+                trigger: 'pattern_match',
+              });
+              break;
+            }
+          }
+        });
+
+        const meta = {
+          pid,
+          command: `${toolName} ${JSON.stringify(cleanArgs)}`,
+          cwd: this.projectPath,
+          started_at: Date.now() / 1000,
+          status: 'running',
+          pty: true,
+          // PTY merges stdout+stderr on the same master fd — only one output file.
+          stdout_file: outPath,
+        };
+        fs.writeFileSync(jsonPath, JSON.stringify(meta, null, 2), 'utf-8');
+
+        this.ptyProcesses.set(
+          pid,
+          ptyProcess as unknown as import('node:stream').Writable,
+        );
+
+        ptyProcess.onExit(
+          ({ exitCode, signal }: { exitCode: number; signal?: number }) => {
+            if (silenceTimer) {
+              clearTimeout(silenceTimer);
+              silenceTimer = null;
+            }
+            outStream.end();
+            this.ptyProcesses.delete(pid);
+            this.ptyStates.delete(pid);
+            try {
+              if (fs.existsSync(jsonPath)) {
+                const raw = fs.readFileSync(jsonPath, 'utf-8');
+                const m = JSON.parse(raw);
+                m.status = exitCode === 0 ? 'finished' : 'failed';
+                m.exit_code = exitCode ?? null;
+                m.signal = signal ?? null;
+                m.ended_at = Date.now() / 1000;
+                fs.writeFileSync(jsonPath, JSON.stringify(m, null, 2), 'utf-8');
+              }
+            } catch {}
+          },
+        );
+
+        return {
+          status: 'running',
+          pid,
+          taskId: String(pid),
+          pty: true,
+          message:
+            'PTY process started in background. Interactive stdin is supported via send_process_input.',
+          stdout_file: outPath,
+          stderr_file: errPath,
+        };
+      } else {
+        // ── Regular detached spawn path ──────────────────────────────────
+        const outStream = fs.openSync(outPath, 'a');
+        const errStream = fs.openSync(errPath, 'a');
+
+        const child = spawn(cmd[0], [...cmd.slice(1), ...finalArgs], {
+          detached: true,
+          stdio: ['pipe', outStream, errStream],
+          cwd: this.projectPath,
+          env: {
+            ...process.env,
+            ...(options.sessionDbPath
+              ? { AURA_STATE_DB_PATH: options.sessionDbPath }
+              : {}),
+            ...(options.sessionName
+              ? { AURA_SESSION_NAME: options.sessionName }
+              : {}),
+          },
+        });
+
+        fs.closeSync(outStream);
+        fs.closeSync(errStream);
+
+        if (child.stdin) {
+          child.stdin.write(payload);
+          child.stdin.end();
+        }
+        child.unref();
+
+        const pid = child.pid;
+        if (!pid) {
+          throw new Error('Failed to spawn background process');
+        }
+
+        const meta = {
+          pid,
+          command: `${toolName} ${JSON.stringify(cleanArgs)}`,
+          cwd: this.projectPath,
+          started_at: Date.now() / 1000,
+          status: 'running',
+          stdout_file: outPath,
+          stderr_file: errPath,
+        };
+
+        const jsonPath = path.join(commandsDir, `${pid}.json`);
+        fs.writeFileSync(jsonPath, JSON.stringify(meta, null, 2), 'utf-8');
+
+        child.on('exit', (code, signal) => {
+          try {
+            if (fs.existsSync(jsonPath)) {
+              const raw = fs.readFileSync(jsonPath, 'utf-8');
+              const currentMeta = JSON.parse(raw);
+              currentMeta.status = code === 0 ? 'finished' : 'failed';
+              currentMeta.exit_code = code ?? null;
+              currentMeta.signal = signal ?? null;
+              currentMeta.ended_at = Date.now() / 1000;
+              fs.writeFileSync(
+                jsonPath,
+                JSON.stringify(currentMeta, null, 2),
+                'utf-8',
+              );
+            }
+          } catch {}
+        });
+
+        return {
+          status: 'running',
+          pid,
+          taskId: String(pid),
+          message: 'Process started in background.',
+          stdout_file: outPath,
+          stderr_file: errPath,
+        };
+      }
+    }
+
+    const maxOutputChars: number =
+      (cfg.tool_protocol?.call_output as { max_chars?: number })?.max_chars ??
+      8000;
 
     try {
       const execPromise = execa(cmd[0], [...cmd.slice(1), ...finalArgs], {
@@ -196,6 +650,9 @@ export class ExecutionEngine {
         cwd: this.projectPath,
         timeout: resolvedTimeout + 2000,
         reject: false,
+        // Bound in-memory buffering at the collection level before any
+        // post-hoc truncation. 4x gives room for both streams.
+        maxBuffer: maxOutputChars * 4,
         env: {
           ...process.env,
           ...(options.sessionDbPath
@@ -210,16 +667,17 @@ export class ExecutionEngine {
       const { stdout, stderr, exitCode, timedOut } = await execPromise;
 
       if (timedOut) {
+        const partialOutput = this.mergeOutput(stdout, stderr, maxOutputChars);
         return {
           error: `Tool execution timed out after ${resolvedTimeout / 1000} seconds.`,
           status: 'failed',
+          ...(partialOutput ? { output: partialOutput } : {}),
         };
       }
 
-      const body = stderr.trim()
-        ? `${stdout}
-${stderr}`.trim()
-        : stdout.trim();
+      // For successful / failed exits the tool script applies its own
+      // max_output_chars internally, so we only merge streams here.
+      const body = this.mergeOutput(stdout, stderr);
 
       if (exitCode === 0) {
         const obj = this.parseJsonSafe(body);
@@ -304,6 +762,32 @@ ${stderr}`.trim()
     return resolved;
   }
 
+  /**
+   * Merge stdout and stderr into a single string, then optionally truncate
+   * to `maxChars` keeping the **tail** (most recent output).
+   *
+   * Tail-preserving is intentional: when a command times out or crashes,
+   * the most actionable signal is what the process was doing last, not
+   * what it printed at startup.
+   *
+   * When `maxChars` is omitted the raw merged string is returned unchanged
+   * (normal exit paths rely on the tool script's own limiting).
+   */
+  private mergeOutput(
+    stdout: string,
+    stderr: string,
+    maxChars?: number,
+  ): string {
+    const merged = stderr.trim()
+      ? `${stdout}\n${stderr}`.trim()
+      : stdout.trim();
+    if (maxChars === undefined || merged.length <= maxChars) return merged;
+    return (
+      `...[output truncated — showing last ${maxChars} of ${merged.length} chars]\n` +
+      merged.slice(-maxChars)
+    );
+  }
+
   private parseJsonSafe(s: string): Record<string, unknown> {
     try {
       const parsed = JSON.parse(s);
@@ -339,6 +823,7 @@ ${stderr}`.trim()
     runtime: string,
     logic: string,
     _payload: string,
+    options: ExecutionOptions = {},
   ): [string[], string[]] {
     const sandbox = cfg.security?.sandbox;
     if (!sandbox?.enabled) {
@@ -368,14 +853,54 @@ ${stderr}`.trim()
         extraMounts.push('-v', `${realEnv}:/env`);
       }
 
+      // Resolve database path translation
+      const sessionName =
+        options.sessionName || process.env.AURA_SESSION_NAME || 'default';
+      const hostDbPath =
+        options.sessionDbPath ||
+        process.env.AURA_STATE_DB_PATH ||
+        PathResolver.sessionDbPath(this.projectPath, sessionName);
+
+      let containerDbPath = hostDbPath;
+      if (hostDbPath) {
+        const realDbPath = fs.existsSync(hostDbPath)
+          ? fs.realpathSync(hostDbPath)
+          : path.resolve(hostDbPath);
+
+        if (realDbPath.startsWith(realProject)) {
+          const relDb = path
+            .relative(realProject, realDbPath)
+            .replace(/\\/g, '/');
+          containerDbPath = `/app/${relDb}`;
+        } else if (realDbPath.startsWith(realEnv)) {
+          const relDb = path.relative(realEnv, realDbPath).replace(/\\/g, '/');
+          containerDbPath = `/env/${relDb}`;
+          const envMountStr = `${realEnv}:/env`;
+          if (!extraMounts.includes(envMountStr)) {
+            extraMounts.push('-v', envMountStr);
+          }
+        } else {
+          // Mount database directory dynamically
+          const dbDir = path.dirname(realDbPath);
+          const dbFile = path.basename(realDbPath);
+          const mountName = 'db_mount';
+          extraMounts.push('-v', `${dbDir}:/${mountName}`);
+          containerDbPath = `/${mountName}/${dbFile}`;
+        }
+      }
+
       return [
         [
           'docker',
           'run',
           '--rm',
           '-i',
+          '-e',
+          `AURA_STATE_DB_PATH=${containerDbPath}`,
+          '-e',
+          `AURA_SESSION_NAME=${sessionName}`,
           '-v',
-          `${this.projectPath}:/app`,
+          `${realProject}:/app`,
           ...extraMounts,
           '-w',
           '/app',

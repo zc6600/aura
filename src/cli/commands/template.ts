@@ -118,7 +118,12 @@ export class Template {
       'receive.denyCurrentBranch',
       'updateInstead',
     );
-    const checkBranch = await GlobalConfig.gitRun(globalRepo, 'rev-parse', '--verify', 'main');
+    const checkBranch = await GlobalConfig.gitRun(
+      globalRepo,
+      'rev-parse',
+      '--verify',
+      'main',
+    );
     if (checkBranch.success) {
       await GlobalConfig.gitRun(globalRepo, 'checkout', 'main');
     } else {
@@ -128,7 +133,12 @@ export class Template {
 
     const hasHead = await GlobalConfig.gitRun(globalRepo, 'rev-parse', 'HEAD');
     if (hasHead.success) {
-      const diffIndex = await GlobalConfig.gitRun(globalRepo, 'diff-index', '--quiet', 'HEAD');
+      const diffIndex = await GlobalConfig.gitRun(
+        globalRepo,
+        'diff-index',
+        '--quiet',
+        'HEAD',
+      );
       if (!diffIndex.success) {
         await GlobalConfig.gitRun(
           globalRepo,

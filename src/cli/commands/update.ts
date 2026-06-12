@@ -38,21 +38,33 @@ export class Update {
 
     try {
       await execa('git', ['fetch', '--all'], { cwd: rootDir });
-      const { stdout: branch } = await execa('git', ['branch', '--show-current'], { cwd: rootDir });
+      const { stdout: branch } = await execa(
+        'git',
+        ['branch', '--show-current'],
+        { cwd: rootDir },
+      );
       console.log(`📥 Pulling updates for branch [${branch.trim()}]...`);
-      await execa('git', ['merge', `origin/${branch.trim()}`], { cwd: rootDir });
+      await execa('git', ['merge', `origin/${branch.trim()}`], {
+        cwd: rootDir,
+      });
 
       console.log('🏗️ Rebuilding TypeScript outputs (tsup)...');
       await execa('npm', ['run', 'build'], { cwd: rootDir, stdio: 'inherit' });
 
-      console.log('\nAutomatically triggering template sync to global repository...');
+      console.log(
+        '\nAutomatically triggering template sync to global repository...',
+      );
       await Template.sync();
 
-      console.log(`\n${picocolors.green('✨ Aura Framework successfully updated to the latest GitHub version!')}`);
-    } catch (error: any) {
+      console.log(
+        `\n${picocolors.green('✨ Aura Framework successfully updated to the latest GitHub version!')}`,
+      );
+    } catch (_error: any) {
       console.log(`\n${picocolors.red('❌ Automatic Git update failed.')}`);
       console.log('Please manually update in your source directory:');
-      console.log(picocolors.cyan(`  cd "${rootDir}" && git pull && npm run build`));
+      console.log(
+        picocolors.cyan(`  cd "${rootDir}" && git pull && npm run build`),
+      );
     }
   }
 
@@ -201,7 +213,10 @@ export class Update {
       projectName = pathOrName;
       projectPath = projects[pathOrName];
       let resolvedAura = path.join(projectPath, '.aura-workspace');
-      if (!fs.existsSync(resolvedAura) || !fs.statSync(resolvedAura).isDirectory()) {
+      if (
+        !fs.existsSync(resolvedAura) ||
+        !fs.statSync(resolvedAura).isDirectory()
+      ) {
         resolvedAura = path.join(projectPath, '.aura');
       }
       auraDir = resolvedAura;
@@ -213,7 +228,10 @@ export class Update {
           projectName = name;
           projectPath = projects[name];
           let resolvedAura = path.join(projectPath, '.aura-workspace');
-          if (!fs.existsSync(resolvedAura) || !fs.statSync(resolvedAura).isDirectory()) {
+          if (
+            !fs.existsSync(resolvedAura) ||
+            !fs.statSync(resolvedAura).isDirectory()
+          ) {
             resolvedAura = path.join(projectPath, '.aura');
           }
           auraDir = resolvedAura;
@@ -408,7 +426,9 @@ export class Update {
         console.log(picocolors.green('✓ Changes stashed.'));
       } else {
         console.log(
-          picocolors.yellow(`⚠️  You have uncommitted changes in ${path.basename(auraDir)}/`),
+          picocolors.yellow(
+            `⚠️  You have uncommitted changes in ${path.basename(auraDir)}/`,
+          ),
         );
         console.log('\nOptions:');
         console.log('  1. Commit changes first (recommended)');
@@ -445,7 +465,9 @@ export class Update {
       }
     } else {
       console.error(picocolors.red('⛔️ Merge conflicts detected!'));
-      console.log(`\nPlease resolve conflicts manually in ${path.basename(auraDir)}/ directory`);
+      console.log(
+        `\nPlease resolve conflicts manually in ${path.basename(auraDir)}/ directory`,
+      );
       console.log('After resolving, run:');
       console.log(
         `  cd ${path.basename(auraDir)} && git add . && git commit -m 'Resolved merge conflicts'`,

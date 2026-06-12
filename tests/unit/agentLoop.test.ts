@@ -510,4 +510,24 @@ describe('AgentLoop', () => {
     expect(result.steps[0].result.status).toBe('failed');
     expect(result.steps[0].result.error).toBe('Process spawned error');
   });
+
+  it('test_completes_when_llm_returns_no_finish_reason', async () => {
+    runner.plans = [
+      {
+        type: 'text',
+        content: 'Task completed successfully without finish_reason!',
+        thought: 'Task is complete',
+        finish_reason: undefined,
+      },
+    ];
+
+    const result = await loop.run('do something');
+
+    expect(result.status).toBe('completed');
+    expect(result.final_content).toBe(
+      'Task completed successfully without finish_reason!',
+    );
+    expect(result.steps).toEqual([]);
+    expect(result.failure_reason).toBeNull();
+  });
 });

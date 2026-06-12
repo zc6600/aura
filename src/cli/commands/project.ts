@@ -26,15 +26,18 @@ export class Project {
     );
     console.log('-'.repeat(80));
 
-    let activeCount = 0;
     let missingCount = 0;
 
     // Sort projects so active ones appear first, and then alphabetically
     const sortedKeys = [...keys].sort((a, b) => {
       const pA = projects[a];
       const pB = projects[b];
-      const hasA = fs.existsSync(path.join(pA, '.aura-workspace')) || fs.existsSync(path.join(pA, '.aura'));
-      const hasB = fs.existsSync(path.join(pB, '.aura-workspace')) || fs.existsSync(path.join(pB, '.aura'));
+      const hasA =
+        fs.existsSync(path.join(pA, '.aura-workspace')) ||
+        fs.existsSync(path.join(pA, '.aura'));
+      const hasB =
+        fs.existsSync(path.join(pB, '.aura-workspace')) ||
+        fs.existsSync(path.join(pB, '.aura'));
       if (hasA && !hasB) return -1;
       if (!hasA && hasB) return 1;
       return a.localeCompare(b);
@@ -42,13 +45,13 @@ export class Project {
 
     for (const name of sortedKeys) {
       const p = projects[name];
-      const hasAura = fs.existsSync(path.join(p, '.aura-workspace')) || fs.existsSync(path.join(p, '.aura'));
+      const hasAura =
+        fs.existsSync(path.join(p, '.aura-workspace')) ||
+        fs.existsSync(path.join(p, '.aura'));
       const status = hasAura
         ? picocolors.green('Active')
         : picocolors.red('Missing');
-      if (hasAura) {
-        activeCount++;
-      } else {
+      if (!hasAura) {
         missingCount++;
       }
       console.log(
@@ -182,7 +185,10 @@ export class Project {
     let prunedCount = 0;
     for (const name of keys) {
       const pPath = projects[name];
-      if (!fs.existsSync(path.join(pPath, '.aura-workspace')) && !fs.existsSync(path.join(pPath, '.aura'))) {
+      if (
+        !fs.existsSync(path.join(pPath, '.aura-workspace')) &&
+        !fs.existsSync(path.join(pPath, '.aura'))
+      ) {
         ProjectRegistry.unregister(name);
         console.log(
           picocolors.yellow(

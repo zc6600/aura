@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 /**
  * Unit tests for the Doctor API-key validation logic.
@@ -15,19 +15,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // in isolation without spinning up the full CLI.
 function getEnvVarName(provider: string): string | null {
   switch (provider.toLowerCase()) {
-    case 'openai':      return 'OPENAI_API_KEY';
-    case 'openrouter':  return 'OPENROUTER_API_KEY';
-    case 'anthropic':   return 'ANTHROPIC_API_KEY';
-    case 'gemini':      return 'GEMINI_API_KEY';
-    case 'deepseek':    return 'DEEPSEEK_API_KEY';
-    default:            return null;
+    case 'openai':
+      return 'OPENAI_API_KEY';
+    case 'openrouter':
+      return 'OPENROUTER_API_KEY';
+    case 'anthropic':
+      return 'ANTHROPIC_API_KEY';
+    case 'gemini':
+      return 'GEMINI_API_KEY';
+    case 'deepseek':
+      return 'DEEPSEEK_API_KEY';
+    default:
+      return null;
   }
 }
 
 /** Mirror of the apiKeySet logic currently in doctor.ts */
 function isApiKeySet(
   provider: string,
-  llmCfg: Record<string, unknown>,
+  _llmCfg: Record<string, unknown>,
 ): boolean {
   const envVarName = getEnvVarName(provider);
   // Must come from env var — llmCfg.api_key is intentionally NOT accepted.
@@ -73,11 +79,11 @@ describe('Doctor API-key validation (env-only policy)', () => {
 
   it('handles all supported providers', () => {
     const cases: [string, string][] = [
-      ['openai',      'OPENAI_API_KEY'],
-      ['openrouter',  'OPENROUTER_API_KEY'],
-      ['anthropic',   'ANTHROPIC_API_KEY'],
-      ['gemini',      'GEMINI_API_KEY'],
-      ['deepseek',    'DEEPSEEK_API_KEY'],
+      ['openai', 'OPENAI_API_KEY'],
+      ['openrouter', 'OPENROUTER_API_KEY'],
+      ['anthropic', 'ANTHROPIC_API_KEY'],
+      ['gemini', 'GEMINI_API_KEY'],
+      ['deepseek', 'DEEPSEEK_API_KEY'],
     ];
 
     for (const [provider, envVar] of cases) {
@@ -133,4 +139,3 @@ describe('Doctor.loadDotenvFiles — global .env path', () => {
     expect(process.env[TEST_KEY]).toBe('hello_from_global');
   });
 });
-

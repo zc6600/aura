@@ -77,7 +77,9 @@ describe('globalConfig', () => {
   });
 
   it('should resolve configPath and repoPath from homedir', () => {
-    expect(configPath()).toBe(path.join(mockHome, '.aura-framework', 'config.yml'));
+    expect(configPath()).toBe(
+      path.join(mockHome, '.aura-framework', 'config.yml'),
+    );
     expect(repoPath()).toBe(path.join(mockHome, '.aura-framework', 'repo'));
   });
 

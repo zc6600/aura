@@ -22,3 +22,62 @@ export function hasMagicHint(file: string): boolean {
     }
   }
 }
+
+/**
+ * Reads the last N lines of a file backward using a chunk buffer.
+ * Avoids loading the entire file into memory, which prevents OOM on large logs.
+ */
+export function readLastLinesSync(
+  filePath: string,
+  maxLines: number,
+  chunkSize = 65536,
+): string {
+  if (!fs.existsSync(filePath)) return '';
+  const stat = fs.statSync(filePath);
+  if (stat.size === 0) return '';
+
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    let position = stat.size;
+    let newlineCount = 0;
+    const newlinePositions: number[] = [];
+
+    // Search backward for newline characters (0x0A)
+    while (position > 0 && newlineCount < maxLines) {
+      const bytesToRead = Math.min(position, chunkSize);
+      const readAt = position - bytesToRead;
+      const buffer = Buffer.alloc(bytesToRead);
+      fs.readSync(fd, buffer, 0, bytesToRead, readAt);
+
+      for (let i = bytesToRead - 1; i >= 0; i--) {
+        if (buffer[i] === 0x0a) {
+          // '\n'
+          const absolutePos = readAt + i;
+          newlinePositions.push(absolutePos);
+          newlineCount++;
+          if (newlineCount >= maxLines) {
+            break;
+          }
+        }
+      }
+      position -= bytesToRead;
+    }
+
+    // Determine the start position for reading the last maxLines
+    let startPos = 0;
+    if (newlinePositions.length >= maxLines) {
+      startPos = newlinePositions[maxLines - 1] + 1;
+    }
+
+    const len = stat.size - startPos;
+    if (len <= 0) return '';
+
+    const finalBuffer = Buffer.alloc(len);
+    fs.readSync(fd, finalBuffer, 0, len, startPos);
+    return finalBuffer.toString('utf-8');
+  } finally {
+    try {
+      fs.closeSync(fd);
+    } catch {}
+  }
+}

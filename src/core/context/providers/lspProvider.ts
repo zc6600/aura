@@ -59,11 +59,11 @@ export class LSPProvider {
     for (const [uri, diags] of Object.entries(diagnostics)) {
       if (!Array.isArray(diags) || diags.length === 0) continue;
 
+      const escapedPath = this.projectPath
+        .replace(/\\/g, '/')
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const relPath = uri.replace(
-        new RegExp(
-          `^file://(localhost)?${this.projectPath.replace(/\\/g, '/')}/?`,
-          'i',
-        ),
+        new RegExp(`^file://(localhost)?${escapedPath}/?`, 'i'),
         '',
       );
       const errors = diags.filter((d) => d.severity === 1);

@@ -8,6 +8,12 @@ export const runGoal: HandlerFunction = async (ctx) => {
   if (!server.runner) {
     server.runner = new Runner(server.projectPath);
   }
+  const engine = server.runner.getEngine();
+  if (engine.listenerCount('interactive_prompt') === 0) {
+    engine.on('interactive_prompt', (event: unknown) => {
+      server.sendNotification('execute/onInteractivePrompt', event);
+    });
+  }
   if (server.activeLoopJob.status === 'running') {
     server.sendError(
       ctx.socket,
@@ -35,6 +41,7 @@ export const runGoal: HandlerFunction = async (ctx) => {
   server.activeAbortController = new AbortController();
   server.activeJobSocket = ctx.socket;
   const signal = server.activeAbortController.signal;
+  server.runner.abortSignal = signal;
 
   const disconnectHook = () => {
     if (signal.aborted || ctx.socket.destroyed) {
@@ -185,6 +192,7 @@ export const runGoal: HandlerFunction = async (ctx) => {
     }
   } finally {
     if (server.runner) {
+      server.runner.abortSignal = null;
       server.runner.hooks.unregister('before_planning', disconnectHook);
       server.runner.hooks.unregister('before_tool_execution', disconnectHook);
       server.runner.hooks.unregister('before_tool_execution', confirmHook);

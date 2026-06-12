@@ -70,6 +70,9 @@ export class ToolProvider {
 
       this.appendMcpTools();
       this.appendLspTools();
+      this.appendWaitForProcessTool();
+      this.appendSleepAndWakeTool();
+      this.appendSendProcessInputTool();
 
       return ['# TOOLS', this.loadedToolsList.join('\n\n')].join('\n\n');
     } finally {
@@ -371,6 +374,137 @@ export class ToolProvider {
         input_schema: schema,
         permissions: {},
         hint: 'Use this tool to get real-time feedback on code changes.',
+      });
+    } catch (_e) {}
+  }
+
+  private appendWaitForProcessTool(): void {
+    try {
+      const schema = {
+        type: 'object',
+        properties: {
+          pid: {
+            type: 'number',
+            description: 'The process PID returned by a background launch.',
+          },
+          timeout_seconds: {
+            type: 'number',
+            description:
+              'How long to block waiting (default 30). Pass a small value (e.g. 5) ' +
+              'to poll without committing — if the process is still running you will ' +
+              'get {status: "running", pid} back and can call this again later.',
+          },
+        },
+        required: ['pid'],
+      };
+      const hint =
+        'POLLING PATTERN: start a background task → call wait_for_process with ' +
+        'timeout_seconds=5 to check → if still running, do other work or call ' +
+        'sleep_and_wake, then poll again. When process exits, its output is returned.';
+      this.loadedToolsList.push(
+        [
+          '## wait_for_process',
+          'Description: Wait for (or poll) a background process. Returns the process ' +
+            'result when it exits, or {status: "running", pid} if still running within timeout.',
+          'Permissions: {}',
+          `Usage: ${this.usageFromSchema(schema)}`,
+          `Hint: ${hint}`,
+        ].join('\n'),
+      );
+      this.activeToolsList.push({
+        name: 'wait_for_process',
+        description:
+          'Wait for (or poll) a background process. Returns result when done or {status: "running", pid} if still alive.',
+        input_schema: schema,
+        permissions: {},
+        hint,
+      });
+    } catch (_e) {}
+  }
+
+  private appendSleepAndWakeTool(): void {
+    try {
+      const schema = {
+        type: 'object',
+        properties: {
+          seconds: {
+            type: 'number',
+            description:
+              'Number of seconds to sleep before being automatically resumed.',
+          },
+          reason: {
+            type: 'string',
+            description:
+              'Optional note explaining why you are sleeping (stored as context on wake).',
+          },
+        },
+        required: ['seconds'],
+      };
+      const hint =
+        'Use this instead of busy-polling. After the timer fires the system resumes ' +
+        'your turn with a fresh context observation so you can check background tasks, ' +
+        'inspect files, and decide next steps. Max sleep is 3600 seconds (1 hour).';
+      this.loadedToolsList.push(
+        [
+          '## sleep_and_wake',
+          'Description: Pause execution for N seconds, then automatically resume. ' +
+            'Use this while waiting for long-running background tasks instead of blocking with wait_for_process.',
+          'Permissions: {}',
+          `Usage: ${this.usageFromSchema(schema)}`,
+          `Hint: ${hint}`,
+        ].join('\n'),
+      );
+      this.activeToolsList.push({
+        name: 'sleep_and_wake',
+        description:
+          'Pause for N seconds and auto-resume. Use while waiting for background tasks.',
+        input_schema: schema,
+        permissions: {},
+        hint,
+      });
+    } catch (_e) {}
+  }
+
+  private appendSendProcessInputTool(): void {
+    try {
+      const schema = {
+        type: 'object',
+        properties: {
+          pid: {
+            type: 'number',
+            description: 'PID of the interactive background process.',
+          },
+          input: {
+            type: 'string',
+            description:
+              'Text to send as stdin (e.g. "yes", "no", a password, a file path). ' +
+              'A newline is appended automatically.',
+          },
+        },
+        required: ['pid', 'input'],
+      };
+      const hint =
+        'Use this when you receive an execute/onInteractivePrompt notification. ' +
+        'The process must have been started with background:true and pty:true. ' +
+        'Send exactly what the prompt expects — "y" or "n" for yes/no, the actual ' +
+        'value for text prompts.';
+      this.loadedToolsList.push(
+        [
+          '## send_process_input',
+          'Description: Send text input to a background PTY process that is waiting for stdin ' +
+            '(e.g. responding to a [y/n] prompt or password request).',
+          'Permissions: {}',
+          `Usage: ${this.usageFromSchema(schema)}`,
+          `Hint: ${hint}`,
+        ].join('\n'),
+      );
+      this.activeToolsList.push({
+        name: 'send_process_input',
+        description:
+          'Send stdin input to a PTY background process that is waiting for user input.',
+        input_schema: schema,
+        permissions: {},
+        hint,
       });
     } catch (_e) {}
   }

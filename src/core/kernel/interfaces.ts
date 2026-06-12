@@ -21,7 +21,13 @@ export interface ToolCall {
 }
 
 export interface ToolResult {
-  status: 'ok' | 'failed' | 'blocked' | 'upgrade_required';
+  status:
+    | 'ok'
+    | 'failed'
+    | 'blocked'
+    | 'upgrade_required'
+    | 'running'
+    | 'sleeping';
   /** Some Python tools return success:true/false alongside status */
   success?: boolean;
   output?: string | null;

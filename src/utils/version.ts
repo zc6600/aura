@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url';
 
 function getPackageVersion(): string {
   try {
-    const pkgPath = fileURLToPath(new URL('../../package.json', import.meta.url));
+    const pkgPath = fileURLToPath(
+      new URL('../../package.json', import.meta.url),
+    );
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
     return pkg.version;
   } catch {

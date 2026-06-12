@@ -41,10 +41,21 @@ export class ShadowBackup {
           for (const line of lines) {
             if (line.length > 3) {
               let filepath = line.substring(3).trim();
-              if (filepath.startsWith('"') && filepath.endsWith('"')) {
-                filepath = filepath.slice(1, -1);
+              if (filepath.includes(' -> ')) {
+                const parts = filepath.split(' -> ');
+                for (let part of parts) {
+                  part = part.trim();
+                  if (part.startsWith('"') && part.endsWith('"')) {
+                    part = part.slice(1, -1);
+                  }
+                  changedFiles.push(part);
+                }
+              } else {
+                if (filepath.startsWith('"') && filepath.endsWith('"')) {
+                  filepath = filepath.slice(1, -1);
+                }
+                changedFiles.push(filepath);
               }
-              changedFiles.push(filepath);
             }
           }
         } catch (_e) {}

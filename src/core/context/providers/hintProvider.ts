@@ -3,8 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import fg from 'fast-glob';
 import * as ConfigManager from '../../../utils/configManager.js';
-import { isPathIgnored } from '../../../utils/ignoreMatcher.js';
 import { hasMagicHint } from '../../../utils/fsUtils.js';
+import { isPathIgnored } from '../../../utils/ignoreMatcher.js';
 
 interface HintConfig {
   hints?: {
@@ -97,7 +97,8 @@ export class HintProvider {
       // If it's a knowledge hint file, check if it's a valid sidecar or standalone
       if (isHintFile && relPath.startsWith('knowledge/')) {
         const baseFile = fullPath.substring(0, fullPath.length - 5);
-        const hasBase = fs.existsSync(baseFile) && fs.statSync(baseFile).isFile();
+        const hasBase =
+          fs.existsSync(baseFile) && fs.statSync(baseFile).isFile();
         if (!hasBase) {
           results.push({
             type,
@@ -189,7 +190,12 @@ export class HintProvider {
   public provide(): string | null {
     const scanned = this.scan();
     const hints = scanned
-      .filter((f) => f.status === 'INJECTED' && f.content && !f.path.startsWith('knowledge/'))
+      .filter(
+        (f) =>
+          f.status === 'INJECTED' &&
+          f.content &&
+          !f.path.startsWith('knowledge/'),
+      )
       .map((f) => `- [From ${f.path}]: ${f.content}`);
     return hints.length > 0 ? hints.join('\n') : null;
   }

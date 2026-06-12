@@ -17,7 +17,8 @@ function upsertEnvVar(filePath: string, key: string, value: string): void {
     content = fs.readFileSync(filePath, 'utf-8');
   }
 
-  const pattern = new RegExp(`^${key}=.*$`, 'm');
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`^${escapedKey}=.*$`, 'm');
   if (pattern.test(content)) {
     content = content.replace(pattern, `${key}=${value}`);
   } else {
@@ -57,7 +58,9 @@ export const Env = {
 
     upsertEnvVar(targetPath, key, value);
     console.log(
-      picocolors.green(`✓ ${key} set in ${path.relative(os.homedir(), targetPath) || targetPath}`),
+      picocolors.green(
+        `✓ ${key} set in ${path.relative(os.homedir(), targetPath) || targetPath}`,
+      ),
     );
   },
 };
