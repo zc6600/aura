@@ -48,6 +48,9 @@ export class Update {
         cwd: rootDir,
       });
 
+      console.log('📦 Installing/updating dependencies (npm install)...');
+      await execa('npm', ['install'], { cwd: rootDir, stdio: 'inherit' });
+
       console.log('🏗️ Rebuilding TypeScript outputs (tsup)...');
       await execa('npm', ['run', 'build'], { cwd: rootDir, stdio: 'inherit' });
 
