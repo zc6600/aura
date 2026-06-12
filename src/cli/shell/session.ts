@@ -494,6 +494,14 @@ export class Session {
   ): void {
     if (type === 'thought') {
       renderer.onThought(payload.content as string);
+    } else if (type === 'token') {
+      renderer.onToken(payload.text as string);
+    } else if (type === 'stream_end') {
+      renderer.onStreamEnd();
+    } else if (type === 'waiting') {
+      renderer.onWaiting(payload.elapsed as number);
+    } else if (type === 'clear_waiting') {
+      renderer.onClearWaiting();
     } else if (type === 'warning') {
       renderer.onWarning(payload.message as string);
     } else if (type === 'final_answer') {
