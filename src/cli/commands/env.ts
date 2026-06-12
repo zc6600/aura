@@ -42,7 +42,7 @@ export const Env = {
     value: string,
     options: { global?: boolean; workspace?: string } = {},
   ): Promise<void> {
-    if (!key || !value) {
+    if (!key || value === undefined || value === null) {
       throw new Error('Usage: aura env set <KEY> <VALUE>');
     }
 

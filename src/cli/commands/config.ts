@@ -61,7 +61,14 @@ export const Config = {
     } else {
       // API keys are secrets; they belong in .env, not in config.yml.
       // Use `aura env set <KEY> <VALUE> --global` instead.
-      if (key === 'llm.api_key') return;
+      if (key === 'llm.api_key') {
+        console.warn(
+          picocolors.yellow(
+            '⚠️ Warning: API keys are secrets and should not be saved in config.yml. Please configure them using: aura env set GEMINI_API_KEY <VALUE> --global',
+          ),
+        );
+        return;
+      }
       // Set key value
       Config.setHashValue(hash, key, value);
       fs.writeFileSync(cfgPath, yaml.stringify(hash), 'utf-8');

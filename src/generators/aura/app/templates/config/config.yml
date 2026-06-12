@@ -2,11 +2,6 @@
 # 核心配置文件：定义 Agent 的运行边界与代谢规则
 
 system:
-  name: "Aura-Alpha"
-  version: "1.0.0"
-  workspace_root: "./projects" # 所有 Agent 项目的根目录
-  default_language: "python3"
-  log_level: "INFO"
   max_steps: 30                # 智能体单轮运行的最大步数限制，防死循环
   max_format_errors: 5         # 智能体单轮运行可容忍的最大 JSON 格式错误重试次数
   max_tool_errors: 3           # 智能体单轮运行可容忍的最大工具执行阻断错误次数
@@ -28,7 +23,7 @@ state_management:
   summarization:
     enabled: true
     max_chars: 500              # 代谢总结的最大字符数
-    model: "gpt-4o-mini"             # 总结使用的模型（可选，默认用 llm.model）
+    # model: "gpt-4o-mini"          # 总结使用的模型（可选，默认用 llm.model）
     focus_on:                   # 总结时关注的重点
       - "key_files_modified"
       - "critical_test_results"
@@ -70,21 +65,11 @@ tool_protocol:
     ruby: "ruby"
     shell: "bash"
     nodejs: "node"
-  core_tools:
-    - "read_file"
-    - "inspect_tool"
-    - "write_file"
-  auto_verify:
-    - "write_file"
-    - "bash_command"
-    - "plan_task"
   required_files:
     - "logic.py"
     - "manifest.json"
   call_summary:
-    suggested_chars: 120
     max_chars: 256
-    attach_max_chars: 1024
 
 # ----------------------------------------------------------------
 # 权限与安全控制 (Unix-style Permissions)
@@ -151,20 +136,20 @@ llm:
   #     model: "claude-3-5-haiku-20241022"
 
 embedding:
-  provider: "openrouter"
-  model: "qwen/qwen3-embedding-8b"
+  provider: ""
+  model: ""
   api_base: ""
-  api_key_env: "OPENROUTER_API_KEY"
+  api_key_env: ""
 
 # ----------------------------------------------------------------
 # 图像生成 (Image Generation)
 # 用于 render_image 工具
 # ----------------------------------------------------------------
 image_generation:
-  provider: "openai" # 选项: openai, stability
-  model: "dall-e-3"
-  size: "1024x1024"
-  api_key_env: "OPENAI_API_KEY" # 对应 .env 中的环境变量名
+  provider: "" # 选项: openai, stability
+  model: ""
+  size: ""
+  api_key_env: "" # 对应 .env 中的环境变量名
 
 knowledge_db:
   storage: "local"

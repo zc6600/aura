@@ -2,6 +2,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as PathResolver from '../../utils/pathResolver.js';
 
+const IGNORED_DIRS = new Set([
+  'node_modules',
+  '.git',
+  '__pycache__',
+  '.venv',
+  'venv',
+  'dist',
+  'build',
+]);
+
 export interface ToolManifest {
   name?: string;
   runtime?:
@@ -94,10 +104,13 @@ export class ToolRegistry {
         try {
           const children = fs.readdirSync(toolsPath);
           for (const child of children) {
+            if (IGNORED_DIRS.has(child)) continue;
             const dir = path.join(toolsPath, child);
-            if (fs.statSync(dir).isDirectory()) {
-              this.scanDirectory(dir);
-            }
+            try {
+              if (fs.lstatSync(dir).isDirectory()) {
+                this.scanDirectory(dir);
+              }
+            } catch (_e) {}
           }
         } catch (_e) {}
       }
@@ -117,10 +130,13 @@ export class ToolRegistry {
       try {
         const subdirs = fs.readdirSync(dir);
         for (const subdir of subdirs) {
+          if (IGNORED_DIRS.has(subdir)) continue;
           const fullSub = path.join(dir, subdir);
-          if (fs.statSync(fullSub).isDirectory()) {
-            this.scanDirectory(fullSub);
-          }
+          try {
+            if (fs.lstatSync(fullSub).isDirectory()) {
+              this.scanDirectory(fullSub);
+            }
+          } catch (_e) {}
         }
       } catch (_e) {}
     }
@@ -155,12 +171,13 @@ export class ToolRegistry {
             return;
           }
           for (const name of children) {
+            if (IGNORED_DIRS.has(name)) continue;
             const fullPath = path.join(dir, name);
             if (name === 'manifest.json' || name === 'group_manifest.json') {
               scanMtime(fullPath);
             } else {
               try {
-                if (fs.statSync(fullPath).isDirectory()) {
+                if (fs.lstatSync(fullPath).isDirectory()) {
                   walk(fullPath);
                 }
               } catch (_e) {}

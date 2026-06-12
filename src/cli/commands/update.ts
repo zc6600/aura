@@ -38,15 +38,27 @@ export class Update {
 
     try {
       await execa('git', ['fetch', '--all'], { cwd: rootDir });
-      const { stdout: branch } = await execa(
+      const { stdout: rawBranch } = await execa(
         'git',
         ['branch', '--show-current'],
         { cwd: rootDir },
       );
-      console.log(`📥 Pulling updates for branch [${branch.trim()}]...`);
-      await execa('git', ['merge', `origin/${branch.trim()}`], {
-        cwd: rootDir,
-      });
+      const branch = rawBranch.trim();
+      if (!branch) {
+        console.log(
+          picocolors.yellow(
+            '⚠️ Warning: Repository is in a detached HEAD state. Cannot determine current branch to merge updates.',
+          ),
+        );
+        console.log(
+          'Skipping git merge update. Proceeding with dependency updates and rebuild...',
+        );
+      } else {
+        console.log(`📥 Pulling updates for branch [${branch}]...`);
+        await execa('git', ['merge', `origin/${branch}`], {
+          cwd: rootDir,
+        });
+      }
 
       console.log('📦 Installing/updating dependencies (npm install)...');
       await execa('npm', ['install'], { cwd: rootDir, stdio: 'inherit' });

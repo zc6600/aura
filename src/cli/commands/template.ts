@@ -120,19 +120,11 @@ export class Template {
       Template.copyFolderSync(gemTemplates, globalRepo);
       console.log(`  ${picocolors.green('✓ Copied new templates')}`);
 
-      // Restore and merge config if backed up, or migrate config.yml if not
-      const templateRootConfig = path.join(globalRepo, 'config.yml');
+      // Restore and merge config if backed up
       if (configBackup && fs.existsSync(configBackup)) {
         GlobalConfig.restoreAndMergeConfig(configBackup, configPath, {
           label: 'global',
-          templateConfigPath: templateRootConfig,
         });
-      } else if (fs.existsSync(templateRootConfig)) {
-        try {
-          const dir = path.dirname(configPath);
-          fs.mkdirSync(dir, { recursive: true });
-          fs.renameSync(templateRootConfig, configPath);
-        } catch {}
       }
 
       // Reinitialize Git

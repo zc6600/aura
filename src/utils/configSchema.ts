@@ -72,14 +72,10 @@ export const ToolProtocolConfigSchema = z
     call_summary: z
       .object({
         max_chars: z.number().int().positive().optional(),
-        suggested_chars: z.number().int().positive().optional(),
-        attach_max_chars: z.number().int().positive().optional(),
       })
       .optional(),
     allow_dependency_install: z.boolean().optional(),
     test_timeout: z.number().positive().optional(),
-    core_tools: z.array(z.string()).optional(),
-    auto_verify: z.array(z.string()).optional(),
     required_files: z.array(z.string()).optional(),
   })
   .passthrough();
@@ -114,12 +110,6 @@ export type SecurityConfig = z.infer<typeof SecurityConfigSchema>;
 
 export const StateManagementConfigSchema = z
   .object({
-    // Legacy fields
-    max_events: z.number().int().positive().optional(),
-    summary_threshold: z.number().int().positive().optional(),
-    summarize_on_start: z.boolean().optional(),
-    keep_recent: z.number().int().positive().optional(),
-    // Actual fields
     database_type: z.string().optional(),
     db_path: z.string().optional(),
     max_state_chars: z.number().int().positive().optional(),
@@ -161,11 +151,6 @@ export type RalphConfig = z.infer<typeof RalphConfigSchema>;
 
 export const SystemConfigSchema = z
   .object({
-    name: z.string().optional(),
-    version: z.string().optional(),
-    workspace_root: z.string().optional(),
-    default_language: z.string().optional(),
-    log_level: z.string().optional(),
     max_steps: z.number().int().positive().optional(),
     max_format_errors: z.number().int().positive().optional(),
     max_tool_errors: z.number().int().positive().optional(),

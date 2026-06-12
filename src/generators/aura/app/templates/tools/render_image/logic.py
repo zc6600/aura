@@ -7,7 +7,7 @@ import requests
 from typing import Dict, Any, Optional
 
 # Global configuration path (relative to workspace root)
-CONFIG_PATH = "lib/aura/generators/aura/app/templates/config.yml"
+CONFIG_PATH = "lib/aura/generators/aura/app/templates/config/config.yml"
 
 def load_config() -> Dict[str, Any]:
     """Load global configuration to get image generation settings."""
@@ -85,10 +85,10 @@ def main():
         config = load_config()
         img_config = config.get("image_generation", {})
         
-        provider = img_config.get("provider", "openai")
-        model = img_config.get("model", "dall-e-3")
-        size = args.get("size") or img_config.get("size", "1024x1024")
-        api_key_env = img_config.get("api_key_env", "OPENAI_API_KEY")
+        provider = img_config.get("provider") or "openai"
+        model = img_config.get("model") or "dall-e-3"
+        size = args.get("size") or img_config.get("size") or "1024x1024"
+        api_key_env = img_config.get("api_key_env") or "OPENAI_API_KEY"
         
         # Function dispatch
         if provider == "openai":

@@ -145,6 +145,7 @@ export class ExecutionEngine extends EventEmitter {
         const startTime = Date.now();
         const commandsDir = path.join(this.envPath, 'state', 'commands');
 
+        let tick = 0;
         while (true) {
           let isAlive = false;
           try {
@@ -154,7 +155,7 @@ export class ExecutionEngine extends EventEmitter {
             isAlive = err.code === 'EPERM';
           }
 
-          if (isAlive) {
+          if (isAlive && tick % 10 === 0) {
             const metadataPath = path.join(commandsDir, `${pid}.json`);
             if (fs.existsSync(metadataPath)) {
               try {
@@ -247,6 +248,7 @@ export class ExecutionEngine extends EventEmitter {
           }
 
           await new Promise((resolve) => setTimeout(resolve, 500));
+          tick++;
         }
       }) as Promise<ToolResult>;
     }
@@ -960,6 +962,13 @@ export class ExecutionEngine extends EventEmitter {
       if (fs.existsSync(wrapper)) {
         return [[wrapper, runtime, logic], []];
       }
+      throw new Error(
+        `Local sandbox provider wrapper not found at ${wrapper}. Please ensure the wrapper is installed or disable sandbox mode.`,
+      );
+    }
+
+    if (sandbox.provider && sandbox.provider !== 'docker') {
+      throw new Error(`Unsupported sandbox provider: ${sandbox.provider}`);
     }
 
     return [[runtime, logic], []];

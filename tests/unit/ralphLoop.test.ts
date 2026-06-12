@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+vi.unmock('execa');
 import yaml from 'yaml';
 import { Hooks } from '../../src/core/kernel/hooks.js';
 import { RalphLoop, RalphPayload } from '../../src/core/kernel/ralphLoop.js';

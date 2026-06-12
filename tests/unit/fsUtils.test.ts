@@ -55,12 +55,8 @@ describe('readLastLinesSync', () => {
     const content = 'line1\nline2\nline3\n';
     fs.writeFileSync(filePath, content);
 
-    // In original code, content.split('\n') ends with an empty line.
-    // If requesting last 2 lines of 'line1\nline2\nline3\n', we get 'line3\n'.
-    // Let's verify the output is identical to reading entire file and doing split/slice.
-    const expected = content.split('\n').slice(-2).join('\n');
     const res = readLastLinesSync(filePath, 2);
-    expect(res).toBe(expected);
+    expect(res).toBe('line2\nline3\n');
   });
 
   it('should handle files with very long lines spanning multiple chunks', () => {

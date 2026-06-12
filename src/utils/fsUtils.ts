@@ -39,6 +39,16 @@ export function readLastLinesSync(
   const fd = fs.openSync(filePath, 'r');
   try {
     let position = stat.size;
+
+    // Check if the last character is a newline (0x0A) to prevent counting it as an empty line.
+    if (stat.size > 0) {
+      const lastCharBuffer = Buffer.alloc(1);
+      fs.readSync(fd, lastCharBuffer, 0, 1, stat.size - 1);
+      if (lastCharBuffer[0] === 0x0a) {
+        position--;
+      }
+    }
+
     let newlineCount = 0;
     const newlinePositions: number[] = [];
 
