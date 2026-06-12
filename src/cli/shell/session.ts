@@ -1,4 +1,5 @@
 import path from 'node:path';
+import readline from 'node:readline';
 import picocolors from 'picocolors';
 import type { ToolResult } from '../../core/kernel/interfaces.js';
 import { RalphLoop } from '../../core/kernel/ralphLoop.js';
@@ -253,65 +254,103 @@ export class Session {
     }
 
     console.log(
-      'Welcome to Aura Shell. Type /help for commands, /exit to exit.',
+      picocolors.cyan(picocolors.bold('Welcome to Aura Shell. Type /help for commands, /exit to exit.')),
     );
-    console.log('Press Enter twice to submit a multiline message.');
     console.log('');
 
-    while (true) {
-      const inputVal = await UI.multilinePrompt('aura>');
-      if (UI.isCancel(inputVal)) {
-        console.log('Bye!');
-        break;
-      }
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      historySize: 1000,
+    });
 
-      const input = (inputVal as string).trim();
-      if (!input) {
-        continue;
-      }
+    let isClosed = false;
+    rl.on('close', () => {
+      isClosed = true;
+    });
 
-      if (
-        ['exit', 'quit', '/exit', '/quit', '/q'].includes(input.toLowerCase())
-      ) {
-        console.log('Bye!');
-        break;
+    rl.on('SIGINT', () => {
+      if (rl.line.length > 0) {
+        process.stdout.write('\n');
+        rl.prompt();
+      } else {
+        rl.close();
       }
+    });
 
-      if (
-        ['auto on', '/auto on'].includes(
-          input.toLowerCase().replace(/\s+/g, ' '),
-        )
-      ) {
-        this.auto = true;
-        console.log('Auto mode: ON');
-        continue;
-      }
-      if (
-        ['auto off', '/auto off'].includes(
-          input.toLowerCase().replace(/\s+/g, ' '),
-        )
-      ) {
-        this.auto = false;
-        console.log('Auto mode: OFF (Interactive Mode)');
-        continue;
-      }
-      if (['auto', '/auto'].includes(input.toLowerCase())) {
-        console.log('Usage: /auto on/off (Toggle auto-pilot/interactive mode)');
-        continue;
-      }
+    const promptStr = `${picocolors.cyan(picocolors.bold('aura'))} ${picocolors.gray('›')} `;
 
-      if (await this.slashManager.handle(input)) {
-        continue;
-      }
+    const askQuestion = (): Promise<string | null> => {
+      return new Promise((resolve) => {
+        const onClose = () => resolve(null);
+        rl.once('close', onClose);
+        rl.question(promptStr, (answer) => {
+          rl.off('close', onClose);
+          resolve(answer);
+        });
+      });
+    };
 
-      try {
-        await this.executor.process(input, this.auto);
-      } catch (e: unknown) {
-        console.error(
-          picocolors.red(
-            `⛔️ Error processing command: ${(e as Error).message}`,
-          ),
-        );
+    try {
+      while (!isClosed) {
+        const inputVal = await askQuestion();
+        if (inputVal === null) {
+          console.log('\nBye!');
+          break;
+        }
+
+        const input = inputVal.trim();
+        if (!input) {
+          continue;
+        }
+
+        if (
+          ['exit', 'quit', '/exit', '/quit', '/q'].includes(input.toLowerCase())
+        ) {
+          console.log('Bye!');
+          break;
+        }
+
+        if (
+          ['auto on', '/auto on'].includes(
+            input.toLowerCase().replace(/\s+/g, ' '),
+          )
+        ) {
+          this.auto = true;
+          console.log('Auto mode: ON');
+          continue;
+        }
+        if (
+          ['auto off', '/auto off'].includes(
+            input.toLowerCase().replace(/\s+/g, ' '),
+          )
+        ) {
+          this.auto = false;
+          console.log('Auto mode: OFF (Interactive Mode)');
+          continue;
+        }
+        if (['auto', '/auto'].includes(input.toLowerCase())) {
+          console.log('Usage: /auto on/off (Toggle auto-pilot/interactive mode)');
+          continue;
+        }
+
+        if (await this.slashManager.handle(input)) {
+          continue;
+        }
+
+        try {
+          await this.executor.process(input, this.auto);
+        } catch (e: unknown) {
+          console.error(
+            picocolors.red(
+              `⛔️ Error processing command: ${(e as Error).message}`,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (!isClosed) {
+        rl.close();
       }
     }
   }
@@ -321,9 +360,8 @@ export class Session {
     renderer: ConsoleRenderer,
   ): Promise<void> {
     console.log(
-      'Welcome to Aura Shell (Daemon Mode). Type /help for commands, /exit to exit.',
+      picocolors.cyan(picocolors.bold('Welcome to Aura Shell (Daemon Mode). Type /help for commands, /exit to exit.')),
     );
-    console.log('Press Enter twice to submit a multiline message.');
     console.log('');
 
     const removeListener = client.onNotification(
@@ -338,10 +376,43 @@ export class Session {
       },
     );
 
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      historySize: 1000,
+    });
+
+    let isClosed = false;
+    rl.on('close', () => {
+      isClosed = true;
+    });
+
+    rl.on('SIGINT', () => {
+      if (rl.line.length > 0) {
+        process.stdout.write('\n');
+        rl.prompt();
+      } else {
+        rl.close();
+      }
+    });
+
+    const promptStr = `${picocolors.cyan(picocolors.bold('aura'))} ${picocolors.gray('›')} `;
+
+    const askQuestion = (): Promise<string | null> => {
+      return new Promise((resolve) => {
+        const onClose = () => resolve(null);
+        rl.once('close', onClose);
+        rl.question(promptStr, (answer) => {
+          rl.off('close', onClose);
+          resolve(answer);
+        });
+      });
+    };
+
     try {
-      while (true) {
-        const inputVal = await UI.multilinePrompt('aura>');
-        if (UI.isCancel(inputVal)) {
+      while (!isClosed) {
+        const inputVal = await askQuestion();
+        if (inputVal === null) {
           break;
         }
 
@@ -410,6 +481,9 @@ export class Session {
       }
     } finally {
       removeListener();
+      if (!isClosed) {
+        rl.close();
+      }
     }
   }
 
