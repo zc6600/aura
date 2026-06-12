@@ -1,8 +1,10 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import picocolors from 'picocolors';
+import yaml from 'yaml';
 import { VERSION } from '../../index.js';
 import * as GlobalConfig from '../../utils/globalConfig.js';
 import * as UI from '../ui.js';
@@ -82,6 +84,21 @@ export class Template {
     console.log(`  Source: ${gemTemplates}`);
     console.log(`  Target: ${globalRepo}`);
 
+    const configPath = path.join(globalRepo, 'config', 'config.yml');
+    let configBackup: string | null = null;
+    let tmpDir: string | null = null;
+
+    if (fs.existsSync(configPath)) {
+      try {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-temp-sync-'));
+        configBackup = path.join(tmpDir, 'config.yml');
+        fs.copyFileSync(configPath, configBackup);
+        console.log(`  ${picocolors.yellow('⚠️  Backed up global config.yml')}`);
+      } catch (err: any) {
+        console.warn(`  ⚠️ Failed to back up global config: ${err.message}`);
+      }
+    }
+
     if (fs.existsSync(globalRepo)) {
       const files = fs.readdirSync(globalRepo);
       for (const file of files) {
@@ -101,6 +118,47 @@ export class Template {
     // Copy new templates
     Template.copyFolderSync(gemTemplates, globalRepo);
     console.log(`  ${picocolors.green('✓ Copied new templates')}`);
+
+    // Restore and merge config if backed up
+    if (configBackup && fs.existsSync(configBackup)) {
+      try {
+        const backupCfg = yaml.parse(fs.readFileSync(configBackup, 'utf-8')) || {};
+        const newCfg = yaml.parse(fs.readFileSync(configPath, 'utf-8')) || {};
+
+        // Deep merge
+        const merged = { ...newCfg, ...backupCfg };
+        if (newCfg.llm && backupCfg.llm) {
+          merged.llm = { ...newCfg.llm, ...backupCfg.llm };
+        }
+        if (newCfg.state_management && backupCfg.state_management) {
+          merged.state_management = {
+            ...newCfg.state_management,
+            ...backupCfg.state_management,
+          };
+        }
+        if (newCfg.ralph && backupCfg.ralph) {
+          merged.ralph = { ...newCfg.ralph, ...backupCfg.ralph };
+        }
+
+        fs.writeFileSync(configPath, yaml.stringify(merged), 'utf-8');
+        console.log(
+          `  ${picocolors.green('✓ Restored and merged global config.yml')}`,
+        );
+      } catch (e: any) {
+        if (fs.existsSync(configBackup)) {
+          fs.copyFileSync(configBackup, configPath);
+          console.log(
+            `  ${picocolors.yellow(`⚠️  Merge failed: ${e.message}. Restored global config.yml from backup.`)}`,
+          );
+        }
+      } finally {
+        if (tmpDir) {
+          try {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+          } catch {}
+        }
+      }
+    }
 
     // Reinitialize Git
     console.log('\n🔧 Reinitializing git repository...');
