@@ -118,14 +118,33 @@ export class Template {
       'receive.denyCurrentBranch',
       'updateInstead',
     );
-    await GlobalConfig.gitRun(globalRepo, 'checkout', '-b', 'main');
+    const checkBranch = await GlobalConfig.gitRun(globalRepo, 'rev-parse', '--verify', 'main');
+    if (checkBranch.success) {
+      await GlobalConfig.gitRun(globalRepo, 'checkout', 'main');
+    } else {
+      await GlobalConfig.gitRun(globalRepo, 'checkout', '-b', 'main');
+    }
     await GlobalConfig.gitRun(globalRepo, 'add', '.');
-    await GlobalConfig.gitRun(
-      globalRepo,
-      'commit',
-      '-m',
-      `Template update from framework v${VERSION}`,
-    );
+
+    const hasHead = await GlobalConfig.gitRun(globalRepo, 'rev-parse', 'HEAD');
+    if (hasHead.success) {
+      const diffIndex = await GlobalConfig.gitRun(globalRepo, 'diff-index', '--quiet', 'HEAD');
+      if (!diffIndex.success) {
+        await GlobalConfig.gitRun(
+          globalRepo,
+          'commit',
+          '-m',
+          `Template update from framework v${VERSION}`,
+        );
+      }
+    } else {
+      await GlobalConfig.gitRun(
+        globalRepo,
+        'commit',
+        '-m',
+        `Template update from framework v${VERSION}`,
+      );
+    }
 
     console.log(`\n${picocolors.green('✓ Templates synced to global repo!')}`);
     console.log('\n💡 Next steps:');
@@ -234,8 +253,16 @@ export class Template {
     console.log('='.repeat(60));
 
     try {
-      // Use diff -rq command
-      const { stdout } = await execa('diff', ['-rq', gemTemplates, globalRepo]);
+      // Use diff -rq command, excluding internal git files and OS metadata
+      const { stdout } = await execa('diff', [
+        '-rq',
+        '-x',
+        '.git',
+        '-x',
+        '.DS_Store',
+        gemTemplates,
+        globalRepo,
+      ]);
       if (stdout.trim().length === 0) {
         console.log(
           picocolors.green(
