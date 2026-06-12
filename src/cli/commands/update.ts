@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
 import picocolors from 'picocolors';
 import yaml from 'yaml';
 import * as GlobalConfig from '../../utils/globalConfig.js';
@@ -9,17 +11,49 @@ import * as ProjectRegistry from '../../utils/projectRegistry.js';
 import * as UI from '../ui.js';
 import { Template } from './template.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function findPackageRoot(startDir: string): string {
+  let dir = startDir;
+  while (true) {
+    if (fs.existsSync(path.join(dir, 'package.json'))) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return startDir;
+}
+
 export class Update {
   public static async framework(
     _options: { force?: boolean } = {},
   ): Promise<void> {
-    console.log('🔄 Updating Aura Framework...');
-    console.log('To update, please pull the latest changes from Git and run:');
-    console.log(picocolors.cyan('  npm run build'));
-    console.log(
-      '\nAutomatically triggering template sync to global repository...',
-    );
-    await Template.sync();
+    console.log('🔄 Detecting Aura Framework codebase...');
+    const rootDir = findPackageRoot(__dirname);
+    console.log(`📍 Found framework home at: ${rootDir}`);
+    console.log('📡 Fetching latest updates from GitHub...');
+
+    try {
+      await execa('git', ['fetch', '--all'], { cwd: rootDir });
+      const { stdout: branch } = await execa('git', ['branch', '--show-current'], { cwd: rootDir });
+      console.log(`📥 Pulling updates for branch [${branch.trim()}]...`);
+      await execa('git', ['merge', `origin/${branch.trim()}`], { cwd: rootDir });
+
+      console.log('🏗️ Rebuilding TypeScript outputs (tsup)...');
+      await execa('npm', ['run', 'build'], { cwd: rootDir, stdio: 'inherit' });
+
+      console.log('\nAutomatically triggering template sync to global repository...');
+      await Template.sync();
+
+      console.log(`\n${picocolors.green('✨ Aura Framework successfully updated to the latest GitHub version!')}`);
+    } catch (error: any) {
+      console.log(`\n${picocolors.red('❌ Automatic Git update failed.')}`);
+      console.log('Please manually update in your source directory:');
+      console.log(picocolors.cyan(`  cd "${rootDir}" && git pull && npm run build`));
+    }
   }
 
   public static async status(): Promise<void> {

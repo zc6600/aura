@@ -143,8 +143,9 @@ aura template sync
 Update Aura CLI itself.
 
 **Behavior:**
-- Displays instructions to upgrade globally via npm or rebuild locally if developing in the source repository.
-- Automatically triggers a template synchronization to your global user repository (`~/.aura-framework/repo`).
+- Automatically pulls the latest updates from the Git source repository and recompiles the CLI.
+- Automatically triggers a template synchronization to your global user repository (`~/.aura-framework/repo`) upon successful compilation.
+- In case of network or Git merge conflicts, falls back to displaying manual update instructions.
 
 ```bash
 # Running framework update
