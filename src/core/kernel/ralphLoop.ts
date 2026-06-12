@@ -147,6 +147,8 @@ export class RalphLoop {
     this.runId = `${new Date().toISOString().replace(/[-:T.Z]/g, '')}_${crypto.randomBytes(4).toString('hex')}`;
     this.iterationCount = 1;
     const startingSession = process.env.AURA_SESSION_NAME || 'default';
+    const startingDbPath = process.env.AURA_STATE_DB_PATH;
+    delete process.env.AURA_STATE_DB_PATH;
     this.tempSessions = [];
 
     // Automatically seed a checklist task.md if none exists
@@ -296,6 +298,9 @@ export class RalphLoop {
       }
 
       this.cleanTemporarySessionFiles();
+      if (startingDbPath !== undefined) {
+        process.env.AURA_STATE_DB_PATH = startingDbPath;
+      }
       this.runner.hooks.unregister('before_planning', this.planningHookProc);
     }
   }

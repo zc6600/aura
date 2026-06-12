@@ -102,7 +102,7 @@ export async function ensureRepo(): Promise<void> {
   if (!fs.existsSync(gemTemplates)) {
     gemTemplates = path.resolve(
       __dirname,
-      '..',
+      '../..',
       'src',
       'generators',
       'aura',

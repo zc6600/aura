@@ -88,90 +88,99 @@ export class Template {
     let configBackup: string | null = null;
     let tmpDir: string | null = null;
 
-    if (fs.existsSync(configPath)) {
-      try {
-        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-temp-sync-'));
-        configBackup = path.join(tmpDir, 'config.yml');
-        fs.copyFileSync(configPath, configBackup);
-        console.log(`  ${picocolors.yellow('⚠️  Backed up global config.yml')}`);
-      } catch (err: any) {
-        console.warn(`  ⚠️ Failed to back up global config: ${err.message}`);
+    try {
+      if (fs.existsSync(configPath)) {
+        try {
+          tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-temp-sync-'));
+          configBackup = path.join(tmpDir, 'config.yml');
+          fs.copyFileSync(configPath, configBackup);
+          console.log(`  ${picocolors.yellow('⚠️  Backed up global config.yml')}`);
+        } catch (err: any) {
+          console.warn(`  ⚠️ Failed to back up global config: ${err.message}`);
+        }
       }
-    }
 
-    if (fs.existsSync(globalRepo)) {
-      const files = fs.readdirSync(globalRepo);
-      for (const file of files) {
-        if (file === '.git') continue;
-        fs.rmSync(path.join(globalRepo, file), {
-          recursive: true,
-          force: true,
+      if (fs.existsSync(globalRepo)) {
+        const files = fs.readdirSync(globalRepo);
+        for (const file of files) {
+          if (file === '.git') continue;
+          fs.rmSync(path.join(globalRepo, file), {
+            recursive: true,
+            force: true,
+          });
+        }
+        console.log(
+          `  ${picocolors.yellow('✓ Cleaned old templates (kept .git history)')}`,
+        );
+      } else {
+        fs.mkdirSync(globalRepo, { recursive: true });
+      }
+
+      // Copy new templates
+      Template.copyFolderSync(gemTemplates, globalRepo);
+      console.log(`  ${picocolors.green('✓ Copied new templates')}`);
+
+      // Restore and merge config if backed up, or migrate config.yml if not
+      const templateRootConfig = path.join(globalRepo, 'config.yml');
+      if (configBackup && fs.existsSync(configBackup)) {
+        GlobalConfig.restoreAndMergeConfig(configBackup, configPath, {
+          label: 'global',
+          templateConfigPath: templateRootConfig,
         });
+      } else if (fs.existsSync(templateRootConfig)) {
+        try {
+          const dir = path.dirname(configPath);
+          fs.mkdirSync(dir, { recursive: true });
+          fs.renameSync(templateRootConfig, configPath);
+        } catch {}
       }
-      console.log(
-        `  ${picocolors.yellow('✓ Cleaned old templates (kept .git history)')}`,
-      );
-    } else {
-      fs.mkdirSync(globalRepo, { recursive: true });
-    }
 
-    // Copy new templates
-    Template.copyFolderSync(gemTemplates, globalRepo);
-    console.log(`  ${picocolors.green('✓ Copied new templates')}`);
-
-    // Restore and merge config if backed up, or migrate config.yml if not
-    const templateRootConfig = path.join(globalRepo, 'config.yml');
-    if (configBackup && fs.existsSync(configBackup)) {
-      GlobalConfig.restoreAndMergeConfig(configBackup, configPath, {
-        label: 'global',
-        templateConfigPath: templateRootConfig,
-      });
-    } else if (fs.existsSync(templateRootConfig)) {
-      try {
-        const dir = path.dirname(configPath);
-        fs.mkdirSync(dir, { recursive: true });
-        fs.renameSync(templateRootConfig, configPath);
-      } catch {}
-    }
-
-    // Reinitialize Git
-    console.log('\n🔧 Reinitializing git repository...');
-    await GlobalConfig.gitRun(globalRepo, 'init');
-    await GlobalConfig.gitRun(globalRepo, 'config', 'user.name', 'Aura CLI');
-    await GlobalConfig.gitRun(
-      globalRepo,
-      'config',
-      'user.email',
-      'support@aura-os.ai',
-    );
-    await GlobalConfig.gitRun(
-      globalRepo,
-      'config',
-      'receive.denyCurrentBranch',
-      'updateInstead',
-    );
-    const checkBranch = await GlobalConfig.gitRun(
-      globalRepo,
-      'rev-parse',
-      '--verify',
-      'main',
-    );
-    if (checkBranch.success) {
-      await GlobalConfig.gitRun(globalRepo, 'checkout', 'main');
-    } else {
-      await GlobalConfig.gitRun(globalRepo, 'checkout', '-b', 'main');
-    }
-    await GlobalConfig.gitRun(globalRepo, 'add', '.');
-
-    const hasHead = await GlobalConfig.gitRun(globalRepo, 'rev-parse', 'HEAD');
-    if (hasHead.success) {
-      const diffIndex = await GlobalConfig.gitRun(
+      // Reinitialize Git
+      console.log('\n🔧 Reinitializing git repository...');
+      await GlobalConfig.gitRun(globalRepo, 'init');
+      await GlobalConfig.gitRun(globalRepo, 'config', 'user.name', 'Aura CLI');
+      await GlobalConfig.gitRun(
         globalRepo,
-        'diff-index',
-        '--quiet',
-        'HEAD',
+        'config',
+        'user.email',
+        'support@aura-os.ai',
       );
-      if (!diffIndex.success) {
+      await GlobalConfig.gitRun(
+        globalRepo,
+        'config',
+        'receive.denyCurrentBranch',
+        'updateInstead',
+      );
+      const checkBranch = await GlobalConfig.gitRun(
+        globalRepo,
+        'rev-parse',
+        '--verify',
+        'main',
+      );
+      if (checkBranch.success) {
+        await GlobalConfig.gitRun(globalRepo, 'checkout', 'main');
+      } else {
+        await GlobalConfig.gitRun(globalRepo, 'checkout', '-b', 'main');
+      }
+      await GlobalConfig.gitRun(globalRepo, 'add', '.');
+
+      const hasHead = await GlobalConfig.gitRun(globalRepo, 'rev-parse', 'HEAD');
+      if (hasHead.success) {
+        const diffIndex = await GlobalConfig.gitRun(
+          globalRepo,
+          'diff-index',
+          '--quiet',
+          'HEAD',
+          );
+        if (!diffIndex.success) {
+          await GlobalConfig.gitRun(
+            globalRepo,
+            'commit',
+            '-m',
+            `Template update from framework v${VERSION}`,
+          );
+        }
+      } else {
         await GlobalConfig.gitRun(
           globalRepo,
           'commit',
@@ -179,13 +188,12 @@ export class Template {
           `Template update from framework v${VERSION}`,
         );
       }
-    } else {
-      await GlobalConfig.gitRun(
-        globalRepo,
-        'commit',
-        '-m',
-        `Template update from framework v${VERSION}`,
-      );
+    } finally {
+      if (tmpDir) {
+        try {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch {}
+      }
     }
 
     console.log(`\n${picocolors.green('✓ Templates synced to global repo!')}`);

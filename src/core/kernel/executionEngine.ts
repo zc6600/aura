@@ -154,6 +154,23 @@ export class ExecutionEngine extends EventEmitter {
             isAlive = err.code === 'EPERM';
           }
 
+          if (isAlive) {
+            const metadataPath = path.join(commandsDir, `${pid}.json`);
+            if (fs.existsSync(metadataPath)) {
+              try {
+                const raw = fs.readFileSync(metadataPath, 'utf-8');
+                const meta = JSON.parse(raw);
+                if (meta.process_start_time) {
+                  const { stdout: psOut } = await execa('ps', ['-p', String(pid), '-o', 'lstart=']);
+                  const currentStartTime = psOut.trim();
+                  if (currentStartTime !== meta.process_start_time) {
+                    isAlive = false;
+                  }
+                }
+              } catch {}
+            }
+          }
+
           if (!isAlive) {
             // Give a tiny window (50ms) for the exit event handler to run and update the status file
             await new Promise((resolve) => setTimeout(resolve, 50));
@@ -185,12 +202,24 @@ export class ExecutionEngine extends EventEmitter {
             if (fs.existsSync(outPath)) {
               try {
                 const stdout = readLastLinesSync(outPath, 10).trim();
-                const lines = stdout.split('\n').filter(Boolean);
+                const cleanStdout = stdout.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+                const lines = cleanStdout.split('\n').filter(Boolean);
                 for (let i = lines.length - 1; i >= 0; i--) {
                   const line = lines[i].trim();
                   if (line.startsWith('{') && line.endsWith('}')) {
                     try {
                       const result = JSON.parse(line);
+                      if (result && typeof result === 'object') {
+                        return result;
+                      }
+                    } catch {}
+                  }
+                  const startIdx = line.lastIndexOf('{');
+                  const endIdx = line.lastIndexOf('}');
+                  if (startIdx !== -1 && endIdx !== -1 && startIdx < endIdx) {
+                    try {
+                      const jsonSub = line.substring(startIdx, endIdx + 1);
+                      const result = JSON.parse(jsonSub);
                       if (result && typeof result === 'object') {
                         return result;
                       }
@@ -514,6 +543,12 @@ export class ExecutionEngine extends EventEmitter {
           }
         });
 
+        let processStartTime = '';
+        try {
+          const { stdout: psOut } = await execa('ps', ['-p', String(pid), '-o', 'lstart=']);
+          processStartTime = psOut.trim();
+        } catch {}
+
         const meta = {
           pid,
           command: `${toolName} ${JSON.stringify(cleanArgs)}`,
@@ -521,6 +556,7 @@ export class ExecutionEngine extends EventEmitter {
           started_at: Date.now() / 1000,
           status: 'running',
           pty: true,
+          process_start_time: processStartTime,
           // PTY merges stdout+stderr on the same master fd — only one output file.
           stdout_file: outPath,
         };
@@ -598,12 +634,19 @@ export class ExecutionEngine extends EventEmitter {
           throw new Error('Failed to spawn background process');
         }
 
+        let processStartTime = '';
+        try {
+          const { stdout: psOut } = await execa('ps', ['-p', String(pid), '-o', 'lstart=']);
+          processStartTime = psOut.trim();
+        } catch {}
+
         const meta = {
           pid,
           command: `${toolName} ${JSON.stringify(cleanArgs)}`,
           cwd: this.projectPath,
           started_at: Date.now() / 1000,
           status: 'running',
+          process_start_time: processStartTime,
           stdout_file: outPath,
           stderr_file: errPath,
         };

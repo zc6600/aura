@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import dotenv from 'dotenv';
 
 /**
  * Loads .env from a specific project directory, then falls back to global sources.
@@ -44,62 +45,11 @@ export function loadGlobal(): void {
  */
 export function loadFile(filePath: string): void {
   try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const lines = content.split(/\r?\n/);
-
-    for (let line of lines) {
-      line = line.trim();
-      if (line.length === 0 || line.startsWith('#')) {
-        continue;
-      }
-
-      // Strip comments (handling quoted text correctly)
-      let inDoubleQuote = false;
-      let inSingleQuote = false;
-      let commentIndex: number | null = null;
-
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        if (char === '"' && !inSingleQuote) {
-          inDoubleQuote = !inDoubleQuote;
-        } else if (char === "'" && !inDoubleQuote) {
-          inSingleQuote = !inSingleQuote;
-        } else if (char === '#' && !inDoubleQuote && !inSingleQuote) {
-          commentIndex = i;
-          break;
-        }
-      }
-
-      if (commentIndex !== null) {
-        line = line.slice(0, commentIndex);
-      }
-
-      line = line.trim();
-      if (line.length === 0) {
-        continue;
-      }
-
-      // Remove leading "export " if present
-      line = line.replace(/^export\s+/, '');
-
-      const eqIdx = line.indexOf('=');
-      if (eqIdx === -1) {
-        continue;
-      }
-
-      const key = line.slice(0, eqIdx).trim();
-      let val = line.slice(eqIdx + 1).trim();
-
-      if (
-        (val.startsWith('"') && val.endsWith('"')) ||
-        (val.startsWith("'") && val.endsWith("'"))
-      ) {
-        val = val.slice(1, -1);
-      }
-
-      // Last writer wins (Ruby ||= equivalent in JS: only set if undefined/empty)
+    const content = fs.readFileSync(filePath);
+    const parsed = dotenv.parse(content);
+    for (const key of Object.keys(parsed)) {
       if (!process.env[key]) {
-        process.env[key] = val;
+        process.env[key] = parsed[key];
       }
     }
   } catch (_err) {

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
 import { execa } from 'execa';
 import picocolors from 'picocolors';
 import yaml from 'yaml';
@@ -341,21 +342,13 @@ export const Doctor = {
     for (const envFile of uniqueCandidates) {
       if (!fs.existsSync(envFile)) continue;
       try {
-        const content = fs.readFileSync(envFile, 'utf-8');
-        content.split('\n').forEach((line) => {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith('#')) return;
-          const [key, ...valParts] = trimmed.split('=');
-          if (key && valParts.length > 0) {
-            const val = valParts
-              .join('=')
-              .trim()
-              .replace(/^['"]|['"]$/g, '');
-            if (!process.env[key.trim()]) {
-              process.env[key.trim()] = val;
-            }
+        const content = fs.readFileSync(envFile);
+        const parsed = dotenv.parse(content);
+        for (const key of Object.keys(parsed)) {
+          if (!process.env[key]) {
+            process.env[key] = parsed[key];
           }
-        });
+        }
       } catch {}
     }
   },
