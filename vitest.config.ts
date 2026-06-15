@@ -7,6 +7,7 @@ const __dirname = path.dirname(__filename);
 
 export default defineConfig({
   test: {
+    globalSetup: path.join(__dirname, 'tests', 'globalSetup.ts'),
     env: {
       AURA_GLOBAL_PROJECTS_CONFIG_PATH: path.join(
         __dirname,
