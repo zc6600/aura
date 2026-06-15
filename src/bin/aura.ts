@@ -312,8 +312,8 @@ class AgentCommand extends BaseCommand {
   mode = Option.String('--mode', 'classic');
   verify = Option.String('--verify');
   critic = Option.Boolean('--critic', false);
-  criticMode = Option.String('--critic_mode', 'light');
-  maxSteps = Option.String('--max_steps');
+  criticMode = Option.String('--critic-mode,--critic_mode', 'light');
+  maxSteps = Option.String('--max-steps,--max_steps');
   noDaemon = Option.Boolean('--no-daemon', false);
 
   async run() {
@@ -592,7 +592,32 @@ class KernelRunCallCommand extends BaseCommand {
   projectPath = Option.String({ required: false });
 
   async run() {
-    await Kernel.runCall(this.tool, this.argsJson, this.projectPath);
+    let finalTool = this.tool;
+    let finalArgsJson = this.argsJson;
+    let finalProjectPath = this.projectPath;
+
+    if (finalProjectPath) {
+      let isThirdArgJson = false;
+      try {
+        JSON.parse(finalProjectPath);
+        isThirdArgJson = true;
+      } catch {}
+
+      let isSecondArgJson = false;
+      try {
+        JSON.parse(finalArgsJson);
+        isSecondArgJson = true;
+      } catch {}
+
+      if (isThirdArgJson && !isSecondArgJson) {
+        // Swap arguments: path is tool, tool is argsJson, argsJson is projectPath
+        finalTool = this.argsJson;
+        finalArgsJson = this.projectPath ?? '';
+        finalProjectPath = this.tool;
+      }
+    }
+
+    await Kernel.runCall(finalTool, finalArgsJson, finalProjectPath);
   }
 }
 
@@ -896,7 +921,10 @@ class UpdateProjectCommand extends BaseCommand {
 }
 
 class UpdateCurrentCommand extends BaseCommand {
-  static paths = [['update', 'current']];
+  static paths = [
+    ['update', 'current'],
+    ['update', '.'],
+  ];
   static usage = Command.Usage({
     description: 'Update current workspace templates',
   });
@@ -1071,12 +1099,79 @@ export function createCli(): Cli {
   return cli;
 }
 
+const WHITELISTED_COMMANDS = new Set([
+  'help',
+  'doctor',
+  'info',
+  'version',
+  'new',
+  'chat',
+  'list',
+  'delete',
+  'branch',
+  'register',
+  'prune',
+  'web',
+  'template',
+  'completion',
+  '-h',
+  '--help',
+  '-V',
+  '--version',
+]);
+
+function isSourceRoot(): boolean {
+  try {
+    const pkgPath = path.join(process.cwd(), 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      return pkg.name === 'aura-cli';
+    }
+  } catch {
+    // Ignore errors reading/parsing package.json
+  }
+  return false;
+}
+
 export async function main(argv: string[] = process.argv): Promise<void> {
   const args = [...argv];
-  const firstArg = args[2];
 
+  // Intercept and strip --allow-root
+  let allowRoot = process.env.AURA_ALLOW_ROOT === 'true';
+  while (true) {
+    const idx = args.indexOf('--allow-root');
+    if (idx === -1) break;
+    allowRoot = true;
+    args.splice(idx, 1);
+  }
+
+  const firstArg = args[2];
   if (firstArg && aliasMap[firstArg]) {
     args.splice(2, 1, ...aliasMap[firstArg]);
+  }
+
+  // Source root protection check
+  if (isSourceRoot() && !allowRoot) {
+    const commandName = args[2];
+    if (commandName && !WHITELISTED_COMMANDS.has(commandName)) {
+      console.error(
+        picocolors.red(
+          `⛔️ Security Check: Running restricted command inside the Aura framework source root is not allowed.`,
+        ),
+      );
+      console.error(
+        picocolors.yellow(
+          `If you are developing the Aura framework and intend to run this command here, you can bypass this protection by:`,
+        ),
+      );
+      console.error(
+        `  - Appending ${picocolors.cyan('--allow-root')} to your command (e.g., aura ${args.slice(2).join(' ')} --allow-root)`,
+      );
+      console.error(
+        `  - Or setting the environment variable ${picocolors.cyan('AURA_ALLOW_ROOT=true')}`,
+      );
+      process.exit(1);
+    }
   }
 
   const cli = createCli();

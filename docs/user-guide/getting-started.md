@@ -142,7 +142,8 @@ my_agent_project/
     ├── config/
     │   └── config.yml      # Workspace settings
     ├── state/
-    │   └── aura.db         # SQLite database
+    │   └── sessions/
+    │       └── default.db  # SQLite database for default session
     ├── tools/              # Custom tools
     └── skills/             # Dynamic skills
 ```

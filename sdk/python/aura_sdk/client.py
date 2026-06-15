@@ -22,14 +22,15 @@ class AuraClient:
 
     def get_config_update_command(self, provider: str, model: str) -> str:
         """Get the inline Node.js shell command to update llm configuration in config.yml"""
-        config_path = ".aura/config/config.yml"
         return (
             f"node -e '"
             f"const fs = require(\"fs\"); "
-            f"let c = fs.readFileSync(\"{config_path}\", \"utf8\"); "
+            f"let config_path = \".aura-workspace/config/config.yml\"; "
+            f"if (!fs.existsSync(config_path)) {{ config_path = \".aura/config/config.yml\"; }} "
+            f"let c = fs.readFileSync(config_path, \"utf8\"); "
             f"c = c.replace(/provider:\\s*[^\\n]+/g, \"provider: \\\"{provider}\\\"\"); "
             f"c = c.replace(/model:\\s*[^\\n]+/g, \"model: \\\"{model}\\\"\"); "
-            f"fs.writeFileSync(\"{config_path}\", c);'"
+            f"fs.writeFileSync(config_path, c);'"
         )
 
     # --- Local Execution Methods (Executes on the local host machine) ---
@@ -46,9 +47,11 @@ class AuraClient:
 
     def update_config(self, provider: str, model: str):
         """Update workspace configuration file directly on the host"""
-        config_path = self.workspace / ".aura" / "config" / "config.yml"
+        config_path = self.workspace / ".aura-workspace" / "config" / "config.yml"
         if not config_path.exists():
-            # Fallback to current directory config.yml if not found in .aura
+            config_path = self.workspace / ".aura" / "config" / "config.yml"
+        if not config_path.exists():
+            # Fallback to current directory config.yml if not found
             config_path = self.workspace / "config.yml"
             
         with open(config_path, 'r') as f:

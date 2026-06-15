@@ -24,6 +24,11 @@ export const initialize: HandlerFunction = async (ctx) => {
   }
   const p = ctx.params as Record<string, unknown> | null | undefined;
   const { sessionName } = p || {};
+  if (server.runner) {
+    try {
+      server.runner.destroy();
+    } catch {}
+  }
   const runner = new Runner(server.projectPath);
   server.runner = runner;
   if (sessionName) {

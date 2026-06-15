@@ -10,6 +10,7 @@ Complete reference for all Aura OS commands organized by category.
 |---------|-------------|
 | `aura doctor` | Run comprehensive environment checks |
 | `aura info` | Display two-tier system and workspace information |
+| `aura daemon` | Start the background daemon server |
 | `aura version` | Show Aura version |
 | `aura help` | Display help information |
 
@@ -17,7 +18,7 @@ Complete reference for all Aura OS commands organized by category.
 
 | Command | Description |
 |---------|-------------|
-| `aura new <name>` | Initialize a new Aura workspace |
+| `aura new [path]` | Initialize a new Aura workspace |
 | `aura status` | Show workspace status |
 | `aura add <path>` | Stage files in the workspace |
 | `aura commit -m "msg"` | Commit changes |
@@ -35,6 +36,8 @@ Complete reference for all Aura OS commands organized by category.
 | `aura config <key>` | Get a config value |
 | `aura config <key> <value>` | Set a config value |
 | `aura config <key> <value> --global` | Set global config |
+| `aura env set <key> <value>` | Set a local environment variable |
+| `aura env set <key> <value> --global` | Set a global environment variable |
 | `aura branch` | List agent profiles |
 | `aura branch <name>` | Switch to agent profile |
 
@@ -52,7 +55,9 @@ Complete reference for all Aura OS commands organized by category.
 | Command | Description |
 |---------|-------------|
 | `aura tools list` | List available tools |
-| `aura tools add` | Add a new tool |
+| `aura tools inspect <name>` | Inspect a tool by name |
+| `aura tools add <name_or_url>` | Install a library tool by name or URL/path |
+| `aura tools generate_group <name> [subtools...]` | Generate a hierarchical tool group |
 | `aura skill list` | List installed skills |
 | `aura skill install` | Install a skill |
 | `aura kernel observe` | Observe workspace |
@@ -61,6 +66,12 @@ Complete reference for all Aura OS commands organized by category.
 | `aura completion` | Generate shell completion |
 | `aura session list` | List all conversation sessions |
 | `aura session switch <name>` | Switch active session |
+| `aura garden list` | List all available Garden Playbooks |
+| `aura garden status` | Show workspace health and metrics |
+| `aura garden init <playbook>` | Initialize a Garden Playbook template |
+| `aura hints list` | List files parsed for hint injection |
+| `aura hints toggle <path>` | Toggle hint injection status for a file |
+| `aura hints global` | Show global operational guidance file |
 
 ---
 
@@ -97,6 +108,9 @@ LLM Config (Provider: openai): OK
 Aura CLI: OK
 ```
 
+**Options:**
+- `-p,--prompts` - Run doctor checks with interactive environment setup prompts (e.g. to prompt for missing API keys).
+
 **When to use:**
 - After initial installation
 - When encountering runtime errors
@@ -118,7 +132,7 @@ Display comprehensive two-tier system information: **System-level** (global) and
 **Workspace-Level Information** (only when inside a `.aura-workspace` workspace):
 - 📍 **Workspace**: Root path and `.aura-workspace` location
 - ⚙️ **Workspace Configuration**: Local config overrides
-- 💾 **Workspace Database**: Local `aura.db` status
+- 💾 **Workspace Database**: Active session database status
 - 🎨 **Workspace Skills**: Installed skills list
 - 🔧 **Workspace Tools**: Configured tools count
 - 🐳 **Sandbox Configuration**: Dockerfile and wrapper status
@@ -130,13 +144,26 @@ Display comprehensive two-tier system information: **System-level** (global) and
 - Check workspace configuration
 - Verify LLM settings
 
+#### `aura daemon`
+
+Start the long-lived Aura daemon background server. The daemon manages IPC socket/named pipe communication, maintains warm database and tool connections, and reactively watches filesystem changes to eliminate CLI startup latency and observe overhead.
+
+**Example:**
+```bash
+aura daemon
+```
+
+**When to use:**
+- Usually spawned automatically in detached background mode by the CLI client.
+- Can be run manually in the foreground to monitor daemon logs or troubleshoot socket/connection issues.
+
 ---
 
 ### Workspace Commands
 
-#### `aura new <name>`
+#### `aura new [path]`
 
-Initialize a new Aura workspace in the current directory.
+Initialize a new Aura workspace at the specified target path (defaults to the current directory `.`).
 
 **What it does:**
 - Creates `.aura-workspace/` directory structure
@@ -295,6 +322,24 @@ aura branch production
 aura branch experimental
 ```
 
+#### `aura env set <key> <value>`
+
+Set an environment variable in the `.env` file. 
+
+Writes `KEY=VALUE` into the global environment (`~/.aura-framework/.env`) if the `--global` flag is provided, or the local workspace `.env` file. This is particularly useful for storing sensitive API keys without committing them to the workspace repository.
+
+**Options:**
+- `--global` or `-g` - Write to the global environment file (`~/.aura-framework/.env`)
+
+**Examples:**
+```bash
+# Set Gemini API key globally
+aura env set GEMINI_API_KEY sk-... --global
+
+# Set a local workspace environment variable
+aura env set MY_VAR value
+```
+
 ---
 
 ### Interaction Commands
@@ -316,9 +361,15 @@ aura agent --goal "Find the count of files in the current folder" --non-interact
 ```
 
 **Options:**
-- `--goal "..."` - Run autonomous goal execution (exits when goal is achieved)
-- `--non-interactive` - Print final summary to stdout, bypass interactive prompts
-- `--verbose` - Show detailed session information
+- `-g,--goal "..."` - Run autonomous goal execution (exits when goal is achieved)
+- `--ni,--non-interactive` - Print final summary to stdout, bypass interactive prompts
+- `-v,--verbose` - Show detailed session information
+- `--mode <mode>` - Execution mode: `classic` (default) or `ralph` (autonomous loop with physical/critic verification)
+- `--verify <cmd>` - Physical validation check command (e.g. `npm test`) for Ralph mode
+- `--critic` - Enable Critic LLM auditing instead of/in addition to physical command validation
+- `--critic-mode <mode>` - Critic audit execution mode: `light` (default, quick query) or `heavy` (starts a nested Agent loop)
+- `--max-steps <num>` - Maximum steps limit for loops
+- `--no-daemon` - Run the agent locally in the current process rather than routing execution through the background daemon
 
 #### `aura chat`
 
@@ -344,6 +395,8 @@ aura chat "Start over" --session user_info --clear
 - `--session <name>` or `-s <name>` - Save/load conversation history (default: `default`)
 - `--clear` or `-c` - Clear memory for the specified session
 - `--system <text>` - Provide a custom system prompt
+- `--model <name>` - Specify the LLM model to use
+- `--provider <name>` - Specify the LLM provider to use
 
 #### `aura context`
 
@@ -357,7 +410,6 @@ aura context
 ---
 
 ### Management Commands
-
 #### `aura tools`
 
 Manage workspace tools.
@@ -367,8 +419,19 @@ Manage workspace tools.
 # List available tools
 aura tools list
 
-# Add a new tool
-aura tools add
+# Inspect a tool in detail
+aura tools inspect read_file
+# Inspect with human-readable format
+aura tools inspect read_file --human
+
+# Install a library tool by name
+aura tools add read_file
+
+# Install a tool from a Git URL or local directory
+aura tools install https://github.com/example/custom_tool.git
+
+# Generate a hierarchical tool group (with subtools)
+aura tools generate_group my_group subtool1 subtool2
 ```
 
 #### `aura skill`
@@ -409,6 +472,27 @@ Start the web server (if available).
 aura web
 ```
 
+#### `aura hints`
+
+Manage prompt hint injection and workspace sensing guidelines.
+
+**Subcommands:**
+* `list`: List all files scanned for hint injection (e.g. `.hint` sidecar files, markdown files, and code files) along with their active injection/ignore status and reason.
+* `toggle <filePath>`: Toggle hint injection status for a specific file.
+* `global`: Show the global operational guidelines file (loads `~/.aura-framework/global_hint.md`).
+
+**Examples:**
+```bash
+# List all active and ignored hints
+aura hints list
+
+# Toggle hint injection for a file
+aura hints toggle src/utils/helper.ts
+
+# View user-global operational guidelines
+aura hints global
+```
+
 #### `aura session`
 
 Manage conversation sessions (isolated SQLite memory databases).
@@ -434,6 +518,27 @@ aura session create feature-branch
 
 # Switch active session
 aura session switch default
+```
+
+#### `aura garden`
+
+Manage and initialize Agent Gardening Playbooks.
+
+**Subcommands:**
+* `list [projectPath]`: List all available Garden Playbooks in the template repository and active workspace.
+* `status [projectPath]`: Show workspace health and metrics (soil state database details, anchors/tasks completion progress, and active hints).
+* `init <playbook> [projectPath]`: Initialize a Garden Playbook template in the active workspace.
+
+**Examples:**
+```bash
+# List all available playbooks
+aura garden list
+
+# Show garden status and metrics for the current workspace
+aura garden status
+
+# Initialize the Kaggle playbook in the current workspace
+aura garden init kaggle
 ```
 
 ---
@@ -622,11 +727,11 @@ sudo systemctl start docker
 
 **Issue: LLM API Key missing**
 ```bash
-# Set via config
-aura config llm.api_key your-key-here
+# Set globally via env
+aura env set GEMINI_API_KEY your-key-here --global
 
-# Or via .env file
-echo "OPENAI_API_KEY=your-key-here" >> .env
+# Or set locally via .env file
+echo "GEMINI_API_KEY=your-key-here" >> .env
 ```
 
 **Issue: Not in workspace**

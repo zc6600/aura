@@ -36,6 +36,7 @@ export class MemoryPolicy {
     observe: { max_steps: 3, summarize: false },
     plan: { max_steps: 50, summarize: false },
     user: { max_steps: 100, summarize: false },
+    learn: { max_steps: 200, summarize: true },
     interception: { max_steps: 100, summarize: false },
     milestone: { permanent: true },
   };

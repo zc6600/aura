@@ -98,9 +98,13 @@ Manual configuration takes precedence over auto-detection.
 echo "OPENROUTER_API_KEY=your-key" > .env
 ```
 
-**Method 2: Via config**
+**Method 2: Via Aura environment command**
 ```bash
-aura config llm.api_key your-key
+# Set globally
+aura env set OPENROUTER_API_KEY your-key --global
+
+# Or set locally
+aura env set OPENROUTER_API_KEY your-key
 ```
 
 **Method 3: Via environment variable**
@@ -192,15 +196,44 @@ aura config state_management.recent_events_n 200
 Example `config.yml`:
 
 ```yaml
+# System Configuration
+system:
+  max_steps: 30                # Maximum steps per loop run
+  max_format_errors: 5         # Tolerated JSON format error retries
+  max_tool_errors: 3           # Tolerated tool blockages
+
 # LLM Configuration
 llm:
   provider: "openrouter"
   model: "openai/gpt-4o"
   api_base: ""
   api_key: ""  # Prefer .env file
+  temperature: 0.2
+  max_tokens: 20000
+  max_retries: 2
+
+# Embedding Configuration
+embedding:
+  provider: ""
+  model: ""
+  api_base: ""
+  api_key_env: ""
+
+# Image Generation Configuration
+image_generation:
+  provider: ""                 # options: openai, stability
+  model: ""
+  size: ""
+  api_key_env: ""
+
+# Knowledge DB Configuration
+knowledge_db:
+  storage: "local"
 
 # State Management
 state_management:
+  database_type: "sqlite"
+  db_path: "state/aura.db"
   max_state_chars: 100000
   recent_events_n: 20
   keep_last_summary_n_steps: 20
@@ -212,34 +245,67 @@ state_management:
       - "key_files_modified"
       - "critical_test_results"
       - "blockers_encountered"
+      - "cumulative_result"
   
   retention:
     execution: { max_steps: 5, summarize: true }
+    observe: { max_steps: 3, summarize: false }
     plan: { max_steps: 50, summarize: false }
     user: { max_steps: 100, summarize: false }
+    learn: { max_steps: 200, summarize: true }
+    interception: { max_steps: 100, summarize: false }
     milestone: { permanent: true }
 
 # Tool Protocol
 tool_protocol:
+  allow_dependency_install: true
+  test_timeout: 30
+  default_timeout_seconds: 300
+  max_timeout_seconds: 1200
+  agent_can_modify_timeout: true
+  
   call_summary:
-    suggested_chars: 120
     max_chars: 256
   
   runtimes:
     python: "python3"
     ruby: "ruby"
     shell: "bash"
+    nodejs: "node"
+  required_files:
+    - "logic.py"
+    - "manifest.json"
 
 # Security
 security:
   strict_path_isolation: true
+  forbidden_extensions:
+    - ".env"
+    - ".key"
+    - ".db-journal"
+  read_only_directories:
+    - "system_tools"
+    - "core_protocols"
   sandbox:
-    provider: "local"  # or "docker"
+    enabled: false
+    provider: "local"          # or "docker"
+    image: "aura-sandbox:latest"
   
 # Hints
 hints:
   auto_inject_readme: true
   scan_dot_hint_files: true
+  include_error_traceback: true
+  max_hint_chars: 1000
+  max_file_chars: 10000
+  ignore_list: []
+
+# Ralph Loop Configuration
+ralph:
+  max_steps: 100
+  verify_command: ""
+  use_critic: false
+  critic_mode: "light"
 
 # Directory Tree
 directory_tree:
@@ -368,7 +434,7 @@ aura doctor
 
 ```bash
 # Remove workspace config override
-rm .aura/config/config.yml
+rm .aura-workspace/config/config.yml
 
 # Re-run with global defaults
 aura info

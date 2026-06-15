@@ -51,6 +51,19 @@ export class ExecutionEngine extends EventEmitter {
     this.gitState = new GitState(this.projectPath);
   }
 
+  public destroy(): void {
+    for (const [pid, ptyStdin] of this.ptyProcesses.entries()) {
+      try {
+        ptyStdin.end();
+      } catch {}
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {}
+    }
+    this.ptyProcesses.clear();
+    this.ptyStates.clear();
+  }
+
   public async execute(
     toolName: string,
     args: Record<string, unknown>,
@@ -162,7 +175,12 @@ export class ExecutionEngine extends EventEmitter {
                 const raw = fs.readFileSync(metadataPath, 'utf-8');
                 const meta = JSON.parse(raw);
                 if (meta.process_start_time) {
-                  const { stdout: psOut } = await execa('ps', ['-p', String(pid), '-o', 'lstart=']);
+                  const { stdout: psOut } = await execa('ps', [
+                    '-p',
+                    String(pid),
+                    '-o',
+                    'lstart=',
+                  ]);
                   const currentStartTime = psOut.trim();
                   if (currentStartTime !== meta.process_start_time) {
                     isAlive = false;
@@ -203,7 +221,10 @@ export class ExecutionEngine extends EventEmitter {
             if (fs.existsSync(outPath)) {
               try {
                 const stdout = readLastLinesSync(outPath, 10).trim();
-                const cleanStdout = stdout.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+                const cleanStdout = stdout.replace(
+                  /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g,
+                  '',
+                );
                 const lines = cleanStdout.split('\n').filter(Boolean);
                 for (let i = lines.length - 1; i >= 0; i--) {
                   const line = lines[i].trim();
@@ -547,7 +568,12 @@ export class ExecutionEngine extends EventEmitter {
 
         let processStartTime = '';
         try {
-          const { stdout: psOut } = await execa('ps', ['-p', String(pid), '-o', 'lstart=']);
+          const { stdout: psOut } = await execa('ps', [
+            '-p',
+            String(pid),
+            '-o',
+            'lstart=',
+          ]);
           processStartTime = psOut.trim();
         } catch {}
 
@@ -638,7 +664,12 @@ export class ExecutionEngine extends EventEmitter {
 
         let processStartTime = '';
         try {
-          const { stdout: psOut } = await execa('ps', ['-p', String(pid), '-o', 'lstart=']);
+          const { stdout: psOut } = await execa('ps', [
+            '-p',
+            String(pid),
+            '-o',
+            'lstart=',
+          ]);
           processStartTime = psOut.trim();
         } catch {}
 
@@ -958,7 +989,10 @@ export class ExecutionEngine extends EventEmitter {
     }
 
     if (sandbox.provider === 'local') {
-      const wrapper = path.join(this.envPath, 'bin', 'sandbox-wrapper');
+      let wrapper = path.join(this.envPath, 'bin', 'sandbox-wrapper');
+      if (!fs.existsSync(wrapper)) {
+        wrapper = path.join(this.envPath, 'sandbox-wrapper.sh');
+      }
       if (fs.existsSync(wrapper)) {
         return [[wrapper, runtime, logic], []];
       }

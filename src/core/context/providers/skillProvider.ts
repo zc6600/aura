@@ -91,7 +91,7 @@ export class SkillProvider {
           if (reqHeaderMatch) {
             const lines = reqHeaderMatch[1].split('\n');
             for (const line of lines) {
-              const depMatch = line.match(/-\s+`?(\w+)`?/);
+              const depMatch = line.match(/-\s+`?([\w.-]+)`?/);
               if (depMatch) {
                 requires.push(depMatch[1]);
               }

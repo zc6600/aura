@@ -413,4 +413,33 @@ ${'#'.repeat(110000)}`,
     );
     expect(cfgAfter.hints?.auto_inject_readme).toBe(true);
   });
+
+  it('test_ralph_loop_to_messages_includes_workspace_and_task', () => {
+    // Create directive, task.md, and AGENTS.md
+    fs.mkdirSync(path.join(projectPath, 'skills'), { recursive: true });
+    fs.writeFileSync(
+      path.join(projectPath, 'skills', 'ralph_system.md'),
+      '# AURA OS OPERATING PROTOCOL\nCORE_AURA_DIRECTIVE_RULE',
+    );
+    fs.writeFileSync(path.join(projectPath, 'task.md'), 'URGENT_TASK_NAME');
+    fs.writeFileSync(
+      path.join(projectPath, 'AGENTS.md'),
+      'AGENTS_INSTRUCTIONS_CONTENT',
+    );
+
+    const db = new DummyContextDb();
+    const payload = ContextAssembler.assemble(projectPath, db as any, {
+      directive_mode: 'ralph_developer',
+    });
+
+    const messages = payload.toMessages({ goal: 'Fix the bug' });
+    expect(messages.length).toBe(2);
+    expect(messages[0].role).toBe('system');
+    expect(messages[0].content).toContain('CORE_AURA_DIRECTIVE_RULE');
+    expect(messages[0].content).toContain('AGENTS_INSTRUCTIONS_CONTENT');
+    expect(messages[0].content).toContain('URGENT_TASK_NAME');
+
+    expect(messages[1].role).toBe('user');
+    expect(messages[1].content).toContain('Fix the bug');
+  });
 });

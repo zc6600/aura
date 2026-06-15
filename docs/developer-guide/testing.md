@@ -121,8 +121,8 @@ npx tsc --noEmit
 ### Jobs Structure
 
 Runs a test matrix in parallel on Ubuntu:
-- Node.js 18
 - Node.js 20
+- Node.js 22
 
 The CI runs the following steps:
 1. Checkout source code.

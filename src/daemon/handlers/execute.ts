@@ -254,6 +254,9 @@ export const killProcess: HandlerFunction = async (ctx) => {
 };
 
 export const subscribeLogs: HandlerFunction = async (ctx) => {
+  if (ctx.socket.destroyed) {
+    return;
+  }
   const server = ctx.server;
   const p = ctx.params as Record<string, unknown> | null | undefined;
   const pidParam = p?.pid;
@@ -380,10 +383,15 @@ export const subscribeLogs: HandlerFunction = async (ctx) => {
     if (!fs.existsSync(filePath)) return currentOffset;
     try {
       const stats = fs.statSync(filePath);
-      if (stats.size > currentOffset) {
-        readAndSendInChunks(filePath, currentOffset, stats.size, stream);
+      let offset = currentOffset;
+      if (stats.size < offset) {
+        offset = 0;
+      }
+      if (stats.size > offset) {
+        readAndSendInChunks(filePath, offset, stats.size, stream);
         return stats.size;
       }
+      return offset;
     } catch {}
     return currentOffset;
   }
@@ -481,6 +489,11 @@ export const subscribeLogs: HandlerFunction = async (ctx) => {
 
   // Initial status check
   checkStatusAndCleanup();
+
+  if (ctx.socket.destroyed) {
+    cleanup();
+    return;
+  }
 
   // If still running, set up watchers and/or polling fallback
   try {

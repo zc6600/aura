@@ -305,12 +305,16 @@ describe('Daemon Execute Handlers', () => {
       const writeMock = ctx.socket.write;
       expect(writeMock).toHaveBeenCalled();
 
-      const calls = writeMock.mock.calls.map((c) => JSON.parse(c[0].trim()));
+      const calls = writeMock.mock.calls.map((c: any) =>
+        JSON.parse(c[0].trim()),
+      );
       const stdoutLog = calls.find(
-        (c) => c.method === 'execute/onLog' && c.params.stream === 'stdout',
+        (c: any) =>
+          c.method === 'execute/onLog' && c.params.stream === 'stdout',
       );
       const stderrLog = calls.find(
-        (c) => c.method === 'execute/onLog' && c.params.stream === 'stderr',
+        (c: any) =>
+          c.method === 'execute/onLog' && c.params.stream === 'stderr',
       );
 
       expect(stdoutLog.params.line).toBe('stdout line 1');

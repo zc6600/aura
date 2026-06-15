@@ -154,8 +154,10 @@ export function composeModularSystemPrompt(projectPath: string): string {
   for (const section of SECTIONS) {
     const sectionOverride = findFileInWorkspace(projectPath, [
       `prompts/system/${section}`,
+      `.aura-workspace/prompts/system/${section}`,
       `.aura/prompts/system/${section}`,
       `skills/system/${section}`,
+      `.aura-workspace/skills/system/${section}`,
       `.aura/skills/system/${section}`,
     ]);
 
@@ -187,8 +189,10 @@ export function resolve(
   if (m === 'standard') {
     const systemPath = findFileInWorkspace(projectPath, [
       'skills/system.md',
+      '.aura-workspace/skills/system.md',
       '.aura/skills/system.md',
       'prompts/system.md',
+      '.aura-workspace/prompts/system.md',
       '.aura/prompts/system.md',
     ]);
 
@@ -201,10 +205,13 @@ export function resolve(
     const base = RALPH_PROTOCOL_PROMPT;
     const ralphPath = findFileInWorkspace(projectPath, [
       'prompts/ralph/ralph_system.md',
+      '.aura-workspace/prompts/ralph/ralph_system.md',
       '.aura/prompts/ralph/ralph_system.md',
       'prompts/ralph_system.md',
+      '.aura-workspace/prompts/ralph_system.md',
       '.aura/prompts/ralph_system.md',
       'skills/ralph_system.md',
+      '.aura-workspace/skills/ralph_system.md',
       '.aura/skills/ralph_system.md',
     ]);
 
@@ -223,10 +230,13 @@ export function resolve(
 
     const criticPath = findFileInWorkspace(projectPath, [
       'prompts/ralph/critic_rules.md',
+      '.aura-workspace/prompts/ralph/critic_rules.md',
       '.aura/prompts/ralph/critic_rules.md',
       'prompts/critic_rules.md',
+      '.aura-workspace/prompts/critic_rules.md',
       '.aura/prompts/critic_rules.md',
       'skills/critic_rules.md',
+      '.aura-workspace/skills/critic_rules.md',
       '.aura/skills/critic_rules.md',
     ]);
 

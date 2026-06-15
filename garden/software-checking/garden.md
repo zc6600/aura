@@ -63,7 +63,7 @@ Divide the codebase into logical modules and dispatch subagents.
    - **Complex Flaws**: Structural bugs, potential memory leaks, or missing tests that require specialized debugging.
 
 ### Phase 4: Dispatch Specialized Fix Swarm
-1. **Pre-Fix Snapshot**: Ensure `security.git_snapshots: true` is configured in `.aura/config/config.yml` or make a manual git commit to establish a rollback checkpoint.
+1. **Pre-Fix Snapshot**: Ensure `security.git_snapshots: true` is configured in `.aura-workspace/config/config.yml` (or `.aura/config/config.yml` fallback) or make a manual git commit to establish a rollback checkpoint.
 2. Spawn coder subagents targeting the complex flaws in `compliance_report.md`:
    - **Continuous Local Testing**: Patcher agents must run Vitest/tests *within their own subagent loops* to verify their changes before reporting success.
    - Example:

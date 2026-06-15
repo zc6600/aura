@@ -186,6 +186,7 @@ export const HintsConfigSchema = z
     include_error_traceback: z.boolean().optional(),
     max_hint_chars: z.number().int().positive().optional(),
     max_file_chars: z.number().int().positive().optional(),
+    max_scan_lines: z.number().int().positive().optional(),
     ignore_list: z.array(z.string()).optional(),
   })
   .passthrough();
@@ -235,6 +236,19 @@ export const KnowledgeDbConfigSchema = z
 export type KnowledgeDbConfig = z.infer<typeof KnowledgeDbConfigSchema>;
 
 // ---------------------------------------------------------------------------
+// Directory Tree config
+// ---------------------------------------------------------------------------
+
+export const DirectoryTreeConfigSchema = z
+  .object({
+    max_depth: z.number().int().positive().optional(),
+    max_files_per_dir: z.number().int().positive().optional(),
+  })
+  .passthrough();
+
+export type DirectoryTreeConfig = z.infer<typeof DirectoryTreeConfigSchema>;
+
+// ---------------------------------------------------------------------------
 // Root config
 // ---------------------------------------------------------------------------
 
@@ -251,6 +265,7 @@ export const AuraConfigSchema = z
     embedding: EmbeddingConfigSchema.optional(),
     image_generation: ImageGenerationConfigSchema.optional(),
     knowledge_db: KnowledgeDbConfigSchema.optional(),
+    directory_tree: DirectoryTreeConfigSchema.optional(),
   })
   .passthrough();
 

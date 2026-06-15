@@ -34,8 +34,8 @@ Technical design of Aura's session isolation system.
 │  - duplicate("experiment-a", "experiment-b")            │
 │  - export/import (backup/restore)                        │
 │                                                         │
-│  Storage: state/sessions.json (metadata)                 │
-│           state/sessions/*.db (actual data)              │
+│  Storage: .aura-workspace/state/sessions.json (metadata) │
+│           .aura-workspace/state/sessions/*.db (actual data) │
 └────────────────────┬────────────────────────────────────┘
                      │
                      ▼
@@ -60,7 +60,7 @@ Technical design of Aura's session isolation system.
 │  sqliteStore = new SQLiteStore(dbPath)                  │
 │  - Reads process.env.AURA_STATE_DB_PATH or               │
 │    process.env.AURA_SESSION_NAME to determine DB path   │
-│  - state/sessions/{session_name}.db                     │
+│  - .aura-workspace/state/sessions/{session_name}.db     │
 │                                                         │
 │  Provided API:                                           │
 │  - recordEvent(payload)                                 │
@@ -107,13 +107,13 @@ The Runner automatically detects and uses the active session via these variables
 sessions.activate("session-a");
 const runnerA = new Runner(projectPath);
 await runnerA.run("Analyze the codebase");
-// → All events stored in state/sessions/session-a.db
+// → All events stored in .aura-workspace/state/sessions/session-a.db
 
 // Session B
 sessions.activate("session-b");
 const runnerB = new Runner(projectPath);
 await runnerB.run("Write documentation");
-// → All events stored in state/sessions/session-b.db
+// → All events stored in .aura-workspace/state/sessions/session-b.db
 
 // Two sessions' data are completely independent
 // Session A cannot see Session B's events
@@ -125,8 +125,8 @@ await runnerB.run("Write documentation");
 ```typescript
 import Database from 'better-sqlite3';
 
-const dbA = new Database("state/sessions/session-a.db");
-const dbB = new Database("state/sessions/session-b.db");
+const dbA = new Database(".aura-workspace/state/sessions/session-a.db");
+const dbB = new Database(".aura-workspace/state/sessions/session-b.db");
 
 const countA = dbA.prepare("SELECT COUNT(*) as count FROM events").get().count;
 const countB = dbB.prepare("SELECT COUNT(*) as count FROM events").get().count;
@@ -161,26 +161,18 @@ console.log(`Session B: ${countB} events`);
 
 ## Relationship with Recorder & Provider
 
-```
-SessionManager (Session Management)
-  ↓ Sets environment variable
-  ↓ process.env.AURA_SESSION_NAME = "my-session"
-  
-Runner (Orchestration)
-  ↓ Creates SQLiteStore connection
-  ↓ SQLiteStore reads env to determine DB path
-  
-Recorder (Write)
-  ↓ const recorder = new Recorder(db)
-  ↓ recorder.recordPlan(plan)
-  ↓ recorder.recordExecution(tool, result)
-  
-SQLiteStore (Database)
-  ↓ Writes to state/sessions/my-session.db
-  
-Provider (Read)
-  ↓ Reads from state/sessions/my-session.db
-  ↓ Formats for LLM Context
+```mermaid
+graph TD
+    SM[SessionManager] -- "1. Sets Env Var" --> Env["process.env.AURA_SESSION_NAME = 'my-session'"]
+    Env --> R[Runner]
+    R -- "2. Resolves path & opens" --> Store[SQLiteStore]
+    
+    subgraph Active Runner Context
+        Rec[Recorder] -- "Writes Events" --> Store
+        Prov[Provider] -- "Reads History" --> Store
+    end
+    
+    Store -- "Per-Session SQLite DB" --> DB[".aura-workspace/state/sessions/my-session.db"]
 ```
 
 ---
@@ -192,16 +184,15 @@ project/
 ├── .aura-workspace/
 │   ├── config/
 │   │   └── config.yml              # Environment Provider (cross-session)
-│   └── .env                        # API keys (cross-session)
-│
-├── state/
-│   ├── sessions.json               # Session metadata
-│   ├── active_session.txt          # Currently activated session name
-│   └── sessions/
-│       ├── default.db              # Default session
-│       ├── research-task.db        # Research task session
-│       ├── code-review.db          # Code review session
-│       └── experiment-abc.db       # Experiment branch session
+│   ├── .env                        # API keys (cross-session)
+│   └── state/
+│       ├── sessions.json               # Session metadata
+│       ├── active_session.txt          # Currently activated session name
+│       └── sessions/
+│           ├── default.db              # Default session
+│           ├── research-task.db        # Research task session
+│           ├── code-review.db          # Code review session
+│           └── experiment-abc.db       # Experiment branch session
 │
 └── ...
 ```

@@ -7,6 +7,14 @@ import { DaemonClient } from '../../src/daemon/client.js';
 import { resolveIpcPath } from '../../src/daemon/ipc.js';
 import { DaemonServer } from '../../src/daemon/server.js';
 
+vi.mock('node:child_process', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('node:child_process')>();
+  return {
+    ...mod,
+    spawn: vi.fn().mockImplementation((...args) => (mod as any).spawn(...args)),
+  };
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -38,6 +46,9 @@ describe('Daemon IPC Protocol', () => {
 
   it('should start DaemonServer, connect with DaemonClient, and exchange JSON-RPC messages', async () => {
     const workspacePath = path.join(tempDir, 'test-workspace');
+    if (fs.existsSync(workspacePath)) {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+    }
     fs.mkdirSync(workspacePath, { recursive: true });
     fs.mkdirSync(path.join(workspacePath, '.aura-workspace', 'config'), {
       recursive: true,
@@ -79,6 +90,9 @@ describe('Daemon IPC Protocol', () => {
 
   it('should handle Session, Filesystem, and Garden JSON-RPC API requests', async () => {
     const workspacePath = path.join(tempDir, 'test-workspace-rpc');
+    if (fs.existsSync(workspacePath)) {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+    }
     fs.mkdirSync(workspacePath, { recursive: true });
     fs.mkdirSync(path.join(workspacePath, '.aura-workspace', 'config'), {
       recursive: true,
@@ -230,6 +244,9 @@ describe('Daemon IPC Protocol', () => {
 
   it('should enforce security and safety bounds on daemon requests', async () => {
     const workspacePath = path.join(tempDir, 'test-workspace-safety');
+    if (fs.existsSync(workspacePath)) {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+    }
     fs.mkdirSync(workspacePath, { recursive: true });
     fs.mkdirSync(path.join(workspacePath, '.aura-workspace', 'config'), {
       recursive: true,
@@ -299,6 +316,9 @@ describe('Daemon IPC Protocol', () => {
 
   it('should only request confirmation for dangerous tools when security.confirm_dangerous_tools is enabled', async () => {
     const workspacePath = path.join(tempDir, 'test-workspace-confirm-tools');
+    if (fs.existsSync(workspacePath)) {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+    }
     fs.mkdirSync(workspacePath, { recursive: true });
     fs.mkdirSync(path.join(workspacePath, '.aura-workspace', 'config'), {
       recursive: true,
@@ -377,6 +397,9 @@ describe('Daemon IPC Protocol', () => {
 
   it('should block mutating requests (workspace/initialize, session/*) when a goal loop is running', async () => {
     const workspacePath = path.join(tempDir, 'test-workspace-blocking');
+    if (fs.existsSync(workspacePath)) {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+    }
     fs.mkdirSync(workspacePath, { recursive: true });
     fs.mkdirSync(path.join(workspacePath, '.aura-workspace', 'config'), {
       recursive: true,
@@ -432,6 +455,124 @@ describe('Daemon IPC Protocol', () => {
 
     // Reset loop status and clean up
     server.activeLoopJob = { status: 'idle' };
+    await client.request('daemon/exit');
+    client.disconnect();
+    server.stop();
+  });
+
+  it('should resolve the correct daemon path candidate based on file existence', async () => {
+    const workspacePath = path.join(tempDir, 'test-workspace-launch');
+    if (fs.existsSync(workspacePath)) {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+    }
+    fs.mkdirSync(workspacePath, { recursive: true });
+
+    const client = new DaemonClient(workspacePath);
+
+    // Mock spawn to not actually spawn anything and return a mock child process
+    const mockEvents = new (await import('node:events')).EventEmitter();
+    const mockChild = Object.assign(mockEvents, {
+      pid: 99999,
+      unref: vi.fn(),
+    });
+    const cp = await import('node:child_process');
+    const spawnSpy = vi.mocked(cp.spawn).mockReturnValue(mockChild as any);
+
+    // We want the check to fail fast by simulating child exiting with code 0
+    setTimeout(() => {
+      mockChild.emit('exit', 0, null);
+    }, 10);
+
+    // Mock fs.existsSync to control candidate matching
+    const existsSpy = vi.spyOn(fs, 'existsSync');
+    existsSpy.mockImplementation((p: string) => {
+      // Simulate that only candidate index 5 exists
+      if (p.includes('dist/bin/daemon.js')) {
+        return true;
+      }
+      return false;
+    });
+
+    let launchError: Error | null = null;
+    try {
+      await (client as any).launchDaemon();
+    } catch (err: any) {
+      launchError = err;
+    }
+
+    // Check spawn was called with the candidate we expected
+    expect(spawnSpy).toHaveBeenCalled();
+    const [_cmd, args] = spawnSpy.mock.calls[0];
+    expect(args[0]).toContain('dist/bin/daemon.js');
+
+    // Check it threw the expected startup failure error
+    expect(launchError).toBeDefined();
+    expect(launchError?.message).toContain(
+      'Aura Daemon exited unexpectedly during start-up',
+    );
+
+    existsSpy.mockRestore();
+    spawnSpy.mockReset();
+  });
+
+  it('should support double stopping the DaemonServer without throwing ERR_SERVER_NOT_RUNNING', async () => {
+    const workspacePath = path.join(tempDir, 'test-workspace-double-stop');
+    if (fs.existsSync(workspacePath)) {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+    }
+    fs.mkdirSync(workspacePath, { recursive: true });
+
+    const server = new DaemonServer(workspacePath);
+    await server.start();
+
+    // Call stop twice
+    expect(() => server.stop()).not.toThrow();
+    expect(() => server.stop()).not.toThrow();
+  });
+
+  it('should destroy existing runner when workspace/initialize is called again', async () => {
+    const workspacePath = path.join(tempDir, 'test-workspace-reinit');
+    if (fs.existsSync(workspacePath)) {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+    }
+    fs.mkdirSync(workspacePath, { recursive: true });
+    fs.mkdirSync(path.join(workspacePath, '.aura-workspace', 'config'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(workspacePath, '.aura-workspace', 'config', 'config.yml'),
+      'llm:\n  provider: local\n',
+    );
+
+    const server = new DaemonServer(workspacePath);
+    await server.start();
+
+    const client = new DaemonClient(workspacePath);
+    await client.connect(false);
+
+    // First initialization
+    await client.request('workspace/initialize', {
+      sessionName: 'default',
+    });
+
+    const initialRunner = server.runner;
+    expect(initialRunner).toBeDefined();
+    if (!initialRunner) {
+      throw new Error('initialRunner is undefined');
+    }
+
+    // Spy on the initial runner's destroy method
+    const destroySpy = vi.spyOn(initialRunner, 'destroy');
+
+    // Second initialization
+    await client.request('workspace/initialize', {
+      sessionName: 'default2',
+    });
+
+    expect(destroySpy).toHaveBeenCalled();
+    expect(server.runner).not.toBe(initialRunner);
+
+    // Cleanup
     await client.request('daemon/exit');
     client.disconnect();
     server.stop();

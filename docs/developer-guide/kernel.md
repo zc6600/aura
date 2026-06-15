@@ -27,27 +27,27 @@ A meta-loop orchestrator that wraps and executes standard `AgentLoop` instances 
 
 **Responsibilities:**
 - **Session DB Rotation**: Generates fresh session names per step and hot-swaps memory SQLite databases via `Runner.reconnectSession()` to achieve database history amnesia.
-- **Planning Hook Injection**: Registers a `:before_planning` hook on the `Runner` to persistently wrap standard payload observations, ensuring that the `RALPH_PROTOCOL_PROMPT` and verification error recaps are never forgotten during multi-step executions.
+- **Planning Hook Injection**: Registers a `'before_planning'` hook on the `Runner` to persistently wrap standard payload observations, ensuring that the `RALPH_PROTOCOL_PROMPT` and verification error recaps are never forgotten during multi-step executions.
   - **Dual Verification**: Supports physical command suite runs (succeeding on exit code `0`) or Critic LLM auditing:
     - **Light Critic Mode**: Directly calls the LLM in a single-turn verification to evaluate the implementation (using `CRITIC_PROTOCOL_PROMPT`). No tool access or global workspace context is provided.
     - **Heavy Critic Mode**: Runs a full Critic `AgentLoop` (using `CRITIC_HEAVY_PROTOCOL_PROMPT`) with access to all native tools and global workspace context/awareness.
     - Configured via CLI `--critic-mode` (`light` or `heavy`) or `critic_mode` in `config.yml`.
-  - **Critique Persistence**: Persists auditing feedback reports under `state/critic_audit_[run_id]_step_[step].md` inside the environment/workspace path.
+  - **Critique Persistence**: Persists auditing feedback reports under `.aura-workspace/state/critic_audit_[run_id]_step_[step].md` inside the environment/workspace path.
 
 **Ralph Loop Prompts & Workspace Overrides:**
 The Ralph Loop swaps standard system prompts with specialized, loop-compliant instructions resolved through the `PromptRegistry` (`src/core/llm/prompts/registry.ts`):
 
-- **Ralph Developer Prompt (`:ralph_developer`)**
+- **Ralph Developer Prompt (`ralph_developer`)**
   - **Base Protocol (`RALPH_PROTOCOL_PROMPT`)**: Tells the LLM that there is no session history, instructions are read from files, troubleshooting must be persistent, and outputs must strictly be a single valid tool-calling JSON block (or raw plain text when completing).
   - **Custom Override**: Scans the workspace for `prompts/ralph/ralph_system.md` (or `.aura-workspace/prompts/ralph/ralph_system.md` / `prompts/ralph_system.md` / `.aura-workspace/prompts/ralph_system.md` / `skills/ralph_system.md` / `.aura-workspace/skills/ralph_system.md`).
   - **Fallback**: Falls back to `DEFAULT_RALPH_USER_DIRECTIVES` (general coding quality guidelines).
 
-- **Ralph Critic Prompt (`:ralph_critic`)**
+- **Ralph Critic Prompt (`ralph_critic`)**
   - **Base Protocol**:
     - **Light Mode (`CRITIC_PROTOCOL_PROMPT`)**: Instructs a secondary critic LLM to audit changes, set `"completed": true/false`, and provide a structured JSON containing a `critique` and actionable `advice`.
     - **Heavy Mode (`CRITIC_HEAVY_PROTOCOL_PROMPT`)**: Instructs the critic to execute tools as needed in a Critic Agent Loop and output ONLY a final audit JSON block upon completion.
   - **Custom Override**: Scans the workspace for `prompts/ralph/critic_rules.md` (or `.aura-workspace/prompts/ralph/critic_rules.md` / `prompts/critic_rules.md` / `.aura-workspace/prompts/critic_rules.md` / `skills/critic_rules.md` / `.aura-workspace/skills/critic_rules.md`).
-  - **Fallback**: Falls back to `DEFAULT_CRIC_AUDIT_RULES` (general code quality criteria checklist).
+  - **Fallback**: Falls back to `DEFAULT_CRITIC_AUDIT_RULES` (general code quality criteria checklist).
 
 ### 3. The Runner (`Runner` in `src/core/kernel/runner.ts`)
 
@@ -69,13 +69,13 @@ An event-driven publisher-subscriber structure that decouples core agent executi
 **Implementation**: `Runner` extends Node's built-in `EventEmitter` class.
 
 **Events:**
-- `:plan_stream_start` - LLM plan generation starts
-- `:plan_event` - Token stream from LLM
-- `:thought` - Agent thinking
-- `:tool_start` - Tool execution begins
-- `:tool_result` - Tool execution completes
-- `:final_answer` - Mission complete
-- `:loop_aborted` - Loop terminated early
+- `'plan_stream_start'` - LLM plan generation starts
+- `'plan_event'` - Token stream from LLM
+- `'thought'` - Agent thinking
+- `'tool_start'` - Tool execution begins
+- `'tool_result'` - Tool execution completes
+- `'final_answer'` - Mission complete
+- `'loop_aborted'` - Loop terminated early
 
 **Note**: A separate `eventBus.ts` (`src/core/memory/eventBus.ts`) exists for global event bus coordination, while the `Runner` uses the `EventEmitter` inheritance pattern for local event subscription.
 

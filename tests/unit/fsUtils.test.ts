@@ -90,9 +90,7 @@ describe('deepMerge', () => {
       llm: {
         provider: 'openai',
         model: 'gpt-4o-mini',
-        fallbacks: [
-          { provider: 'anthropic', model: 'claude-3-haiku' }
-        ],
+        fallbacks: [{ provider: 'anthropic', model: 'claude-3-haiku' }],
       },
     };
 
@@ -116,9 +114,7 @@ describe('deepMerge', () => {
       llm: {
         provider: 'gemini',
         model: 'gemini-2.5-flash',
-        fallbacks: [
-          { provider: 'anthropic', model: 'claude-3-haiku' }
-        ],
+        fallbacks: [{ provider: 'anthropic', model: 'claude-3-haiku' }],
       },
       security: {
         strict_path_isolation: true,
@@ -129,21 +125,17 @@ describe('deepMerge', () => {
   it('should let array values in source completely override array values in target', () => {
     const target = {
       llm: {
-        fallbacks: [
-          { provider: 'openai', model: 'gpt-4' }
-        ]
-      }
+        fallbacks: [{ provider: 'openai', model: 'gpt-4' }],
+      },
     };
     const source = {
       llm: {
-        fallbacks: [
-          { provider: 'gemini', model: 'gemini-2.5-flash' }
-        ]
-      }
+        fallbacks: [{ provider: 'gemini', model: 'gemini-2.5-flash' }],
+      },
     };
     const merged = deepMerge(target, source);
     expect(merged.llm.fallbacks).toEqual([
-      { provider: 'gemini', model: 'gemini-2.5-flash' }
+      { provider: 'gemini', model: 'gemini-2.5-flash' },
     ]);
   });
 

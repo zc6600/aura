@@ -96,6 +96,8 @@ export class ShadowBackup {
           if (
             relPath.startsWith('.aura/') ||
             relPath.includes('/.aura/') ||
+            relPath.startsWith('.aura-workspace/') ||
+            relPath.includes('/.aura-workspace/') ||
             relPath.startsWith('shadow/') ||
             relPath.includes('/shadow/')
           ) {

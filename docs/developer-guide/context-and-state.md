@@ -3,7 +3,7 @@
 How Aura OS assembles the "Agent Mind" (the context) and manages runtime memory and instruction prompts.
 
 **Framework Code**: `src/core/context/` (base, manager, payload, assembler, providers/*)  
-**Project Context**: `state/sessions/*.db` (SQLite, session-isolated), `.aura_knowledge.json`, `SOUL.md`, `AGENTS.md`, `USER.md`, `TOOLS.md`, `IDENTITY.md`, `MEMORY.md`, `memory/*.md`, `task.md` and `config/config.yml`  
+**Project Context**: `.aura-workspace/state/sessions/*.db` (SQLite, session-isolated), `.aura_knowledge.json`, `SOUL.md`, `AGENTS.md`, `USER.md`, `TOOLS.md`, `IDENTITY.md`, `MEMORY.md`, `memory/*.md`, `task.md` and `config/config.yml`  
 **Memory Metabolism**: `src/core/memory/metabolizer.ts`
 
 ---
@@ -66,6 +66,7 @@ graph TD
     Base --> KP[KnowledgeProvider]
     Base --> TP[ToolProvider]
     Base --> SP[StateProvider]
+    Base --> BPP[BackgroundProcessProvider]
     
     DP --> Payload[ContextPayload]
     WP --> Payload
@@ -80,6 +81,7 @@ graph TD
     KP --> Payload
     TP --> Payload
     SP --> Payload
+    BPP --> Payload
 ```
 
 ### 1. Directive Provider (`DirectiveProvider`)
@@ -117,6 +119,7 @@ The `# SYSTEM & ENVIRONMENT` section is compiled directly by `ContextBase` utili
 - **Skills Knowledge**: Handled by `SkillProvider`. Parses YAML metadata from `SKILL.md` files (in `skills/` or `.aura-workspace/skills/`) to display skill name, description, requirements, and missing workspace tools, plus lists related scripts, references, and assets.
 - **Garden Playbooks**: Handled by `GardenProvider`. Surfaces active playbooks and garden rules.
 - **User Tasks**: Handled by `AnchorProvider`. Extracts the current plan stored as active variables in the SQLite database and summarizes node actions from `anchors/*.json` or `anchors/*.yaml` / `anchors/*.yml` files.
+- **Background Processes**: Handled by `BackgroundProcessProvider`. Detects active background processes and extracts log tails/diagnostic dumps.
 
 ### 4. Knowledge Provider (`KnowledgeProvider`)
 
@@ -186,7 +189,7 @@ If the assembled prompt context exceeds the configured `state_management.max_sta
 The `ContextManager` handles temporary context environments.
 
 **Location**: `src/core/context/manager.ts`  
-**Purpose**: Registers, updates, and expires sliding tool contexts in `state/tool_contexts.json`.
+**Purpose**: Registers, updates, and expires sliding tool contexts in `.aura-workspace/state/tool_contexts.json`.
 
 Tools can dynamically request or register context structures:
 - **`creates_context`**: Creates a temporary state/context identifier.

@@ -37,7 +37,15 @@ export class ContextPayload {
     options: Record<string, unknown> = {},
     sections: Record<string, string> = {},
   ) {
-    if (promptOrSections && !(promptOrSections instanceof ContextPrompt)) {
+    const isSignature1 =
+      Array.isArray(envProviderOrTools) ||
+      (promptOrSections !== null &&
+        promptOrSections !== undefined &&
+        !(promptOrSections instanceof ContextPrompt) &&
+        !Array.isArray(promptOrSections) &&
+        !(memoryOrOptions instanceof ContextMemory));
+
+    if (isSignature1) {
       // Signature: (sections, tools, options)
       this.sections = (promptOrSections as Record<string, string>) || {};
       this.tools = (envProviderOrTools as StructuredTool[]) || [];
@@ -117,8 +125,13 @@ export class ContextPayload {
     const goal = options.goal;
 
     if (mode === 'ralph_developer' || mode === 'ralph_critic') {
-      const systemPrompt =
-        this.prompt?.kernel_prompt || this.sections.directive || '';
+      const systemPrompt = [
+        this.prompt?.kernel_prompt || this.sections.directive || '',
+        this.prompt?.workspace_prompt || this.sections.workspace || '',
+        this.prompt?.task_prompt || this.sections.task || '',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
       const userContent = this.buildUserContent(goal);
       return [
         { role: 'system', content: systemPrompt },
@@ -160,10 +173,15 @@ export class ContextPayload {
       const criticMode = String(
         this.options.critic_mode || 'light',
       ).toLowerCase();
-      // Heavy critic includes all context parts except directive, active, index, state
+      // Heavy critic includes all context parts except directive, workspace, task, state
       const parts =
         criticMode === 'heavy'
-          ? this.toMarkdownExcluding(['directive', 'active', 'index', 'state'])
+          ? this.toMarkdownExcluding([
+              'directive',
+              'workspace',
+              'task',
+              'state',
+            ])
           : null;
 
       return [
@@ -181,9 +199,9 @@ export class ContextPayload {
     } else if (mode === 'ralph_developer') {
       const parts = this.toMarkdownExcluding([
         'directive',
-        'active',
-        'index',
-        'state',
+        'workspace',
+        'task',
+        'tools',
       ]);
 
       const recap = (this.options.ralph_recap as Record<string, string>) || {};

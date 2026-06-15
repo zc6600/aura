@@ -11,6 +11,7 @@ export class LSPClient extends EventEmitter {
   private serverCapabilities: Record<string, unknown> = {};
   public running = false;
   public initialized = false;
+  private forceKillTimer?: NodeJS.Timeout;
 
   private handlers = new Map<
     string,
@@ -54,6 +55,10 @@ export class LSPClient extends EventEmitter {
     });
 
     this.process.on('close', (code) => {
+      if (this.forceKillTimer) {
+        clearTimeout(this.forceKillTimer);
+        this.forceKillTimer = undefined;
+      }
       this.cleanup(new Error(`LSP server closed with code ${code}`));
     });
 
@@ -72,10 +77,14 @@ export class LSPClient extends EventEmitter {
         this.process.kill('SIGTERM');
       } catch (_e) {}
       const proc = this.process;
-      setTimeout(() => {
+      if (this.forceKillTimer) {
+        clearTimeout(this.forceKillTimer);
+      }
+      this.forceKillTimer = setTimeout(() => {
         try {
           proc.kill('SIGKILL');
         } catch (_e) {}
+        this.forceKillTimer = undefined;
       }, 1000);
       this.process = null;
     }

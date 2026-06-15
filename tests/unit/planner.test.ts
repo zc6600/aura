@@ -106,7 +106,6 @@ describe('Planner', () => {
       },
       tool_protocol: {
         call_summary: {
-          suggested_chars: 100,
           max_chars: 200,
         },
       },

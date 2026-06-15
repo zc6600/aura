@@ -4,7 +4,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import picocolors from 'picocolors';
-import yaml from 'yaml';
 import { VERSION } from '../../index.js';
 import * as GlobalConfig from '../../utils/globalConfig.js';
 import * as UI from '../ui.js';
@@ -94,7 +93,9 @@ export class Template {
           tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-temp-sync-'));
           configBackup = path.join(tmpDir, 'config.yml');
           fs.copyFileSync(configPath, configBackup);
-          console.log(`  ${picocolors.yellow('⚠️  Backed up global config.yml')}`);
+          console.log(
+            `  ${picocolors.yellow('⚠️  Backed up global config.yml')}`,
+          );
         } catch (err: any) {
           console.warn(`  ⚠️ Failed to back up global config: ${err.message}`);
         }
@@ -156,14 +157,18 @@ export class Template {
       }
       await GlobalConfig.gitRun(globalRepo, 'add', '.');
 
-      const hasHead = await GlobalConfig.gitRun(globalRepo, 'rev-parse', 'HEAD');
+      const hasHead = await GlobalConfig.gitRun(
+        globalRepo,
+        'rev-parse',
+        'HEAD',
+      );
       if (hasHead.success) {
         const diffIndex = await GlobalConfig.gitRun(
           globalRepo,
           'diff-index',
           '--quiet',
           'HEAD',
-          );
+        );
         if (!diffIndex.success) {
           await GlobalConfig.gitRun(
             globalRepo,

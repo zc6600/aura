@@ -171,3 +171,119 @@ When a client invokes `client.connect()`, it checks if the IPC socket is active.
 - **Inactivity Timeout**: The daemon maintains an idle timer. If there are no active socket connections and the engine job status is `idle`, the server automatically shuts down after **10 minutes** (`DaemonServer.IDLE_TIMEOUT_MS`).
 - **Command Exit**: Clients can send `daemon/exit` to explicitly stop the daemon process.
 - **Unlinking**: The socket file is cleaned up via `fs.unlinkSync()` upon daemon startup and clean shutdown to prevent stale files.
+
+---
+
+## 5. Lifecycle & Communication Sequence
+
+Below is the complete sequence diagram illustrating how a client automatically spawns the detached daemon, initializes a workspace session, executes goals, and how the idle timeout cleans up the background server.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant CLI as CLI/Web Client
+    participant DC as DaemonClient Helper
+    participant FS as File System / OS
+    participant DS as DaemonServer (Background)
+    participant R as Runner & Bridge Engine
+
+    User->>CLI: aura agent -g "Write hello.txt"
+    CLI->>DC: connect()
+    DC->>FS: Check if IPC Socket exists / responds
+    
+    alt Socket Not Found or Connection Refused
+        FS-->>DC: ENOENT / ECONNREFUSED
+        DC->>FS: Spawn Daemon Server in detached mode
+        DC->>FS: Call child.unref() (Allows parent CLI to exit independently)
+        activate DS
+        DS->>FS: Create IPC Socket / pipe & write process.title
+        deactivate DS
+        loop Poll Connection (up to 30 attempts, 200ms interval)
+            DC->>FS: Try connecting to Socket
+            FS-->>DC: Connected successfully
+        end
+    else Socket Exists and Accepting Connections
+        FS-->>DC: Connected successfully
+    end
+
+    DC->>DS: JSON-RPC "workspace/initialize" {sessionName}
+    DS->>R: Instantiate Runner / Session Manager
+    DS-->>DC: RPC Result: {initialized: true}
+
+    DC->>DS: JSON-RPC "agent/runGoal" {goal, mode: "classic"}
+    activate DS
+    DS->>R: Register abort & confirm hooks
+    DS->>R: Run Bridge.chat(goal)
+    activate R
+
+    loop Agent execution loop (Observe-Plan-Execute)
+        R->>R: observe() / plan()
+        R->>DS: emit "tool_start", "thought", etc.
+        DS->>DC: Broadcast JSON-RPC Notification: "agent/onProgress"
+        DC->>User: Stream thoughts / token outputs
+    end
+
+    R-->>DS: Goal execution finished
+    deactivate R
+    DS->>R: Clean up & unregister hooks
+    DS-->>DC: RPC Result: {status: "completed"}
+    deactivate DS
+
+    CLI->>DC: disconnect()
+    DC->>FS: Close Socket connection
+    
+    Note over DS: Server enters idle state
+    
+    alt Inactivity Timer (10 mins without connections/jobs)
+        DS->>FS: Unlink Socket file
+        DS->>DS: process.exit(0) (Clean shutdown)
+    end
+```
+
+---
+
+## 6. Interactive Tool Confirmation Flow
+
+For security, dangerous tools (such as `write_file` or `bash_command`) require explicit user confirmation unless the agent is running in a fully-automated/non-interactive script. 
+
+The diagram below details the sequence where the `Runner` intercepts tool execution and asks the client for confirmation via JSON-RPC.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant R as Runner Engine
+    participant H as Hooks Manager
+    participant DS as DaemonServer
+    participant C as DaemonClient / CLI UI
+    actor User
+
+    R->>H: run("before_tool_execution", tool, args)
+    activate H
+    H->>H: Evaluate security config
+    
+    alt confirm_dangerous_tools is false OR auto_mode is true
+        H-->>R: Return true (Allow execution)
+    else confirm_dangerous_tools is true AND dangerous tool detected
+        H->>DS: askClientConfirmation(socket, message)
+        activate DS
+        DS->>C: JSON-RPC Request: "client/confirm" {message}
+        activate C
+        C->>User: Display warning prompt & wait for input
+        User-->>C: Press Y (Confirm) / N (Deny)
+        C-->>DS: JSON-RPC Response: {result: true/false}
+        deactivate C
+        DS-->>H: Return confirmation boolean
+        deactivate DS
+        H-->>R: Return allowed boolean
+    end
+    deactivate H
+
+    alt Execution Allowed (true)
+        R->>R: Execute tool & record result
+    else Execution Denied (false)
+        R->>R: Block tool execution, return blocked status
+    end
+```
+
+

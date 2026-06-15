@@ -88,4 +88,32 @@ Skill body content
     expect(result).not.toContain('Missing Requires: available-tool-1');
     expect(result).toContain('Scripts: s1.sh');
   });
+
+  it('should parse requirements from the body section including dots and hyphens', () => {
+    const provider = new SkillProvider(projectPath, { envPath });
+    const skillsDir = path.join(projectPath, 'skills');
+    const skillSubdir = path.join(skillsDir, 'body-skill');
+    fs.mkdirSync(skillSubdir, { recursive: true });
+
+    const skillFile = path.join(skillSubdir, 'SKILL.md');
+    const content = `---
+name: Body Skill
+description: Skill description
+---
+## Requirements
+- available-tool-1
+- mock.tool-with.dots-and-hyphens
+`;
+    fs.writeFileSync(skillFile, content, 'utf-8');
+
+    const result = provider.provide();
+    expect(result).toContain('### Skill: Body Skill');
+    expect(result).toContain(
+      'Requires: available-tool-1, mock.tool-with.dots-and-hyphens',
+    );
+    expect(result).toContain(
+      'Missing Requires: mock.tool-with.dots-and-hyphens',
+    );
+    expect(result).not.toContain('Missing Requires: available-tool-1');
+  });
 });

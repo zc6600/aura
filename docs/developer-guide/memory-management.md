@@ -10,12 +10,12 @@ Aura uses 4 retention tiers for different event types:
 
 | Tier | Name | Events | Retention | Summarize |
 |------|------|--------|-----------|-----------|
-| 1 | Ephemeral | execution, observe | Configurable max_steps | ✅ Yes |
+| 1 | Ephemeral | execution, observe | Configurable max_steps | Only `execution` (`observe` is ❌ No) |
 | 2 | Working | plan, user | Configurable max_steps | ❌ No |
-| 3 | Insights | learn, interception | Configurable max_steps | ✅ Yes |
+| 3 | Insights | learn, interception | Configurable max_steps | Only `learn` (`interception` is ❌ No) |
 | 4 | Permanent | milestone | Forever | ❌ No |
 
-**Implementation Note**: The current implementation uses `summarize` and `permanent` flags from the retention policy. The `max_steps` field is defined in configuration for future time-based retention but is not actively enforced in the current version. Events are selected for metabolism based on position (older than the most recent N events) rather than step count.
+**Implementation Note**: The `max_steps` field configures the maximum count of recent events to keep in active memory for each event category (or specific tool). During metabolism, events of a category exceeding its configured `max_steps` threshold are processed for summarization and deletion, ensuring the active context length remains within boundaries.
 
 ---
 
@@ -260,7 +260,6 @@ state_management:
 ```yaml
 tool_protocol:
   call_summary:
-    suggested_chars: 120            # Suggested summary length for LLM
     max_chars: 256                  # Max summary length (truncate if exceeded)
 ```
 

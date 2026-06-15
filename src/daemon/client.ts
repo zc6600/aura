@@ -72,20 +72,30 @@ export class DaemonClient {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
 
-    let entryScript = path.resolve(__dirname, 'bin', 'daemon.js');
-    if (!fs.existsSync(entryScript)) {
-      entryScript = path.resolve(__dirname, '..', 'bin', 'daemon.ts');
-    }
-    if (!fs.existsSync(entryScript)) {
-      // Fallback relative to project root
-      const rootDir = path.resolve(__dirname, '..');
-      const prodScript = path.resolve(rootDir, 'dist', 'bin', 'daemon.js');
-      const devScript = path.resolve(rootDir, 'src', 'bin', 'daemon.ts');
-      if (fs.existsSync(prodScript)) {
-        entryScript = prodScript;
-      } else if (fs.existsSync(devScript)) {
-        entryScript = devScript;
+    let entryScript = '';
+    const candidates = [
+      path.resolve(__dirname, 'bin', 'daemon.js'),
+      path.resolve(__dirname, 'daemon.js'),
+      path.resolve(__dirname, '..', 'bin', 'daemon.js'),
+      path.resolve(__dirname, '..', 'bin', 'daemon.ts'),
+      path.resolve(__dirname, '..', '..', 'bin', 'daemon.ts'),
+      path.resolve(__dirname, '..', 'dist', 'bin', 'daemon.js'),
+      path.resolve(__dirname, '..', 'src', 'bin', 'daemon.ts'),
+      path.resolve(__dirname, '..', '..', 'dist', 'bin', 'daemon.js'),
+      path.resolve(__dirname, '..', '..', 'src', 'bin', 'daemon.ts'),
+    ];
+
+    for (const cand of candidates) {
+      if (fs.existsSync(cand)) {
+        entryScript = cand;
+        break;
       }
+    }
+
+    if (!entryScript) {
+      throw new Error(
+        `Failed to locate daemon script (checked: ${candidates.join(', ')})`,
+      );
     }
 
     let command = process.execPath;
@@ -97,7 +107,7 @@ export class DaemonClient {
         args.push(tsxCli, entryScript);
       } else {
         command = 'npx';
-        args.push('tsx', entryScript);
+        args.push('-y', 'tsx', entryScript);
       }
     } else {
       args.push(entryScript);

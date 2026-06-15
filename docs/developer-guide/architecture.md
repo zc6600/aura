@@ -317,7 +317,7 @@ The core runtime engine that orchestrates the agent's lifecycle.
 
 ### 2. [Context & State](context-and-state.md)
 How the agent maintains continuity and memory.
-- **State Management**: SQLite schema (`state/sessions/*.db`), event logging, and key-value storage
+- **State Management**: SQLite schema (`.aura-workspace/state/sessions/*.db`), event logging, and key-value storage
 - **Read-Write Separation**: Recorder (write) vs Provider (read)
 - **Payload LLM Methods**: Built-in `to_messages` and `to_tool_schemas` for LLM integration
 - **Native Tool Calling**: JSON Schema-based tool injection (no text-based tool descriptions)

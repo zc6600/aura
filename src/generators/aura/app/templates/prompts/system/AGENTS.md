@@ -17,7 +17,7 @@ This file defines the operational rules and guidelines for this Aura agent.
 ## Workflow
 - When starting a task, read `task.md`.
 - Break complex tasks into smaller steps.
-- Use the `todo` tool to track progress.
+- Use the `plan_task` tool or `task.md` to track progress.
 - Commit your changes frequently if inside a git repository.
 
 ## Backup and Privacy

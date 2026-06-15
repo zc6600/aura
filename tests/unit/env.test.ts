@@ -65,9 +65,16 @@ describe('LLM Env Loader', () => {
     // Provider name normalization
     expect(Env.resolveApiKey('azure_openai')).toBe('sk-azure');
 
+    // Special characters and empty input
+    process.env.OPENAI_GPT_4_API_KEY = 'sk-gpt4';
+    expect(Env.resolveApiKey('openai/gpt-4')).toBe('sk-gpt4');
+    expect(Env.resolveApiKey('OpenAI-GPT-4')).toBe('sk-gpt4');
+    expect(Env.resolveApiKey('')).toBe('general-key-456');
+
     // Clean up
     delete process.env.TEST_PROVIDER_API_KEY;
     delete process.env.OPENROUTER_API_KEY;
     delete process.env.AZURE_OPENAI_API_KEY;
+    delete process.env.OPENAI_GPT_4_API_KEY;
   });
 });

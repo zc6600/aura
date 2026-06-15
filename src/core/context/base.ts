@@ -236,7 +236,7 @@ export class ContextBase {
 
     const current = sections.state;
     const calcTotal = (s: Record<string, string>) =>
-      Object.values(s).join('\n\n').length;
+      Object.values(s).filter(Boolean).join('\n\n').length;
 
     if (calcTotal(sections) <= limit) return sections;
 
@@ -299,18 +299,25 @@ export class ContextBase {
       });
     }
 
-    sections.state = [pre, [header, ...events].join('\n'), avBlock]
-      .filter(Boolean)
-      .join('');
+    const rebuildState = (evs: string[]) => {
+      const historyStr = [header, ...evs].join('\n').trim();
+      return [
+        pre.trim(),
+        historyIdx < avIdx ? historyStr : avBlock.trim(),
+        historyIdx < avIdx ? avBlock.trim() : historyStr,
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+    };
+
+    sections.state = rebuildState(events);
 
     if (calcTotal(sections) <= limit) return sections;
 
     // Drop older events until threshold
     while (calcTotal(sections) > limit && events.length > minEventThreshold) {
       events.shift();
-      sections.state = [pre, [header, ...events].join('\n'), avBlock]
-        .filter(Boolean)
-        .join('');
+      sections.state = rebuildState(events);
     }
 
     // summary trim step
@@ -318,9 +325,7 @@ export class ContextBase {
       while (calcTotal(sections) > limit && events.length > 0) {
         const drop = Math.min(summaryTrimStep, events.length);
         events.splice(0, drop);
-        sections.state = [pre, [header, ...events].join('\n'), avBlock]
-          .filter(Boolean)
-          .join('');
+        sections.state = rebuildState(events);
       }
     }
 
@@ -370,11 +375,20 @@ export class ContextBase {
     const header = historyLines.shift() || '';
     const events = [...historyLines];
 
+    const rebuildState = (evs: string[]) => {
+      const historyStr = [header, ...evs].join('\n').trim();
+      return [
+        pre.trim(),
+        historyIdx < avIdx ? historyStr : avBlock.trim(),
+        historyIdx < avIdx ? avBlock.trim() : historyStr,
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+    };
+
     while (calcTotal(sections) > limit && events.length > 1) {
       events.shift();
-      sections.state = [pre, [header, ...events].join('\n'), avBlock]
-        .filter(Boolean)
-        .join('');
+      sections.state = rebuildState(events);
     }
 
     return sections;

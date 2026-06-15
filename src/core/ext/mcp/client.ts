@@ -11,6 +11,7 @@ export class StdioClient {
   private process: ChildProcess | null = null;
   private initialized = false;
   private rl: readline.Interface | null = null;
+  private forceKillTimer?: NodeJS.Timeout;
 
   private handlers = new Map<
     string,
@@ -62,6 +63,16 @@ export class StdioClient {
       try {
         this.process.kill('SIGTERM');
       } catch (_e) {}
+      const proc = this.process;
+      if (this.forceKillTimer) {
+        clearTimeout(this.forceKillTimer);
+      }
+      this.forceKillTimer = setTimeout(() => {
+        try {
+          proc.kill('SIGKILL');
+        } catch (_e) {}
+        this.forceKillTimer = undefined;
+      }, 1000);
       this.process = null;
     }
     this.cleanup(new Error('MCP client closed'));
@@ -94,6 +105,10 @@ export class StdioClient {
     });
 
     this.process.on('close', (code) => {
+      if (this.forceKillTimer) {
+        clearTimeout(this.forceKillTimer);
+        this.forceKillTimer = undefined;
+      }
       this.cleanup(new Error(`MCP server closed with code ${code}`));
     });
 

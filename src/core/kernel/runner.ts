@@ -139,6 +139,24 @@ export class Runner extends EventEmitter implements IRunner {
     this.configCache = null;
   }
 
+  public destroy(): void {
+    if (this.lspManager) {
+      try {
+        this.lspManager.stopAll();
+      } catch {}
+    }
+    if (this.engine) {
+      try {
+        this.engine.destroy();
+      } catch {}
+    }
+    if (this.memory?.store) {
+      try {
+        this.memory.store.close();
+      } catch {}
+    }
+  }
+
   public loadConfig(): AuraConfig {
     if (!this.configCache) {
       this.configCache = loadTyped(this.envPath);

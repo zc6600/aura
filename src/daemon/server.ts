@@ -135,8 +135,17 @@ export class DaemonServer {
       socket.destroy();
     }
     this.connections.clear();
+    if (this.runner) {
+      try {
+        this.runner.destroy();
+      } catch {}
+      this.runner = null;
+    }
     if (this.server) {
-      this.server.close();
+      try {
+        this.server.close();
+      } catch {}
+      this.server = null;
     }
     // Named pipes on Windows are auto-released; no unlink needed.
     if (process.platform !== 'win32' && fs.existsSync(this.socketPath)) {
@@ -218,6 +227,7 @@ export class DaemonServer {
           })}\n`,
         );
       } else {
+        this.pendingClientRequests.delete(requestId);
         resolve(false);
       }
     });

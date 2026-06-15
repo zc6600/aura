@@ -7,7 +7,7 @@ Sessions provide isolated conversation contexts, each with its own memory databa
 Aura uses a **"one session, one database"** architecture:
 
 ```
-state/
+.aura-workspace/state/
 ├── active_session.txt          # Current session name
 ├── sessions/
 │   ├── default.db              # Default session
@@ -52,7 +52,7 @@ aura session create code-review
 **Output:**
 ```
 ✓ Created session: code-review
-  Database: /path/to/project/state/sessions/code-review.db
+  Database: /path/to/project/.aura-workspace/state/sessions/code-review.db
 ✓ Activated session: code-review
 ```
 
@@ -65,7 +65,7 @@ aura session switch research-task
 **Output:**
 ```
 ✓ Switched to session: research-task
-  Database: /path/to/project/state/sessions/research-task.db
+  Database: /path/to/project/.aura-workspace/state/sessions/research-task.db
 ```
 
 ### View Current Session
@@ -77,7 +77,7 @@ aura session current
 **Output:**
 ```
 Current session: research-task
-Database: /path/to/project/state/sessions/research-task.db
+Database: /path/to/project/.aura-workspace/state/sessions/research-task.db
 ```
 
 ### Delete Session
@@ -345,7 +345,7 @@ aura session switch experimental-change
 aura session list
 
 # Check if session file exists
-ls state/sessions/
+ls .aura-workspace/state/sessions/
 ```
 
 ### Switching sessions doesn't work
@@ -355,7 +355,7 @@ ls state/sessions/
 aura session current
 
 # Check active_session.txt
-cat state/active_session.txt
+cat .aura-workspace/state/active_session.txt
 ```
 
 ### Session database corrupted

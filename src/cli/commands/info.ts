@@ -322,19 +322,7 @@ export class Info {
   }
 
   private static getEnvVarName(provider: string): string | null {
-    switch (provider.toLowerCase()) {
-      case 'openai':
-        return 'OPENAI_API_KEY';
-      case 'openrouter':
-        return 'OPENROUTER_API_KEY';
-      case 'anthropic':
-        return 'ANTHROPIC_API_KEY';
-      case 'gemini':
-        return 'GEMINI_API_KEY';
-      case 'deepseek':
-        return 'DEEPSEEK_API_KEY';
-      default:
-        return null;
-    }
+    if (!provider || provider.trim().length === 0) return null;
+    return `${provider.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_API_KEY`;
   }
 }

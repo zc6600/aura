@@ -45,6 +45,9 @@ state_management:
     user:                       # Tier 2: 工作记忆 - 用户输入
       max_steps: 100
       summarize: false
+    learn:                      # Tier 3: 瞬态/工作记忆 - 学习/总结
+      max_steps: 200
+      summarize: true
     interception:               # Tier 3: 洞察 - 工具拦截/错误
       max_steps: 100
       summarize: false
@@ -159,3 +162,10 @@ context_compression:
   event_max_chars: 800          # 单条事件在上下文中的最大展示长度
   event_min_count_threshold: 10 # 事件保留条数降到该阈值后，开始裁剪摘要
   summary_trim_step: 5          # 每次裁剪的摘要行数（近似按行处理）
+
+# ----------------------------------------------------------------
+# 文件树深度与展现上限 (Directory Tree Configuration)
+# ----------------------------------------------------------------
+directory_tree:
+  max_depth: 3                  # 文件树最大遍历深度
+  max_files_per_dir: 10         # 每级目录展示文件最大数量上限

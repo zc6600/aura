@@ -25,7 +25,7 @@ servers:
   - name: sqlite
     transport: stdio  # or 'sse'
     command: npx
-    args: ["-y", "@modelcontextprotocol/server-sqlite", "--db", "state/aura.db"]
+    args: ["-y", "@modelcontextprotocol/server-sqlite", "--db", ".aura-workspace/state/sessions/default.db"]
     auto_load: true
 ```
 

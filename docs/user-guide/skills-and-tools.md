@@ -64,11 +64,12 @@ Aura uses a strict subset of JSON Schema:
 ### Execution Contract
 
 **Input:**
-```bash
-python3 logic.py '{"file_path": "config.yml"}'
-```
+Arguments are passed as a JSON string via `STDIN`. The tool should read `sys.stdin` to parse inputs.
 
-Arguments are passed as JSON string via `sys.argv[1]`.
+Example manual execution:
+```bash
+echo '{"file_path": "config.yml"}' | python3 logic.py
+```
 
 **Output:**
 STDOUT must be a single JSON object:
@@ -214,7 +215,7 @@ servers:
   - name: sqlite
     transport: stdio
     command: npx
-    args: ["-y", "@modelcontextprotocol/server-sqlite", "--db", "state/aura.db"]
+    args: ["-y", "@modelcontextprotocol/server-sqlite", "--db", ".aura-workspace/state/sessions/default.db"]
     auto_load: true
 ```
 
@@ -310,7 +311,7 @@ Create `manifest.json` with tool metadata and permissions.
 ### 3. Implement Logic
 
 Write `logic.py` that:
-- Reads JSON args from `sys.argv[1]`
+- Reads JSON args from `STDIN` (e.g. `sys.stdin.read()`)
 - Performs task
 - Outputs JSON to STDOUT
 
@@ -374,7 +375,7 @@ ls -la tools/my_tool/
 
 ```bash
 # Test server manually
-npx -y @modelcontextprotocol/server-sqlite --db state/aura.db
+npx -y @modelcontextprotocol/server-sqlite --db .aura-workspace/state/sessions/default.db
 
 # Check config syntax
 cat .aura-workspace/tools/mcp/config.yml
@@ -385,7 +386,7 @@ cat .aura-workspace/tools/mcp/config.yml
 ```bash
 # Run tool manually
 cd tools/my_tool
-python3 logic.py '{"arg": "value"}'
+echo '{"arg": "value"}' | python3 logic.py
 
 # Check permissions in manifest
 cat manifest.json | grep -A 5 permissions

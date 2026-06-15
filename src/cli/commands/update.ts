@@ -4,7 +4,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import picocolors from 'picocolors';
-import yaml from 'yaml';
 import * as GlobalConfig from '../../utils/globalConfig.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import * as ProjectRegistry from '../../utils/projectRegistry.js';
@@ -502,7 +501,9 @@ export class Update {
         'main',
       );
       if (res.success) {
-        console.log(picocolors.green('✓ Successfully merged template updates!'));
+        console.log(
+          picocolors.green('✓ Successfully merged template updates!'),
+        );
         console.log(res.stdout);
 
         if (options.stash) {
