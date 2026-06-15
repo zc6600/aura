@@ -1,64 +1,49 @@
-# Garden Concept - Remaining Implementation TODOs
+# System Test TODO
 
-This document outlines the deferred features for the Agent Gardening integration into Aura OS. These will be implemented in subsequent phases.
+System tests use a real LLM provider and verify whether Aura can complete a
+bounded end-to-end task. They should assert stable side effects and runtime
+contracts, not subjective answer quality or model capability scores.
 
-## 1. Web GUI Dashboard
-- [ ] **Garden Dashboard View**:
-  - Add a dedicated "Garden Board" tab to the Web Dashboard.
-  - Implement a visual node-based check-list or a DAG (Directed Acyclic Graph) showing standard playbook steps.
-  - Create a sidecar hints/constraints panel displaying currently active and inactive hints.
-  - Render metrics charts for "Soil" (SQLite event volume, DB size over time) and "Metabolism" (active context compression ratio).
-- [ ] **Interactive Scaffolding**:
-  - Allow users to initialize playbooks directly from the GUI (e.g., clicking "Grow Kaggle Garden" or "Grow AI Scientist Garden").
-  - Auto-generate visual progress bars based on anchors completed vs total anchors.
-- [ ] **Workspace & Harvest Visualization Panel**:
-  - Add a visual file tree explorer focused on the "Garden layout":
-    - **Soil**: Highlight SQLite session database files.
-    - **Seeds**: List and link anchors files in `anchors/`.
-    - **Plants**: Explore active source code files in `src/`.
-    - **Harvest**: Display output datasets, models, or report files in `data/` or target directories (e.g., checking for deliverables like `submission.csv` or `report.pdf` dynamically).
-  - Add a code-viewer/markdown-renderer in the GUI to allow the user to read/edit playbook markdown and active source code files.
+## P0 high-value coverage
 
-## 2. API Endpoints (`src/cli/shell/webServer.ts`)
+- [x] Plan proposal flow: real LLM calls `plan_proposal` to create a small
+  implementation plan with a fixed `run_id`; assert `plan.json`, `plan.md`,
+  and pending status exist in workspace state.
+- [x] Long-term task tracking: real LLM calls `plan_task` to create/update a
+  checklist with a fixed `run_id`; assert `task.json`, `task.md`, and completed
+  indices are persisted.
+- [x] Context-aware read/modify: seed a small file, have the real loop read and
+  update a unique token; assert only the target file changes.
+- [x] Workspace search grounding: seed multiple files, have the real loop use
+  `workspace_grep` or `chunk_search` to find a unique token; assert search tool
+  usage and final token.
+- [x] Tool self-discovery: have the real loop inspect a tool with
+  `inspect_tool` before using it; assert both tool inspection and the target
+  side effect.
+- [x] Subagent basics: have the real loop call `subagent` for a tiny bounded
+  task; assert the parent step includes `subagent` and the subtask output or
+  artifact contains the expected token.
 
-### 2.1 Filesystem Information & Operations APIs
-- [ ] **GET `/api/filesystem/tree`**:
-  - Scan the active workspace directory and return a nested JSON representation of the directory structure (ignoring `.git`, `.aura`, and large cache directories like `node_modules` or `.venv`).
-- [ ] **GET `/api/filesystem/read`**:
-  - Query parameter `?path=relative/file/path`.
-  - Read and return the content of a workspace file with UTF-8 encoding.
-- [ ] **POST `/api/filesystem/write`**:
-  - Query parameter `?path=relative/file/path` and JSON payload `{"content": "..."}`.
-  - Write/save content to a workspace file securely (incorporating `PathResolver.validate_safe_path` to prevent path traversal).
-- [ ] **GET `/api/filesystem/status`**:
-  - Return Git/shadow workspace status, listing untracked, modified, and deleted files.
+## P1 broader high-level behavior
 
-### 2.2 Garden & Scaffolding APIs
-- [ ] **GET `/api/garden/playbooks`**:
-  - Return a list of all available templates and local playbooks with YAML metadata.
-- [ ] **GET `/api/garden/status`**:
-  - Return JSON payload of the workspace health (Soil size, sessions count, anchors progress, and active hints count).
-- [ ] **POST `/api/garden/init`**:
-  - Endpoint to trigger workspace scaffolding (copying files, creating directories) remotely.
+- [ ] Anchor flow: submit an anchor and verify a later loop can use the anchored
+  context.
+- [x] Knowledge DB roundtrip: store a unique fact and retrieve it in a later
+  loop.
+- [x] Blackboard roundtrip: write a unique payload to the shared blackboard and
+  read it back in the same loop.
+- [ ] Background process awareness: start a short background process and assert
+  returned pid/stdout/stderr metadata is visible to later context.
+- [ ] Git/file-change audit: make a small file change and assert git diff or
+  memory event rows capture the tool execution.
 
-### 2.3 Hints & Context Metabolism APIs
-- [ ] **GET `/api/hints`**:
-  - List all files scanned for hints (e.g. `.hint` files, markdown, code files) and their active status.
-- [ ] **POST `/api/hints/toggle`**:
-  - JSON payload `{"file_path": "...", "enabled": true/false}`.
-  - Toggle hint injection status for a specific file (updating the `.aura` metadata/configuration).
+## P2 optional or environment-sensitive
 
-### 2.4 Anchors Progress APIs
-- [ ] **GET `/api/anchors`**:
-  - Return a list of all defined anchors in `anchors/` (metadata, description, checklist items) along with their completion status (completed/pending) based on SQLite `anchor_submit` events.
-- [ ] **POST `/api/anchors/submit`**:
-  - JSON payload `{"anchor_id": "...", "status": "completed/pending"}`.
-  - Programmatically submit or revoke an anchor completion event in the session database.
-
-## 3. Advanced Metabolism & Pruning Logic
-- [ ] **Tiered Context Compression**:
-  - Automatically compress past conversation history or archives when SQLite DB limits or hint constraint limits are hit.
-- [ ] **Metabolic Hint Rotator**:
-  - Periodically disable hints that have not been triggered or references that are out-of-scope for the active step.
-- [ ] **Auto-harvest Verification**:
-  - Trigger automated test suites or check scripts defined in `garden.md` under a `verification` hook once all anchors are marked as complete.
+- [ ] Garden context injection: enable a garden/skill context and verify it
+  influences a bounded task with a stable side effect.
+- [ ] MCP tool discovery: configure a tiny local MCP server and verify a real
+  loop can discover and call its tool.
+- [ ] LSP context: seed a small TypeScript file and verify the loop can use
+  symbol context to perform a targeted edit.
+- [ ] OCR/render image: verify a simple generated image or rendered artifact can
+  be processed by the relevant tool path.
