@@ -2,19 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { defineConfig } from 'tsup';
 
-function copyFolderSync(from: string, to: string) {
-  fs.mkdirSync(to, { recursive: true });
-  fs.readdirSync(from).forEach((element) => {
-    const fromPath = path.join(from, element);
-    const toPath = path.join(to, element);
-    if (fs.lstatSync(fromPath).isDirectory()) {
-      copyFolderSync(fromPath, toPath);
-    } else {
-      fs.copyFileSync(fromPath, toPath);
-    }
-  });
-}
-
 export default defineConfig({
   entry: ['src/index.ts', 'src/bin/aura.ts', 'src/bin/daemon.ts'],
   format: ['esm'],
@@ -35,7 +22,7 @@ export default defineConfig({
     );
     const distPrompts = path.join(process.cwd(), 'dist', 'system');
     if (fs.existsSync(srcPrompts)) {
-      copyFolderSync(srcPrompts, distPrompts);
+      fs.cpSync(srcPrompts, distPrompts, { recursive: true });
       console.log('✓ Copied system prompts to dist/system');
     }
 
@@ -57,7 +44,7 @@ export default defineConfig({
       'templates',
     );
     if (fs.existsSync(srcTemplates)) {
-      copyFolderSync(srcTemplates, distTemplates);
+      fs.cpSync(srcTemplates, distTemplates, { recursive: true });
       console.log('✓ Copied generators templates to dist/generators');
     }
   },
