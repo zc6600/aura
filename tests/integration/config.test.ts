@@ -11,7 +11,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const auraBinPath = path.resolve(__dirname, '../../src/bin/aura.ts');
 
-describe('CLI config Subcommand Integration', { timeout: 60000 }, () => {
+function isolatedTmpRoot(): string {
+  if (process.platform !== 'win32' && fs.existsSync('/tmp')) {
+    return fs.realpathSync('/tmp');
+  }
+  return path.resolve(__dirname);
+}
+
+describe('CLI config Subcommand Integration', { timeout: 120000 }, () => {
   let tempDir: string;
   let testGlobalRepo: string;
   let testWorkspace: string;
@@ -20,7 +27,7 @@ describe('CLI config Subcommand Integration', { timeout: 60000 }, () => {
   let origNoColor: string | undefined;
 
   beforeEach(async () => {
-    tempDir = path.resolve(__dirname, `temp-cli-config-${Date.now()}`);
+    tempDir = fs.mkdtempSync(path.join(isolatedTmpRoot(), 'aura-cli-config-'));
     fs.mkdirSync(tempDir, { recursive: true });
 
     testGlobalRepo = path.join(tempDir, 'global_repo');

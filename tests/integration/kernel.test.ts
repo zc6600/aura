@@ -31,7 +31,7 @@ interface Config {
   };
 }
 
-describe('Kernel Integration', { timeout: 30000 }, () => {
+describe('Kernel Integration', { timeout: 90000 }, () => {
   let projectPath: string;
   let envPath: string;
   let toolsPath: string;

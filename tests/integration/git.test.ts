@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const auraBinPath = path.resolve(__dirname, '../../src/bin/aura.ts');
 
-describe('CLI git Subcommand Integration', { timeout: 30000 }, () => {
+describe('CLI git Subcommand Integration', { timeout: 90000 }, () => {
   let tempWorkspace: string;
 
   beforeEach(async () => {

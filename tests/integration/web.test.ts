@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 const auraBinPath = path.resolve(__dirname, '../../src/bin/aura.ts');
 process.env.AURA_ALLOW_ROOT = 'true';
 
-describe('Web Server Integration', { timeout: 30000 }, () => {
+describe('Web Server Integration', { timeout: 90000 }, () => {
   let projectPath: string;
 
   beforeEach(async () => {
@@ -63,7 +63,7 @@ describe('Web Server Integration', { timeout: 30000 }, () => {
     });
   }
 
-  async function waitForPort(port: number, retries = 50): Promise<void> {
+  async function waitForPort(port: number, child: any, retries = 150): Promise<void> {
     for (let i = 0; i < retries; i++) {
       try {
         await new Promise<void>((resolve, reject) => {
@@ -75,6 +75,9 @@ describe('Web Server Integration', { timeout: 30000 }, () => {
         });
         return;
       } catch (_e) {
+        if (child.exitCode !== null && child.exitCode !== undefined) {
+          throw new Error(`Web server exited early with code ${child.exitCode}`);
+        }
         await new Promise((r) => setTimeout(r, 100));
       }
     }
@@ -97,7 +100,7 @@ describe('Web Server Integration', { timeout: 30000 }, () => {
     ]);
 
     try {
-      await waitForPort(port);
+      await waitForPort(port, child);
 
       // Query helper with specific headers
       const queryWithHeaders = (

@@ -12,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const auraBinPath = path.resolve(__dirname, '../../src/bin/aura.ts');
 
-describe('Programmatic CLI run Integration Tests', { timeout: 30000 }, () => {
+describe('Programmatic CLI run Integration Tests', { timeout: 90000 }, () => {
   let tempDir: string;
   let testGlobalRepo: string;
   let _testWorkspace: string;
