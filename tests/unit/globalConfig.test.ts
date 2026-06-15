@@ -54,8 +54,10 @@ describe('globalConfig', () => {
     mockExecaShouldFail = false;
 
     originalEnv = {
+      AURA_HOME: process.env.AURA_HOME,
       AURA_GLOBAL_REPO_PATH: process.env.AURA_GLOBAL_REPO_PATH,
     };
+    process.env.AURA_HOME = path.join(mockHome, '.aura-framework');
     delete process.env.AURA_GLOBAL_REPO_PATH;
   });
 

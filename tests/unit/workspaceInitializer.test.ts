@@ -17,6 +17,13 @@ import {
 let mockHomePath = '';
 let mockExecaShouldFail = false;
 
+function isolatedTmpRoot(): string {
+  if (process.platform !== 'win32' && fs.existsSync('/tmp')) {
+    return fs.realpathSync('/tmp');
+  }
+  return os.tmpdir();
+}
+
 // Mock node:os
 vi.mock('node:os', async () => {
   const actual = await vi.importActual<typeof import('node:os')>('node:os');
@@ -70,7 +77,7 @@ describe('workspaceInitializer', () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'aura-test-workspace-init-'),
+      path.join(isolatedTmpRoot(), 'aura-test-workspace-init-'),
     );
     mockHome = path.join(tempDir, 'home');
     fs.mkdirSync(mockHome, { recursive: true });
@@ -82,12 +89,14 @@ describe('workspaceInitializer', () => {
     originalEnv = {
       NODE_ENV: process.env.NODE_ENV,
       CI: process.env.CI,
+      AURA_HOME: process.env.AURA_HOME,
       AURA_GLOBAL_REPO_PATH: process.env.AURA_GLOBAL_REPO_PATH,
       AURA_GLOBAL_PROJECTS_CONFIG_PATH:
         process.env.AURA_GLOBAL_PROJECTS_CONFIG_PATH,
     };
 
     // Set paths relative to mockHome
+    process.env.AURA_HOME = path.join(mockHome, '.aura-framework');
     process.env.AURA_GLOBAL_REPO_PATH = path.join(
       mockHome,
       '.aura-framework',

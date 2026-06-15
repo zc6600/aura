@@ -254,11 +254,13 @@ print(json.dumps({"status": "ok", "message": "hello from tool"}))`,
     it('respects AURA_GLOBAL_ENV environment variable path overrides', () => {
       const origGlobalEnv = process.env.AURA_GLOBAL_ENV;
       const origHome = process.env.HOME;
+      const origAuraHome = process.env.AURA_HOME;
 
       const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-home-'));
       const spy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome);
       process.env.AURA_GLOBAL_ENV = 'true';
       process.env.HOME = tempHome;
+      process.env.AURA_HOME = path.join(tempHome, '.aura-framework');
 
       try {
         const envPath = PathResolver.environmentPath('/some/random/workspace');
@@ -266,8 +268,21 @@ print(json.dumps({"status": "ok", "message": "hello from tool"}))`,
         expect(envPath).toBe(expected);
       } finally {
         spy.mockRestore();
-        process.env.AURA_GLOBAL_ENV = origGlobalEnv;
-        process.env.HOME = origHome;
+        if (origGlobalEnv === undefined) {
+          delete process.env.AURA_GLOBAL_ENV;
+        } else {
+          process.env.AURA_GLOBAL_ENV = origGlobalEnv;
+        }
+        if (origHome === undefined) {
+          delete process.env.HOME;
+        } else {
+          process.env.HOME = origHome;
+        }
+        if (origAuraHome === undefined) {
+          delete process.env.AURA_HOME;
+        } else {
+          process.env.AURA_HOME = origAuraHome;
+        }
         try {
           fs.rmSync(tempHome, { recursive: true, force: true });
         } catch (_e) {}

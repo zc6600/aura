@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import * as ConfigManager from '../../../utils/configManager.js';
+import { auraHome } from '../../../utils/globalConfig.js';
 import { isPathIgnored } from '../../../utils/ignoreMatcher.js';
 
 interface GlobalRulesProviderOptions {
@@ -87,11 +88,7 @@ export class GlobalRulesProvider {
 
     // 2. Read ~/.aura-framework/global_hint.md (fallback to ~/.aura/global_hint.md)
     try {
-      let globalHintFile = path.join(
-        os.homedir(),
-        '.aura-framework',
-        'global_hint.md',
-      );
+      let globalHintFile = path.join(auraHome(), 'global_hint.md');
       if (
         !fs.existsSync(globalHintFile) ||
         !fs.statSync(globalHintFile).isFile()

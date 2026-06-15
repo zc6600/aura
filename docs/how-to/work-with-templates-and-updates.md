@@ -553,6 +553,7 @@ aura template diff
 
 ## See Also
 
-- [CLI Reference](cli-reference.md) - Update commands
-- [Configuration](configuration.md) - Config management
-- [Getting Started](getting-started.md) - Initial setup
+- [CLI Reference](../reference/cli.md) - Update commands
+- [Configure Aura](configure-aura.md) - Config management
+- [Workspace and Template Model](../explanation/workspace-and-template-model.md) - How template repos and workspaces relate
+- [Getting Started](../tutorials/getting-started.md) - Initial setup

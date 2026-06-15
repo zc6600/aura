@@ -18,6 +18,16 @@ loadDotenv({ path: path.join(repoRoot, '.env.local'), override: false });
 export const auraBinPath = path.resolve(__dirname, '../../../src/bin/aura.ts');
 export const runSystemTests = process.env.RUN_SYSTEM_TESTS === '1';
 
+function shortTmpRoot(): string {
+  if (process.env.AURA_TEST_SOCKET_TMP_DIR) {
+    return process.env.AURA_TEST_SOCKET_TMP_DIR;
+  }
+  if (process.platform !== 'win32' && fs.existsSync('/tmp')) {
+    return fs.realpathSync('/tmp');
+  }
+  return os.tmpdir();
+}
+
 export interface SystemLlmConfig {
   provider: string;
   model?: string;
@@ -29,6 +39,7 @@ export interface SystemWorkspace {
   root: string;
   auraDir: string;
   configPath: string;
+  env: NodeJS.ProcessEnv;
   cleanup: () => Promise<void>;
 }
 
@@ -86,6 +97,16 @@ export async function createSystemWorkspace(
   llmConfig: SystemLlmConfig = requireSystemLlmConfig(),
 ): Promise<SystemWorkspace> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `aura-system-${prefix}-`));
+  const testHome = path.join(root, '.test-home');
+  const testAuraHome = path.join(testHome, '.aura-framework');
+  const testTmp = path.join(root, '.test-tmp');
+  const socketRoot = fs.mkdtempSync(
+    path.join(shortTmpRoot(), `aura-system-${prefix}-sock-`),
+  );
+  const testSockets = path.join(socketRoot, 'sockets');
+  for (const dir of [testAuraHome, testTmp, testSockets]) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
   await initializeWorkspaceInPlace(root);
 
   const auraDir = fs.existsSync(path.join(root, '.aura-workspace'))
@@ -118,9 +139,23 @@ export async function createSystemWorkspace(
     root,
     auraDir,
     configPath,
+    env: {
+      HOME: testHome,
+      USERPROFILE: testHome,
+      TMPDIR: testTmp,
+      TEMP: testTmp,
+      TMP: testTmp,
+      AURA_HOME: testAuraHome,
+      AURA_GLOBAL_REPO_PATH: path.join(testAuraHome, 'repo'),
+      AURA_GLOBAL_PROJECTS_CONFIG_PATH: path.join(testAuraHome, 'projects.yml'),
+      AURA_DAEMON_SOCKET_DIR: testSockets,
+    },
     cleanup: async () => {
       if (fs.existsSync(root)) {
         await rmRetry(root);
+      }
+      if (fs.existsSync(socketRoot)) {
+        await rmRetry(socketRoot);
       }
     },
   };
@@ -144,6 +179,7 @@ export async function runAura(
       NODE_ENV: 'test',
       AURA_SILENCE_LLM_WARNINGS: '1',
       AURA_SILENCE_PLANNER_WARNINGS: '1',
+      ...workspace.env,
       ...options.env,
     },
   });

@@ -65,32 +65,49 @@ Aura provides several native mechanisms to construct dynamic execution constrain
    - **Shadow Backup**: Background system that records file modifications, additions, and deletions after each tool call to track exact filesystem state transitions.
    - **Git Snapshots**: Auto-commits changes to local git version control upon successful tool runs when `security.git_snapshots` is enabled, establishing recovery points.
 
-## Reference Documentation
+## Documentation Map
 
-The `reference/` directory contains copies of the Aura system documentation for use during garden setup. Consult these when you need authoritative details about a specific subsystem:
+The framework manual is organized with Diátaxis under `docs/`. Consult the matching section when you need authoritative details:
 
-### `reference/developer-guide/` — Internal System Architecture
+### `docs/explanation/` — Architecture and Design Rationale
 | File | When to Read |
 |------|-------------|
 | `architecture.md` | Overview of the full Aura OS component graph |
-| `kernel.md` | Agent loop, execution engine, hooks, and runner internals |
+| `configuration-model.md` | How YAML config, `.env`, provider detection, and sessions fit together |
 | `context-and-state.md` | How the system prompt is assembled; all context providers |
 | `memory-management.md` | SQLite state DB schema, variables, event history, compression |
 | `session-architecture.md` | Session isolation model; how Ralph and subagents swap DBs |
-| `testing.md` | How to run the test suite; RSpec patterns for new tools |
-| `integrations.md` | LSP, MCP, and external tool integration points |
-| `context-refactoring-manual.md` | History of context layer refactors; useful before modifying context code |
-| `changelog-guide.md` | Conventions for writing changelog entries |
+| `daemon-architecture.md` | Daemon lifecycle, IPC, and latency design |
+| `testing-strategy.md` | Why tests are split into unit, integration, system, and daemon layers |
+| `tools-skills-and-mcp.md` | Boundaries between tools, skills, and MCP integrations |
+| `workspace-and-template-model.md` | Relationship between workspaces, hidden environments, and global templates |
 
-### `reference/user-guide/` — Operator & User Workflows
+### `docs/reference/` — Exact Contracts
+| File | When to Read |
+|------|-------------|
+| `cli.md` | Full list of `aura` CLI commands and flags |
+| `configuration.md` | Config schema sections, keys, and value types |
+| `kernel.md` | Agent loop, execution engine, hooks, and runner internals |
+| `integrations.md` | LSP, MCP, and external tool integration points |
+| `context-refactoring.md` | Context-provider refactoring checklist and implementation details |
+| `testing.md` | Test directories, helpers, commands, and layer selection |
+
+### `docs/how-to/` — Task Workflows
+| File | When to Read |
+|------|-------------|
+| `configure-aura.md` | All `config.yml` keys and their effects |
+| `manage-sessions.md` | Session management, naming, and switching |
+| `extend-with-skills-and-tools.md` | How skills and tools are discovered, loaded, and validated |
+| `work-with-templates-and-updates.md` | End-to-end update and template workflows |
+| `test-aura.md` | How to run the test suite; patterns for new tests |
+| `maintain-changelog.md` | Conventions for writing changelog entries |
+
+### `docs/tutorials/` — Guided Learning
 | File | When to Read |
 |------|-------------|
 | `getting-started.md` | Initial workspace setup and first run |
-| `configuration.md` | All `config.yml` keys and their effects (consult before tuning Ralph, hints, or snapshots) |
-| `cli-reference.md` | Full list of `aura` CLI commands and flags |
-| `sessions.md` | Session management, naming, and switching |
-| `skills-and-tools.md` | How skills and tools are discovered, loaded, and validated |
-| `workflows.md` | End-to-end workflow examples (ralph, subagent, blackboard patterns) |
+| `first-tool.md` | First local tool and skill |
+| `first-contribution.md` | First framework contribution |
 
 ## When to Use
 Use this skill at the beginning of any task that requires setting up dynamic guardrails, workspace constraints, inline annotations, or multi-stage pipelines.

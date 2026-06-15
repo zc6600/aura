@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import * as ConfigManager from '../../../utils/configManager.js';
+import { environmentPath } from '../../../utils/pathResolver.js';
 import { MCPManager, type MCPTool } from '../../ext/mcp/manager.js';
 import { type ToolManifest, ToolRegistry } from '../../kernel/registry.js';
 import { type ContextItem, ContextManager } from '../manager.js';
@@ -31,7 +32,7 @@ export class ToolProvider {
   public readonly options: ToolProviderOptions;
 
   constructor(workspacePath: string, options: ToolProviderOptions = {}) {
-    const resolvedEnv = PathResolverEnvironment(workspacePath) || workspacePath;
+    const resolvedEnv = environmentPath(workspacePath) || workspacePath;
     this.envPath = path.resolve(resolvedEnv);
     this.workspaceRoot = path.resolve(workspacePath);
     this.options = options || {};
@@ -532,24 +533,6 @@ export class ToolProvider {
       (pattern) => pattern === relPath || relPath.includes(pattern),
     );
   }
-}
-
-function PathResolverEnvironment(projectPath: string): string | null {
-  // Simple fallback inline helper
-  try {
-    const auraWorkspaceDir = path.join(projectPath, '.aura-workspace');
-    if (
-      fs.existsSync(auraWorkspaceDir) &&
-      fs.statSync(auraWorkspaceDir).isDirectory()
-    ) {
-      return auraWorkspaceDir;
-    }
-    const auraDir = path.join(projectPath, '.aura');
-    if (fs.existsSync(auraDir) && fs.statSync(auraDir).isDirectory()) {
-      return auraDir;
-    }
-  } catch (_e) {}
-  return null;
 }
 
 function escapeRegExp(str: string) {

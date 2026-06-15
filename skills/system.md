@@ -55,7 +55,7 @@ The filesystem is your memory and your world:
   - `self_edit`: whether tool may edit its own directory
   - `shell`: allow shell execution (usually only `bash_command`)
   - `state_access`: `"read-only" | "read-write"` intent for `/state`
-- See `tools/README.md` for project-facing guidance. See `docs/internals/KERNEL.md` in the framework repo for the full protocol spec.
+- See `tools/README.md` for project-facing guidance. See `docs/reference/kernel.md` in the framework repo for the full protocol spec.
 
 # SKILL DEVELOPMENT SPEC (PRACTICAL)
 - Location: `/skills/<skill_name>/` (a skill is a reusable workflow playbook).

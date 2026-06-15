@@ -11,8 +11,10 @@ Complete reference for all Aura OS commands organized by category.
 | `aura doctor` | Run comprehensive environment checks |
 | `aura info` | Display two-tier system and workspace information |
 | `aura daemon` | Start the background daemon server |
+| `aura web` | Start the Aura web interface server |
 | `aura version` | Show Aura version |
 | `aura help` | Display help information |
+| `aura completion [bash|zsh]` | Generate shell completion |
 
 ### Workspace Commands
 
@@ -57,21 +59,39 @@ Complete reference for all Aura OS commands organized by category.
 | `aura tools list` | List available tools |
 | `aura tools inspect <name>` | Inspect a tool by name |
 | `aura tools add <name_or_url>` | Install a library tool by name or URL/path |
+| `aura tools install <url_or_path> [name]` | Install a tool from a Git URL or local directory |
 | `aura tools generate_group <name> [subtools...]` | Generate a hierarchical tool group |
 | `aura skill list` | List installed skills |
-| `aura skill install` | Install a skill |
+| `aura skill install <url_or_path> [name]` | Install a skill from a Git URL or local directory |
 | `aura kernel observe` | Observe workspace |
 | `aura kernel plan` | Plan a task |
-| `aura web` | Start web server |
-| `aura completion` | Generate shell completion |
+| `aura kernel once` | Run Kernel once with a provided call payload |
+| `aura kernel loop` | Run an autonomous kernel loop |
+| `aura kernel run_call <tool> <args_json>` | Run a specific tool call |
 | `aura session list` | List all conversation sessions |
+| `aura session create <name>` | Create and activate a session |
 | `aura session switch <name>` | Switch active session |
+| `aura session current` | Show current active session |
+| `aura session delete <name>` | Delete a session |
+| `aura session duplicate <source> <name>` | Duplicate a session |
+| `aura session export <name> <dest_path>` | Export a session database |
+| `aura session import <path> <name>` | Import a session database |
+| `aura session rename <old> <new>` | Rename a session |
 | `aura garden list` | List all available Garden Playbooks |
 | `aura garden status` | Show workspace health and metrics |
 | `aura garden init <playbook>` | Initialize a Garden Playbook template |
 | `aura hints list` | List files parsed for hint injection |
 | `aura hints toggle <path>` | Toggle hint injection status for a file |
 | `aura hints global` | Show global operational guidance file |
+| `aura update framework` | Update framework templates and print CLI upgrade guidance |
+| `aura update status` | Check template update status |
+| `aura update merge` | Merge template updates into current workspace |
+| `aura update all` | Update all registered projects |
+| `aura update project <path_or_name>` | Update one project |
+| `aura update current` / `aura update .` | Update current workspace |
+| `aura template sync` | Sync framework templates to global repo |
+| `aura template status` | Show template sync status |
+| `aura template diff` | Diff framework templates against global repo |
 
 ---
 
@@ -457,20 +477,44 @@ Run kernel operations directly.
 aura kernel observe .
 
 # Plan a task (requires LLM integration)
-aura kernel plan .
+aura kernel plan . --goal "Fix failing tests"
 
 # Run a specific tool manually
 aura kernel run_call read_file '{"file_path": "README.md"}' .
+
+# Run one kernel step with a direct payload
+aura kernel once . --call '{"tool":"read_file","args":{"file_path":"README.md"}}'
+
+# Run the planner-executor loop
+aura kernel loop . --goal "Fix all TODO comments" --max-steps 10 --human
 ```
+
+**Subcommands:**
+- `observe [projectPath]` - Assemble and print context.
+- `plan [projectPath]` - Produce the next planned step; supports `--goal`, `--human`, and `--preview-lines`.
+- `run_call <tool> <args_json> [projectPath]` - Execute one tool call.
+- `once [projectPath]` - Run one kernel pass; supports `--call`, `--input`, `--ask`, `--human`, `--verbose`, and `--preview-lines`.
+- `loop [projectPath]` - Run an autonomous planner-executor loop; supports `--goal`, `--human`, `--verbose`, and `--max-steps`.
 
 #### `aura web`
 
-Start the web server (if available).
+Start the Aura web interface server.
 
-**Example:**
+**Examples:**
 ```bash
+# Start on 127.0.0.1:9299
 aura web
+
+# Choose a port
+aura web --port 8080
+
+# Bind to all interfaces
+aura web --host 0.0.0.0
 ```
+
+**Options:**
+- `--port` or `-p` - Port number, default `9299`.
+- `--host` - Bind host, default `127.0.0.1`.
 
 #### `aura hints`
 
@@ -748,6 +792,6 @@ aura register my-project
 
 ## See Also
 
-- [Getting Started](getting-started.md) - Installation and setup
-- [Configuration](configuration.md) - Configuration system
-- [Workflows](workflows.md) - Update workflows
+- [Getting Started](../tutorials/getting-started.md) - Installation and setup
+- [Configure Aura](../how-to/configure-aura.md) - Configuration system
+- [Work with Templates and Updates](../how-to/work-with-templates-and-updates.md) - Update workflows

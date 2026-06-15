@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { auraHome } from '../utils/globalConfig.js';
 
 /**
  * Resolves a unique IPC path (socket file or named pipe) based on the workspace path hash.
@@ -18,7 +19,8 @@ export function resolveIpcPath(projectPath: string): string {
   if (os.platform() === 'win32') {
     return `\\\\.\\pipe\\aura-${hash}`;
   } else {
-    const socketsDir = path.join(os.homedir(), '.aura-framework', 'sockets');
+    const socketsDir =
+      process.env.AURA_DAEMON_SOCKET_DIR || path.join(auraHome(), 'sockets');
     let useFallback = false;
     if (!fs.existsSync(socketsDir)) {
       try {

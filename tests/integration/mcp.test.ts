@@ -1,29 +1,24 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { execa } from 'execa';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import yaml from 'yaml';
 import { ToolProvider } from '../../src/core/context/providers/toolProvider.js';
 import { Runner } from '../../src/core/kernel/runner.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const auraBinPath = path.resolve(__dirname, '../../src/bin/aura.ts');
 
 describe('MCP Integration', { timeout: 30000 }, () => {
   let projectPath: string;
   let runner: Runner;
 
   beforeEach(async () => {
-    projectPath = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'aura-mcp-integration-'),
-    );
-
-    // Initialize workspace scaffolding
-    const res = await execa('npx', ['tsx', auraBinPath, 'new', projectPath]);
-    expect(res.exitCode).toBe(0);
+    const tmpRoot =
+      process.platform !== 'win32' && fs.existsSync('/tmp')
+        ? fs.realpathSync('/tmp')
+        : os.tmpdir();
+    projectPath = fs.mkdtempSync(path.join(tmpRoot, 'aura-mcp-integration-'));
+    fs.mkdirSync(path.join(projectPath, '.aura-workspace'), {
+      recursive: true,
+    });
 
     runner = new Runner(projectPath);
 
@@ -51,7 +46,7 @@ rl.on('line', (line) => {
     );
 
     // Setup configuration
-    const envPath = path.join(projectPath, '.aura-workspace');
+    const envPath = runner.envPath;
     const mcpToolsDir = path.join(envPath, 'tools', 'mcp');
     fs.mkdirSync(mcpToolsDir, { recursive: true });
 

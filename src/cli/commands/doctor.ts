@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
@@ -328,7 +327,7 @@ export const Doctor = {
 
   loadDotenvFiles(): void {
     const candidates = [
-      path.join(os.homedir(), '.aura-framework', '.env'),
+      path.join(GlobalConfig.auraHome(), '.env'),
       path.join(process.cwd(), '.env'),
     ];
 

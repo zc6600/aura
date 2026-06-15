@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import picocolors from 'picocolors';
+import { auraHome } from '../../utils/globalConfig.js';
 
-const GLOBAL_ENV_PATH = path.join(os.homedir(), '.aura-framework', '.env');
+const GLOBAL_ENV_PATH = path.join(auraHome(), '.env');
 
 /**
  * Upserts a KEY=VALUE line in the target .env file.

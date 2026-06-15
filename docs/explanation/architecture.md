@@ -307,7 +307,7 @@ flowchart TD
 
 ## Module Map
 
-### 1. [Kernel & Execution](kernel.md)
+### 1. [Kernel & Execution](../reference/kernel.md)
 The core runtime engine that orchestrates the agent's lifecycle.
 - **Execution Engine**: `Runner` lifecycle (Observe -> Plan -> Execute -> Learn)
 - **Tool Protocol**: The "Evolution Loop", tool structure (`logic.py`, `manifest.json`), and validation gates
@@ -334,7 +334,7 @@ Session isolation and management.
 - **CLI Integration**: `aura session` commands and `/session` slash command
 - **Code Reference**: `src/core/memory/sessionManager.ts`
 
-### 4. [Integrations & Protocols](integrations.md)
+### 4. [Integrations & Protocols](../reference/integrations.md)
 Interfaces with the external world.
 - **Model Context Protocol (MCP)**: Client/Server architecture for connecting to external data sources
 - **Hint System (LSP-lite)**: `.hint` files and `@aura-hint` tags for efficient code sensing
@@ -349,7 +349,7 @@ Memory metabolism and retention strategies.
 - **Narrative Service**: LLM-based event compression
 - **Code Reference**: `src/core/memory/metabolizer.ts`
 
-### 6. [Testing & Development](testing.md)
+### 6. [Testing & Development](../how-to/test-aura.md)
 Guide for contributors to the Aura framework itself.
 - **TDD Strategy**: How to run framework tests
 - **Test Matrix**: Coverage of CLI, Generators, Runtime logic, and Memory Retention
@@ -381,6 +381,6 @@ The client-server process topology for Aura OS.
 
 ## See Also
 
-- [User Guide](../user-guide/getting-started.md) - For end users
-- [Kernel Documentation](kernel.md) - Execution engine details
+- [Getting Started](../tutorials/getting-started.md) - For end users
+- [Kernel Reference](../reference/kernel.md) - Execution engine details
 - [Context & State](context-and-state.md) - State management

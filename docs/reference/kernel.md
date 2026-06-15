@@ -231,6 +231,6 @@ Final timeout is clamped to `max_timeout_seconds`.
 
 ## See Also
 
-- [Architecture Overview](architecture.md) - System-wide architecture
-- [Context & State](context-and-state.md) - State management
-- [Skills & Tools](../user-guide/skills-and-tools.md) - User guide for tools
+- [Architecture Overview](../explanation/architecture.md) - System-wide architecture
+- [Context & State](../explanation/context-and-state.md) - State management
+- [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md) - User guide for tools

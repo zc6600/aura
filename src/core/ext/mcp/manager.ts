@@ -77,76 +77,54 @@ export class MCPManager {
         const args = srv.args || [];
         const env = srv.env || {};
 
-        const helperScript = `
-const { spawn } = require('child_process');
-const cmd = process.argv[1];
-const args = JSON.parse(process.argv[2]);
-const env = JSON.parse(process.argv[3]);
-const timeout = parseInt(process.argv[4], 10) || 30;
-
-const child = spawn(cmd, args, { env: { ...process.env, ...env } });
-let buffer = '';
-let step = 'init';
-let response = null;
-
-const timer = setTimeout(() => {
-  child.kill('SIGKILL');
-  process.exit(1);
-}, timeout * 1000);
-
-child.stdout.on('data', (chunk) => {
-  buffer += chunk.toString('utf-8');
-  const lines = buffer.split('\\n');
-  buffer = lines.pop();
-
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    try {
-      const msg = JSON.parse(line);
-      if (step === 'init' && msg.id === 1) {
-        step = 'list';
-        child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }) + '\\n');
-        child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }) + '\\n');
-      } else if (step === 'list' && msg.id === 2) {
-        response = msg;
-        child.stdin.end();
-        child.kill();
-        clearTimeout(timer);
-        console.log(JSON.stringify(response));
-        process.exit(0);
-      }
-    } catch (e) {}
-  }
-});
-
-child.stdin.write(JSON.stringify({
-  jsonrpc: '2.0',
-  id: 1,
-  method: 'initialize',
-  params: {
-    protocolVersion: '2025-11-25',
-    capabilities: {},
-    clientInfo: { name: 'aura-helper', version: '${VERSION}' }
-  }
-}) + '\\n');
-`;
-
         try {
-          const res = spawnSync(
-            process.execPath,
-            [
-              '-e',
-              helperScript,
-              cmd,
-              JSON.stringify(args),
-              JSON.stringify(env),
-              String(timeout),
-            ],
-            { encoding: 'utf-8', timeout: (timeout + 2) * 1000 },
-          );
+          const input = [
+            {
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'initialize',
+              params: {
+                protocolVersion: '2025-11-25',
+                capabilities: {},
+                clientInfo: { name: 'aura-helper', version: VERSION },
+              },
+            },
+            {
+              jsonrpc: '2.0',
+              method: 'notifications/initialized',
+              params: {},
+            },
+            {
+              jsonrpc: '2.0',
+              id: 2,
+              method: 'tools/list',
+              params: {},
+            },
+          ]
+            .map((msg) => JSON.stringify(msg))
+            .join('\n');
 
-          if (res.status === 0 && res.stdout.trim()) {
-            const resp = JSON.parse(res.stdout.trim());
+          const res = spawnSync(cmd, args, {
+            encoding: 'utf-8',
+            env: { ...process.env, ...env },
+            input: `${input}\n`,
+            timeout: timeout * 1000,
+          });
+
+          if (res.stdout.trim()) {
+            const resp = res.stdout
+              .split('\n')
+              .map((line) => line.trim())
+              .filter(Boolean)
+              .map((line) => {
+                try {
+                  return JSON.parse(line);
+                } catch (_e) {
+                  return null;
+                }
+              })
+              .find((msg) => String(msg?.id) === '2');
+            if (!resp) continue;
             const tools = resp.result?.tools || [];
             for (const t of tools) {
               const toolHint = this.buildHint(srv, t.name);

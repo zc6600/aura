@@ -233,7 +233,8 @@ knowledge_db:
 # State Management
 state_management:
   database_type: "sqlite"
-  db_path: "state/aura.db"
+  # Runtime session databases live under state/sessions/<session>.db.
+  # db_path is a legacy escape hatch; leave it unset for normal session-aware operation.
   max_state_chars: 100000
   recent_events_n: 20
   keep_last_summary_n_steps: 20
@@ -444,6 +445,8 @@ aura info
 
 ## See Also
 
-- [Getting Started](getting-started.md) - Installation and LLM setup
-- [CLI Reference](cli-reference.md) - Config commands
-- [Memory Management](../developer-guide/memory-management.md) - State configuration
+- [Getting Started](../tutorials/getting-started.md) - Installation and LLM setup
+- [CLI Reference](../reference/cli.md) - Config commands
+- [Configuration Reference](../reference/configuration.md) - Config schema and field types
+- [Configuration Model](../explanation/configuration-model.md) - How config, `.env`, and sessions fit together
+- [Memory Management](../explanation/memory-management.md) - State configuration

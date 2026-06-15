@@ -243,4 +243,4 @@ Each session database contains:
 - [Memory Management](memory-management.md) - Metabolism and retention
 - [Session Architecture](session-architecture.md) - Session isolation
 - [Architecture Overview](architecture.md) - System design
-- [Skills and Tools](../user-guide/skills-and-tools.md) - Tool manifest & @aura-hint usage
+- [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md) - Tool manifest & @aura-hint usage

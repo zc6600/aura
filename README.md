@@ -18,7 +18,9 @@ my_project/                 <-- Clean User Workspace (Files visible to LLM)
     ├── config/
     │   └── config.yml      <-- Local workspace runtime settings
     ├── state/
-    │   └── aura.db         <-- SQLite event log and metabolic database
+    │   ├── active_session.txt
+    │   └── sessions/
+    │       └── default.db  <-- SQLite event log and metabolic database
     ├── tools/
     │   └── read_file/      <-- Custom tools, manifests, and unit tests
     └── skills/
@@ -46,6 +48,15 @@ my_project/                 <-- Clean User Workspace (Files visible to LLM)
 ## 📋 Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a complete list of changes, features, and releases.
+
+## 📚 Manual
+
+The documentation manual is organized with the Diátaxis structure:
+
+- [Tutorials](docs/README.md#tutorials): guided learning paths for first install, first tool/skill, and first contribution.
+- [How-to guides](docs/README.md#how-to-guides): task recipes for configuration, sessions, tools, skills, workflows, changelog, and testing.
+- [Reference](docs/README.md#reference): exact CLI, configuration, testing, SDK, kernel, integration, and context contracts.
+- [Explanation](docs/README.md#explanation): architecture, configuration, workspace/template, tools/skills/MCP, testing, daemon, context, state, memory, and session design.
 
 ### Latest Release: v0.1.0
 

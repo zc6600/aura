@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execa } from 'execa';
 import yaml from 'yaml';
@@ -61,7 +60,7 @@ export async function handleNoWorkspace(startDir: string): Promise<string> {
 }
 
 export async function initializeSandbox(): Promise<string> {
-  const sandboxPath = path.join(os.homedir(), '.aura-framework', 'sandbox');
+  const sandboxPath = path.join(GlobalConfig.auraHome(), 'sandbox');
   const sandboxAura = path.join(sandboxPath, '.aura-workspace');
 
   console.log(
@@ -243,7 +242,7 @@ export async function initializeWorkspaceInPlace(
 }
 
 export async function initializeGlobalEnv(): Promise<string> {
-  const globalEnv = path.resolve(os.homedir(), '.aura-framework', 'global');
+  const globalEnv = path.resolve(GlobalConfig.auraHome(), 'global');
 
   if (!fs.existsSync(globalEnv)) {
     fs.mkdirSync(path.dirname(globalEnv), { recursive: true });

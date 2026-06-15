@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,10 +10,27 @@ const sandboxAuraHome = path.join(sandboxHome, '.aura-framework');
 const sandboxTmp = path.join(sandboxRoot, 'tmp');
 
 export default defineConfig({
+  server: {
+    watch: {
+      ignored: [
+        '**/tests/.sandbox/**',
+        '**/tests/**/temp-*/**',
+        '**/tests/**/tmp*/**',
+        '**/.aura-workspace/**',
+      ],
+    },
+  },
   test: {
     globalSetup: path.join(__dirname, 'tests', 'globalSetup.ts'),
     hookTimeout: 30000,
     testTimeout: 60000,
+    exclude: [...configDefaults.exclude, 'tests/.sandbox/**'],
+    watchExclude: [
+      'tests/.sandbox/**',
+      'tests/**/temp-*/**',
+      'tests/**/tmp*/**',
+      '**/.aura-workspace/**',
+    ],
     env: {
       HOME: sandboxHome,
       USERPROFILE: sandboxHome,

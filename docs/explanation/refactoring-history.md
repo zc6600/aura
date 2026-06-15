@@ -103,6 +103,6 @@ Common path checks and validation helpers are extracted to `src/utils/pathResolv
 
 ## Related Documentation
 
-- [Getting Started](../user-guide/getting-started.md) - CLI setup and configuration
-- [Kernel Documentation](../developer-guide/kernel.md) - Kernel architecture
-- [Skills & Tools](../user-guide/skills-and-tools.md) - Extensibility guide
+- [Getting Started](../tutorials/getting-started.md) - CLI setup and configuration
+- [Kernel Reference](../reference/kernel.md) - Kernel architecture
+- [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md) - Extensibility guide

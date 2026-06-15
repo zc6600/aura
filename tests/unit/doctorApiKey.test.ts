@@ -1,7 +1,7 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createTestSandbox, type TestSandbox } from '../utils/testSandbox.js';
 
 /**
  * Unit tests for the Doctor API-key validation logic.
@@ -107,23 +107,28 @@ describe('Doctor API-key validation (env-only policy)', () => {
 // ~/.aura-framework/.env correctly (not cli-src/.env or any other path).
 // --------------------------------------------------------------------------
 describe('Doctor.loadDotenvFiles — global .env path', () => {
-  const globalEnvPath = path.join(os.homedir(), '.aura-framework', '.env');
+  let sandbox: TestSandbox;
+  let previousAuraHome: string | undefined;
   const TEST_KEY = 'DOCTOR_INTEG_TEST_KEY_XYZ';
+
+  beforeEach(() => {
+    sandbox = createTestSandbox('doctor');
+    previousAuraHome = process.env.AURA_HOME;
+    process.env.AURA_HOME = sandbox.auraHome;
+  });
 
   afterEach(() => {
     delete process.env[TEST_KEY];
-    // Remove the test key from the file if we wrote it
-    if (fs.existsSync(globalEnvPath)) {
-      const content = fs.readFileSync(globalEnvPath, 'utf-8');
-      const cleaned = content
-        .split('\n')
-        .filter((l) => !l.startsWith(TEST_KEY))
-        .join('\n');
-      fs.writeFileSync(globalEnvPath, cleaned, 'utf-8');
+    if (previousAuraHome === undefined) {
+      delete process.env.AURA_HOME;
+    } else {
+      process.env.AURA_HOME = previousAuraHome;
     }
+    return sandbox.cleanup();
   });
 
   it('reads keys from ~/.aura-framework/.env', async () => {
+    const globalEnvPath = path.join(sandbox.auraHome, '.env');
     // Ensure the directory exists
     fs.mkdirSync(path.dirname(globalEnvPath), { recursive: true });
 

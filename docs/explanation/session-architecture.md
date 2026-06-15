@@ -260,6 +260,6 @@ This is a **concise, practical, and easily extensible** design!
 
 ## See Also
 
-- [User Guide: Sessions](../user-guide/sessions.md) - Session management for users
+- [Manage Sessions](../how-to/manage-sessions.md) - Session management for users
 - [Context & State](context-and-state.md) - State management
 - [Architecture Overview](architecture.md) - System design

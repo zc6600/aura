@@ -370,6 +370,6 @@ aura session switch restored-session
 
 ## See Also
 
-- [Session Architecture](../developer-guide/session-architecture.md) - Technical design details
-- [CLI Reference](cli-reference.md) - Session commands
-- [Context & State](../developer-guide/context-and-state.md) - State management
+- [Session Architecture](../explanation/session-architecture.md) - Technical design details
+- [CLI Reference](../reference/cli.md) - Session commands
+- [Context & State](../explanation/context-and-state.md) - State management

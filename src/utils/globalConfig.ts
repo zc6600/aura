@@ -32,14 +32,15 @@ export async function gitRun(
 }
 
 export function repoPath(): string {
-  return (
-    process.env.AURA_GLOBAL_REPO_PATH ||
-    path.join(os.homedir(), '.aura-framework', 'repo')
-  );
+  return process.env.AURA_GLOBAL_REPO_PATH || path.join(auraHome(), 'repo');
+}
+
+export function auraHome(): string {
+  return process.env.AURA_HOME || path.join(os.homedir(), '.aura-framework');
 }
 
 export function configPath(): string {
-  return path.join(os.homedir(), '.aura-framework', 'config.yml');
+  return path.join(auraHome(), 'config.yml');
 }
 
 export async function ensureRepo(): Promise<void> {

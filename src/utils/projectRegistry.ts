@@ -1,12 +1,12 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import yaml from 'yaml';
+import { auraHome } from './globalConfig.js';
 
 export function configPath(): string {
   return (
     process.env.AURA_GLOBAL_PROJECTS_CONFIG_PATH ||
-    path.join(os.homedir(), '.aura-framework', 'projects.yml')
+    path.join(auraHome(), 'projects.yml')
   );
 }
 

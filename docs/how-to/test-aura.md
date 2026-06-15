@@ -42,7 +42,7 @@ The repository uses a **type-first** test structure under `tests/`:
 - `tests/unit/**`: fast, deterministic, mocks external subprocesses/API keys where possible.
 - `tests/integration/**`: multi-module integration, spins up subprocesses, runs git status, initializes workspaces.
 - `tests/system/**`: opt-in real-system checks that use a real LLM provider and validate whether end-to-end tasks can be completed.
-- `tests/benchmark/**`: capability evaluation tasks, model comparisons, and agent performance measurements.
+- `tests/evals/**`: capability evaluation tasks, model comparisons, and agent performance measurements.
 
 ```bash
 # Run unit tests only
@@ -59,6 +59,14 @@ Notes:
   export OPENROUTER_API_KEY=mock-key-for-testing
   ```
 
+### Test Environment Isolation
+
+Most unit/integration tests run with an isolated environment configured at the Vitest level:
+- `HOME`, `USERPROFILE`, `TMPDIR`, `TEMP`, `TMP` point to `tests/.sandbox/**`
+- `AURA_HOME`, `AURA_GLOBAL_REPO_PATH`, `AURA_GLOBAL_PROJECTS_CONFIG_PATH`, `AURA_DAEMON_SOCKET_DIR` are set to sandboxed paths
+
+Some tests also create per-test temporary sandboxes (mkdtemp) for stronger isolation and easier cleanup, especially for socket paths.
+
 ### System Tests
 
 System tests are intentionally separate from unit/integration tests. They use a
@@ -69,16 +77,19 @@ verify that Aura can complete a bounded task and produce the expected stable
 side effect. It should not grade how elegant, optimal, creative, or high quality
 the model's solution is. If a task requires subjective evaluation, multiple
 models, scoring rubrics, long-horizon autonomy, or comparison against baselines,
-put it under `tests/benchmark/**` instead.
+put it under `tests/evals/**` instead.
 
 ```bash
-# Run only system tests with a real provider key
-RUN_SYSTEM_TESTS=1 OPENROUTER_API_KEY=... npx vitest run tests/system/
+# Run only system tests (requires: RUN_SYSTEM_TESTS=1, a real provider key, and AURA_SYSTEM_LLM_MODEL)
+RUN_SYSTEM_TESTS=1 \
+  AURA_SYSTEM_LLM_MODEL=... \
+  OPENROUTER_API_KEY=... \
+  npx vitest run tests/system/
 
 # Or copy the root env template and run without exporting keys in the shell
 cp .env.example .env
 $EDITOR .env
-npx vitest run tests/system/
+RUN_SYSTEM_TESTS=1 npx vitest run tests/system/
 
 # Override provider/model discovery
 RUN_SYSTEM_TESTS=1 \
@@ -96,7 +107,7 @@ System tests should:
 - Use tiny temporary workspaces and bounded `max_steps`, `max_tokens`, retries, and timeouts.
 - Stay opt-in with `RUN_SYSTEM_TESTS=1`; ordinary CI should not call real LLM APIs.
 - Keep real keys in shell environment variables or the repository root `.env`, which is ignored by git.
-- Leave capability scoring, hard tasks, and model-to-model comparisons to `tests/benchmark/**`.
+- Leave capability scoring, hard tasks, and model-to-model comparisons to `tests/evals/**`.
 
 Good system test assertions include:
 - A command exits with the expected success or failure code.
@@ -208,6 +219,8 @@ The CI runs the following steps:
 
 ## See Also
 
-- [Architecture Overview](architecture.md) - System-wide architecture
-- [Kernel Documentation](kernel.md) - Execution engine details
-- [Context & State](context-and-state.md) - State management
+- [Architecture Overview](../explanation/architecture.md) - System-wide architecture
+- [Kernel Reference](../reference/kernel.md) - Execution engine details
+- [Testing Reference](../reference/testing.md) - Test directories, helpers, and commands
+- [Testing Strategy](../explanation/testing-strategy.md) - Why the test layers exist
+- [Context & State](../explanation/context-and-state.md) - State management

@@ -320,4 +320,4 @@ state.setVariable("insight:auth_bug", "JWT token needs refresh");
 
 - [Context & State](context-and-state.md) - State management
 - [Architecture Overview](architecture.md) - System design
-- [Configuration](../user-guide/configuration.md) - User configuration guide
+- [Configure Aura](../how-to/configure-aura.md) - User configuration guide

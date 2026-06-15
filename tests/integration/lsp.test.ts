@@ -45,37 +45,40 @@ describe('LSP Integration', { timeout: 30000 }, () => {
   // 1. LSPClient JSON-RPC stream framing & request/response
   it('test_client_initialize_flow', async () => {
     const serverScript = `
-const readline = require('readline');
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 let buffer = '';
-process.stdin.on('data', (chunk) => {
-  buffer += chunk.toString('utf-8');
-  const doubleNL = buffer.indexOf('\\r\\n\\r\\n');
-  if (doubleNL !== -1) {
+function drain() {
+  while (true) {
+    const doubleNL = buffer.indexOf('\\r\\n\\r\\n');
+    if (doubleNL === -1) return;
     const header = buffer.substring(0, doubleNL);
     const lengthMatch = header.match(/Content-Length:\\s*(\\d+)/i);
-    if (lengthMatch) {
-      const length = parseInt(lengthMatch[1], 10);
-      const totalLen = doubleNL + 4 + length;
-      if (buffer.length >= totalLen) {
-        const bodyStr = buffer.substring(doubleNL + 4, totalLen);
-        buffer = buffer.substring(totalLen);
-        try {
-          const msg = JSON.parse(bodyStr);
-          if (msg.method === 'initialize') {
-            const resp = {
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: { capabilities: { textDocumentSync: 1 } },
-            };
-            const respBody = JSON.stringify(resp);
-            const headerOut = \`Content-Length: \${Buffer.byteLength(respBody, 'utf-8')}\\r\\n\\r\\n\`;
-            process.stdout.write(headerOut + respBody);
-          }
-        } catch (e) {}
-      }
+    if (!lengthMatch) {
+      buffer = buffer.substring(doubleNL + 4);
+      continue;
     }
+    const length = parseInt(lengthMatch[1], 10);
+    const totalLen = doubleNL + 4 + length;
+    if (Buffer.byteLength(buffer, 'utf-8') < totalLen) return;
+    const bodyStr = buffer.substring(doubleNL + 4, totalLen);
+    buffer = buffer.substring(totalLen);
+    try {
+      const msg = JSON.parse(bodyStr);
+      if (msg.method === 'initialize') {
+        const resp = {
+          jsonrpc: '2.0',
+          id: msg.id,
+          result: { capabilities: { textDocumentSync: 1 } },
+        };
+        const respBody = JSON.stringify(resp);
+        const headerOut = \`Content-Length: \${Buffer.byteLength(respBody, 'utf-8')}\\r\\n\\r\\n\`;
+        process.stdout.write(headerOut + respBody);
+      }
+    } catch (e) {}
   }
+}
+process.stdin.on('data', (chunk) => {
+  buffer += chunk.toString('utf-8');
+  drain();
 });
     `;
     const serverScriptPath = path.join(projectPath, 'lsp_mock_server.js');

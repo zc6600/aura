@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { WorkspaceError } from '../cli/ui.js';
+import { auraHome } from './globalConfig.js';
 
 export class SecurityError extends Error {
   constructor(message: string) {
@@ -125,7 +126,7 @@ export function validateMaxSteps(steps: string | number): number {
  */
 export function environmentPath(projectPath?: string): string | null {
   if (process.env.AURA_GLOBAL_ENV === 'true') {
-    const globalEnv = path.resolve(os.homedir(), '.aura-framework', 'global');
+    const globalEnv = path.resolve(auraHome(), 'global');
     if (!fs.existsSync(globalEnv) || !fs.statSync(globalEnv).isDirectory()) {
       fs.mkdirSync(globalEnv, { recursive: true });
     }
@@ -229,7 +230,7 @@ export function resolveProjectPath(projectPath?: string): string | null {
  */
 export function ensureWorkspace(startDir: string = process.cwd()): string {
   if (process.env.AURA_GLOBAL_ENV === 'true') {
-    const globalEnv = path.resolve(os.homedir(), '.aura-framework', 'global');
+    const globalEnv = path.resolve(auraHome(), 'global');
     if (!fs.existsSync(globalEnv) || !fs.statSync(globalEnv).isDirectory()) {
       fs.mkdirSync(globalEnv, { recursive: true });
     }

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import dotenv from 'dotenv';
+import { auraHome } from '../../utils/globalConfig.js';
 
 /**
  * Loads .env from a specific project directory, then falls back to global sources.
@@ -18,12 +19,7 @@ export function loadFrom(projectPath: string): void {
  * Loads global settings from global template repo and ~/.aura-framework/.env (or legacy ~/.aura/.env).
  */
 export function loadGlobal(): void {
-  let globalRepoEnv = path.join(
-    os.homedir(),
-    '.aura-framework',
-    'repo',
-    '.env',
-  );
+  let globalRepoEnv = path.join(auraHome(), 'repo', '.env');
   if (!fs.existsSync(globalRepoEnv)) {
     globalRepoEnv = path.join(os.homedir(), '.aura', 'repo', '.env');
   }
@@ -31,7 +27,7 @@ export function loadGlobal(): void {
     loadFile(globalRepoEnv);
   }
 
-  let homeAuraEnv = path.join(os.homedir(), '.aura-framework', '.env');
+  let homeAuraEnv = path.join(auraHome(), '.env');
   if (!fs.existsSync(homeAuraEnv)) {
     homeAuraEnv = path.join(os.homedir(), '.aura', '.env');
   }

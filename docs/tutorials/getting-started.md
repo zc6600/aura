@@ -212,11 +212,11 @@ For developers working directly on the Aura OS source code who wish to run comma
 
 Now that you have Aura installed and running:
 
-- [CLI Reference](cli-reference.md) - Learn all available commands
-- [Configuration](configuration.md) - Understand the config system
-- [Sessions](sessions.md) - Manage isolated conversations
-- [Skills & Tools](skills-and-tools.md) - Extend agent capabilities
-- [Workflows](workflows.md) - Version control and update workflows
+- [CLI Reference](../reference/cli.md) - Learn all available commands
+- [Configure Aura](../how-to/configure-aura.md) - Understand the config system
+- [Manage Sessions](../how-to/manage-sessions.md) - Manage isolated conversations
+- [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md) - Extend agent capabilities
+- [Work with Templates and Updates](../how-to/work-with-templates-and-updates.md) - Version control and update workflows
 
 ---
 

@@ -396,6 +396,8 @@ cat manifest.json | grep -A 5 permissions
 
 ## See Also
 
-- [Kernel Documentation](../developer-guide/kernel.md) - Tool execution pipeline
-- [Configuration](configuration.md) - Tool configuration
-- [Integrations](../developer-guide/integrations.md) - MCP and LSP details
+- [Kernel Reference](../reference/kernel.md) - Tool execution pipeline
+- [Configure Aura](configure-aura.md) - Tool configuration
+- [Tools, Skills, and MCP](../explanation/tools-skills-and-mcp.md) - Conceptual model
+- [Build Your First Tool and Skill](../tutorials/first-tool.md) - Guided first extension
+- [Integrations Reference](../reference/integrations.md) - MCP and LSP details

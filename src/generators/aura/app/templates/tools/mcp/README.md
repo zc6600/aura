@@ -29,7 +29,7 @@ servers:
   - name: sqlite
     transport: stdio
     command: npx
-    args: ["-y", "@modelcontextprotocol/server-sqlite", "--db", "state/aura.db"]
+    args: ["-y", "@modelcontextprotocol/server-sqlite", "--db", ".aura-workspace/state/sessions/default.db"]
     env: {}
     timeout: 30
     auto_load: true
@@ -75,4 +75,3 @@ servers:
     tool_hints:
       search: "Prefer precise queries; include a date when needed."
 ```
-

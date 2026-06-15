@@ -5,16 +5,27 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const sandboxRoot = path.join(__dirname, '.sandbox');
+const sandboxHome = path.join(sandboxRoot, 'home');
+const sandboxAuraHome = path.join(sandboxHome, '.aura-framework');
+const tempProjectsRoot = path.join(__dirname, 'temp-projects');
+
 export function setup() {
-  // Return a teardown function that Vitest will execute once all tests have finished
-  return () => {
-    const tempProjectsDir = path.join(__dirname, 'temp-projects');
-    if (fs.existsSync(tempProjectsDir)) {
-      try {
-        fs.rmSync(tempProjectsDir, { recursive: true, force: true });
-      } catch (_e) {
-        // Ignore if directory cannot be deleted
-      }
-    }
-  };
+  for (const dir of [
+    path.join(sandboxRoot, 'tmp'),
+    path.join(sandboxRoot, 'sockets'),
+    sandboxAuraHome,
+    path.join(sandboxAuraHome, 'repo'),
+  ]) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+export function teardown() {
+  for (const target of [tempProjectsRoot, sandboxRoot]) {
+    if (!fs.existsSync(target)) continue;
+    try {
+      fs.rmSync(target, { recursive: true, force: true });
+    } catch (_e) {}
+  }
 }

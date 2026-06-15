@@ -6,6 +6,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { readLastLinesSync } from '../utils/fsUtils.js';
+import { auraHome } from '../utils/globalConfig.js';
 import { resolveIpcPath } from './ipc.js';
 
 /**
@@ -121,7 +122,7 @@ export class DaemonClient {
       .replace('.sock', '')
       .replace('aura-', '');
 
-    let logDir = path.join(os.homedir(), '.aura-framework', 'logs');
+    let logDir = path.join(auraHome(), 'logs');
     try {
       fs.mkdirSync(logDir, { recursive: true });
     } catch {

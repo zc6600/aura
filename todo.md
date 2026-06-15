@@ -47,3 +47,33 @@ contracts, not subjective answer quality or model capability scores.
   symbol context to perform a targeted edit.
 - [ ] OCR/render image: verify a simple generated image or rendered artifact can
   be processed by the relevant tool path.
+
+## Daemon integration coverage
+
+- [x] Daemon agent progress stream: run `agent/runGoal` through real IPC and
+  assert `agent/onProgress` notifications plus final result.
+- [x] Daemon disconnect cancellation: disconnect the client during a running
+  goal and assert the active job is aborted and daemon returns to idle.
+- [x] Daemon concurrent goal rejection: while one client has a running goal,
+  a second client must receive the "already running" error.
+- [x] Daemon execute process RPC: cover `execute/listProcesses`,
+  `execute/getProcessLogs`, `execute/subscribeLogs`, and `execute/killProcess`
+  against tracked process metadata/log files over real IPC.
+- [x] Daemon raw JSON-RPC protocol: malformed JSON, unknown method, missing
+  `jsonrpc`, and batched line-by-line requests return stable errors without
+  crashing the server.
+- [x] Daemon workspace tree limits: dotfiles, ignored directories, depth limit,
+  and large directory limits are enforced by `workspace/getFileTree`.
+- [x] Daemon stale socket startup: a stale IPC path is removed so a new server
+  can start cleanly.
+- [x] Daemon client pending rejection: pending requests reject when the daemon
+  socket closes mid-request.
+
+## Daemon system coverage
+
+- [x] Real LLM daemon smoke: `agent/runGoal` over daemon IPC completes a tiny
+  final-answer task and emits progress notifications.
+- [x] Real LLM daemon tool loop: daemon-driven `agent/runGoal` creates a token
+  file via `write_file` and returns to idle.
+- [x] Real LLM daemon confirmation: with dangerous-tool confirmation enabled,
+  denial prevents the side effect and approval allows it.

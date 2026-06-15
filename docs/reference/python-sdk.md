@@ -49,7 +49,7 @@ Invokes the initialization command locally in the target workspace context.
 
 #### `run_loop(goal: str, max_steps: int = 30) -> subprocess.CompletedProcess`
 Executes the solver loop locally on the host machine.
-*   **Action**: Runs `aura kernel loop` (which maps to `aura agent --goal` in the TS implementation) with the requested goal.
+*   **Action**: Runs `aura kernel loop` with the requested goal and sets `AURA_SESSION_NAME` for session isolation.
 
 #### `update_config(provider: str, model: str)`
 Directly parses, updates, and serializes the YAML configuration file (`.aura-workspace/config/config.yml`) under the workspace.
@@ -102,5 +102,5 @@ The adapter class `AuraAgent` extracts key variables from the host's `.env` conf
 ---
 
 ## See Also
-*   [Testing & CI/CD Guide](testing.md) - Full guide on tests and benchmarks.
-*   [Configuration System](../user-guide/configuration.md) - Configuration details of `config.yml`.
+*   [Test Aura](../how-to/test-aura.md) - Full guide on tests and benchmarks.
+*   [Configure Aura](../how-to/configure-aura.md) - Configuration details of `config.yml`.

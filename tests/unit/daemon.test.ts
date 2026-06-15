@@ -487,7 +487,11 @@ describe('Daemon IPC Protocol', () => {
     const existsSpy = vi.spyOn(fs, 'existsSync');
     existsSpy.mockImplementation((p: Parameters<typeof fs.existsSync>[0]) => {
       const pStr =
-        typeof p === 'string' ? p : p instanceof URL ? fileURLToPath(p) : p.toString();
+        typeof p === 'string'
+          ? p
+          : p instanceof URL
+            ? fileURLToPath(p)
+            : p.toString();
       // Simulate that only candidate index 5 exists
       if (pStr.includes('dist/bin/daemon.js')) {
         return true;
