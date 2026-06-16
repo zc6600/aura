@@ -153,6 +153,14 @@ bounded. The goal is broad runtime coverage, not difficult agent evaluation.
 - Kernel memory recording: a loop run records user input, plan events, execution results, and final status in the expected state store.
 - Workspace cleanup: temporary system workspaces are removed after each test, even after command failure.
 
+**User-facing agent entrypoints**
+- Multi-step `aura agent -g`: the default daemon-backed entrypoint completes a bounded tool-driven task such as read then write, and leaves the expected file side effects.
+- Daemon parity: the same bounded `aura agent -g` goal produces the same stable workspace side effects with and without `--no-daemon`.
+- User-visible session memory: a fact stored in one session can be recalled in a later turn in that same session.
+- Session isolation: content remembered in one session is not available in a different session.
+- `agent --mode ralph`: the CLI entrypoint succeeds with a passing verify command, fails clearly when verification fails, and rejects missing-goal invocation.
+- Agent workflow reachability: one representative capability already protected through `aura kernel loop`, such as file read/modify, blackboard, or subagent dispatch, is also reachable through `aura agent -g`.
+
 **Workspace and filesystem boundaries**
 - Workspace initialization: a fresh temporary workspace contains config, tools, prompts, and state directories needed by the runtime.
 - Path safety: attempts to write outside the workspace fail clearly and do not create files outside the temporary root.

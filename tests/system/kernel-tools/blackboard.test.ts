@@ -52,6 +52,20 @@ describeSystem('System blackboard workflow', { timeout: 180000 }, () => {
       '4',
     ]);
 
+    if (result.exitCode !== 0) {
+      throw new Error(
+        [
+          `aura kernel loop exited with code ${result.exitCode}`,
+          '',
+          'STDERR:',
+          result.stderr || '(empty)',
+          '',
+          'STDOUT:',
+          result.stdout || '(empty)',
+        ].join('\n'),
+      );
+    }
+
     expect(result.exitCode).toBe(0);
 
     const payload = parseJsonOutput<KernelLoopOutput>(result.stdout);

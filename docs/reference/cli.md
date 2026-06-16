@@ -67,6 +67,7 @@ Complete reference for all Aura OS commands organized by category.
 | `aura kernel plan` | Plan a task |
 | `aura kernel once` | Run Kernel once with a provided call payload |
 | `aura kernel loop` | Run an autonomous kernel loop |
+| `aura kernel ralph` | Run the Ralph verification loop directly through the kernel |
 | `aura kernel run_call <tool> <args_json>` | Run a specific tool call |
 | `aura session list` | List all conversation sessions |
 | `aura session create <name>` | Create and activate a session |
@@ -487,6 +488,9 @@ aura kernel once . --call '{"tool":"read_file","args":{"file_path":"README.md"}}
 
 # Run the planner-executor loop
 aura kernel loop . --goal "Fix all TODO comments" --max-steps 10 --human
+
+# Run the Ralph verification loop directly through the kernel
+aura kernel ralph . --goal "Fix failing tests" --verify "npm test" --max-steps 5
 ```
 
 **Subcommands:**
@@ -495,6 +499,7 @@ aura kernel loop . --goal "Fix all TODO comments" --max-steps 10 --human
 - `run_call <tool> <args_json> [projectPath]` - Execute one tool call.
 - `once [projectPath]` - Run one kernel pass; supports `--call`, `--input`, `--ask`, `--human`, `--verbose`, and `--preview-lines`.
 - `loop [projectPath]` - Run an autonomous planner-executor loop; supports `--goal`, `--human`, `--verbose`, and `--max-steps`.
+- `ralph [projectPath]` - Run `RalphLoop` without the daemon or agent session UI; supports `--goal`, `--verify`, `--critic`, `--critic-mode`, and `--max-steps`.
 
 #### `aura web`
 

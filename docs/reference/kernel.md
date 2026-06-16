@@ -2,7 +2,7 @@
 
 The Aura Kernel is the core TypeScript runtime that orchestrates execution, enforces security, and manages tool protocols.
 
-**Framework Code**: `src/core/kernel/` (agentLoop, executionEngine, runner, ralphLoop, shadowBackup)  
+**Framework Code**: `src/core/kernel/` (agentLoop, executionEngine, runner, ralphLoop, processRuntime, workspaceRuntime, shadowBackup)  
 **Project Context**: The Kernel runs inside a generated Agent project root
 
 ---
@@ -87,6 +87,24 @@ Handles the low-level execution of tools.
 - **Routing**: Dispatches `mcp.*` tools to MCP Manager, `lsp_*` to LSP, and local tools to the subprocess manager (`execa`)
 - **Runtime Resolution**: Maps `runtime: python3` in manifest to actual paths via `config.yml`
 - **Output Parsing**: Captures stdout/stderr. Expects JSON output from tools
+- **Background Processes**: Starts detached or PTY-backed background tool processes, records metadata under `state/commands`, and exposes interactive stdin through `send_process_input`.
+
+### 6. Runtime APIs (`ProcessRuntime` and `WorkspaceRuntime`)
+
+Runtime APIs live in `src/core/kernel/` so daemon, CLI, and future UI surfaces share the same behavior and safety boundaries.
+
+**ProcessRuntime (`src/core/kernel/processRuntime.ts`):**
+- Lists tracked background processes from `state/commands`.
+- Reads and tails stdout/stderr logs.
+- Kills tracked processes and updates metadata.
+- Sends input to PTY-backed background processes through the active `ExecutionEngine`.
+
+**WorkspaceRuntime (`src/core/kernel/workspaceRuntime.ts`):**
+- Reads and writes workspace files for daemon/UI RPCs.
+- Builds the workspace file tree using the same ignored-directory rules as the kernel runner.
+- Rejects restricted paths such as `.git`, `.aura`, `.aura-workspace`, and `node_modules`.
+
+Daemon handlers should delegate to these runtime APIs and only handle IPC parameter validation, result serialization, notifications, and socket lifecycle.
 
 
 ## Security & Sandbox Model

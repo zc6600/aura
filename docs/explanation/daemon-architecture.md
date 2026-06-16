@@ -48,8 +48,8 @@ The daemon architecture solves three critical bottlenecks:
 If the Aura Agent loop executes inside a standard CLI process, all memory state (e.g., streaming LLM tokens, executing step metadata, raw event history, active workspace contexts) is isolated inside that single terminal process. If the user starts a task in the CLI, a Web Dashboard or a VS Code IDE Extension has no way of obtaining real-time streaming updates or executing commands (e.g., pausing or continuing a task). The Web/IDE has to rely on crude, high-overhead polling of the SQLite database, which does not capture in-memory state or active streaming data.
 
 #### The Daemon Solution:
-The **Aura Daemon** acts as the single source of truth and execution center. 
-- **Centralized Engine**: The actual agent execution runs inside the daemon process, which keeps the `Bridge` and `AgentLoop` state alive in memory.
+The **Aura Daemon** acts as the long-lived runtime host and IPC transport. The execution semantics still belong to the kernel (`Runner`, `AgentLoop`, `RalphLoop`, `ExecutionEngine`, `ProcessRuntime`, and `WorkspaceRuntime`).
+- **Centralized Runtime Host**: The daemon owns a warm `Runner` instance and invokes kernel APIs in-process. Tool execution is still performed by `ExecutionEngine`; workspace and process RPCs delegate to `WorkspaceRuntime` and `ProcessRuntime`.
 - **Multiple Clients**: The terminal CLI shell, Web Dashboard, and IDE plugins act as lightweight *clients* that connect to the same background daemon socket.
 - **Unified Event Broadcast**: The daemon subscribes to `Bridge` and `Runner` events and broadcasts them to all connected clients over the IPC channel. For example, starting an autonomous task in the terminal immediately streams tokens to both the terminal stdout and the Web Dashboard UI. Interactive controls (like pauses or manual guidance inputs) can be sent from any client to command the same daemon execution instance.
 
@@ -66,10 +66,10 @@ At the start of every loop iteration (the **Observe** phase), the agent must ass
 On medium-to-large repositories, crawling the filesystem and checking file states on every single step leads to heavy IO overhead, causing noticeable delays (typically between **500ms and 2000ms**).
 
 #### The Daemon Solution:
-Because the daemon is a persistent background process, it can maintain a persistent in-memory representation of the workspace.
-- **Reactive Watcher**: Upon initializing a workspace session, the daemon registers a responsive file watcher (e.g., utilizing `chokidar` or native recursive `fs.watch`).
-- **Incremental Sync**: The file watcher tracks file additions, modifications, and deletions in real-time, incrementally updating the daemon's in-memory workspace file index.
-- **Zero-Latency Assembly**: When the Agent enters the Observe phase and requests context assembly, the engine retrieves files and structure directly from the memory cache in **< 10ms**, completely removing the disk IO crawl bottleneck from the execution path.
+Because the daemon is a persistent background process, it can keep kernel services warm across client requests.
+- **Warm Runner**: The daemon keeps a `Runner` and its backing SQLite, MCP, LSP, and execution-engine state alive between requests.
+- **Shared Runtime APIs**: Workspace file RPCs delegate to `WorkspaceRuntime`; background-process RPCs delegate to `ProcessRuntime`.
+- **Future Cache Point**: A file watcher or incremental workspace index can be attached at the daemon/runtime boundary later, but the current code path still treats context assembly as a kernel responsibility rather than a daemon-owned execution rule.
 
 ---
 
@@ -285,5 +285,4 @@ sequenceDiagram
         R->>R: Block tool execution, return blocked status
     end
 ```
-
 

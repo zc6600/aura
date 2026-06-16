@@ -22,7 +22,9 @@ import type {
 } from './interfaces.js';
 import { Job } from './job.js';
 import { Planner } from './planner.js';
+import { ProcessRuntime } from './processRuntime.js';
 import { ToolRegistry } from './registry.js';
+import { WorkspaceRuntime } from './workspaceRuntime.js';
 
 export class Runner extends EventEmitter implements IRunner {
   public readonly hooks: Hooks;
@@ -120,6 +122,14 @@ export class Runner extends EventEmitter implements IRunner {
 
   public getEngine(): ExecutionEngine {
     return this.engine;
+  }
+
+  public getProcessRuntime(): ProcessRuntime {
+    return new ProcessRuntime(this.projectPath, this.engine);
+  }
+
+  public getWorkspaceRuntime(): WorkspaceRuntime {
+    return new WorkspaceRuntime(this.projectPath);
   }
 
   public get workspacePath(): string {

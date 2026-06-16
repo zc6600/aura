@@ -19,12 +19,13 @@ This page is lookup material for Aura's test layout, commands, and helper files.
 | `tests/unit/` | Narrow module and contract tests |
 | `tests/integration/` | CLI and subsystem wiring tests |
 | `tests/system/` | End-to-end agent workflow tests |
-| `tests/system/daemon/` | Runtime daemon behavior |
-| `tests/system/loop/` | Kernel loop completion and failure behavior |
-| `tests/system/planner/` | Planner contract behavior |
-| `tests/system/resilience/` | Missing keys and degraded environments |
-| `tests/system/state/` | Session and state behavior |
-| `tests/system/workflows/` | Scenario-level agent workflows |
+| `tests/system/smoke/` | Minimal real-provider availability checks |
+| `tests/system/kernel-contracts/` | Kernel planner, loop, output, and failure contracts |
+| `tests/system/kernel-tools/` | Single-tool capabilities driven through `aura kernel loop` with a real LLM |
+| `tests/system/kernel-workflows/` | Cross-tool or cross-agent workflows driven through `aura kernel loop` |
+| `tests/system/cli-e2e/` | User-facing CLI goal flows driven through `aura agent -g` |
+| `tests/system/runtime/` | Daemon, IPC, session, and long-lived runtime behavior |
+| `tests/system/failure-modes/` | Missing keys and degraded environments |
 | `tests/utils/` | Shared test helpers |
 
 ## Important Files
@@ -46,11 +47,11 @@ Prefer names that describe the user-facing contract:
 - `sessionManager.test.ts`
 - `workspaceInitializer.test.ts`
 - `daemonRuntime.test.ts`
-- `toolLoop.test.ts`
+- `loopToolExecution.test.ts`
 
-For system workflow tests, prefer scenario names:
+For system tool and workflow tests, prefer capability or scenario names:
 
-- `contextReadModify.test.ts`
+- `fileReadModify.test.ts`
 - `workspaceSearch.test.ts`
 - `subagentBasic.test.ts`
 
@@ -69,8 +70,11 @@ Tests that mutate global-ish state should isolate `HOME`, `AURA_HOME`, project r
 | Pure parser, resolver, store, adapter | `tests/unit/` |
 | CLI command behavior | `tests/integration/` |
 | Workspace initialization or template behavior | `tests/integration/` |
-| Kernel planner or tool loop behavior | `tests/system/loop/` or `tests/system/planner/` |
-| Agent workflow behavior | `tests/system/workflows/` |
-| Daemon lifecycle or IPC behavior | `tests/system/daemon/` |
+| Kernel planner, output, or loop contract | `tests/system/kernel-contracts/` |
+| Single-tool behavior with a real LLM | `tests/system/kernel-tools/` |
+| Cross-tool or cross-agent workflow behavior | `tests/system/kernel-workflows/` |
+| User-facing `aura agent -g` behavior | `tests/system/cli-e2e/` |
+| Daemon lifecycle, session, or IPC behavior | `tests/system/runtime/` |
+| Provider configuration or degraded environment | `tests/system/failure-modes/` |
 
 See [Testing Strategy](../explanation/testing-strategy.md) for the rationale and [Test Aura](../how-to/test-aura.md) for task-oriented commands.

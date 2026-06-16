@@ -31,21 +31,23 @@ Integration tests can create temporary workspaces. They should still avoid relyi
 
 ### System Tests
 
-System tests live under `tests/system/`. They protect complete agent-facing workflows and long-path behavior.
+System tests live under `tests/system/`. They protect complete agent-facing workflows and long-path behavior that requires a real LLM provider.
 
 Use system tests for:
 
 - Kernel loop behavior such as tool-call completion, no-tool final answers, and tool-error aborts.
 - Planner contracts.
+- Kernel single-tool behavior with a real LLM (`tests/system/kernel-tools/`).
+- Kernel cross-tool or cross-agent workflows with a real LLM (`tests/system/kernel-workflows/`).
+- User-facing `aura agent -g` entrypoints (`tests/system/cli-e2e/`).
 - Session memory behavior across turns.
-- Workflow-level behaviors such as blackboard, subagent, knowledge DB, and workspace search flows.
 - Resilience cases such as missing API keys.
 
-System tests are allowed to be more scenario-driven. Keep assertions focused on observable contract: final JSON shape, persisted state, selected tool calls, and workspace files.
+System tests are allowed to be more scenario-driven. Keep assertions focused on observable contract: final JSON shape, persisted state, selected tool calls, and workspace files. Behavior that does not need a real LLM belongs in unit or integration tests, even when it uses daemon IPC.
 
 ### Daemon Runtime Tests
 
-Daemon tests are split between `tests/unit/daemon.test.ts`, `tests/integration/daemonAdvanced.test.ts`, and `tests/system/daemon/daemonRuntime.test.ts`.
+Daemon tests are split between `tests/unit/daemon.test.ts`, `tests/integration/daemonAdvanced.test.ts`, and `tests/system/runtime/daemonRuntime.test.ts`.
 
 Use daemon tests when behavior depends on:
 

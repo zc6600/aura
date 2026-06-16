@@ -4,6 +4,7 @@ import net from 'node:net';
 import path from 'node:path';
 import readline from 'node:readline';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import yaml from 'yaml';
 import { Bridge } from '../../src/core/interface/bridge.js';
 import { DaemonClient } from '../../src/daemon/client.js';
 import { DaemonServer } from '../../src/daemon/server.js';
@@ -198,6 +199,229 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
     expect(server?.activeLoopJob.status).toBe('idle');
   });
 
+  it('broadcasts agent progress notifications to all connected daemon clients', async () => {
+    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+      this: Bridge,
+    ) {
+      const callbacks = (this as unknown as { callbacks: BridgeCallbackMap })
+        .callbacks;
+      callbacks.on_token?.('shared token');
+      callbacks.on_stream_end?.();
+      callbacks.on_final_answer?.('broadcast complete');
+    });
+
+    const activeClient = await initializedClient();
+    const observerClient = await startClient();
+    const activeNotifications: Array<{ method: string; params: any }> = [];
+    const observerNotifications: Array<{ method: string; params: any }> = [];
+
+    activeClient.onNotification((method, params) => {
+      activeNotifications.push({ method, params });
+    });
+    observerClient.onNotification((method, params) => {
+      observerNotifications.push({ method, params });
+    });
+
+    const result = await activeClient.request('agent/runGoal', {
+      goal: 'broadcast progress',
+      options: { auto_mode: false },
+    });
+
+    expect(result).toEqual({
+      status: 'completed',
+      final_content: 'broadcast complete',
+    });
+    await vi.waitFor(() => {
+      expect(
+        activeNotifications.some(
+          (item) =>
+            item.method === 'agent/onProgress' &&
+            item.params?.type === 'token' &&
+            item.params?.payload?.text === 'shared token',
+        ),
+      ).toBe(true);
+      expect(
+        observerNotifications.some(
+          (item) =>
+            item.method === 'agent/onProgress' &&
+            item.params?.type === 'token' &&
+            item.params?.payload?.text === 'shared token',
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it('does not abort the active daemon goal when an observer disconnects', async () => {
+    let releaseGoal: () => void = () => {};
+    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+      this: Bridge,
+    ) {
+      await new Promise<void>((resolve) => {
+        releaseGoal = resolve;
+      });
+      const callbacks = (this as unknown as { callbacks: BridgeCallbackMap })
+        .callbacks;
+      callbacks.on_final_answer?.('observer disconnected safely');
+    });
+
+    const activeClient = await initializedClient();
+    const observerClient = await startClient();
+
+    const request = activeClient.request('agent/runGoal', {
+      goal: 'continue after observer leaves',
+      options: { auto_mode: false },
+    });
+
+    await vi.waitFor(() => {
+      expect(server?.activeLoopJob.status).toBe('running');
+    });
+
+    observerClient.disconnect();
+
+    await vi.waitFor(() => {
+      expect(server?.activeLoopJob.status).toBe('running');
+    });
+
+    releaseGoal?.();
+    const result = await request;
+    expect(result.status).toBe('completed');
+    expect(result.final_content).toBe('observer disconnected safely');
+    expect(server?.activeLoopJob.status).toBe('idle');
+  });
+
+  it('relays dangerous tool confirmation requests through the daemon client', async () => {
+    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+      this: Bridge,
+    ) {
+      const bridgeState = this as unknown as {
+        runner: {
+          runCall(call: {
+            tool: string;
+            args: Record<string, unknown>;
+          }): Promise<unknown>;
+        };
+        callbacks: BridgeCallbackMap;
+      };
+      const result = await bridgeState.runner.runCall({
+        tool: 'write_file',
+        args: {
+          file_path: 'confirmed.txt',
+          content: 'approved by confirm hook\n',
+        },
+      });
+      bridgeState.callbacks.on_final_answer?.(JSON.stringify(result));
+    });
+
+    const configPath = path.join(
+      workspacePath,
+      '.aura-workspace',
+      'config',
+      'config.yml',
+    );
+    const rawConfig = yaml.parse(fs.readFileSync(configPath, 'utf-8')) || {};
+    rawConfig.security = {
+      ...(rawConfig.security || {}),
+      confirm_dangerous_tools: true,
+    };
+    fs.writeFileSync(configPath, yaml.stringify(rawConfig), 'utf-8');
+
+    const client = await initializedClient();
+    const confirmations: string[] = [];
+    client.onConfirmRequest(async (message) => {
+      confirmations.push(message);
+      return true;
+    });
+
+    const result = await client.request('agent/runGoal', {
+      goal: 'perform a confirmed write',
+      options: { auto_mode: false },
+    });
+
+    expect(result.status).toBe('completed');
+    expect(confirmations).toEqual(['DANGEROUS TOOL: write_file. Execute?']);
+    expect(
+      fs.readFileSync(path.join(workspacePath, 'confirmed.txt'), 'utf-8'),
+    ).toContain('approved by confirm hook');
+  });
+
+  it('forwards interactive process prompt notifications over daemon IPC', async () => {
+    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+      this: Bridge,
+    ) {
+      const bridgeState = this as unknown as {
+        runner: { getEngine(): { emit(event: string, payload: unknown): void } };
+        callbacks: BridgeCallbackMap;
+      };
+      bridgeState.runner.getEngine().emit('interactive_prompt', {
+        pid: 4242,
+        prompt: 'Enter secret:',
+        trigger: 'pattern_match',
+      });
+      bridgeState.callbacks.on_final_answer?.('interactive prompt delivered');
+    });
+
+    const client = await initializedClient();
+    const prompts: Array<Record<string, unknown>> = [];
+    client.onNotification((method, params) => {
+      if (method === 'execute/onInteractivePrompt') {
+        prompts.push(params);
+      }
+    });
+
+    const result = await client.request('agent/runGoal', {
+      goal: 'emit interactive prompt',
+      options: { auto_mode: false },
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.final_content).toBe('interactive prompt delivered');
+    expect(prompts).toContainEqual({
+      pid: 4242,
+      prompt: 'Enter secret:',
+      trigger: 'pattern_match',
+    });
+  });
+
+  it('rejects workspace and session mutations while a daemon goal loop is running', async () => {
+    let releaseGoal: () => void = () => {};
+    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+      this: Bridge,
+    ) {
+      await new Promise<void>((resolve) => {
+        releaseGoal = resolve;
+      });
+      const callbacks = (this as unknown as { callbacks: BridgeCallbackMap })
+        .callbacks;
+      callbacks.on_final_answer?.('guards released');
+    });
+
+    const client = await initializedClient();
+    await client.request('session/create', { name: 'alternate' });
+
+    const request = client.request('agent/runGoal', {
+      goal: 'hold loop to test mutation guards',
+      options: { auto_mode: false },
+    });
+
+    await vi.waitFor(() => {
+      expect(server?.activeLoopJob.status).toBe('running');
+    });
+
+    await expect(
+      client.request('workspace/initialize', { sessionName: 'alternate' }),
+    ).rejects.toThrow(/cannot initialize workspace while a goal loop is running/i);
+
+    await expect(
+      client.request('session/activate', { name: 'alternate' }),
+    ).rejects.toThrow(/cannot activate session while a goal loop is running/i);
+
+    releaseGoal?.();
+    const result = await request;
+    expect(result.status).toBe('completed');
+    expect(result.final_content).toBe('guards released');
+    expect(server?.activeLoopJob.status).toBe('idle');
+  });
+
   it('serves execute process RPCs over daemon IPC', async () => {
     const client = await initializedClient();
     const commandsDir = path.join(
@@ -342,6 +566,40 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
     expect(paths).not.toContain('.hidden.txt');
     expect(paths.some((item) => item.startsWith('node_modules'))).toBe(false);
     expect(paths).not.toContain('deep/a/b/c/d/too-deep.txt');
+  });
+
+  it('serves workspace read and write RPCs through kernel workspace runtime', async () => {
+    const client = await initializedClient();
+    const token = `AURA_WORKSPACE_RUNTIME_${Date.now()}`;
+
+    const write = await client.request('workspace/writeFile', {
+      path: 'notes/runtime.txt',
+      content: `runtime token: ${token}\n`,
+    });
+    expect(write.success).toBe(true);
+
+    const targetPath = path.join(workspacePath, 'notes', 'runtime.txt');
+    expect(fs.readFileSync(targetPath, 'utf-8')).toContain(token);
+
+    const read = await client.request('workspace/readFile', {
+      path: 'notes/runtime.txt',
+    });
+    expect(read.content).toContain(token);
+  });
+
+  it('rejects restricted workspace paths through workspace runtime', async () => {
+    const client = await initializedClient();
+
+    await expect(
+      client.request('workspace/writeFile', {
+        path: '.aura/config/blocked.txt',
+        content: 'blocked',
+      }),
+    ).rejects.toThrow(/access denied|restricted path/i);
+
+    expect(
+      fs.existsSync(path.join(workspacePath, '.aura', 'config', 'blocked.txt')),
+    ).toBe(false);
   });
 
   it('removes a stale socket path before starting a daemon server', async () => {

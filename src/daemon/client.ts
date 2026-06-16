@@ -106,6 +106,8 @@ export class DaemonClient {
       const tsxCli = process.argv.find((arg) => arg.includes('tsx'));
       if (tsxCli) {
         args.push(tsxCli, entryScript);
+      } else if (this.hasTsxImportLoader()) {
+        args.push(...process.execArgv, entryScript);
       } else {
         command = 'npx';
         args.push('-y', 'tsx', entryScript);
@@ -190,6 +192,18 @@ export class DaemonClient {
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
     throw new Error('Timed out waiting for Aura Daemon to start.');
+  }
+
+  private hasTsxImportLoader(): boolean {
+    return process.execArgv.some((arg, index, argv) => {
+      const nextArg = argv[index + 1] || '';
+      return (
+        arg === '--import=tsx' ||
+        arg.includes('/tsx/') ||
+        (arg === '--import' &&
+          (nextArg === 'tsx' || nextArg.includes('/tsx/')))
+      );
+    });
   }
 
   private startReadLoop(): void {

@@ -62,4 +62,48 @@ describeSystem('System session memory', { timeout: 180000 }, () => {
     expect(history.filter((item) => item.role === 'user')).toHaveLength(2);
     expect(history.filter((item) => item.role === 'assistant')).toHaveLength(2);
   });
+
+  it('keeps remembered content isolated between sessions', async () => {
+    const token = `AURA_ISOLATED_MEMORY_${Date.now()}`;
+    const sourceSession = 'memory_source';
+    const isolatedSession = 'memory_isolated';
+
+    const source = await runAura(workspace, [
+      'chat',
+      `Remember this token for later in this session only: ${token}`,
+      '--session',
+      sourceSession,
+      '--system',
+      'Acknowledge briefly.',
+    ]);
+    expect(source.exitCode).toBe(0);
+
+    const isolated = await runAura(workspace, [
+      'chat',
+      'What token did I ask you to remember earlier? If this session has no token, reply with UNKNOWN only.',
+      '--session',
+      isolatedSession,
+      '--system',
+      'Reply with UNKNOWN if the token is unavailable in this session.',
+    ]);
+    expect(isolated.exitCode).toBe(0);
+    expect(isolated.stdout).not.toContain(token);
+    expect(isolated.stdout).toMatch(/UNKNOWN/i);
+
+    const sourceHistoryPath = path.join(
+      workspace.auraDir,
+      'state',
+      'chat_sessions',
+      `${sourceSession}.json`,
+    );
+    const isolatedHistoryPath = path.join(
+      workspace.auraDir,
+      'state',
+      'chat_sessions',
+      `${isolatedSession}.json`,
+    );
+
+    expect(fs.readFileSync(sourceHistoryPath, 'utf-8')).toContain(token);
+    expect(fs.readFileSync(isolatedHistoryPath, 'utf-8')).not.toContain(token);
+  });
 });

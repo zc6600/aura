@@ -256,7 +256,9 @@ export class Session {
   private async runLoop(): Promise<void> {
     const goal = this.options.goal as string;
     if (goal && goal.trim().length > 0) {
-      const summary = await this.executor.processGoal(goal.trim());
+      const summary = await this.executor.processGoal(goal.trim(), {
+        max_steps: this.options.max_steps as number | undefined,
+      });
       if (summary && summary.trim().length > 0) {
         console.log(summary);
       }
@@ -346,7 +348,9 @@ export class Session {
         }
 
         try {
-          await this.executor.process(input, this.auto);
+          await this.executor.process(input, this.auto, {
+            max_steps: this.options.max_steps as number | undefined,
+          });
         } catch (e: unknown) {
           console.error(
             picocolors.red(

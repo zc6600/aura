@@ -11,9 +11,6 @@ aura-perf-demo/
 ├── benchmark.py
 ├── test_similarity.py
 ├── task.md
-├── skills/
-│   └── performance-optimizer/
-│       └── SKILL.md
 └── perf_report.md
 ```
 
@@ -170,35 +167,6 @@ Constraints:
 - Write `perf_report.md` with the original issue, the implementation change, and the final benchmark result.
 ```
 
-## Add the Workflow Skill
-
-Create `skills/performance-optimizer/SKILL.md`:
-
-```markdown
----
-name: performance-optimizer
-description: Use when optimizing a slow function while preserving behavior.
----
-
-# Performance Optimizer
-
-Read `task.md` first.
-
-Workflow:
-1. Run `python test_similarity.py`.
-2. Run `python benchmark.py` and observe the failure or baseline time.
-3. Inspect the target implementation.
-4. Optimize the implementation without changing the public API.
-5. Re-run both commands.
-6. Write `perf_report.md` with before/after reasoning and the final result.
-```
-
-Confirm Aura sees the skill:
-
-```bash
-aura skill list
-```
-
 ## Run Ralph Mode
 
 Create a dedicated session:
@@ -212,7 +180,7 @@ Run the optimization:
 ```bash
 aura agent \
   --mode ralph \
-  --goal "Use the performance-optimizer workflow to complete task.md" \
+  --goal "Complete task.md" \
   --verify "python test_similarity.py && python benchmark.py" \
   --non-interactive
 ```
@@ -246,7 +214,6 @@ def unique_token_overlap(left: str, right: str) -> float:
 
 - Ralph mode works best when success can be measured by a command.
 - A tutorial workflow can be small but still productive: measure, change, verify, report.
-- Skills can define the operating procedure while `--verify` supplies the hard stop condition.
 - Performance tutorials should preserve behavior first and optimize second.
 
 ## Troubleshooting

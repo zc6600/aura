@@ -222,7 +222,10 @@ aura kernel observe .
 aura kernel plan .
 
 # Run a specific tool manually
-aura kernel run_call . read_file '{"file_path": "README.md"}'
+aura kernel run_call read_file '{"file_path": "README.md"}' .
+
+# Run Ralph verification directly through the kernel
+aura kernel ralph . --goal "Fix failing tests" --verify "npm test" --max-steps 5
 ```
 
 ### State Memory Inspection

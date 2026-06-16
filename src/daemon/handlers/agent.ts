@@ -183,7 +183,20 @@ export const runGoal: HandlerFunction = async (ctx) => {
         optionsRecord.auto_mode !== undefined ? optionsRecord.auto_mode : true;
 
       try {
-        await bridge.chat(goal, { auto_mode: isAuto as boolean });
+        await bridge.chat(goal, {
+          auto_mode: isAuto as boolean,
+          max_steps: optionsRecord.max_steps as number | undefined,
+        });
+        const result = bridge.lastResult;
+        if (result) {
+          status = result.status;
+          if (
+            result.final_content !== undefined &&
+            result.final_content !== null
+          ) {
+            final_content = result.final_content;
+          }
+        }
       } catch (_err: unknown) {
         status = 'failed';
       }

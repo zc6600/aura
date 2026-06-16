@@ -699,6 +699,50 @@ class KernelLoopCommand extends BaseCommand {
   }
 }
 
+class KernelRalphCommand extends BaseCommand {
+  static paths = [['kernel', 'ralph']];
+  static usage = Command.Usage({
+    description: 'Run the Ralph verification loop directly through the kernel',
+    details:
+      'Runs RalphLoop without the daemon or agent session UI. Progress is written to stderr and the machine-readable status is written to stdout.',
+    examples: [
+      [
+        'Run Ralph with a verification command',
+        'aura kernel ralph -g "Fix the tests" --verify "npm test"',
+      ],
+      [
+        'Run Ralph with critic mode',
+        'aura kernel ralph -g "Implement feature X" --critic --critic-mode heavy',
+      ],
+    ],
+  });
+  projectPath = Option.String({ required: false });
+
+  goal = Option.String('-g,--goal');
+  verify = Option.String('--verify');
+  critic = Option.Boolean('--critic', false);
+  criticMode = Option.String('--critic-mode,--critic_mode', 'light');
+  maxSteps = Option.String('-m,--max-steps,--max_steps');
+
+  async run() {
+    let steps: number | undefined;
+    if (this.maxSteps !== undefined) {
+      try {
+        steps = PathResolver.validateMaxSteps(parseInt(this.maxSteps, 10));
+      } catch (e: unknown) {
+        throw new UI.CliError((e as Error).message);
+      }
+    }
+    await Kernel.ralph(this.projectPath, {
+      goal: this.goal,
+      verify: this.verify,
+      critic: this.critic,
+      criticMode: this.criticMode,
+      maxSteps: steps,
+    });
+  }
+}
+
 class SkillListCommand extends BaseCommand {
   static paths = [['skill', 'list']];
   static usage = Command.Usage({
@@ -1069,6 +1113,7 @@ export function createCli(): Cli {
   cli.register(KernelOnceCommand);
   cli.register(KernelPlanCommand);
   cli.register(KernelLoopCommand);
+  cli.register(KernelRalphCommand);
   cli.register(SkillListCommand);
   cli.register(SkillInstallCommand);
   cli.register(HintsListCommand);

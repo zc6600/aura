@@ -43,11 +43,17 @@ export type {
 export { Job } from './core/kernel/job.js';
 export { NarrativeService } from './core/kernel/narrativeService.js';
 export { Planner } from './core/kernel/planner.js';
+export type {
+  ProcessLogSubscription,
+  ProcessMetadata,
+} from './core/kernel/processRuntime.js';
+export { ProcessRuntime } from './core/kernel/processRuntime.js';
 export { RalphLoop } from './core/kernel/ralphLoop.js';
 // Kernel Layer
 export { ToolRegistry } from './core/kernel/registry.js';
 export { Runner } from './core/kernel/runner.js';
 export { ShadowBackup } from './core/kernel/shadowBackup.js';
+export { WorkspaceRuntime } from './core/kernel/workspaceRuntime.js';
 export { Client as LLMClient } from './core/llm/client.js';
 // LLM Layer
 export * as Env from './core/llm/env.js';

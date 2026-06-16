@@ -16,6 +16,10 @@ loadDotenv({ path: path.join(repoRoot, '.env'), override: false });
 loadDotenv({ path: path.join(repoRoot, '.env.local'), override: false });
 
 export const auraBinPath = path.resolve(__dirname, '../../../src/bin/aura.ts');
+export const tsxLoaderPath = path.resolve(
+  __dirname,
+  '../../../node_modules/tsx/dist/loader.mjs',
+);
 export const runSystemTests = process.env.RUN_SYSTEM_TESTS === '1';
 
 function shortTmpRoot(): string {
@@ -96,7 +100,9 @@ export async function createSystemWorkspace(
   prefix: string,
   llmConfig: SystemLlmConfig = requireSystemLlmConfig(),
 ): Promise<SystemWorkspace> {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), `aura-system-${prefix}-`));
+  const root = fs.mkdtempSync(
+    path.join(shortTmpRoot(), `aura-system-${prefix}-`),
+  );
   const testHome = path.join(root, '.test-home');
   const testAuraHome = path.join(testHome, '.aura-framework');
   const testTmp = path.join(root, '.test-tmp');
@@ -170,19 +176,23 @@ export async function runAura(
     env?: NodeJS.ProcessEnv;
   } = {},
 ): Promise<ExecaReturnValue<string>> {
-  return execa('npx', ['tsx', auraBinPath, ...args], {
-    cwd: workspace.root,
-    timeout: options.timeout ?? 90_000,
-    reject: options.reject ?? false,
-    env: {
-      ...process.env,
-      NODE_ENV: 'test',
-      AURA_SILENCE_LLM_WARNINGS: '1',
-      AURA_SILENCE_PLANNER_WARNINGS: '1',
-      ...workspace.env,
-      ...options.env,
+  return execa(
+    process.execPath,
+    ['--import', tsxLoaderPath, auraBinPath, ...args],
+    {
+      cwd: workspace.root,
+      timeout: options.timeout ?? 90_000,
+      reject: options.reject ?? false,
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        AURA_SILENCE_LLM_WARNINGS: '1',
+        AURA_SILENCE_PLANNER_WARNINGS: '1',
+        ...workspace.env,
+        ...options.env,
+      },
     },
-  });
+  );
 }
 
 export function parseJsonOutput<T = Record<string, unknown>>(

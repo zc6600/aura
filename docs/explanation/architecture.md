@@ -359,9 +359,9 @@ Guide for contributors to the Aura framework itself.
 ### 7. [Daemon Architecture](daemon-architecture.md)
 The client-server process topology for Aura OS.
 - **IPC Architecture**: UNIX sockets & Windows named pipes for low-overhead JSON-RPC protocol
-- **Shared State**: Solves two-process sync (CLI vs Web UI) by running execution loops centrally
-- **Warm Runtime**: Eliminates Node.js cold starts and caches DB and MCP connections
-- **Reactive Watcher**: Instant context assembly caching filesystem structures and .hint files
+- **Shared State**: Solves two-process sync (CLI vs Web UI) by hosting a warm kernel runner behind IPC
+- **Warm Runtime**: Eliminates Node.js cold starts and keeps DB, MCP, LSP, and execution-engine state alive
+- **Runtime API Boundary**: Delegates workspace and background-process operations to kernel runtime APIs
 - **Code Reference**: `src/daemon/`
 
 ---

@@ -1,5 +1,6 @@
 import { AgentLoop } from '../../core/kernel/agentLoop.js';
 import type { ToolCall } from '../../core/kernel/interfaces.js';
+import { RalphLoop } from '../../core/kernel/ralphLoop.js';
 import { Runner } from '../../core/kernel/runner.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import * as UI from '../ui.js';
@@ -242,6 +243,81 @@ export class Kernel {
       });
     } else {
       console.log(JSON.stringify({ steps: formattedSteps, final: finalRes }));
+    }
+  }
+
+  public static async ralph(
+    projectPath?: string,
+    options: {
+      goal?: string;
+      verify?: string;
+      critic?: boolean;
+      criticMode?: string;
+      maxSteps?: number;
+    } = {},
+  ): Promise<void> {
+    const root = Kernel.resolveProjectPath(projectPath);
+    const runner = new Runner(root);
+    const goal = options.goal?.trim();
+    if (!goal) {
+      throw new UI.CliError('Ralph Loop requires a goal (use --goal or -g).');
+    }
+
+    let finalContent: string | null = null;
+    const prefix = '[Ralph]';
+    const eventBus = {
+      emit: (event: string, payload?: Record<string, any>) => {
+        if (event === 'final_answer') {
+          finalContent = String(payload?.content || '');
+        }
+        if (event === 'ralph_start') {
+          process.stderr.write(
+            `${prefix} Start | max_steps=${payload?.max_steps} | verifier=${payload?.verifier}\n`,
+          );
+        } else if (event === 'ralph_step_start') {
+          process.stderr.write(
+            `${prefix} Step ${payload?.step}/${payload?.max_steps} | session=${payload?.session}\n`,
+          );
+        } else if (event === 'thought') {
+          const content = String(payload?.content || '').trim();
+          if (content) process.stderr.write(`${prefix} Thought: ${content}\n`);
+        } else if (event === 'tool_start') {
+          process.stderr.write(
+            `${prefix} Tool Call: ${payload?.tool} | ${payload?.summary || ''}\n`,
+          );
+        } else if (event === 'tool_result') {
+          process.stderr.write(
+            `${prefix} Tool Result: ${payload?.result?.status || 'ok'}\n`,
+          );
+        } else if (event === 'warning') {
+          const message = String(payload?.message || '').trim();
+          if (message) process.stderr.write(`${prefix} Warning: ${message}\n`);
+        } else if (event === 'loop_aborted') {
+          process.stderr.write(
+            `${prefix} Aborted: ${payload?.reason || 'unknown'}\n`,
+          );
+        }
+      },
+    };
+
+    const previousAutoMode = runner.autoMode;
+    runner.toggleAuto(true);
+    try {
+      const loop = new RalphLoop(runner, goal, {
+        max_steps: options.maxSteps,
+        verify_command: options.verify,
+        critic: options.critic,
+        critic_mode: options.criticMode,
+        eventBus,
+      });
+      const status = await loop.run();
+      console.log(JSON.stringify({ status, final: finalContent }));
+      if (status !== 'completed') {
+        process.exitCode = 1;
+      }
+    } finally {
+      runner.toggleAuto(previousAutoMode);
+      runner.destroy();
     }
   }
 

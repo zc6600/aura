@@ -44,9 +44,11 @@ Use this quick mapping:
 |--------|------------|
 | Parser, resolver, config helper | `tests/unit/` |
 | CLI command behavior | `tests/integration/` |
-| Agent loop behavior | `tests/system/loop/` |
-| Workflow behavior | `tests/system/workflows/` |
-| Daemon behavior | `tests/system/daemon/` |
+| Kernel loop contract | `tests/system/kernel-contracts/` |
+| Kernel-driven single-tool behavior | `tests/system/kernel-tools/` |
+| Kernel-driven cross-tool workflow behavior | `tests/system/kernel-workflows/` |
+| User-facing `agent -g` behavior | `tests/system/cli-e2e/` |
+| Daemon, session, or IPC behavior | `tests/system/runtime/` |
 
 For example, if you change session-name validation, start with:
 

@@ -198,7 +198,7 @@ export class AgentLoop {
           .join('\n');
         ctx = `${banner}\n\n${freshCtx}`;
       } else {
-        ctx = await this.observe();
+        ctx = this.appendLastToolResult(await this.observe(), toolName, result);
       }
     }
   }
@@ -281,5 +281,39 @@ export class AgentLoop {
       `[TOOL ERROR] Tool '${toolName}' was ${result.status}: ${result.advice || result.error || 'No explanation provided.'}\n` +
       `Please choose a different approach or tool.\n\n${ctx}`
     );
+  }
+
+  private appendLastToolResult(
+    ctx: string,
+    toolName: string,
+    result: ToolResult,
+  ): string {
+    return [
+      ctx,
+      '## MOST RECENT TOOL RESULT',
+      `Tool: ${toolName}`,
+      `Status: ${String(result.status || 'ok')}`,
+      'Result:',
+      this.stringifyToolResult(result),
+      'Next step guidance: if this successful tool result satisfies the current user task, finish with a final answer instead of repeating completed tool calls.',
+    ].join('\n');
+  }
+
+  private stringifyToolResult(result: ToolResult): string {
+    const resultRecord = result as Record<string, unknown>;
+    const candidates = [
+      resultRecord.output,
+      resultRecord.content,
+      resultRecord.stdout,
+      resultRecord.stderr,
+      resultRecord.message,
+    ];
+    const found = candidates.find(
+      (value) => value !== undefined && value !== null && String(value).trim(),
+    );
+    if (found !== undefined) {
+      return String(found);
+    }
+    return JSON.stringify(result);
   }
 }

@@ -25,10 +25,17 @@ export class Executor {
     this.setupBridge();
   }
 
-  public async process(input: string, autoMode: boolean): Promise<void> {
+  public async process(
+    input: string,
+    autoMode: boolean,
+    options: { max_steps?: number | null } = {},
+  ): Promise<void> {
     this.killTimer();
     try {
-      await this.bridge.chat(input, { auto_mode: autoMode });
+      await this.bridge.chat(input, {
+        auto_mode: autoMode,
+        max_steps: options.max_steps,
+      });
     } finally {
       this.killTimer();
     }
@@ -37,7 +44,10 @@ export class Executor {
   /**
    * Run a single goal non-interactively and return the final answer text
    */
-  public async processGoal(goal: string): Promise<string | null> {
+  public async processGoal(
+    goal: string,
+    options: { max_steps?: number | null } = {},
+  ): Promise<string | null> {
     this.killTimer();
     let resultSummary: string | null = null;
     this.bridge.on('on_final_answer', (content: string) => {
@@ -45,7 +55,17 @@ export class Executor {
     });
 
     try {
-      await this.bridge.chat(goal, { auto_mode: true });
+      await this.bridge.chat(goal, {
+        auto_mode: true,
+        max_steps: options.max_steps,
+      });
+      const result = this.bridge.lastResult;
+      if (!result) {
+        throw new Error('Agent loop finished without a result');
+      }
+      if (result.status !== 'completed') {
+        throw new Error(result.failure_reason || 'Agent loop failed');
+      }
     } finally {
       this.killTimer();
     }

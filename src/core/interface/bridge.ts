@@ -1,4 +1,4 @@
-import { AgentLoop } from '../kernel/agentLoop.js';
+import { AgentLoop, type AgentLoopResult } from '../kernel/agentLoop.js';
 import type { PlanEvent, ToolCall, ToolResult } from '../kernel/interfaces.js';
 import { Runner } from '../kernel/runner.js';
 import { MemoryEventBus } from '../memory/eventBus.js';
@@ -15,6 +15,7 @@ interface MetabolismPayload {
 
 export class Bridge {
   public readonly runner: Runner;
+  public lastResult: AgentLoopResult | null = null;
   private callbacks: Record<string, (...args: any[]) => any> = {};
   private subscribed = false;
 
@@ -40,9 +41,10 @@ export class Bridge {
    */
   public async chat(
     input: string,
-    options: { auto_mode?: boolean } = {},
+    options: { auto_mode?: boolean; max_steps?: number | null } = {},
   ): Promise<void> {
     const autoMode = options.auto_mode || false;
+    this.lastResult = null;
     this.runner.recordUserInput(input);
 
     // Start a new job for this turn
@@ -149,7 +151,8 @@ export class Bridge {
     const agentLoop = new AgentLoop(this.runner, { eventBus: bus });
 
     try {
-      const res = await agentLoop.run(input);
+      const res = await agentLoop.run(input, { max_steps: options.max_steps });
+      this.lastResult = res;
       if (res.status === 'completed') {
         this.runner.endJob('completed');
       } else {
@@ -162,6 +165,11 @@ export class Bridge {
       if (e instanceof Error && e.message?.includes('Interrupted')) {
         this.notify('on_warning', 'Interrupted by user');
         this.runner.endJob('failed', new Error('Interrupted by user'));
+        this.lastResult = {
+          status: 'failed',
+          steps: [],
+          failure_reason: 'Interrupted by user',
+        };
       } else {
         this.notify('on_error', (e as Error).message);
         this.runner.endJob('failed', e as Error);
