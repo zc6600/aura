@@ -186,7 +186,10 @@ export class Bridge {
       async (...args: unknown[]) => {
         const tool = args[0] as string;
         const _args = args[1] as Record<string, unknown>;
-        const isAuto = this.runner.currentJob?.metadata?.auto_mode || false;
+        const isAuto =
+          this.runner.currentJob?.metadata?.auto_mode ||
+          this.runner.autoMode ||
+          false;
         if (isAuto) {
           return true;
         }

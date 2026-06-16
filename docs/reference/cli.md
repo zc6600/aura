@@ -600,14 +600,22 @@ Manage framework, template, and sub-project updates.
 Update Aura CLI itself.
 
 **Behavior:**
-- Prints the recommended upgrade command for the TypeScript CLI
-- Also triggers template sync to the global repository
+- Fetches remote Git updates for the framework source repository.
+- Merges `origin/<current-branch>` by default.
+- With `--force`, hard-resets the current branch to `origin/<current-branch>`.
+- Runs `npm install`, `npm run build`, and then template sync to the global repository.
 
 **Examples:**
 ```bash
 # From anywhere
 aura update framework
+
+# Discard local framework-source changes and reset to remote
+aura update framework --force
 ```
+
+**Options:**
+- `--force` or `-f` - Hard-reset the framework source checkout to the current remote branch before rebuilding.
 
 ##### `aura update status`
 

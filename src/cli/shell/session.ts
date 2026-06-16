@@ -151,7 +151,14 @@ export class Session {
         eventBus: bus,
       });
 
-      const res = await ralph.run();
+      const previousAutoMode = this.runner.autoMode;
+      this.runner.toggleAuto(true);
+      let res: 'completed' | 'failed';
+      try {
+        res = await ralph.run();
+      } finally {
+        this.runner.toggleAuto(previousAutoMode);
+      }
       if (res !== 'completed') {
         throw new UI.SessionError('Ralph Loop failed verification checks.');
       }

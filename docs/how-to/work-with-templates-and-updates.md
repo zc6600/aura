@@ -144,12 +144,17 @@ Update Aura CLI itself.
 
 **Behavior:**
 - Automatically pulls the latest updates from the Git source repository and recompiles the CLI.
+- Uses a normal Git merge by default.
+- With `--force`, hard-resets the framework source checkout to `origin/<current-branch>` before rebuilding.
 - Automatically triggers a template synchronization to your global user repository (`~/.aura-framework/repo`) upon successful compilation.
 - In case of network or Git merge conflicts, falls back to displaying manual update instructions.
 
 ```bash
 # Running framework update
 aura update framework
+
+# Force the framework source checkout to match the remote branch
+aura update framework --force
 
 # Rebuild the CLI after git pull (in the source root or ~/.aura-framework/cli-src):
 npm run build

@@ -29,6 +29,15 @@ interface OpenAIResponse extends Record<string, unknown> {
   }>;
 }
 
+type OpenAITool = {
+  type: 'function';
+  function: {
+    name: string;
+    description?: string;
+    parameters: Record<string, unknown>;
+  };
+};
+
 interface StreamChunk {
   choices: Array<{
     delta: {
@@ -88,8 +97,9 @@ export class OpenAIAdapter extends BaseAdapter {
     if (options.temperature !== undefined)
       body.temperature = options.temperature;
     if (options.max_tokens !== undefined) body.max_tokens = options.max_tokens;
-    if (options.tools && options.tools.length > 0) {
-      body.tools = options.tools;
+    const tools = this.toOpenAITools(options.tools);
+    if (tools.length > 0) {
+      body.tools = tools;
       body.tool_choice = 'auto';
     }
 
@@ -127,8 +137,9 @@ export class OpenAIAdapter extends BaseAdapter {
     if (options.temperature !== undefined)
       body.temperature = options.temperature;
     if (options.max_tokens !== undefined) body.max_tokens = options.max_tokens;
-    if (options.tools && options.tools.length > 0) {
-      body.tools = options.tools;
+    const tools = this.toOpenAITools(options.tools);
+    if (tools.length > 0) {
+      body.tools = tools;
       body.tool_choice = 'auto';
     }
 
@@ -218,6 +229,35 @@ export class OpenAIAdapter extends BaseAdapter {
     } else {
       return { content: total, raw: null, finish_reason };
     }
+  }
+
+  private toOpenAITools(tools: CompletionOptions['tools'] = []): OpenAITool[] {
+    return tools.map((tool) => {
+      if (
+        'type' in tool &&
+        tool.type === 'function' &&
+        'function' in tool
+      ) {
+        return tool;
+      }
+
+      const auraTool = tool as {
+        name: string;
+        description?: string;
+        input_schema?: Record<string, unknown>;
+      };
+      return {
+        type: 'function',
+        function: {
+          name: auraTool.name,
+          description: auraTool.description || '',
+          parameters: auraTool.input_schema || {
+            type: 'object',
+            properties: {},
+          },
+        },
+      };
+    });
   }
 }
 

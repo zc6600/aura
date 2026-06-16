@@ -5,6 +5,11 @@ import { execa } from 'execa';
 import * as PathResolver from '../../utils/pathResolver.js';
 import { ContextAssembler } from '../context/assembler.js';
 import { ContextPayload } from '../context/payload.js';
+import {
+  LLMAuthError,
+  LLMBadRequestError,
+  LLMRateLimitError,
+} from '../llm/errors.js';
 import { ResponseParser } from '../llm/parsers/responseParser.js';
 import type { ChatMessage, ToolSchema } from '../llm/types.js';
 import { AgentLoop, type AgentLoopResult } from './agentLoop.js';
@@ -237,6 +242,14 @@ export class RalphLoop {
           this.eventBus.emit('thought', {
             content: `Developer AgentLoop raised an exception: ${msg}`,
           });
+          if (
+            e instanceof LLMAuthError ||
+            e instanceof LLMBadRequestError ||
+            e instanceof LLMRateLimitError
+          ) {
+            this.eventBus.emit('loop_aborted', { reason: msg });
+            return 'failed';
+          }
           if (
             msg.includes('disconnected') ||
             msg.includes('abort') ||

@@ -17,6 +17,7 @@ import yaml from 'yaml';
 import { Hooks } from '../../src/core/kernel/hooks.js';
 import { RalphLoop, RalphPayload } from '../../src/core/kernel/ralphLoop.js';
 import type { CompletionResult } from '../../src/core/llm/adapters/base.js';
+import { LLMRateLimitError } from '../../src/core/llm/errors.js';
 import { ResponseParser } from '../../src/core/llm/parsers/responseParser.js';
 import type {
   ChatMessage,
@@ -46,6 +47,9 @@ class MockLLMClient {
       this.responses[this.responseIndex] ||
       this.responses[this.responses.length - 1];
     this.responseIndex++;
+    if (response instanceof Error) {
+      throw response;
+    }
     return (
       (response as CompletionResult) || {
         content: '',
@@ -65,6 +69,9 @@ class MockLLMClient {
       this.responses[this.responseIndex] ||
       this.responses[this.responses.length - 1];
     this.responseIndex++;
+    if (response instanceof Error) {
+      throw response;
+    }
     if (response && onChunk) {
       onChunk(response.content || '');
     }
@@ -236,6 +243,18 @@ describe('RalphLoop', () => {
 
     expect(result).toBe('completed');
     expect(mockClient.responseIndex).toBe(3);
+  });
+
+  it('test_llm_rate_limit_aborts_without_repeating_steps', async () => {
+    mockClient.responses = [
+      new LLMRateLimitError('Rate limit exceeded: daily quota'),
+    ];
+
+    const loopInst = new RalphLoop(mockRunner, 'fix bug', { max_steps: 12 });
+    const result = await loopInst.run();
+
+    expect(result).toBe('failed');
+    expect(mockClient.responseIndex).toBe(1);
   });
 
   it('test_critic_rejects_first_then_accepts', async () => {

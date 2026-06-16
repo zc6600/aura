@@ -58,6 +58,45 @@ describe('OpenAIAdapter', () => {
     expect(out.finish_reason).toBe('stop');
   });
 
+  it('test_openai_complete_converts_aura_tool_schema', async () => {
+    const adapter = new OpenAIAdapter({ apiKey: 'oa-key', model: 'gpt-4o' });
+
+    vi.mocked(HttpClient.post).mockResolvedValue({
+      choices: [{ message: { role: 'assistant', content: '' } }],
+    });
+
+    await adapter.complete([{ role: 'user', content: 'hello' }], {
+      tools: [
+        {
+          name: 'read_file',
+          description: 'Read a file',
+          input_schema: {
+            type: 'object',
+            properties: { path: { type: 'string' } },
+            required: ['path'],
+          },
+        },
+      ],
+    });
+
+    const [, , body] = vi.mocked(HttpClient.post).mock.calls[0];
+    expect(body.tools).toEqual([
+      {
+        type: 'function',
+        function: {
+          name: 'read_file',
+          description: 'Read a file',
+          parameters: {
+            type: 'object',
+            properties: { path: { type: 'string' } },
+            required: ['path'],
+          },
+        },
+      },
+    ]);
+    expect(body.tool_choice).toBe('auto');
+  });
+
   it('test_openai_stream_yields_tokens_and_handles_tool_calls', async () => {
     const adapter = new OpenAIAdapter({ apiKey: 'oa-key', model: 'gpt-4o' });
 

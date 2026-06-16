@@ -23,14 +23,21 @@ export interface CompletionOptions {
   temperature?: number;
   max_tokens?: number;
   timeout?: number;
-  tools?: Array<{
-    type: 'function';
-    function: {
-      name: string;
-      description?: string;
-      parameters: Record<string, unknown>;
-    };
-  }>;
+  tools?: Array<
+    | {
+        name: string;
+        description?: string;
+        input_schema?: Record<string, unknown>;
+      }
+    | {
+        type: 'function';
+        function: {
+          name: string;
+          description?: string;
+          parameters: Record<string, unknown>;
+        };
+      }
+  >;
   tool_choice?:
     | 'auto'
     | 'none'

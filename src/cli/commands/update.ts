@@ -28,7 +28,7 @@ function findPackageRoot(startDir: string): string {
 
 export class Update {
   public static async framework(
-    _options: { force?: boolean } = {},
+    options: { force?: boolean } = {},
   ): Promise<void> {
     console.log('🔄 Detecting Aura Framework codebase...');
     const rootDir = findPackageRoot(__dirname);
@@ -53,10 +53,19 @@ export class Update {
           'Skipping git merge update. Proceeding with dependency updates and rebuild...',
         );
       } else {
-        console.log(`📥 Pulling updates for branch [${branch}]...`);
-        await execa('git', ['merge', `origin/${branch}`], {
-          cwd: rootDir,
-        });
+        if (options.force) {
+          console.log(
+            `📥 Force updating branch [${branch}] from origin/${branch}...`,
+          );
+          await execa('git', ['reset', '--hard', `origin/${branch}`], {
+            cwd: rootDir,
+          });
+        } else {
+          console.log(`📥 Pulling updates for branch [${branch}]...`);
+          await execa('git', ['merge', `origin/${branch}`], {
+            cwd: rootDir,
+          });
+        }
       }
 
       console.log('📦 Installing/updating dependencies (npm install)...');

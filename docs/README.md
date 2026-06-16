@@ -8,7 +8,9 @@ Tutorials are learning paths. They teach Aura by taking you from zero to a concr
 
 - [Getting Started](tutorials/getting-started.md) - Install Aura, configure an LLM key, create a workspace, and run your first agent.
 - [Build Your First Tool and Skill](tutorials/first-tool.md) - Create a local tool, pair it with a skill, and call it through the kernel.
+- [Optimize a Slow Function with Ralph Mode](tutorials/optimize-slow-function.md) - Use a correctness test and benchmark to drive an agent optimization loop.
 - [Make Your First Contribution](tutorials/first-contribution.md) - Build Aura, pick a small change, run focused tests, and update docs.
+- [Tutorials TODO](tutorials/TODO.md) - Backlog of hands-on tutorials to write next.
 
 ## How-To Guides
 
