@@ -33,6 +33,7 @@ A meta-loop orchestrator that wraps and executes standard `AgentLoop` instances 
     - **Heavy Critic Mode**: Runs a full Critic `AgentLoop` (using `CRITIC_HEAVY_PROTOCOL_PROMPT`) with access to all native tools and global workspace context/awareness.
     - Configured via CLI `--critic-mode` (`light` or `heavy`) or `critic_mode` in `config.yml`.
   - **Critique Persistence**: Persists auditing feedback reports under `.aura-workspace/state/critic_audit_[run_id]_step_[step].md` inside the environment/workspace path.
+  - **Result Artifact**: Persists structured Ralph run results under `.aura-workspace/state/ralph/runs/<run_id>/result.json`. The artifact includes `status`, `run_id`, `iterations`, `final`, `result_path`, and a `verification` object containing physical verifier or critic-audit details. Physical verifier stdout/stderr are also persisted under the same run directory.
 
 **Ralph Loop Prompts & Workspace Overrides:**
 The Ralph Loop swaps standard system prompts with specialized, loop-compliant instructions resolved through the `PromptRegistry` (`src/core/llm/prompts/registry.ts`):
@@ -48,6 +49,33 @@ The Ralph Loop swaps standard system prompts with specialized, loop-compliant in
     - **Heavy Mode (`CRITIC_HEAVY_PROTOCOL_PROMPT`)**: Instructs the critic to execute tools as needed in a Critic Agent Loop and output ONLY a final audit JSON block upon completion.
   - **Custom Override**: Scans the workspace for `prompts/ralph/critic_rules.md` (or `.aura-workspace/prompts/ralph/critic_rules.md` / `prompts/critic_rules.md` / `.aura-workspace/prompts/critic_rules.md` / `skills/critic_rules.md` / `.aura-workspace/skills/critic_rules.md`).
   - **Fallback**: Falls back to `DEFAULT_CRITIC_AUDIT_RULES` (general code quality criteria checklist).
+
+**Ralph Result Shape:**
+
+```json
+{
+  "status": "completed",
+  "run_id": "20260617...",
+  "goal": "Fix failing tests",
+  "iterations": 1,
+  "started_at": "2026-06-17T00:00:00.000Z",
+  "completed_at": "2026-06-17T00:00:05.000Z",
+  "final": "Task completed successfully.",
+  "result_path": ".aura-workspace/state/ralph/runs/20260617.../result.json",
+  "verification": {
+    "mode": "physical",
+    "passed": true,
+    "command": "npm test",
+    "exit_code": 0,
+    "timed_out": false,
+    "stdout_tail": "...",
+    "stderr_tail": "...",
+    "output_tail": "..."
+  }
+}
+```
+
+Downstream tools can use `result_path` as a stable proof that a Ralph verifier or critic completed successfully.
 
 ### 3. The Runner (`Runner` in `src/core/kernel/runner.ts`)
 
@@ -251,4 +279,4 @@ Final timeout is clamped to `max_timeout_seconds`.
 
 - [Architecture Overview](../explanation/architecture.md) - System-wide architecture
 - [Context & State](../explanation/context-and-state.md) - State management
-- [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md) - User guide for tools
+- [Extend with Skills, Tools, and Garden](../how-to/extend-with-skills-and-tools.md) - User guide for tools, skills, and Garden playbooks

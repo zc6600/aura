@@ -61,12 +61,21 @@ Complete reference for all Aura OS commands organized by category.
 | `aura tools add <name_or_url>` | Install a library tool by name or URL/path |
 | `aura tools install <url_or_path> [name]` | Install a tool from a Git URL or local directory |
 | `aura tools generate_group <name> [subtools...]` | Generate a hierarchical tool group |
+| `aura create tool <name>` | Create a new local tool scaffold |
+| `aura create tool-group <name> [subtools...]` | Create a contextual tool group scaffold |
+| `aura create skill <name>` | Create a new skill scaffold |
+| `aura create garden <name>` | Create a custom Garden Playbook scaffold |
+| `aura create workflow <name>` | Create a workflow.yml scaffold |
+| `aura create persona <name>` | Create a subagent persona scaffold |
+| `aura create anchor <id>` | Create an anchor milestone scaffold |
+| `aura create prompt <kind>` | Create a workspace prompt scaffold |
 | `aura skill list` | List installed skills |
 | `aura skill install <url_or_path> [name]` | Install a skill from a Git URL or local directory |
 | `aura kernel observe` | Observe workspace |
 | `aura kernel plan` | Plan a task |
 | `aura kernel once` | Run Kernel once with a provided call payload |
 | `aura kernel loop` | Run an autonomous kernel loop |
+| `aura kernel workflow [name]` | Run a declared workflow through the kernel |
 | `aura kernel ralph` | Run the Ralph verification loop directly through the kernel |
 | `aura kernel run_call <tool> <args_json>` | Run a specific tool call |
 | `aura session list` | List all conversation sessions |
@@ -81,6 +90,9 @@ Complete reference for all Aura OS commands organized by category.
 | `aura garden list` | List all available Garden Playbooks |
 | `aura garden status` | Show workspace health and metrics |
 | `aura garden init <playbook>` | Initialize a Garden Playbook template |
+| `aura workflow doctor [name]` | Validate a workflow contract |
+| `aura workflow status [name]` | Show workflow params, stages, tools, and context status |
+| `aura workflow run [name]` | Run a workflow by compiling its declared goal |
 | `aura hints list` | List files parsed for hint injection |
 | `aura hints toggle <path>` | Toggle hint injection status for a file |
 | `aura hints global` | Show global operational guidance file |
@@ -431,6 +443,40 @@ aura context
 ---
 
 ### Management Commands
+#### `aura create`
+
+Create local workspace extension scaffolds. These commands write to the current Aura workspace root and refuse to overwrite existing files.
+
+**Examples:**
+```bash
+# Show available scaffold types
+aura create
+
+# Create a local tool
+aura create tool count_lines --allow-path . --auto-load
+
+# Create a contextual tool group
+aura create tool-group browser click screenshot
+
+# Create workflow and context scaffolds
+aura create skill line-count-review
+aura create garden research-flow
+aura create workflow research-flow
+aura create persona auditor
+aura create anchor baseline_done
+aura create prompt agents
+```
+
+**Generated locations:**
+- `tool`: `tools/<name>/manifest.json`, `logic.py`, `logic.py.hint`
+- `tool-group`: `tools/<name>/group_manifest.json` plus `open`, `close`, and subtool folders
+- `skill`: `skills/<name>/SKILL.md` plus `assets`, `references`, and `scripts`
+- `garden`: `garden/<name>/garden.md`
+- `workflow`: `workflow.yml`
+- `persona`: `state/personas/<name>.json`
+- `anchor`: `anchors/<id>.json`
+- `prompt`: `prompts/system/<FILE>.md`
+
 #### `aura tools`
 
 Manage workspace tools.
@@ -453,6 +499,9 @@ aura tools install https://github.com/example/custom_tool.git
 
 # Generate a hierarchical tool group (with subtools)
 aura tools generate_group my_group subtool1 subtool2
+
+# Preferred new scaffold alias
+aura create tool-group my_group subtool1 subtool2
 ```
 
 #### `aura skill`
@@ -489,8 +538,27 @@ aura kernel once . --call '{"tool":"read_file","args":{"file_path":"README.md"}}
 # Run the planner-executor loop
 aura kernel loop . --goal "Fix all TODO comments" --max-steps 10 --human
 
+# Run a declared workflow contract through the kernel
+aura kernel workflow auto-kaggle . --max-steps 80
+
 # Run the Ralph verification loop directly through the kernel
 aura kernel ralph . --goal "Fix failing tests" --verify "npm test" --max-steps 5
+```
+
+`aura kernel ralph` writes progress to stderr and a structured JSON result to stdout. It also persists that result under `.aura-workspace/state/ralph/runs/<run_id>/result.json`:
+
+```json
+{
+  "status": "completed",
+  "run_id": "20260617...",
+  "result_path": ".aura-workspace/state/ralph/runs/20260617.../result.json",
+  "verification": {
+    "mode": "physical",
+    "passed": true,
+    "command": "npm test",
+    "exit_code": 0
+  }
+}
 ```
 
 **Subcommands:**
@@ -499,6 +567,7 @@ aura kernel ralph . --goal "Fix failing tests" --verify "npm test" --max-steps 5
 - `run_call <tool> <args_json> [projectPath]` - Execute one tool call.
 - `once [projectPath]` - Run one kernel pass; supports `--call`, `--input`, `--ask`, `--human`, `--verbose`, and `--preview-lines`.
 - `loop [projectPath]` - Run an autonomous planner-executor loop; supports `--goal`, `--human`, `--verbose`, and `--max-steps`.
+- `workflow [name] [projectPath]` - Load `workflow.yml` or `workflows/<name>.yml`, validate it, compile its declared goal, and execute it through the kernel agent loop.
 - `ralph [projectPath]` - Run `RalphLoop` without the daemon or agent session UI; supports `--goal`, `--verify`, `--critic`, `--critic-mode`, and `--max-steps`.
 
 #### `aura web`
@@ -571,7 +640,7 @@ aura session switch default
 
 #### `aura garden`
 
-Manage and initialize Agent Gardening Playbooks.
+Manage and initialize Garden Playbooks.
 
 **Subcommands:**
 * `list [projectPath]`: List all available Garden Playbooks in the template repository and active workspace.
@@ -588,6 +657,36 @@ aura garden status
 
 # Initialize the Kaggle playbook in the current workspace
 aura garden init kaggle
+```
+
+#### `aura workflow`
+
+Run and inspect a declared workflow contract. Aura looks for `workflow.yml` by default, or `workflows/<name>.yml` when a name is supplied.
+
+**Subcommands:**
+* `doctor [name]`: Validate required files, prompts, tools, and stage anchors.
+* `status [name]`: Show params, stage progress, and workflow checks.
+* `run [name]`: Compile the workflow goal and run it through the kernel workflow receiver.
+
+**Examples:**
+```bash
+# Create a workflow contract scaffold
+aura create workflow auto-kaggle
+
+# Validate the default workflow.yml
+aura workflow doctor
+
+# Show workflow status
+aura workflow status
+
+# Run the workflow
+aura workflow run
+
+# Equivalent lower-level kernel entrypoint
+aura kernel workflow
+
+# Run a named workflow from workflows/auto-kaggle.yml
+aura workflow run auto-kaggle
 ```
 
 ---

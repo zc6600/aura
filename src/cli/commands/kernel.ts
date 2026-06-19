@@ -2,6 +2,11 @@ import { AgentLoop } from '../../core/kernel/agentLoop.js';
 import type { ToolCall } from '../../core/kernel/interfaces.js';
 import { RalphLoop } from '../../core/kernel/ralphLoop.js';
 import { Runner } from '../../core/kernel/runner.js';
+import {
+  type LoadedWorkflow,
+  loadWorkflow,
+} from '../../core/workflow/manifest.js';
+import { checkWorkflow } from '../../core/workflow/runner.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import * as UI from '../ui.js';
 
@@ -246,6 +251,107 @@ export class Kernel {
     }
   }
 
+  public static async workflow(
+    projectPath?: string,
+    options: {
+      name?: string;
+      human?: boolean;
+      verbose?: boolean;
+      maxSteps?: number;
+    } = {},
+  ): Promise<void> {
+    const root = Kernel.resolveProjectPath(projectPath);
+    const runner = new Runner(root);
+    let workflow: LoadedWorkflow;
+    try {
+      workflow = loadWorkflow(root, options.name);
+    } catch (e: unknown) {
+      throw new UI.CliError((e as Error).message);
+    }
+
+    const checks = checkWorkflow(workflow);
+    const failed = checks.filter((c) => !c.ok);
+    if (failed.length > 0) {
+      if (options.human) {
+        for (const check of checks) {
+          const mark = check.ok ? '✓' : '✗';
+          const detail = check.detail ? ` (${check.detail})` : '';
+          console.log(`${mark} ${check.label}${detail}`);
+        }
+      }
+      throw new UI.CliError(
+        `Workflow '${workflow.manifest.name}' is not runnable. ${failed.length} check(s) failed.`,
+      );
+    }
+
+    const prefix = process.env.AURA_SUBAGENT_ID
+      ? `[Subagent ${process.env.AURA_SUBAGENT_ID}]`
+      : '[Workflow]';
+    const eventBus = {
+      emit: (event: string, payload?: Record<string, any>) => {
+        if (event === 'thought') {
+          const content = payload?.content?.trim();
+          if (content) process.stderr.write(`${prefix} Thought: ${content}\n`);
+        } else if (event === 'tool_start') {
+          process.stderr.write(
+            `${prefix} Tool Call: ${payload?.tool} | ${payload?.summary || ''}\n`,
+          );
+        } else if (event === 'tool_result') {
+          process.stderr.write(
+            `${prefix} Tool Result: ${payload?.result?.status || 'ok'}\n`,
+          );
+        } else if (event === 'final_answer') {
+          const content = payload?.content?.trim();
+          if (content)
+            process.stderr.write(`${prefix} Final Answer: ${content}\n`);
+        }
+      },
+    };
+
+    const res = await runner.runWorkflow(workflow, {
+      maxSteps: options.maxSteps,
+      eventBus,
+    });
+
+    const formattedSteps = res.steps.map((step) => {
+      const payload = {
+        tool: step.tool,
+        args: step.args || {},
+        summary: step.summary,
+      };
+      return Kernel.formatLoopStep(payload, step.result);
+    });
+
+    const finalRes =
+      res.status === 'completed'
+        ? res.steps[res.steps.length - 1]
+          ? res.steps[res.steps.length - 1].result
+          : { status: 'completed', content: res.final_content }
+        : {
+            status: 'failed',
+            reason: res.failure_reason || 'aborted',
+            steps: res.steps.length,
+          };
+
+    if (options.human) {
+      const verbose = !!options.verbose || process.env.VERBOSE === 'true';
+      formattedSteps.forEach((s) => {
+        console.log(Kernel.humanLoopStep(s, verbose));
+      });
+      if (res.final_content) {
+        console.log(res.final_content);
+      }
+    } else {
+      console.log(
+        JSON.stringify({
+          workflow: workflow.manifest.name,
+          steps: formattedSteps,
+          final: finalRes,
+        }),
+      );
+    }
+  }
+
   public static async ralph(
     projectPath?: string,
     options: {
@@ -310,9 +416,12 @@ export class Kernel {
         critic_mode: options.criticMode,
         eventBus,
       });
-      const status = await loop.run();
-      console.log(JSON.stringify({ status, final: finalContent }));
-      if (status !== 'completed') {
+      const result = await loop.run();
+      if (finalContent && !result.final) {
+        result.final = finalContent;
+      }
+      console.log(JSON.stringify(result));
+      if (result.status !== 'completed') {
         process.exitCode = 1;
       }
     } finally {

@@ -153,13 +153,13 @@ export class Session {
 
       const previousAutoMode = this.runner.autoMode;
       this.runner.toggleAuto(true);
-      let res: 'completed' | 'failed';
+      let res: Awaited<ReturnType<RalphLoop['run']>>;
       try {
         res = await ralph.run();
       } finally {
         this.runner.toggleAuto(previousAutoMode);
       }
-      if (res !== 'completed') {
+      if (res.status !== 'completed') {
         throw new UI.SessionError('Ralph Loop failed verification checks.');
       }
     } else {

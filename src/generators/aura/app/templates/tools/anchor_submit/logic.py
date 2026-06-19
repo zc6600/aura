@@ -14,15 +14,18 @@ def main():
     summary = args.get("summary")
     selected_next = args.get("selected_next")
     notes = args.get("notes")
+    runtime_update = args.get("anchor_runtime_update")
     if not anchor_id or not summary:
         print(json.dumps({"status": "failed", "error": "anchor_id and summary are required"}))
         return
     res = {
         "status": "success",
         "anchor_id": anchor_id,
+        "selected_next": selected_next or "",
         "next_stage": selected_next or "",
         "summary": summary,
         "notes": notes or "",
+        "anchor_runtime_update": runtime_update or {},
         "content": summary
     }
     print(json.dumps(res))

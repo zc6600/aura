@@ -77,3 +77,10 @@ contracts, not subjective answer quality or model capability scores.
   file via `write_file` and returns to idle.
 - [x] Real LLM daemon confirmation: with dangerous-tool confirmation enabled,
   denial prevents the side effect and approval allows it.
+
+## AutoKaggle Framework-Level Simplification & Upgrade (Declarative Workflow)
+
+- [x] Item 1: Lightweight Python Tool SDK (`aura_tool_helpers`) providing standardized JSON input/output, safe YAML loading, CSV schema alignment checks, and simple sqlite runs registry.
+- [x] Item 2: Core-level Defer/Resume state handling in `AgentLoop.run()` to natively pause on tool cooldown or rate limits without wasting LLM turns.
+- [x] Item 3: Declarative transition gates in `workflow.yml` stages (assert_files, requires, problems).
+- [x] Item 4: Scaffolding generator command (`aura create use-case`) to bootstrap custom workspace templates automatically.

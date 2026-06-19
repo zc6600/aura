@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
@@ -10,14 +11,18 @@ import { rmRetry } from '../utils/rmRetry.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const auraBinPath = path.resolve(__dirname, '../../src/bin/aura.ts');
-const tsxLoaderPath = path.resolve(__dirname, '../../node_modules/tsx/dist/loader.mjs');
+const tsxLoaderPath = path.resolve(
+  __dirname,
+  '../../node_modules/tsx/dist/loader.mjs',
+);
 
 describe('CLI Agent Shell Integration', { timeout: 60_000 }, () => {
   let tempWorkspace: string;
 
   beforeEach(async () => {
-    tempWorkspace = path.resolve(__dirname, `temp-agent-shell-${Date.now()}`);
-    fs.mkdirSync(tempWorkspace, { recursive: true });
+    tempWorkspace = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'aura-temp-agent-shell-'),
+    );
     await initializeWorkspaceInPlace(tempWorkspace);
   });
 

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import yaml from 'yaml';
 import { Hints } from '../../src/cli/commands/hints.js';
@@ -13,9 +13,6 @@ import type {
   EventRecord,
   SummaryRecord,
 } from '../../src/core/memory/sqliteStore.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 class DummyContextDb {
   public variables: Record<string, string> = {};
@@ -49,8 +46,7 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
   let projectPath: string;
 
   beforeEach(() => {
-    projectPath = path.resolve(__dirname, `temp-ctx-eng-${Date.now()}`);
-    fs.mkdirSync(projectPath, { recursive: true });
+    projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-temp-ctx-eng-'));
     fs.mkdirSync(path.join(projectPath, 'config'), { recursive: true });
 
     // Write a base config.yml

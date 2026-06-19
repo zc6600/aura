@@ -9,6 +9,11 @@ import { readLastLinesSync } from '../../utils/fsUtils.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import type { LSPManager } from '../ext/lsp/manager.js';
 import { MCPManager } from '../ext/mcp/manager.js';
+import {
+  runCsvValidate,
+  runRegistryBest,
+  runRegistryRecord,
+} from '../workflow/runner.js';
 import { GitState } from './gitState.js';
 import type { ToolResult } from './interfaces.js';
 import { ToolRegistry } from './registry.js';
@@ -118,6 +123,45 @@ export class ExecutionEngine extends EventEmitter {
       return this.executeWithTimeout(resolvedTimeout, async () => {
         return this.mcpManager.callTool(toolName, cleanArgs);
       });
+    }
+
+    if (toolName === 'aura.registry.record') {
+      return this.executeWithTimeout(resolvedTimeout, async () => {
+        try {
+          return runRegistryRecord(this.projectPath, cleanArgs);
+        } catch (e: unknown) {
+          return {
+            status: 'failed' as const,
+            error: e instanceof Error ? e.message : String(e),
+          };
+        }
+      }) as Promise<ToolResult>;
+    }
+
+    if (toolName === 'aura.registry.best') {
+      return this.executeWithTimeout(resolvedTimeout, async () => {
+        try {
+          return runRegistryBest(this.projectPath, cleanArgs);
+        } catch (e: unknown) {
+          return {
+            status: 'failed' as const,
+            error: e instanceof Error ? e.message : String(e),
+          };
+        }
+      }) as Promise<ToolResult>;
+    }
+
+    if (toolName === 'aura.csv.validate') {
+      return this.executeWithTimeout(resolvedTimeout, async () => {
+        try {
+          return runCsvValidate(this.projectPath, cleanArgs);
+        } catch (e: unknown) {
+          return {
+            status: 'failed' as const,
+            error: e instanceof Error ? e.message : String(e),
+          };
+        }
+      }) as Promise<ToolResult>;
     }
 
     // Dispatching LSP tools

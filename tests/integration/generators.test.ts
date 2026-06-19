@@ -2,10 +2,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import Database from 'better-sqlite3';
 import { execa } from 'execa';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Create } from '../../src/cli/commands/create.js';
 import { Tools } from '../../src/cli/commands/tools.js';
+import { Workflow } from '../../src/cli/commands/workflow.js';
+import { loadWorkflow } from '../../src/core/workflow/manifest.js';
+import { getWorkflowStatus } from '../../src/core/workflow/runner.js';
+import * as PathResolver from '../../src/utils/pathResolver.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -172,6 +178,264 @@ describe('Generators Integration', { timeout: 30000 }, () => {
       );
 
       delete process.env.AURA_GLOBAL_REPO_PATH;
+    });
+  });
+
+  describe('Create Scaffolds', () => {
+    function initWorkspace(root: string) {
+      fs.mkdirSync(path.join(root, '.aura-workspace'), { recursive: true });
+    }
+
+    it('creates a tool scaffold with manifest, logic, and hint', () => {
+      initWorkspace(testDir);
+      vi.spyOn(process, 'cwd').mockReturnValue(testDir);
+
+      Create.tool('count_lines', {
+        autoLoad: true,
+        allowPath: './data,./reports',
+      });
+
+      const toolDir = path.join(testDir, 'tools', 'count_lines');
+      expect(fs.existsSync(path.join(toolDir, 'manifest.json'))).toBe(true);
+      expect(fs.existsSync(path.join(toolDir, 'logic.py'))).toBe(true);
+      expect(fs.existsSync(path.join(toolDir, 'logic.py.hint'))).toBe(true);
+
+      const manifest = JSON.parse(
+        fs.readFileSync(path.join(toolDir, 'manifest.json'), 'utf-8'),
+      );
+      expect(manifest.name).toBe('count_lines');
+      expect(manifest.runtime).toBe('python3');
+      expect(manifest.auto_load).toBe(true);
+      expect(manifest.permissions.allow_paths).toEqual(['./data', './reports']);
+      expect(manifest.input_schema.type).toBe('object');
+    });
+
+    it('creates skill, garden, persona, anchor, and prompt scaffolds', () => {
+      initWorkspace(testDir);
+      vi.spyOn(process, 'cwd').mockReturnValue(testDir);
+
+      Create.skill('line-count-review');
+      Create.garden('research-flow');
+      Create.workflow('research-flow');
+      Create.persona('auditor');
+      Create.anchor('baseline_done');
+      Create.prompt('agents');
+
+      expect(
+        fs.readFileSync(
+          path.join(testDir, 'skills', 'line-count-review', 'SKILL.md'),
+          'utf-8',
+        ),
+      ).toContain('name: line-count-review');
+      expect(
+        fs.readFileSync(
+          path.join(testDir, 'garden', 'research-flow', 'garden.md'),
+          'utf-8',
+        ),
+      ).toContain('name: research-flow');
+      expect(
+        fs.readFileSync(path.join(testDir, 'workflow.yml'), 'utf-8'),
+      ).toContain('name: research-flow');
+      expect(
+        JSON.parse(
+          fs.readFileSync(
+            path.join(testDir, 'state', 'personas', 'auditor.json'),
+            'utf-8',
+          ),
+        ).instructions,
+      ).toContain('auditor');
+      expect(
+        JSON.parse(
+          fs.readFileSync(
+            path.join(testDir, 'anchors', 'baseline_done.json'),
+            'utf-8',
+          ),
+        ).id,
+      ).toBe('baseline_done');
+      expect(
+        fs.readFileSync(
+          path.join(testDir, 'prompts', 'system', 'AGENTS.md'),
+          'utf-8',
+        ),
+      ).toContain('# OPERATING INSTRUCTIONS');
+    });
+
+    it('fails when creating a scaffold over an existing file', () => {
+      initWorkspace(testDir);
+      vi.spyOn(process, 'cwd').mockReturnValue(testDir);
+
+      Create.persona('reviewer');
+
+      expect(() => Create.persona('reviewer')).toThrow(
+        "Persona 'reviewer' already exists",
+      );
+    });
+
+    it('creates scaffolds through the CLI entrypoint', async () => {
+      initWorkspace(testDir);
+
+      const res = await execa(
+        'npx',
+        ['tsx', auraBinPath, 'create', 'skill', 'cli-skill'],
+        { cwd: testDir },
+      );
+
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).toContain('Created skill scaffold');
+      expect(
+        fs.existsSync(path.join(testDir, 'skills', 'cli-skill', 'SKILL.md')),
+      ).toBe(true);
+    });
+
+    it('validates workflow doctor and prints workflow status', () => {
+      initWorkspace(testDir);
+      vi.spyOn(process, 'cwd').mockReturnValue(testDir);
+
+      fs.mkdirSync(path.join(testDir, 'params'), { recursive: true });
+      fs.writeFileSync(path.join(testDir, 'params', 'demo.yml'), 'mode: dry\n');
+
+      fs.mkdirSync(path.join(testDir, 'garden', 'demo'), { recursive: true });
+      fs.writeFileSync(
+        path.join(testDir, 'garden', 'demo', 'garden.md'),
+        '---\nname: demo\n---\n# Demo Garden\n',
+      );
+
+      fs.mkdirSync(path.join(testDir, 'skills', 'demo'), { recursive: true });
+      fs.writeFileSync(
+        path.join(testDir, 'skills', 'demo', 'SKILL.md'),
+        '---\nname: demo\n---\n# Demo Skill\n',
+      );
+
+      fs.mkdirSync(path.join(testDir, 'prompts', 'system'), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        path.join(testDir, 'prompts', 'system', 'SOUL.md'),
+        '# Persona\n',
+      );
+
+      fs.mkdirSync(path.join(testDir, 'anchors'), { recursive: true });
+      fs.writeFileSync(
+        path.join(testDir, 'anchors', '00_ready.json'),
+        JSON.stringify({ id: '00_ready', call_when: ['ready'] }),
+      );
+
+      fs.mkdirSync(path.join(testDir, 'tools', 'demo_tool'), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        path.join(testDir, 'tools', 'demo_tool', 'manifest.json'),
+        JSON.stringify({
+          name: 'demo_tool',
+          runtime: 'python3',
+          entry: 'logic.py',
+          input_schema: { type: 'object', properties: {}, required: [] },
+        }),
+      );
+
+      fs.writeFileSync(
+        path.join(testDir, 'workflow.yml'),
+        [
+          'version: 1',
+          'name: demo',
+          'params:',
+          '  path: params/demo.yml',
+          'context:',
+          '  garden: garden/demo/garden.md',
+          '  skill: skills/demo/SKILL.md',
+          '  prompts:',
+          '    - prompts/system/SOUL.md',
+          'tools:',
+          '  required:',
+          '    - demo_tool',
+          'stages:',
+          '  - id: ready',
+          '    anchor: anchors/00_ready.json',
+          'run:',
+          '  goal: Run demo.',
+          '',
+        ].join('\n'),
+      );
+
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      expect(() => Workflow.doctor(undefined, testDir)).not.toThrow();
+      Workflow.status(undefined, testDir);
+
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Workflow: demo'),
+      );
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('required tool demo_tool'),
+      );
+    });
+
+    it('marks a stage completed using anchor file id instead of basename', () => {
+      initWorkspace(testDir);
+
+      fs.mkdirSync(path.join(testDir, 'params'), { recursive: true });
+      fs.writeFileSync(path.join(testDir, 'params', 'demo.yml'), 'mode: dry\n');
+
+      fs.mkdirSync(path.join(testDir, 'anchors'), { recursive: true });
+      fs.writeFileSync(
+        path.join(testDir, 'anchors', '00_ready.json'),
+        JSON.stringify({ id: 'ready_anchor', call_when: ['ready'] }),
+      );
+
+      fs.mkdirSync(path.join(testDir, 'tools', 'demo_tool'), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        path.join(testDir, 'tools', 'demo_tool', 'manifest.json'),
+        JSON.stringify({
+          name: 'demo_tool',
+          runtime: 'python3',
+          entry: 'logic.py',
+          input_schema: { type: 'object', properties: {}, required: [] },
+        }),
+      );
+
+      fs.writeFileSync(
+        path.join(testDir, 'workflow.yml'),
+        [
+          'version: 1',
+          'name: demo',
+          'params:',
+          '  path: params/demo.yml',
+          'tools:',
+          '  required:',
+          '    - demo_tool',
+          'stages:',
+          '  - id: ready',
+          '    title: Workspace ready',
+          '    anchor: anchors/00_ready.json',
+          'run:',
+          '  goal: Run demo.',
+          '',
+        ].join('\n'),
+      );
+
+      const dbPath = PathResolver.sessionDbPath(testDir);
+      fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+      const db = new Database(dbPath);
+      try {
+        db.exec(
+          'CREATE TABLE events (id INTEGER PRIMARY KEY, timestamp INTEGER, phase TEXT, tool TEXT, payload TEXT)',
+        );
+        db.prepare(
+          'INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)',
+        ).run(
+          Math.floor(Date.now() / 1000),
+          'tool',
+          'anchor_submit',
+          JSON.stringify({ anchor_id: 'ready_anchor', summary: 'done' }),
+        );
+      } finally {
+        db.close();
+      }
+
+      const status = getWorkflowStatus(loadWorkflow(testDir));
+      expect(status.stages).toHaveLength(1);
+      expect(status.stages[0].completed).toBe(true);
     });
   });
 });

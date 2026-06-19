@@ -45,7 +45,9 @@ describeSystem('System chat CLI', { timeout: 180000 }, () => {
       'Reply with UNKNOWN only when the current session has no remembered token.',
     ]);
     expect(cleared.exitCode).toBe(0);
-    expect(cleared.stdout).toContain(`Memory cleared for session '${session}'.`);
+    expect(cleared.stdout).toContain(
+      `Memory cleared for session '${session}'.`,
+    );
     expect(cleared.stdout).not.toContain(token);
     expect(cleared.stdout).toMatch(/UNKNOWN/i);
 

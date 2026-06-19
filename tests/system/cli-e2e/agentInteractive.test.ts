@@ -10,8 +10,8 @@ import {
   requireSystemLlmConfig,
   runAura,
   runSystemTests,
-  tsxLoaderPath,
   type SystemWorkspace,
+  tsxLoaderPath,
 } from '../utils/systemHarness.js';
 
 const describeSystem = runSystemTests ? describe : describe.skip;
@@ -117,7 +117,9 @@ describeSystem('System interactive agent shell', { timeout: 240_000 }, () => {
     );
     const settled = await Promise.race([
       exitWithinGrace,
-      new Promise<false>((resolve) => setTimeout(() => resolve(false), graceMs)),
+      new Promise<false>((resolve) =>
+        setTimeout(() => resolve(false), graceMs),
+      ),
     ]);
 
     if (!settled) {
@@ -185,7 +187,9 @@ describeSystem('System interactive agent shell', { timeout: 240_000 }, () => {
   });
 
   it('prompts for confirmation before a dangerous tool in the interactive daemon shell', async () => {
-    const rawConfig = yaml.parse(fs.readFileSync(workspace.configPath, 'utf-8'));
+    const rawConfig = yaml.parse(
+      fs.readFileSync(workspace.configPath, 'utf-8'),
+    );
     rawConfig.security = {
       ...(rawConfig.security || {}),
       confirm_dangerous_tools: true,
@@ -204,11 +208,11 @@ describeSystem('System interactive agent shell', { timeout: 240_000 }, () => {
     await shell.waitForOutput('Auto mode: OFF', 20_000);
 
     child.stdin?.write(
-      [
+      `${[
         `Use the write_file tool to create ${outputFile}.`,
         `The file content must contain exactly this token: ${token}.`,
         'After the file is written, finish briefly.',
-      ].join(' ') + '\n',
+      ].join(' ')}\n`,
     );
 
     await shell.waitForOutput(
@@ -235,7 +239,9 @@ describeSystem('System interactive agent shell', { timeout: 240_000 }, () => {
   });
 
   it('does not execute a dangerous tool when confirmation is rejected in the interactive daemon shell', async () => {
-    const rawConfig = yaml.parse(fs.readFileSync(workspace.configPath, 'utf-8'));
+    const rawConfig = yaml.parse(
+      fs.readFileSync(workspace.configPath, 'utf-8'),
+    );
     rawConfig.security = {
       ...(rawConfig.security || {}),
       confirm_dangerous_tools: true,
@@ -254,11 +260,11 @@ describeSystem('System interactive agent shell', { timeout: 240_000 }, () => {
     await shell.waitForOutput('Auto mode: OFF', 20_000);
 
     child.stdin?.write(
-      [
+      `${[
         `Use the write_file tool to create ${outputFile}.`,
         `The file content must contain exactly this token: ${token}.`,
         'After the tool attempt, finish briefly.',
-      ].join(' ') + '\n',
+      ].join(' ')}\n`,
     );
 
     await shell.waitForOutput(
@@ -315,8 +321,9 @@ describeSystem('System interactive agent shell', { timeout: 240_000 }, () => {
     expect(secondResult.exitCode).toBe(0);
 
     const sessions = sessionMgr.list({ includeMissing: true });
-    const isolatedDb = sessions.find((item) => item.name === isolatedSession)
-      ?.db_path;
+    const isolatedDb = sessions.find(
+      (item) => item.name === isolatedSession,
+    )?.db_path;
 
     expect(isolatedDb).toBeTruthy();
     const isolatedStore = new SQLiteStore({ dbPath: isolatedDb! });

@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
+import Database from 'better-sqlite3';
 import { loadTyped } from '../../utils/configManager.js';
 import type { AuraConfig } from '../../utils/configSchema.js';
 import * as PathResolver from '../../utils/pathResolver.js';
@@ -10,6 +11,14 @@ import type { ContextPayload } from '../context/payload.js';
 import { LSPManager } from '../ext/lsp/manager.js';
 import { MemoryBase } from '../memory/base.js';
 import { MemoryConfig } from '../memory/config.js';
+import { type LoadedWorkflow, loadWorkflow } from '../workflow/manifest.js';
+import {
+  anchorId,
+  getRegistryDbPath,
+  runCsvValidate,
+  runWorkflow,
+  type WorkflowRunOptions,
+} from '../workflow/runner.js';
 import { ExecutionEngine } from './executionEngine.js';
 import { Hooks } from './hooks.js';
 import type {
@@ -23,6 +32,7 @@ import type {
 import { Job } from './job.js';
 import { Planner } from './planner.js';
 import { ProcessRuntime } from './processRuntime.js';
+import { RalphLoop } from './ralphLoop.js';
 import { ToolRegistry } from './registry.js';
 import { WorkspaceRuntime } from './workspaceRuntime.js';
 
@@ -214,6 +224,13 @@ export class Runner extends EventEmitter implements IRunner {
     });
   }
 
+  public async runWorkflow(
+    workflow: LoadedWorkflow,
+    options: WorkflowRunOptions = {},
+  ) {
+    return runWorkflow(this, workflow, options);
+  }
+
   public async plan(
     goal?: string | null,
     context?: unknown,
@@ -279,6 +296,91 @@ export class Runner extends EventEmitter implements IRunner {
     this.emit('tool_executing', { tool });
 
     let res: ToolResult = { status: 'ok' };
+
+    if (tool === 'anchor_submit') {
+      try {
+        const loaded = loadWorkflow(this.projectPath);
+        const stage = loaded.manifest.stages?.find((s) => {
+          const aid = anchorId(this.projectPath, s.anchor);
+          return aid === args.anchor_id || s.id === args.anchor_id;
+        });
+
+        if (stage) {
+          // 1. Guard check
+          if (stage.guard) {
+            if (stage.guard.tool === 'aura.csv.validate') {
+              const guardRes = runCsvValidate(
+                this.projectPath,
+                stage.guard.args || {},
+              );
+              if (guardRes.status === 'failed') {
+                const problemsStr = guardRes.problems?.join(', ') || '';
+                const detail = guardRes.error || problemsStr;
+                return {
+                  status: 'failed',
+                  error: `Stage guard validation failed: ${detail}`,
+                };
+              }
+            } else {
+              return {
+                status: 'failed',
+                error: `Unsupported stage guard tool: ${stage.guard.tool}`,
+              };
+            }
+          }
+
+          // 2. Ralph verification
+          if (stage.ralph) {
+            const previousAutoMode = this.autoMode;
+            this.toggleAuto(true);
+            try {
+              const ralphGoal = `Verify stage: ${stage.title || stage.id}`;
+              const ralphLoop = new RalphLoop(this, ralphGoal, {
+                max_steps: stage.ralph.max_steps || 5,
+                verify_command: stage.ralph.verify_cmd,
+              });
+              const ralphRes = await ralphLoop.run();
+              if (ralphRes.status !== 'completed') {
+                return {
+                  status: 'failed',
+                  error: `Ralph verification failed for stage '${stage.id}': ${ralphRes.failure_reason || 'Check failed'}`,
+                };
+              }
+
+              if (ralphRes.result_path) {
+                const regDbPath = getRegistryDbPath(this.projectPath);
+                if (fs.existsSync(regDbPath)) {
+                  let regDb: any;
+                  try {
+                    regDb = new Database(regDbPath);
+                    const latestRow = regDb
+                      .prepare(
+                        'SELECT run_id FROM runs ORDER BY created_at DESC LIMIT 1',
+                      )
+                      .get() as { run_id: string } | undefined;
+                    if (latestRow?.run_id) {
+                      regDb
+                        .prepare(
+                          'UPDATE runs SET ralph_result_path = ? WHERE run_id = ?',
+                        )
+                        .run(ralphRes.result_path, latestRow.run_id);
+                    }
+                  } catch {
+                  } finally {
+                    if (regDb) regDb.close();
+                  }
+                }
+              }
+            } finally {
+              this.toggleAuto(previousAutoMode);
+            }
+          }
+        }
+      } catch (_e: any) {
+        // Fall through
+      }
+    }
+
     const dbPath = this.memory.store?.dbPath;
     const modifiedFiles = await this.trackFileModifications(async () => {
       // For sleep_and_wake: inject the current abort signal so disconnects

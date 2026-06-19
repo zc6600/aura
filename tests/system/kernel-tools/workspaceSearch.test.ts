@@ -16,12 +16,8 @@ interface KernelLoopOutput {
   steps: Array<{
     tool: string;
     status: string | null;
+    output?: string;
   }>;
-  final: {
-    status?: string;
-    content?: string;
-    reason?: string;
-  };
 }
 
 describeSystem('System workspace search grounding', { timeout: 180000 }, () => {
@@ -74,9 +70,57 @@ describeSystem('System workspace search grounding', { timeout: 180000 }, () => {
     expect(result.exitCode).toBe(0);
 
     const payload = parseJsonOutput<KernelLoopOutput>(result.stdout);
-    expect(payload.steps.some((step) => step.tool === 'workspace_grep')).toBe(
-      true,
+    const searchStep = payload.steps.find(
+      (step) => step.tool === 'workspace_grep',
     );
-    expect(payload.final?.content || '').toContain(token);
+    expect(searchStep).toBeTruthy();
+    expect(searchStep?.output || '').toContain(token);
+  });
+
+  it('finds the exact token among similar decoy matches', async () => {
+    const exactToken = `AURA_SEARCH_EXACT_${Date.now()}`;
+    const decoyPrefix = exactToken.replace('_EXACT_', '_DECOY_');
+    const docsDir = path.join(workspace.root, 'docs');
+    fs.mkdirSync(docsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(docsDir, 'alpha.md'),
+      `Alpha mentions near misses ${decoyPrefix}_ONE and ${decoyPrefix}_TWO.\n`,
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(docsDir, 'beta.md'),
+      `Beta contains the exact target token ${exactToken} and should be the only correct answer.\n`,
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(docsDir, 'gamma.md'),
+      `Gamma mentions another similar string ${decoyPrefix}_THREE.\n`,
+      'utf-8',
+    );
+
+    const result = await runAura(workspace, [
+      'kernel',
+      'loop',
+      '-g',
+      [
+        `Use the tool named \`workspace_grep\` with query exactly "${exactToken}".`,
+        'The tool name must be exactly `workspace_grep`, not a different search tool name.',
+        'The workspace also contains similar decoy strings, so do not guess or call any other search tool.',
+        'Finish by replying with only the relative file path that contains the exact token.',
+      ].join(' '),
+      '--max-steps',
+      '3',
+    ]);
+
+    expect(result.exitCode).toBe(0);
+
+    const payload = parseJsonOutput<KernelLoopOutput>(result.stdout);
+    const searchStep = payload.steps.find(
+      (step) => step.tool === 'workspace_grep',
+    );
+    expect(searchStep).toBeTruthy();
+    expect(searchStep?.output || '').toContain(exactToken);
+    expect(searchStep?.output || '').toContain('docs/beta.md');
+    expect(searchStep?.output || '').not.toContain(decoyPrefix);
   });
 });

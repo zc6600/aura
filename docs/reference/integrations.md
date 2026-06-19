@@ -110,6 +110,6 @@ def login(username, password):
 
 ## See Also
 
-- [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md) - User guide for tools and MCP
+- [Extend with Skills, Tools, and Garden](../how-to/extend-with-skills-and-tools.md) - User guide for tools, Garden, and MCP
 - [Kernel Documentation](kernel.md) - Tool execution pipeline
 - [Architecture Overview](../explanation/architecture.md) - System design

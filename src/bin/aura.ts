@@ -5,9 +5,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Cli, Command, Option } from 'clipanion';
 import picocolors from 'picocolors';
+import { Anchor } from '../cli/commands/anchor.js';
 import { Branch } from '../cli/commands/branch.js';
 import { Chat } from '../cli/commands/chat.js';
 import { Config } from '../cli/commands/config.js';
+import { Create } from '../cli/commands/create.js';
 // Subcommand imports
 import { Doctor } from '../cli/commands/doctor.js';
 import { Env } from '../cli/commands/env.js';
@@ -22,6 +24,7 @@ import { Skills } from '../cli/commands/skills.js';
 import { Template } from '../cli/commands/template.js';
 import { Tools } from '../cli/commands/tools.js';
 import { Update } from '../cli/commands/update.js';
+import { Workflow } from '../cli/commands/workflow.js';
 import { completionBash, completionZsh } from '../cli/completion.js';
 import { Session } from '../cli/shell/session.js';
 import { WebServer } from '../cli/shell/webServer.js';
@@ -565,6 +568,148 @@ class ToolsInstallCommand extends BaseCommand {
   }
 }
 
+class CreateListCommand extends BaseCommand {
+  static paths = [['create']];
+  static usage = Command.Usage({
+    description: 'List scaffold generators',
+  });
+
+  async run() {
+    Create.listKinds();
+  }
+}
+
+class CreateToolCommand extends BaseCommand {
+  static paths = [['create', 'tool']];
+  static usage = Command.Usage({
+    description: 'Create a new local tool scaffold',
+    examples: [
+      ['Create a Python tool', 'aura create tool count_lines'],
+      [
+        'Create a tool with explicit permissions',
+        'aura create tool csv_stats --allow-path ./data --auto-load',
+      ],
+    ],
+  });
+  name = Option.String({ required: true });
+  runtime = Option.String('--runtime', 'python3');
+  autoLoad = Option.Boolean('--auto-load', false);
+  allowPath = Option.String('--allow-path');
+  shell = Option.Boolean('--shell', false);
+
+  async run() {
+    Create.tool(this.name, {
+      runtime: this.runtime,
+      autoLoad: this.autoLoad,
+      allowPath: this.allowPath,
+      shell: this.shell,
+    });
+  }
+}
+
+class CreateToolGroupCommand extends BaseCommand {
+  static paths = [['create', 'tool-group']];
+  static usage = Command.Usage({
+    description: 'Create a contextual tool group scaffold',
+  });
+  name = Option.String({ required: true });
+  subtools = Option.Rest();
+
+  async run() {
+    Create.toolGroup(this.name, this.subtools || []);
+  }
+}
+
+class CreateSkillCommand extends BaseCommand {
+  static paths = [['create', 'skill']];
+  static usage = Command.Usage({
+    description: 'Create a new skill scaffold',
+  });
+  name = Option.String({ required: true });
+
+  async run() {
+    Create.skill(this.name);
+  }
+}
+
+class CreateGardenCommand extends BaseCommand {
+  static paths = [['create', 'garden']];
+  static usage = Command.Usage({
+    description: 'Create a new custom garden playbook scaffold',
+  });
+  name = Option.String({ required: true });
+
+  async run() {
+    Create.garden(this.name);
+  }
+}
+
+class CreateWorkflowCommand extends BaseCommand {
+  static paths = [['create', 'workflow']];
+  static usage = Command.Usage({
+    description: 'Create a workflow.yml scaffold',
+  });
+  name = Option.String({ required: true });
+
+  async run() {
+    Create.workflow(this.name);
+  }
+}
+
+class CreatePersonaCommand extends BaseCommand {
+  static paths = [['create', 'persona']];
+  static usage = Command.Usage({
+    description: 'Create a new subagent persona scaffold',
+  });
+  name = Option.String({ required: true });
+
+  async run() {
+    Create.persona(this.name);
+  }
+}
+
+class CreateAnchorCommand extends BaseCommand {
+  static paths = [['create', 'anchor']];
+  static usage = Command.Usage({
+    description: 'Create a new anchor milestone scaffold',
+  });
+  id = Option.String({ required: true });
+
+  async run() {
+    Create.anchor(this.id);
+  }
+}
+
+class CreatePromptCommand extends BaseCommand {
+  static paths = [['create', 'prompt']];
+  static usage = Command.Usage({
+    description: 'Create a workspace system prompt scaffold',
+  });
+  kind = Option.String({ required: true });
+
+  async run() {
+    Create.prompt(this.kind);
+  }
+}
+
+class CreateUseCaseCommand extends BaseCommand {
+  static paths = [
+    ['create', 'use-case'],
+    ['create', 'usecase'],
+  ];
+  static usage = Command.Usage({
+    description: 'Create a new use-case workspace scaffold',
+    examples: [
+      ['Create auto-kaggle use-case', 'aura create use-case auto-kaggle'],
+    ],
+  });
+  name = Option.String({ required: true });
+
+  async run() {
+    Create.useCase(this.name);
+  }
+}
+
 class KernelObserveCommand extends BaseCommand {
   static paths = [['kernel', 'observe']];
   static usage = Command.Usage({
@@ -695,6 +840,45 @@ class KernelLoopCommand extends BaseCommand {
       human: this.human,
       verbose: this.verbose,
       maxSteps: parseInt(this.maxSteps, 10),
+    });
+  }
+}
+
+class KernelWorkflowCommand extends BaseCommand {
+  static paths = [['kernel', 'workflow']];
+  static usage = Command.Usage({
+    description: 'Run a declared workflow directly through the kernel',
+    details:
+      'Loads workflow.yml or workflows/<name>.yml, validates the workflow contract, compiles the workflow goal, and executes it through the kernel agent loop.',
+    examples: [
+      ['Run default workflow.yml', 'aura kernel workflow'],
+      ['Run named workflow', 'aura kernel workflow auto-kaggle'],
+      [
+        'Run workflow in another project',
+        'aura kernel workflow auto-kaggle ./workspace --max-steps 80',
+      ],
+    ],
+  });
+  name = Option.String({ required: false });
+  projectPath = Option.String({ required: false });
+  human = Option.Boolean('-H,--human', false);
+  verbose = Option.Boolean('-v,--verbose', false);
+  maxSteps = Option.String('-m,--max-steps,--max_steps');
+
+  async run() {
+    let steps: number | undefined;
+    if (this.maxSteps !== undefined) {
+      try {
+        steps = PathResolver.validateMaxSteps(parseInt(this.maxSteps, 10));
+      } catch (e: unknown) {
+        throw new UI.CliError((e as Error).message);
+      }
+    }
+    await Kernel.workflow(this.projectPath, {
+      name: this.name,
+      human: this.human,
+      verbose: this.verbose,
+      maxSteps: steps,
     });
   }
 }
@@ -1062,6 +1246,64 @@ class GardenInitCommand extends BaseCommand {
   }
 }
 
+class AnchorStatusCommand extends BaseCommand {
+  static paths = [['anchor', 'status']];
+  static usage = Command.Usage({
+    description: 'Show anchor milestone details for the current workspace',
+  });
+  projectPath = Option.String({ required: false });
+
+  async run() {
+    Anchor.status(this.projectPath);
+  }
+}
+
+class WorkflowRunCommand extends BaseCommand {
+  static paths = [['workflow', 'run']];
+  static usage = Command.Usage({
+    description: 'Run a declared Aura workflow',
+  });
+  name = Option.String({ required: false });
+  projectPath = Option.String('--project', { required: false });
+  maxSteps = Option.String('--max-steps,--max_steps', { required: false });
+
+  async run() {
+    const steps =
+      this.maxSteps !== undefined
+        ? PathResolver.validateMaxSteps(parseInt(this.maxSteps, 10))
+        : undefined;
+    await Workflow.run(this.name, this.projectPath, {
+      maxSteps: steps,
+    });
+  }
+}
+
+class WorkflowStatusCommand extends BaseCommand {
+  static paths = [['workflow', 'status']];
+  static usage = Command.Usage({
+    description: 'Show status for a declared Aura workflow',
+  });
+  name = Option.String({ required: false });
+  projectPath = Option.String('--project', { required: false });
+
+  async run() {
+    Workflow.status(this.name, this.projectPath);
+  }
+}
+
+class WorkflowDoctorCommand extends BaseCommand {
+  static paths = [['workflow', 'doctor']];
+  static usage = Command.Usage({
+    description: 'Validate a declared Aura workflow',
+  });
+  name = Option.String({ required: false });
+  projectPath = Option.String('--project', { required: false });
+
+  async run() {
+    Workflow.doctor(this.name, this.projectPath);
+  }
+}
+
 // Global alias maps matching Thor maps
 const aliasMap: Record<string, string[]> = {
   h: ['hints', 'list'],
@@ -1108,11 +1350,22 @@ export function createCli(): Cli {
   cli.register(ToolsGenerateGroupCommand);
   cli.register(ToolsAddCommand);
   cli.register(ToolsInstallCommand);
+  cli.register(CreateListCommand);
+  cli.register(CreateToolCommand);
+  cli.register(CreateToolGroupCommand);
+  cli.register(CreateSkillCommand);
+  cli.register(CreateGardenCommand);
+  cli.register(CreateWorkflowCommand);
+  cli.register(CreatePersonaCommand);
+  cli.register(CreateAnchorCommand);
+  cli.register(CreatePromptCommand);
+  cli.register(CreateUseCaseCommand);
   cli.register(KernelObserveCommand);
   cli.register(KernelRunCallCommand);
   cli.register(KernelOnceCommand);
   cli.register(KernelPlanCommand);
   cli.register(KernelLoopCommand);
+  cli.register(KernelWorkflowCommand);
   cli.register(KernelRalphCommand);
   cli.register(SkillListCommand);
   cli.register(SkillInstallCommand);
@@ -1140,6 +1393,10 @@ export function createCli(): Cli {
   cli.register(GardenListCommand);
   cli.register(GardenStatusCommand);
   cli.register(GardenInitCommand);
+  cli.register(AnchorStatusCommand);
+  cli.register(WorkflowRunCommand);
+  cli.register(WorkflowStatusCommand);
+  cli.register(WorkflowDoctorCommand);
 
   return cli;
 }
@@ -1150,6 +1407,8 @@ const WHITELISTED_COMMANDS = new Set([
   'info',
   'version',
   'new',
+  'create',
+  'anchor',
   'chat',
   'list',
   'delete',

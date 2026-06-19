@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
@@ -19,8 +20,7 @@ describe('Programmatic CLI run Integration Tests', { timeout: 90000 }, () => {
   let origEnvRepo: string | undefined;
 
   beforeEach(() => {
-    tempDir = path.resolve(__dirname, `temp-cli-run-${Date.now()}`);
-    fs.mkdirSync(tempDir, { recursive: true });
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-temp-cli-run-'));
 
     testGlobalRepo = path.join(tempDir, 'global_repo');
     _testWorkspace = path.join(tempDir, 'my_project');

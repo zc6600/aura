@@ -23,6 +23,19 @@
       },
       "notes": {
         "type": "string"
+      },
+      "anchor_runtime_update": {
+        "type": "object",
+        "properties": {
+          "phase": { "type": "string" },
+          "active_run_id": { "type": "string" },
+          "active_submission_path": { "type": "string" },
+          "active_submission_id": { "type": "string" },
+          "resume_action": { "type": "string" },
+          "resume_at": { "type": "string" },
+          "tool_note": { "type": "string" }
+        },
+        "additionalProperties": false
       }
     },
     "required": ["anchor_id", "summary"]

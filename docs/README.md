@@ -18,7 +18,8 @@ How-to guides are task recipes. Use them when you already know the goal and need
 
 - [Configure Aura](how-to/configure-aura.md) - Set local/global config, manage `.env` files, and choose LLM providers.
 - [Manage Sessions](how-to/manage-sessions.md) - Create, switch, duplicate, export, import, rename, and delete isolated conversation sessions.
-- [Extend with Skills and Tools](how-to/extend-with-skills-and-tools.md) - Install skills and tools, define tool manifests, configure MCP, and manage hint injection.
+- [Customize Agents](how-to/customize-agents.md) - Build project-specific workflows with prompts, skills, gardens, tools, Ralph verification, anchors, and `workflow.yml`.
+- [Extend with Skills, Tools, and Garden](how-to/extend-with-skills-and-tools.md) - Install skills and tools, define tool manifests, understand Garden playbooks, configure MCP, and manage hint injection.
 - [Work with Templates and Updates](how-to/work-with-templates-and-updates.md) - Update templates, sync workspaces, and use Aura's Git-backed workflow.
 - [Maintain the Changelog](how-to/maintain-changelog.md) - Keep release notes and changelog automation consistent.
 - [Test Aura](how-to/test-aura.md) - Run focused tests, integration tests, system tests, and CI checks.
@@ -42,7 +43,7 @@ Explanation pages build understanding. Read them when you want the design model,
 - [Architecture](explanation/architecture.md) - System layers and component boundaries.
 - [Configuration Model](explanation/configuration-model.md) - How YAML config, `.env`, provider detection, and sessions fit together.
 - [Workspace and Template Model](explanation/workspace-and-template-model.md) - How `.aura-workspace/`, `~/.aura-framework/repo`, and update commands relate.
-- [Tools, Skills, and MCP](explanation/tools-skills-and-mcp.md) - Conceptual boundaries between executable tools, workflow skills, and external MCP tools.
+- [Tools, Skills, Garden, and MCP](explanation/tools-skills-and-mcp.md) - Conceptual boundaries between executable tools, workflow skills, Garden playbooks, and external MCP tools.
 - [Testing Strategy](explanation/testing-strategy.md) - Why the test suite is split into unit, integration, system, and daemon layers.
 - [Daemon Architecture](explanation/daemon-architecture.md) - Background daemon, IPC, and startup-latency design.
 - [Context and State](explanation/context-and-state.md) - How Aura assembles context and records state.
@@ -79,7 +80,8 @@ Main surfaces:
 - **Workspace**: Project root plus `.aura-workspace/`; current code scans both root-level and environment-level tool/skill locations.
 - **Global Aura Home**: `~/.aura-framework/`, including global `.env` and the template repository at `~/.aura-framework/repo`.
 - **Sessions**: Isolated SQLite databases under `.aura-workspace/state/sessions/`.
-- **Tools and Skills**: Executable capabilities and markdown workflow instructions exposed to the agent.
+- **Workflow**: `workflow.yml` is the runnable contract that points Aura at the params, Garden, skill, prompts, tools, stages, and run goal for a custom agent project; the kernel can execute it directly through `aura kernel workflow`.
+- **Tools, Skills, and Garden**: Executable capabilities, reusable workflow instructions, and project-level playbooks that turn tasks into agent-executable workspaces.
 
 ## Need Help?
 

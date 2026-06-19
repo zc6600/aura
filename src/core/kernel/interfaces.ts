@@ -27,7 +27,8 @@ export interface ToolResult {
     | 'blocked'
     | 'upgrade_required'
     | 'running'
-    | 'sleeping';
+    | 'sleeping'
+    | 'deferred';
   /** Some Python tools return success:true/false alongside status */
   success?: boolean;
   output?: string | null;

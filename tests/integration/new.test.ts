@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
@@ -12,8 +13,9 @@ describe('CLI new Subcommand Integration', { timeout: 30000 }, () => {
   let tempWorkspace: string;
 
   beforeEach(() => {
-    tempWorkspace = path.resolve(__dirname, `temp-cli-new-${Date.now()}`);
-    fs.mkdirSync(tempWorkspace, { recursive: true });
+    tempWorkspace = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'aura-temp-cli-new-'),
+    );
   });
 
   afterEach(() => {

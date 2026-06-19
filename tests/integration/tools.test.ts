@@ -512,13 +512,23 @@ describe('Tools Integration', { timeout: 30000 }, () => {
         summary: 'Phase 1: Finished implementing initial files.',
         selected_next: 'phase_2',
         notes: 'Builds successfully.',
+        anchor_runtime_update: {
+          phase: 'waiting_guard',
+          active_run_id: 'candidate_004',
+          resume_action: 'retry_guard_for_same_candidate',
+          tool_note: 'guard wait 900s for candidate_004',
+        },
       },
       summary: 'Submit phase 1 anchor completion',
     });
 
     expect(res.status).toBe('success');
     expect(res.anchor_id).toBe('anchor_1');
+    expect(res.selected_next).toBe('phase_2');
     expect(res.next_stage).toBe('phase_2');
+    expect((res.anchor_runtime_update as { phase?: string }).phase).toBe(
+      'waiting_guard',
+    );
     expect(res.summary).toContain('Finished');
 
     const resErr = await runner.runCall({

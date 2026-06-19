@@ -12,7 +12,10 @@ describe('Update.framework', () => {
     vi.restoreAllMocks();
     vi.spyOn(Template, 'sync').mockResolvedValue(undefined);
 
-    vi.mocked(execa).mockImplementation((async (command: string, args?: string[]) => {
+    vi.mocked(execa).mockImplementation((async (
+      command: string,
+      args?: string[],
+    ) => {
       if (command === 'git' && args?.[0] === 'branch') {
         return { stdout: 'main\n', stderr: '', exitCode: 0 } as any;
       }

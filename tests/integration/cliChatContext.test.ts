@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
@@ -15,8 +16,9 @@ describe('CLI Chat Context & Commands Integration', { timeout: 60000 }, () => {
 
   beforeEach(async () => {
     // Create a temporary workspace directory
-    tempWorkspace = path.resolve(__dirname, `temp-chat-context-${Date.now()}`);
-    fs.mkdirSync(tempWorkspace, { recursive: true });
+    tempWorkspace = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'aura-temp-chat-context-'),
+    );
 
     // Initialize workspace directly in-process
     await initializeWorkspaceInPlace(tempWorkspace);

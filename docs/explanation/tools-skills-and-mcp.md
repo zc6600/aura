@@ -1,6 +1,6 @@
-# Tools, Skills, and MCP
+# Tools, Skills, Garden, and MCP
 
-Aura has three extension mechanisms. They solve different problems and should not be treated as interchangeable.
+Aura has four extension mechanisms. They solve different problems and should not be treated as interchangeable.
 
 ## Tools
 
@@ -48,6 +48,28 @@ Use a skill when the agent needs procedure or judgment:
 
 Skills can mention required tools, but a skill is not itself a tool call. It is context that changes how the agent plans and acts.
 
+## Garden
+
+Garden playbooks are project-level context engineering. They assemble and route the workspace guidance needed for a larger agent project: custom prompts, task anchors, local hints, domain sub-playbooks, required tools, and any skills the agent should follow.
+
+A garden normally has:
+
+```text
+garden/
+├── garden.md
+└── <playbook_name>/
+    └── garden.md
+```
+
+Use a garden when the task needs a workspace scaffold or multi-stage operating environment:
+
+- A domain playbook for a Kaggle competition, software checking run, performance tuning pass, or research workflow.
+- A router that sends the agent to the right sub-playbook.
+- Stage gates and anchors that keep a long-running task oriented.
+- Project-level guardrails that combine prompts, hints, tools, and skills.
+
+Garden and skills are related but not the same. Garden answers "how should this workspace be organized and constrained for this project?" A skill answers "what procedure should the agent follow for this class of work?" A Garden can route to or require a skill, and a skill can refer back to Garden context, but the names should not be used interchangeably.
+
 ## MCP
 
 MCP connects Aura to external tool servers. An MCP server can expose many tools through stdio or SSE transport. Aura surfaces those tools under names like:
@@ -69,10 +91,11 @@ MCP config is defined under `tools/mcp/config.yml` in the workspace or global te
 
 A common pattern is:
 
-1. A skill gives the agent a workflow.
-2. The workflow tells the agent when to use local Aura tools.
-3. MCP tools provide optional external capabilities.
-4. Hints add local guidance to files or tools without bloating every prompt.
+1. A Garden assembles project context, prompts, anchors, and routing.
+2. A skill gives the agent a reusable workflow inside that context.
+3. The workflow tells the agent when to use local Aura tools.
+4. MCP tools provide optional external capabilities.
+5. Hints add local guidance to files or tools without bloating every prompt.
 
 For example, a "software checking" skill may instruct the agent to inspect code, run tests with a local tool, and query an MCP issue tracker only when needed.
 
@@ -88,6 +111,14 @@ Current code lists skills from both:
 - `~/.aura-framework/repo/skills`
 - `<project>/skills`
 
+Current code reads Garden playbooks from standard workspace and template locations such as:
+
+- `<project>/garden.md`
+- `<project>/garden/garden.md`
+- `<project>/garden/<name>/garden.md`
+- `<project>/gardens/<name>/garden.md`
+- template or environment `gardens/` locations
+
 When names collide, later discovered entries can override earlier entries in command output. Avoid duplicate tool or skill names unless you are deliberately shadowing a template capability.
 
-See [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md) for setup steps and [Integrations Reference](../reference/integrations.md) for MCP details.
+See [Extend with Skills, Tools, and Garden](../how-to/extend-with-skills-and-tools.md) for setup steps and [Integrations Reference](../reference/integrations.md) for MCP details.

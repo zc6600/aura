@@ -21,6 +21,36 @@ interface CriticResponse {
   advice?: string;
 }
 
+export type RalphStatus = 'completed' | 'failed';
+
+export interface RalphVerificationResult {
+  mode: 'physical' | 'critic';
+  passed: boolean;
+  command?: string | null;
+  exit_code?: number | null;
+  timed_out?: boolean;
+  stdout_tail?: string;
+  stderr_tail?: string;
+  output_tail: string;
+  stdout_path?: string;
+  stderr_path?: string;
+  audit_path?: string;
+  completed?: boolean;
+}
+
+export interface RalphLoopResult {
+  status: RalphStatus;
+  run_id: string;
+  goal: string;
+  iterations: number;
+  started_at: string;
+  completed_at: string;
+  final: string | null;
+  failure_reason?: string;
+  result_path?: string;
+  verification: RalphVerificationResult;
+}
+
 export class RalphPayload {
   constructor(
     public readonly messages: ChatMessage[],
@@ -107,6 +137,9 @@ export class RalphLoop {
   private runId = '';
   private iterationCount = 1;
   private tempSessions: string[] = [];
+  private startedAt = '';
+  private latestVerification: RalphVerificationResult | null = null;
+  private resultPath: string | null = null;
 
   constructor(
     runner: IRalphRunner,
@@ -141,7 +174,7 @@ export class RalphLoop {
     this.setupPlanningHook();
   }
 
-  public async run(): Promise<'completed' | 'failed'> {
+  public async run(): Promise<RalphLoopResult> {
     this.runner.hooks.register('before_planning', this.planningHookProc);
     if (
       this.goal?.trim() &&
@@ -150,6 +183,9 @@ export class RalphLoop {
       this.runner.recordUserInput(this.goal.trim());
     }
     this.runId = `${new Date().toISOString().replace(/[-:T.Z]/g, '')}_${crypto.randomBytes(4).toString('hex')}`;
+    this.startedAt = new Date().toISOString();
+    this.resultPath = null;
+    this.latestVerification = null;
     this.iterationCount = 1;
     const startingSession = process.env.AURA_SESSION_NAME || 'default';
     const startingDbPath = process.env.AURA_STATE_DB_PATH;
@@ -185,7 +221,7 @@ export class RalphLoop {
 
     const signal = this.options.signal as AbortSignal | undefined;
     if (signal?.aborted) {
-      return 'failed';
+      return this.finalizeRun('failed', null, 'Session aborted before start');
     }
 
     try {
@@ -194,14 +230,19 @@ export class RalphLoop {
           this.eventBus.emit('loop_aborted', {
             reason: 'Session aborted (client disconnected)',
           });
-          return 'failed';
+          return this.finalizeRun(
+            'failed',
+            null,
+            'Session aborted (client disconnected)',
+          );
         }
 
         if (this.iterationCount > this.maxSteps) {
+          const reason = `Max steps limit reached (${this.maxSteps})`;
           this.eventBus.emit('loop_aborted', {
-            reason: `Max steps limit reached (${this.maxSteps})`,
+            reason,
           });
-          return 'failed';
+          return this.finalizeRun('failed', null, reason);
         }
 
         this.currentMode = 'developer';
@@ -248,7 +289,7 @@ export class RalphLoop {
             e instanceof LLMRateLimitError
           ) {
             this.eventBus.emit('loop_aborted', { reason: msg });
-            return 'failed';
+            return this.finalizeRun('failed', null, msg);
           }
           if (
             msg.includes('disconnected') ||
@@ -280,7 +321,7 @@ export class RalphLoop {
           const finalContent =
             result.final_content || 'Task completed successfully.';
           this.eventBus.emit('final_answer', { content: finalContent });
-          return 'completed';
+          return this.finalizeRun('completed', finalContent);
         } else {
           const reason =
             result.status === 'completed'
@@ -298,7 +339,7 @@ export class RalphLoop {
       this.eventBus.emit('thought', {
         content: `Ralph Loop encountered a fatal error: ${msg}`,
       });
-      return 'failed';
+      return this.finalizeRun('failed', null, msg);
     } finally {
       // Restore session
       try {
@@ -397,21 +438,25 @@ export class RalphLoop {
     passed: boolean;
     output: string;
   }> {
-    if (this.useCritic) {
-      return await this.runCriticAudit();
-    } else {
-      return await this.runPhysicalTest();
-    }
+    const verification = this.useCritic
+      ? await this.runCriticAudit()
+      : await this.runPhysicalTest();
+    this.latestVerification = verification;
+    return {
+      passed: verification.passed,
+      output: verification.output_tail,
+    };
   }
 
-  private async runPhysicalTest(): Promise<{
-    passed: boolean;
-    output: string;
-  }> {
+  private async runPhysicalTest(): Promise<RalphVerificationResult> {
     if (!this.verifyCommand?.trim()) {
       return {
+        mode: 'physical',
         passed: true,
-        output: 'No verification command configured. Auto-passed.',
+        command: null,
+        exit_code: null,
+        timed_out: false,
+        output_tail: 'No verification command configured. Auto-passed.',
       };
     }
 
@@ -431,13 +476,28 @@ export class RalphLoop {
       const res = await execPromise;
       if ((res as { timedOut?: boolean }).timedOut) {
         return {
+          mode: 'physical',
           passed: false,
-          output: `Verification command timed out after ${timeoutSec} seconds.`,
+          command: this.verifyCommand,
+          exit_code: null,
+          timed_out: true,
+          output_tail: `Verification command timed out after ${timeoutSec} seconds.`,
         };
       }
       const passed = res.exitCode === 0;
       const output = `STDOUT:\n${res.stdout}\nSTDERR:\n${res.stderr}`;
-      return { passed, output };
+      const files = this.writeVerificationStreams(res.stdout, res.stderr);
+      return {
+        mode: 'physical',
+        passed,
+        command: this.verifyCommand,
+        exit_code: res.exitCode,
+        timed_out: false,
+        stdout_tail: this.tail(res.stdout),
+        stderr_tail: this.tail(res.stderr),
+        output_tail: this.tail(output),
+        ...files,
+      };
     } catch (e: unknown) {
       if (
         e &&
@@ -446,23 +506,31 @@ export class RalphLoop {
         (e as { timedOut?: boolean }).timedOut
       ) {
         return {
+          mode: 'physical',
           passed: false,
-          output: `Verification command timed out after ${timeoutSec} seconds.`,
+          command: this.verifyCommand,
+          exit_code: null,
+          timed_out: true,
+          output_tail: `Verification command timed out after ${timeoutSec} seconds.`,
         };
       }
       return {
+        mode: 'physical',
         passed: false,
-        output: `Error running test command: ${e instanceof Error ? e.message : String(e)}`,
+        command: this.verifyCommand,
+        exit_code: null,
+        timed_out: false,
+        output_tail: `Error running test command: ${e instanceof Error ? e.message : String(e)}`,
       };
     }
   }
 
-  private async runCriticAudit(): Promise<{ passed: boolean; output: string }> {
+  private async runCriticAudit(): Promise<RalphVerificationResult> {
     this.currentMode = 'critic';
 
     try {
       const testRes = await this.runPhysicalTest();
-      this.lastTestFeedback = testRes.output;
+      this.lastTestFeedback = testRes.output_tail;
 
       const audit = await this.buildAuditContext();
       const criticPayload = this.assembleContext({
@@ -495,8 +563,10 @@ export class RalphLoop {
             content: `Critic AgentLoop failed: ${errMsg}`,
           });
           return {
+            mode: 'critic',
             passed: false,
-            output: `Critic LLM loop error: ${errMsg}`,
+            command: this.verifyCommand || null,
+            output_tail: `Critic LLM loop error: ${errMsg}`,
           };
         }
       } else {
@@ -526,7 +596,14 @@ export class RalphLoop {
 
         this.writeCriticAuditFile(critique, advice, completed);
         const feedback = `CRITIQUE:\n${critique}\n\nADVICE:\n${advice}`;
-        return { passed: completed, output: feedback };
+        return {
+          mode: 'critic',
+          passed: completed,
+          completed,
+          command: this.verifyCommand || null,
+          output_tail: this.tail(feedback),
+          audit_path: path.relative(this.projectPath, this.criticAuditPath()),
+        };
       } else {
         const feedback = `Critic LLM output format error. Feedback:\n${content}`;
         this.writeCriticAuditFile(
@@ -534,7 +611,14 @@ export class RalphLoop {
           'Ensure critic outputs JSON.',
           false,
         );
-        return { passed: false, output: feedback };
+        return {
+          mode: 'critic',
+          passed: false,
+          completed: false,
+          command: this.verifyCommand || null,
+          output_tail: this.tail(feedback),
+          audit_path: path.relative(this.projectPath, this.criticAuditPath()),
+        };
       }
     } finally {
       this.currentMode = 'developer';
@@ -661,16 +745,20 @@ export class RalphLoop {
     return 'No previous critic audit exists.';
   }
 
+  private criticAuditPath(): string {
+    return path.join(
+      this.envPath,
+      'state',
+      `critic_audit_${this.runId}_step_${this.iterationCount}.md`,
+    );
+  }
+
   private writeCriticAuditFile(
     critique: string,
     advice: string,
     passed: boolean,
   ): void {
-    const auditPath = path.join(
-      this.envPath,
-      'state',
-      `critic_audit_${this.runId}_step_${this.iterationCount}.md`,
-    );
+    const auditPath = this.criticAuditPath();
     const statusStr = passed ? 'PASSING' : 'FAILING';
     const content = [
       '# Critic Audit Report',
@@ -735,6 +823,84 @@ export class RalphLoop {
     const status = r.status ?? 'ok';
     const output = r.output ?? r.content ?? JSON.stringify(runRes);
     return `Status: ${status}\nOutput:\n${output}`;
+  }
+
+  private ralphRunDir(): string {
+    return path.join(this.envPath, 'state', 'ralph', 'runs', this.runId);
+  }
+
+  private tail(text: string | null | undefined, maxChars = 4000): string {
+    const s = text || '';
+    if (s.length <= maxChars) return s;
+    return s.slice(-maxChars);
+  }
+
+  private writeVerificationStreams(
+    stdout: string,
+    stderr: string,
+  ): { stdout_path: string; stderr_path: string } {
+    const dir = this.ralphRunDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const stdoutPath = path.join(
+      dir,
+      `verify_step_${this.iterationCount}.stdout`,
+    );
+    const stderrPath = path.join(
+      dir,
+      `verify_step_${this.iterationCount}.stderr`,
+    );
+    fs.writeFileSync(stdoutPath, stdout || '', 'utf-8');
+    fs.writeFileSync(stderrPath, stderr || '', 'utf-8');
+    return {
+      stdout_path: path.relative(this.projectPath, stdoutPath),
+      stderr_path: path.relative(this.projectPath, stderrPath),
+    };
+  }
+
+  private defaultVerification(status: RalphStatus): RalphVerificationResult {
+    return {
+      mode: this.useCritic ? 'critic' : 'physical',
+      passed: status === 'completed',
+      command: this.verifyCommand || null,
+      output_tail: this.lastTestFeedback || 'Verification was not run.',
+    };
+  }
+
+  private finalizeRun(
+    status: RalphStatus,
+    final: string | null,
+    failureReason?: string,
+  ): RalphLoopResult {
+    const result: RalphLoopResult = {
+      status,
+      run_id: this.runId,
+      goal: this.goal,
+      iterations: this.iterationCount,
+      started_at: this.startedAt || new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      final,
+      verification: this.latestVerification || this.defaultVerification(status),
+    };
+    if (failureReason) {
+      result.failure_reason = failureReason;
+    }
+
+    try {
+      const dir = this.ralphRunDir();
+      fs.mkdirSync(dir, { recursive: true });
+      const resultPath = path.join(dir, 'result.json');
+      const relResultPath = path.relative(this.projectPath, resultPath);
+      result.result_path = relResultPath;
+      fs.writeFileSync(resultPath, JSON.stringify(result, null, 2), 'utf-8');
+      this.resultPath = relResultPath;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.eventBus.emit('warning', {
+        message: `Error writing Ralph result artifact: ${msg}`,
+      });
+    }
+
+    return result;
   }
 
   private innerEventBus(): IEventBus {

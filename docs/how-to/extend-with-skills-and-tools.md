@@ -1,6 +1,8 @@
-# Skills and Tools
+# Skills, Tools, and Garden
 
-Extend Aura agent capabilities with custom tools, skills, and MCP integrations.
+Extend Aura agent capabilities with custom tools, skills, Garden playbooks, and MCP integrations.
+
+Garden is the project-level composition layer. Use it when a task needs to become an agent-executable workspace with a meta-agent role, deterministic tools, anchors, prompts, and one or more skills. For a complete walkthrough, see [Customize Agents with Garden](customize-agents.md).
 
 ## Tools
 
@@ -14,6 +16,14 @@ tools/[tool_name]/
 ├── manifest.json    # Metadata and permissions
 └── logic.py.hint    # (Optional) Usage tips for the agent
 ```
+
+Create this structure with:
+
+```bash
+aura create tool my_tool --allow-path . --auto-load
+```
+
+The scaffold writes a valid `manifest.json`, executable `logic.py`, and `logic.py.hint`. Edit the generated manifest schema and replace the placeholder logic with the deterministic behavior you need.
 
 ### manifest.json Specification
 
@@ -145,6 +155,14 @@ skills/[skill_name]/
 ├── references/        # (Optional) Reference docs
 └── scripts/           # (Optional) Helper scripts
 ```
+
+Create this structure with:
+
+```bash
+aura create skill my-skill
+```
+
+The scaffold writes `SKILL.md` frontmatter plus placeholder support directories.
 
 ### SKILL.md Format
 
@@ -398,6 +416,6 @@ cat manifest.json | grep -A 5 permissions
 
 - [Kernel Reference](../reference/kernel.md) - Tool execution pipeline
 - [Configure Aura](configure-aura.md) - Tool configuration
-- [Tools, Skills, and MCP](../explanation/tools-skills-and-mcp.md) - Conceptual model
+- [Tools, Skills, Garden, and MCP](../explanation/tools-skills-and-mcp.md) - Conceptual model
 - [Build Your First Tool and Skill](../tutorials/first-tool.md) - Guided first extension
 - [Integrations Reference](../reference/integrations.md) - MCP and LSP details

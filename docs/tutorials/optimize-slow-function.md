@@ -248,4 +248,4 @@ aura agent \
   --non-interactive
 ```
 
-See [CLI Reference](../reference/cli.md), [Testing Strategy](../explanation/testing-strategy.md), and [Tools, Skills, and MCP](../explanation/tools-skills-and-mcp.md) for the underlying mechanics.
+See [CLI Reference](../reference/cli.md), [Testing Strategy](../explanation/testing-strategy.md), and [Tools, Skills, Garden, and MCP](../explanation/tools-skills-and-mcp.md) for the underlying mechanics.

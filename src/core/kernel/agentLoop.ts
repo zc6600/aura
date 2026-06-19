@@ -197,6 +197,30 @@ export class AgentLoop {
           .filter(Boolean)
           .join('\n');
         ctx = `${banner}\n\n${freshCtx}`;
+      } else if (status === 'deferred') {
+        const resumeAt = String(
+          (result as Record<string, unknown>).resume_at || '',
+        );
+        const reason = String((result as Record<string, unknown>).reason || '');
+        const resumeTime = new Date(resumeAt).getTime();
+        const now = Date.now();
+        const sleepMs = Math.max(1000, resumeTime - now);
+
+        this.eventBus.emit('thought', {
+          content: `[DEFER] Workflow deferred until ${resumeAt} (reason: ${reason}). Waiting...`,
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, sleepMs));
+
+        const freshCtx = await this.observe();
+        const banner = [
+          `[WAKE] Workflow resumed. Deferred state until ${resumeAt} has expired.`,
+          reason ? `Reason: ${reason}` : null,
+          'Review the context below and decide next steps.',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        ctx = `${banner}\n\n${freshCtx}`;
       } else {
         ctx = this.appendLastToolResult(await this.observe(), toolName, result);
       }

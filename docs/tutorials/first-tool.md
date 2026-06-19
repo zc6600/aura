@@ -20,17 +20,24 @@ cd line-count-demo
 
 You can run this tutorial without an LLM key until the final agent step.
 
-## Create the Tool Directory
+## Create the Tool Scaffold
 
-Create:
+Generate the standard tool files:
+
+```bash
+aura create tool count_lines --allow-path . --auto-load
+```
+
+This creates:
 
 ```text
 tools/count_lines/
 ├── manifest.json
-└── logic.py
+├── logic.py
+└── logic.py.hint
 ```
 
-Add this `manifest.json`:
+Replace `tools/count_lines/manifest.json` with:
 
 ```json
 {
@@ -56,7 +63,7 @@ Add this `manifest.json`:
 }
 ```
 
-Add this `logic.py`:
+Replace `tools/count_lines/logic.py` with:
 
 ```python
 import json
@@ -109,14 +116,23 @@ If the tool does not appear, check that `manifest.json` is valid JSON and that t
 
 ## Add a Skill
 
-Create:
+Generate the standard skill files:
+
+```bash
+aura create skill line-count-review
+```
+
+This creates:
 
 ```text
 skills/line-count-review/
-└── SKILL.md
+├── SKILL.md
+├── assets/
+├── references/
+└── scripts/
 ```
 
-Add:
+Replace `skills/line-count-review/SKILL.md` with:
 
 ```markdown
 ---
@@ -151,7 +167,8 @@ The agent should have enough local context to discover the skill and call the to
 
 - Tools are executable capabilities with a JSON manifest.
 - Skills are workflow instructions in markdown.
+- `aura create tool` and `aura create skill` generate the standard files so you can focus on the behavior.
 - `aura kernel run_call` is the fastest way to test one tool.
 - `aura tools list` and `aura skill list` show what Aura can discover.
 
-See [Tools, Skills, and MCP](../explanation/tools-skills-and-mcp.md) for the model and [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md) for more workflows.
+See [Tools, Skills, Garden, and MCP](../explanation/tools-skills-and-mcp.md) for the model and [Extend with Skills, Tools, and Garden](../how-to/extend-with-skills-and-tools.md) for more workflows.

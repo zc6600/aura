@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
@@ -12,11 +13,9 @@ describe('CLI tools inspect Integration', { timeout: 30000 }, () => {
   let tempWorkspace: string;
 
   beforeEach(async () => {
-    tempWorkspace = path.resolve(
-      __dirname,
-      `temp-cli-tools-inspect-${Date.now()}`,
+    tempWorkspace = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'aura-temp-cli-tools-inspect-'),
     );
-    fs.mkdirSync(tempWorkspace, { recursive: true });
 
     // Initialize workspace
     const res = await execa('npx', ['tsx', auraBinPath, 'new', tempWorkspace]);

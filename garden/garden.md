@@ -11,7 +11,7 @@ requires:
 
 # Aura Garden: Playbook Router
 
-This skill provides a routing and orchestration workflow. It instructs the Meta-Agent on how to categorize a complex task and delegate the garden-construction process to the correct domain-specific sub-skill. 
+This Garden playbook provides a routing and orchestration workflow. It instructs the Meta-Agent on how to categorize a complex task and assemble the right project-level context, including domain sub-playbooks, prompts, anchors, hints, tools, and skills.
 
 A cornerstone of executing complex tasks on Aura OS is the clean separation of **engineering** (establishing a robust, verified, and reproducible foundation such as data loaders, validation strategies, or resource constraints) and **science** (iterative model tuning, parameter sweeps, or code optimizations). By first establishing and freezing a correct engineering setup, the agent can execute rapid, isolated scientific experiments in specific areas without creating "moving targets" that degrade context or stability.
 

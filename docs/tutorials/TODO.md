@@ -182,7 +182,7 @@ Related docs:
 - [Build Your First Tool and Skill](first-tool.md)
 - [Manage Sessions](../how-to/manage-sessions.md)
 - [Testing Strategy](../explanation/testing-strategy.md)
-- [Tools, Skills, and MCP](../explanation/tools-skills-and-mcp.md)
+- [Tools, Skills, Garden, and MCP](../explanation/tools-skills-and-mcp.md)
 
 ### Use Ralph Mode for a Test-Driven Fix
 
@@ -233,7 +233,7 @@ Why it matters: shows how workspace instructions and skills change agent behavio
 Related docs:
 
 - [Context and State](../explanation/context-and-state.md)
-- [Tools, Skills, and MCP](../explanation/tools-skills-and-mcp.md)
+- [Tools, Skills, Garden, and MCP](../explanation/tools-skills-and-mcp.md)
 
 ## Medium Priority
 
@@ -284,7 +284,7 @@ Why it matters: demonstrates how external tools can inspect Aura state.
 Related docs:
 
 - [Integrations Reference](../reference/integrations.md)
-- [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md)
+- [Extend with Skills, Tools, and Garden](../how-to/extend-with-skills-and-tools.md)
 
 ### Publish a Reusable Skill Locally
 
@@ -308,7 +308,7 @@ Why it matters: turns skills from local files into reusable assets.
 Related docs:
 
 - [Build Your First Tool and Skill](first-tool.md)
-- [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md)
+- [Extend with Skills, Tools, and Garden](../how-to/extend-with-skills-and-tools.md)
 
 ## Lower Priority
 
@@ -332,7 +332,7 @@ Why it matters: group tools are harder to infer from standalone tool tutorials.
 Related docs:
 
 - [Kernel Reference](../reference/kernel.md)
-- [Tools, Skills, and MCP](../explanation/tools-skills-and-mcp.md)
+- [Tools, Skills, Garden, and MCP](../explanation/tools-skills-and-mcp.md)
 
 ### First Web Dashboard Session
 

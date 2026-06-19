@@ -105,4 +105,4 @@ Common path checks and validation helpers are extracted to `src/utils/pathResolv
 
 - [Getting Started](../tutorials/getting-started.md) - CLI setup and configuration
 - [Kernel Reference](../reference/kernel.md) - Kernel architecture
-- [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md) - Extensibility guide
+- [Extend with Skills, Tools, and Garden](../how-to/extend-with-skills-and-tools.md) - Extensibility guide

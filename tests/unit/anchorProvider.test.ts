@@ -110,7 +110,89 @@ call_when: step3
     const provider = new AnchorProvider(projectPath, { envPath });
     const result = provider.provide();
     expect(result).toContain('### Task Nodes');
+    expect(result).toContain('### Anchor Submission Contract');
+    expect(result).toContain(
+      '- When a tool returns `anchor_runtime_update`, carry it into the next `anchor_submit` call.',
+    );
     expect(result).toContain('- anchor1: step1');
     expect(result).toContain('- anchor2: step3');
+  });
+
+  it('should show current anchor focus and recommended next from latest anchor event', () => {
+    const anchorsDir = path.join(projectPath, 'anchors');
+    fs.mkdirSync(anchorsDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(anchorsDir, 'a1.json'),
+      JSON.stringify({
+        id: 'anchor1',
+        call_when: ['finish step1'],
+        next: ['anchor2'],
+      }),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(anchorsDir, 'a2.json'),
+      JSON.stringify({
+        id: 'anchor2',
+        call_when: ['start step2'],
+        next: ['anchor3'],
+      }),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(anchorsDir, 'a3.json'),
+      JSON.stringify({ id: 'anchor3', call_when: ['finish step3'] }),
+      'utf-8',
+    );
+
+    const stateDir = path.join(projectPath, 'state');
+    const sessionsDir = path.join(stateDir, 'sessions');
+    fs.mkdirSync(sessionsDir, { recursive: true });
+    fs.writeFileSync(path.join(stateDir, 'active_session.txt'), 'default');
+    const dbPath = path.join(sessionsDir, 'default.db');
+    const db = new Database(dbPath);
+    db.prepare('CREATE TABLE variables (key TEXT UNIQUE, value TEXT)').run();
+    db.prepare(
+      'CREATE TABLE events (id INTEGER PRIMARY KEY, timestamp INTEGER, phase TEXT, tool TEXT, payload TEXT)',
+    ).run();
+    db.prepare(
+      'INSERT INTO events (timestamp, phase, tool, payload) VALUES (?, ?, ?, ?)',
+    ).run(
+      Math.floor(Date.now() / 1000),
+      'tool',
+      'anchor_submit',
+      JSON.stringify({
+        anchor_id: 'anchor1',
+        selected_next: 'anchor2',
+        summary: 'Resume candidate_004 after guard wait.',
+        notes: 'Guard cooldown hit.',
+        runtime: {
+          phase: 'waiting_guard',
+          active_run_id: 'candidate_004',
+          resume_action: 'retry_guard_for_same_candidate',
+          resume_at: '2026-06-18T00:00:00Z',
+          tool_note: 'guard wait 900s for candidate_004',
+        },
+      }),
+    );
+    db.close();
+
+    const provider = new AnchorProvider(projectPath, { envPath: projectPath });
+    const result = provider.provide();
+    expect(result).toContain('### Anchor Progress');
+    expect(result).toContain('### Anchor Submission Contract');
+    expect(result).toContain('- Current anchor: anchor2: start step2');
+    expect(result).toContain('- Last completed anchor: anchor1');
+    expect(result).toContain('- Recommended next anchor: anchor2');
+    expect(result).toContain('### Anchor Runtime');
+    expect(result).toContain(
+      '- Agent summary: Resume candidate_004 after guard wait.',
+    );
+    expect(result).toContain('- Phase: waiting_guard');
+    expect(result).toContain('- Active run: candidate_004');
+    expect(result).toContain('- Resume action: retry_guard_for_same_candidate');
+    expect(result).toContain('### Current Anchor Next Options');
+    expect(result).toContain('- anchor3: finish step3');
   });
 });

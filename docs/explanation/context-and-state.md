@@ -117,7 +117,7 @@ The `# SYSTEM & ENVIRONMENT` section is compiled directly by `ContextBase` utili
 - **Workspace Overview**: Handled by `DirectoryTreeProvider`. Displays a recursive list of files and directories up to `directory_tree.max_depth` (default 3) levels deep, showing at most `directory_tree.max_files_per_dir` (default 10) files per directory to prevent context bloat.
 - **Active Tags & Guidance (`@aura-hint`)**: Handled by `HintProvider`. Scans workspace files ending in `.py`, `.rb`, `.sh`, `.md`, or `.txt` (up to 100KB in size and 1000 files total) up to `hints.max_scan_lines` lines deep (default 2000) for comments matching the `@aura-hint:` pattern. **It also scans the entire workspace for sidecar `.hint` files (e.g. `src/core/parser.ts.hint`)** outside of the `knowledge/` directory, loading their entire contents as active constraints.
 - **Skills Knowledge**: Handled by `SkillProvider`. Parses YAML metadata from `SKILL.md` files (in `skills/` or `.aura-workspace/skills/`) to display skill name, description, requirements, and missing workspace tools, plus lists related scripts, references, and assets.
-- **Garden Playbooks**: Handled by `GardenProvider`. Surfaces active playbooks and garden rules.
+- **Garden Playbooks**: Handled by `GardenProvider`. Surfaces project-level playbooks that assemble prompts, skills, tools, anchors, hints, and stage rules into an agent-executable workflow.
 - **User Tasks**: Handled by `AnchorProvider`. Extracts the current plan stored as active variables in the SQLite database and summarizes node actions from `anchors/*.json` or `anchors/*.yaml` / `anchors/*.yml` files.
 - **Background Processes**: Handled by `BackgroundProcessProvider`. Detects active background processes and extracts log tails/diagnostic dumps.
 
@@ -243,4 +243,4 @@ Each session database contains:
 - [Memory Management](memory-management.md) - Metabolism and retention
 - [Session Architecture](session-architecture.md) - Session isolation
 - [Architecture Overview](architecture.md) - System design
-- [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md) - Tool manifest & @aura-hint usage
+- [Extend with Skills, Tools, and Garden](../how-to/extend-with-skills-and-tools.md) - Tool manifest, Garden, and @aura-hint usage

@@ -349,7 +349,9 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
       this: Bridge,
     ) {
       const bridgeState = this as unknown as {
-        runner: { getEngine(): { emit(event: string, payload: unknown): void } };
+        runner: {
+          getEngine(): { emit(event: string, payload: unknown): void };
+        };
         callbacks: BridgeCallbackMap;
       };
       bridgeState.runner.getEngine().emit('interactive_prompt', {
@@ -409,7 +411,9 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
 
     await expect(
       client.request('workspace/initialize', { sessionName: 'alternate' }),
-    ).rejects.toThrow(/cannot initialize workspace while a goal loop is running/i);
+    ).rejects.toThrow(
+      /cannot initialize workspace while a goal loop is running/i,
+    );
 
     await expect(
       client.request('session/activate', { name: 'alternate' }),

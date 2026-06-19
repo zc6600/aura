@@ -15,6 +15,14 @@ const describeSystem = runSystemTests ? describe : describe.skip;
 interface KernelRalphOutput {
   status: 'completed' | 'failed';
   final: string | null;
+  run_id: string;
+  result_path?: string;
+  verification: {
+    mode: string;
+    passed: boolean;
+    command?: string | null;
+    output_tail: string;
+  };
 }
 
 describeSystem('System kernel Ralph contract', { timeout: 240000 }, () => {
@@ -47,6 +55,12 @@ describeSystem('System kernel Ralph contract', { timeout: 240000 }, () => {
     const payload = parseJsonOutput<KernelRalphOutput>(result.stdout);
     expect(payload.status).toBe('completed');
     expect(payload.final || '').toContain(token);
+    expect(payload.run_id).toBeTruthy();
+    expect(payload.result_path).toBeTruthy();
+    expect(payload.verification.passed).toBe(true);
+    expect(
+      fs.existsSync(path.join(workspace.root, payload.result_path || '')),
+    ).toBe(true);
     expect(fs.existsSync(path.join(workspace.root, 'task.md'))).toBe(true);
   });
 
@@ -68,5 +82,9 @@ describeSystem('System kernel Ralph contract', { timeout: 240000 }, () => {
     const payload = parseJsonOutput<KernelRalphOutput>(result.stdout);
     expect(payload.status).toBe('completed');
     expect(payload.final || '').toContain(token);
+    expect(payload.verification.mode).toBe('physical');
+    expect(payload.verification.command).toBe('test -f task.md');
+    expect(payload.verification.passed).toBe(true);
+    expect(payload.result_path).toBeTruthy();
   });
 });

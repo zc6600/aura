@@ -1,5 +1,6 @@
 import type { Socket } from 'node:net';
 import * as agentHandlers from './handlers/agent.js';
+import * as anchorHandlers from './handlers/anchor.js';
 import * as daemonHandlers from './handlers/daemon.js';
 import * as executeHandlers from './handlers/execute.js';
 import * as gardenHandlers from './handlers/garden.js';
@@ -33,8 +34,10 @@ const registry: Record<string, HandlerFunction> = {
   'agent/runGoal': agentHandlers.runGoal,
 
   'garden/getStatus': gardenHandlers.getStatus,
-  'garden/getAnchors': gardenHandlers.getAnchors,
-  'garden/submitAnchor': gardenHandlers.submitAnchor,
+  'garden/getAnchors': anchorHandlers.getAnchors,
+  'garden/submitAnchor': anchorHandlers.submitAnchor,
+  'anchor/getAnchors': anchorHandlers.getAnchors,
+  'anchor/submitAnchor': anchorHandlers.submitAnchor,
 
   'daemon/status': daemonHandlers.status,
   'daemon/exit': daemonHandlers.exit,

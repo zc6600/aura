@@ -242,7 +242,10 @@ export class Garden {
         `  Anchors Completed: ${completedAnchors} / ${totalAnchors} (${ratio}%)`,
       );
       if (pendingAnchors.length > 0) {
-        console.log(`  Pending Anchors:   ${pendingAnchors.join(', ')}`);
+        console.log(`  Pending Anchors:   ${pendingAnchors.length}`);
+        console.log(
+          '  Details:           Use `aura anchor status` for node details.',
+        );
       }
     } else {
       console.log(

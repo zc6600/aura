@@ -97,8 +97,8 @@ export const runGoal: HandlerFunction = async (ctx) => {
         eventBus,
         signal,
       });
-      const status = await ralph.run();
-      server.sendResult(ctx.socket, ctx.id, { status });
+      const result = await ralph.run();
+      server.sendResult(ctx.socket, ctx.id, result);
     } else {
       const bridge = new Bridge(server.projectPath, {
         runner: server.runner,

@@ -200,8 +200,7 @@ export class DaemonClient {
       return (
         arg === '--import=tsx' ||
         arg.includes('/tsx/') ||
-        (arg === '--import' &&
-          (nextArg === 'tsx' || nextArg.includes('/tsx/')))
+        (arg === '--import' && (nextArg === 'tsx' || nextArg.includes('/tsx/')))
       );
     });
   }

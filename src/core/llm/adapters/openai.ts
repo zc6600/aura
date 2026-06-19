@@ -233,11 +233,7 @@ export class OpenAIAdapter extends BaseAdapter {
 
   private toOpenAITools(tools: CompletionOptions['tools'] = []): OpenAITool[] {
     return tools.map((tool) => {
-      if (
-        'type' in tool &&
-        tool.type === 'function' &&
-        'function' in tool
-      ) {
+      if ('type' in tool && tool.type === 'function' && 'function' in tool) {
         return tool;
       }
 

@@ -16,6 +16,28 @@ interface AnchorConfig {
   };
 }
 
+interface AnchorNode {
+  id: string;
+  brief: string;
+  next: string[];
+}
+
+interface AnchorProgress {
+  lastCompleted?: string;
+  selectedNext?: string;
+  summary?: string;
+  notes?: string;
+  runtime?: {
+    phase?: string;
+    active_run_id?: string;
+    active_submission_path?: string;
+    active_submission_id?: string;
+    resume_action?: string;
+    resume_at?: string;
+    tool_note?: string;
+  };
+}
+
 export class AnchorProvider {
   private projectPath: string;
   private envPath: string;
@@ -29,6 +51,7 @@ export class AnchorProvider {
 
   public provide(): string | null {
     let planText: string | null = null;
+    let progress: AnchorProgress | null = null;
 
     // 1. Try to read from state object
     if (this.state) {
@@ -93,6 +116,7 @@ export class AnchorProvider {
         if (row) {
           planText = String(row.value);
         }
+        progress = this.readAnchorProgressFromDb(db);
       } catch (_e) {
         // Ignore errors reading database file if not initialized yet
       } finally {
@@ -107,6 +131,7 @@ export class AnchorProvider {
     // 3. Scan anchors/ directory
     const anchorsDir = path.join(this.projectPath, 'anchors');
     const nodes: string[] = [];
+    const nodeMap = new Map<string, AnchorNode>();
     if (fs.existsSync(anchorsDir) && fs.statSync(anchorsDir).isDirectory()) {
       try {
         const files = fs.readdirSync(anchorsDir);
@@ -127,13 +152,15 @@ export class AnchorProvider {
             }
 
             if (data && typeof data === 'object') {
-              const id = data.id || path.basename(file, ext);
+              const id = String(data.id || path.basename(file, ext)).trim();
               const callWhen = data.call_when;
               const brief = Array.isArray(callWhen)
                 ? String(callWhen[0] || '')
                 : String(callWhen || '');
+              const next = this.parseNextAnchors(data.next);
               const label = brief.trim() ? `: ${brief.trim()}` : '';
               nodes.push(`- ${id}${label}`);
+              nodeMap.set(id, { id, brief: brief.trim(), next });
             }
           } catch (_e) {}
         }
@@ -148,8 +175,167 @@ export class AnchorProvider {
     }
     if (nodes.length > 0) {
       lines.push(`### Task Nodes\n${nodes.join('\n')}`);
+      lines.push(
+        [
+          '### Anchor Submission Contract',
+          '- When a tool returns `anchor_runtime_update`, carry it into the next `anchor_submit` call.',
+          '- Keep `summary` short and focused on what the agent should remember after resume.',
+          '- Use `selected_next` as a recommended next anchor, not a forced jump.',
+          '- Prefer tool-provided ids and paths in runtime fields; do not invent them.',
+        ].join('\n'),
+      );
+    }
+    const currentAnchorId = progress?.selectedNext || progress?.lastCompleted;
+    if (currentAnchorId) {
+      const anchorProgress = progress;
+      const currentNode = nodeMap.get(currentAnchorId);
+      const currentLabel = currentNode?.brief
+        ? `${currentAnchorId}: ${currentNode.brief}`
+        : currentAnchorId;
+      const progressLines = [`- Current anchor: ${currentLabel}`];
+      if (anchorProgress?.lastCompleted) {
+        progressLines.push(
+          `- Last completed anchor: ${anchorProgress.lastCompleted}`,
+        );
+      }
+      if (anchorProgress?.selectedNext) {
+        progressLines.push(
+          `- Recommended next anchor: ${anchorProgress.selectedNext}`,
+        );
+      }
+      lines.push(`### Anchor Progress\n${progressLines.join('\n')}`);
+
+      const runtimeLines: string[] = [];
+      if (anchorProgress?.summary) {
+        runtimeLines.push(`- Agent summary: ${anchorProgress.summary}`);
+      }
+      if (anchorProgress?.notes) {
+        runtimeLines.push(`- Notes: ${anchorProgress.notes}`);
+      }
+      if (anchorProgress?.runtime?.phase) {
+        runtimeLines.push(`- Phase: ${anchorProgress.runtime.phase}`);
+      }
+      if (anchorProgress?.runtime?.active_run_id) {
+        runtimeLines.push(
+          `- Active run: ${anchorProgress.runtime.active_run_id}`,
+        );
+      }
+      if (anchorProgress?.runtime?.active_submission_path) {
+        runtimeLines.push(
+          `- Submission path: ${anchorProgress.runtime.active_submission_path}`,
+        );
+      }
+      if (anchorProgress?.runtime?.active_submission_id) {
+        runtimeLines.push(
+          `- Submission id: ${anchorProgress.runtime.active_submission_id}`,
+        );
+      }
+      if (anchorProgress?.runtime?.resume_action) {
+        runtimeLines.push(
+          `- Resume action: ${anchorProgress.runtime.resume_action}`,
+        );
+      }
+      if (anchorProgress?.runtime?.resume_at) {
+        runtimeLines.push(`- Resume at: ${anchorProgress.runtime.resume_at}`);
+      }
+      if (anchorProgress?.runtime?.tool_note) {
+        runtimeLines.push(`- Tool note: ${anchorProgress.runtime.tool_note}`);
+      }
+      if (runtimeLines.length > 0) {
+        lines.push(`### Anchor Runtime\n${runtimeLines.join('\n')}`);
+      }
+
+      if (currentNode?.next.length) {
+        const nextLines = currentNode.next.map((nextId) => {
+          const nextNode = nodeMap.get(nextId);
+          const label = nextNode?.brief ? `: ${nextNode.brief}` : '';
+          return `- ${nextId}${label}`;
+        });
+        lines.push(`### Current Anchor Next Options\n${nextLines.join('\n')}`);
+      }
     }
 
     return lines.length > 0 ? lines.join('\n\n') : null;
+  }
+
+  private parseNextAnchors(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean);
+    }
+    if (typeof value === 'string' && value.trim()) {
+      return [value.trim()];
+    }
+    return [];
+  }
+
+  private readAnchorProgressFromDb(
+    db: Database.Database,
+  ): AnchorProgress | null {
+    try {
+      const row = db
+        .prepare(
+          "SELECT payload FROM events WHERE tool = 'anchor_submit' ORDER BY id DESC LIMIT 1",
+        )
+        .get() as { payload: string } | undefined;
+      if (!row?.payload) {
+        return null;
+      }
+      const payload = JSON.parse(row.payload) as Record<string, unknown>;
+      const lastCompleted =
+        typeof payload.anchor_id === 'string' && payload.anchor_id.trim()
+          ? payload.anchor_id.trim()
+          : undefined;
+      const summary =
+        typeof payload.summary === 'string' && payload.summary.trim()
+          ? payload.summary.trim()
+          : undefined;
+      const notes =
+        typeof payload.notes === 'string' && payload.notes.trim()
+          ? payload.notes.trim()
+          : undefined;
+      const selectedNextRaw =
+        typeof payload.selected_next === 'string' &&
+        payload.selected_next.trim()
+          ? payload.selected_next.trim()
+          : typeof payload.next_stage === 'string' && payload.next_stage.trim()
+            ? payload.next_stage.trim()
+            : undefined;
+      const runtime = this.parseRuntime(payload.runtime);
+      if (!lastCompleted && !selectedNextRaw && !summary && !runtime) {
+        return null;
+      }
+      return {
+        lastCompleted,
+        selectedNext: selectedNextRaw,
+        summary,
+        notes,
+        runtime: runtime || undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private parseRuntime(value: unknown): AnchorProgress['runtime'] | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    const raw = value as Record<string, unknown>;
+    const runtime = {
+      phase: this.readString(raw.phase),
+      active_run_id: this.readString(raw.active_run_id),
+      active_submission_path: this.readString(raw.active_submission_path),
+      active_submission_id: this.readString(raw.active_submission_id),
+      resume_action: this.readString(raw.resume_action),
+      resume_at: this.readString(raw.resume_at),
+      tool_note: this.readString(raw.tool_note),
+    };
+    return Object.values(runtime).some(Boolean) ? runtime : null;
+  }
+
+  private readString(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 }

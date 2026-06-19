@@ -215,7 +215,7 @@ Now that you have Aura installed and running:
 - [CLI Reference](../reference/cli.md) - Learn all available commands
 - [Configure Aura](../how-to/configure-aura.md) - Understand the config system
 - [Manage Sessions](../how-to/manage-sessions.md) - Manage isolated conversations
-- [Extend with Skills and Tools](../how-to/extend-with-skills-and-tools.md) - Extend agent capabilities
+- [Extend with Skills, Tools, and Garden](../how-to/extend-with-skills-and-tools.md) - Extend agent capabilities
 - [Work with Templates and Updates](../how-to/work-with-templates-and-updates.md) - Version control and update workflows
 
 ---

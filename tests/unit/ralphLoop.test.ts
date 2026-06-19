@@ -222,7 +222,13 @@ describe('RalphLoop', () => {
     const loopInst = new RalphLoop(mockRunner, 'fix bug');
     const result = await loopInst.run();
 
-    expect(result).toBe('completed');
+    expect(result.status).toBe('completed');
+    expect(result.result_path).toBeTruthy();
+    expect(result.verification.passed).toBe(true);
+    expect(result.verification.command).toBe('echo test');
+    expect(fs.existsSync(path.join(tempDir, result.result_path || ''))).toBe(
+      true,
+    );
   });
 
   it('test_physical_verify_fails_once_then_succeeds', async () => {
@@ -241,7 +247,7 @@ describe('RalphLoop', () => {
     const loopInst = new RalphLoop(mockRunner, 'fix bug');
     const result = await loopInst.run();
 
-    expect(result).toBe('completed');
+    expect(result.status).toBe('completed');
     expect(mockClient.responseIndex).toBe(3);
   });
 
@@ -253,7 +259,7 @@ describe('RalphLoop', () => {
     const loopInst = new RalphLoop(mockRunner, 'fix bug', { max_steps: 12 });
     const result = await loopInst.run();
 
-    expect(result).toBe('failed');
+    expect(result.status).toBe('failed');
     expect(mockClient.responseIndex).toBe(1);
   });
 
@@ -277,7 +283,8 @@ describe('RalphLoop', () => {
     const loopInst = new RalphLoop(mockRunner, 'fix code', { critic: true });
     const result = await loopInst.run();
 
-    expect(result).toBe('completed');
+    expect(result.status).toBe('completed');
+    expect(result.verification.mode).toBe('critic');
 
     const runId = loopInst.getRunId();
     const auditFile = path.join(
@@ -317,7 +324,7 @@ describe('RalphLoop', () => {
     });
     const result = await loopInst.run();
 
-    expect(result).toBe('completed');
+    expect(result.status).toBe('completed');
   });
 
   it('test_aborts_on_max_steps', async () => {
@@ -331,7 +338,7 @@ describe('RalphLoop', () => {
     });
     const result = await loopInst.run();
 
-    expect(result).toBe('failed');
+    expect(result.status).toBe('failed');
   });
 
   it('test_hook_cleanup_and_mode_transitions', async () => {
@@ -345,7 +352,7 @@ describe('RalphLoop', () => {
     expect(hooksBefore).toContain(loopInst.getPlanningHookProc());
 
     const result = await loopInst.run();
-    expect(result).toBe('completed');
+    expect(result.status).toBe('completed');
 
     const hooksAfter = (mockRunner.hooks as any).hookMap.before_planning;
     expect(hooksAfter).not.toContain(loopInst.getPlanningHookProc());
@@ -365,7 +372,7 @@ describe('RalphLoop', () => {
     });
     const result = await loopInst.run();
 
-    expect(result).toBe('failed');
+    expect(result.status).toBe('failed');
     expect(loopInst.getLastTestFeedback()).toContain('timed out after');
   });
 
@@ -445,7 +452,7 @@ describe('RalphLoop', () => {
     const loopInst = new RalphLoop(mockRunner, 'fix bug', { max_steps: 2 });
     const result = await loopInst.run();
 
-    expect(result).toBe('completed');
+    expect(result.status).toBe('completed');
     expect(callCount).toBe(2);
   });
 });

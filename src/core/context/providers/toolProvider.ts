@@ -74,6 +74,9 @@ export class ToolProvider {
       this.appendWaitForProcessTool();
       this.appendSleepAndWakeTool();
       this.appendSendProcessInputTool();
+      this.appendAuraRegistryRecordTool();
+      this.appendAuraRegistryBestTool();
+      this.appendAuraCsvValidateTool();
 
       return ['# TOOLS', this.loadedToolsList.join('\n\n')].join('\n\n');
     } finally {
@@ -532,6 +535,160 @@ export class ToolProvider {
     return ignoreList.some(
       (pattern) => pattern === relPath || relPath.includes(pattern),
     );
+  }
+
+  private appendAuraRegistryRecordTool(): void {
+    try {
+      const schema = {
+        type: 'object',
+        properties: {
+          run_id: {
+            type: 'string',
+            description: 'Unique identifier for the experiment run.',
+          },
+          status: {
+            type: 'string',
+            description: 'Status of the candidate (default candidate).',
+          },
+          hypothesis: {
+            type: 'string',
+            description: 'Brief hypothesis for this experiment run.',
+          },
+          model_family: {
+            type: 'string',
+            description: 'Algorithm or model architecture used.',
+          },
+          metric_name: {
+            type: 'string',
+            description: 'Name of validation metric.',
+          },
+          cv_score: { type: 'number', description: 'Validation score.' },
+          cv_std: {
+            type: 'number',
+            description: 'Standard deviation of CV score.',
+          },
+          higher_is_better: {
+            type: 'boolean',
+            description: 'Whether a higher score is better.',
+          },
+          params: {
+            type: 'object',
+            description: 'Hyperparameters dictionary.',
+          },
+          changed_files: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'List of changed files.',
+          },
+          artifacts: {
+            type: 'object',
+            description: 'Map of generated artifacts.',
+          },
+          submission_path: {
+            type: 'string',
+            description: 'Path to local submission CSV.',
+          },
+          notes: { type: 'string', description: 'Experiment run notes.' },
+        },
+        required: ['run_id'],
+      };
+      const hint =
+        'Log validation scores, models, parameters, and submission artifacts in the experiment registry.';
+      this.loadedToolsList.push(
+        [
+          '## aura.registry.record',
+          'Description: Record an experiment run details in the registry.',
+          'Permissions: {}',
+          `Usage: ${this.usageFromSchema(schema)}`,
+          `Hint: ${hint}`,
+        ].join('\n'),
+      );
+      this.activeToolsList.push({
+        name: 'aura.registry.record',
+        description: 'Record an experiment run in the registry.',
+        input_schema: schema,
+        permissions: {},
+        hint,
+      });
+    } catch (_e) {}
+  }
+
+  private appendAuraRegistryBestTool(): void {
+    try {
+      const schema = {
+        type: 'object',
+        properties: {
+          metric_name: {
+            type: 'string',
+            description:
+              'Optionally query a specific metric (default cv_score).',
+          },
+        },
+        required: [],
+      };
+      const hint =
+        'Retrieves the run details with the best CV score from the experiment database.';
+      this.loadedToolsList.push(
+        [
+          '## aura.registry.best',
+          'Description: Get the best recorded run from the registry.',
+          'Permissions: {}',
+          `Usage: ${this.usageFromSchema(schema)}`,
+          `Hint: ${hint}`,
+        ].join('\n'),
+      );
+      this.activeToolsList.push({
+        name: 'aura.registry.best',
+        description: 'Retrieve the best recorded run in the registry.',
+        input_schema: schema,
+        permissions: {},
+        hint,
+      });
+    } catch (_e) {}
+  }
+
+  private appendAuraCsvValidateTool(): void {
+    try {
+      const schema = {
+        type: 'object',
+        properties: {
+          target: {
+            type: 'string',
+            description: 'Path to target CSV file to validate.',
+          },
+          align_with: {
+            type: 'string',
+            description:
+              'Path to sample CSV file to align column structures and counts against.',
+          },
+          rules: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'List of rules to assert: columns_match, row_count_match, id_ordered, no_missing',
+          },
+        },
+        required: ['target', 'align_with'],
+      };
+      const hint =
+        'Zero-code data verification. Ensures columns match, row counts match sample, and IDs are identical row-by-row.';
+      this.loadedToolsList.push(
+        [
+          '## aura.csv.validate',
+          'Description: Validate submission CSV formatting against a sample CSV.',
+          'Permissions: {}',
+          `Usage: ${this.usageFromSchema(schema)}`,
+          `Hint: ${hint}`,
+        ].join('\n'),
+      );
+      this.activeToolsList.push({
+        name: 'aura.csv.validate',
+        description: 'Validate CSV structure alignment against a sample.',
+        input_schema: schema,
+        permissions: {},
+        hint,
+      });
+    } catch (_e) {}
   }
 }
 

@@ -49,10 +49,7 @@ function seedEditWorkflow(
   return { sourcePath, copiedPath, untouchedPath, untouchedContent };
 }
 
-function buildEditWorkflowGoal(
-  sourceFile: string,
-  outputFile: string,
-): string {
+function buildEditWorkflowGoal(sourceFile: string, outputFile: string): string {
   return [
     'Use tools for this task.',
     `First use read_file to inspect ${sourceFile}.`,

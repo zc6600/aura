@@ -196,14 +196,14 @@ describe('Daemon IPC Protocol', () => {
     );
 
     // 2. Submit anchor completion
-    const submitRes = await client.request('garden/submitAnchor', {
+    const submitRes = await client.request('anchor/submitAnchor', {
       anchor_id: 'anchor-1',
       summary: 'completed step 1 successfully',
     });
     expect(submitRes.success).toBe(true);
 
     // 3. Get anchors list and verify completed
-    const getAnchorsRes = await client.request('garden/getAnchors');
+    const getAnchorsRes = await client.request('anchor/getAnchors');
     expect(getAnchorsRes.anchors).toBeDefined();
     const testAnchor = getAnchorsRes.anchors.find(
       (a: any) => a.id === 'anchor-1',
@@ -213,14 +213,14 @@ describe('Daemon IPC Protocol', () => {
     expect(testAnchor.summary).toBe('completed step 1 successfully');
 
     // 4. Revoke/delete anchor completion
-    const revokeRes = await client.request('garden/submitAnchor', {
+    const revokeRes = await client.request('anchor/submitAnchor', {
       anchor_id: 'anchor-1',
       revoke: true,
     });
     expect(revokeRes.success).toBe(true);
 
     // 5. Verify anchor is back to pending
-    const getAnchorsRes2 = await client.request('garden/getAnchors');
+    const getAnchorsRes2 = await client.request('anchor/getAnchors');
     const testAnchor2 = getAnchorsRes2.anchors.find(
       (a: any) => a.id === 'anchor-1',
     );
@@ -235,6 +235,9 @@ describe('Daemon IPC Protocol', () => {
     expect(statusRes.anchorsProgress.total).toBe(1);
     expect(statusRes.anchorsProgress.completed).toBe(0);
     expect(statusRes.activeHintsCount).toBeDefined();
+
+    const legacyAnchorsRes = await client.request('garden/getAnchors');
+    expect(legacyAnchorsRes.anchors).toBeDefined();
 
     // Cleanup & Exit
     await client.request('daemon/exit');
