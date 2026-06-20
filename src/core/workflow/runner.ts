@@ -105,6 +105,27 @@ export function checkWorkflow(loaded: LoadedWorkflow): WorkflowCheck[] {
         detail: stage.anchor,
       });
     }
+
+    if (stage.ralph) {
+      const verifyCmd = stage.ralph.verify_cmd?.trim() || '';
+      if (!verifyCmd) {
+        checks.push({
+          label: `stage ralph ${stage.id}`,
+          ok: false,
+          detail: 'verify_cmd is empty',
+        });
+      } else {
+        const missingRefs = missingCommandFileRefs(root, verifyCmd);
+        checks.push({
+          label: `stage ralph ${stage.id}`,
+          ok: missingRefs.length === 0,
+          detail:
+            missingRefs.length > 0
+              ? `missing referenced file(s): ${missingRefs.join(', ')}`
+              : verifyCmd,
+        });
+      }
+    }
   }
 
   let tools: string[] = [];
@@ -118,6 +139,72 @@ export function checkWorkflow(loaded: LoadedWorkflow): WorkflowCheck[] {
       ok: tools.includes(tool),
       detail: tool,
     });
+  }
+
+  return checks;
+}
+
+export function smokeWorkflow(loaded: LoadedWorkflow): WorkflowCheck[] {
+  const checks = [...checkWorkflow(loaded)];
+  const { root, manifest } = loaded;
+
+  let registry: ToolRegistry | null = null;
+  try {
+    registry = new ToolRegistry(root);
+  } catch (_e) {
+    registry = null;
+  }
+
+  for (const tool of manifest.tools?.required || []) {
+    const found = registry?.find(tool);
+    checks.push({
+      label: `tool manifest ${tool}`,
+      ok: !!found,
+      detail: found ? path.relative(root, found.path) : tool,
+    });
+    if (found) {
+      const entry =
+        typeof found.manifest.entry === 'string'
+          ? found.manifest.entry
+          : typeof found.manifest.runtime === 'object' &&
+              typeof found.manifest.runtime.entry_point === 'string'
+            ? found.manifest.runtime.entry_point
+            : undefined;
+      if (entry) {
+        checks.push({
+          label: `tool entry ${tool}`,
+          ok: exists(found.path, entry),
+          detail: path.join(path.relative(root, found.path), entry),
+        });
+      } else {
+        checks.push({
+          label: `tool entry ${tool}`,
+          ok: false,
+          detail: 'missing entry',
+        });
+      }
+    }
+  }
+
+  if (manifest.registry) {
+    let db: Database.Database | undefined;
+    try {
+      const dbPath = getRegistryDbPath(root);
+      db = initRegistryDb(dbPath);
+      checks.push({
+        label: 'registry database',
+        ok: fs.existsSync(dbPath),
+        detail: path.relative(root, dbPath),
+      });
+    } catch (e: unknown) {
+      checks.push({
+        label: 'registry database',
+        ok: false,
+        detail: (e as Error).message,
+      });
+    } finally {
+      if (db) db.close();
+    }
   }
 
   return checks;
@@ -260,6 +347,22 @@ export async function runWorkflow(
 
 function exists(root: string, relPath: string): boolean {
   return fs.existsSync(path.resolve(root, relPath));
+}
+
+function missingCommandFileRefs(root: string, command: string): string[] {
+  const tokens = command.match(/"[^"]+"|'[^']+'|\S+/g) || [];
+  const refs = tokens
+    .map((token) => token.replace(/^['"]|['"]$/g, ''))
+    .filter((token) => {
+      if (!token || token.startsWith('-')) return false;
+      if (/\s/.test(token)) return false;
+      if (/^\d+(\.\d+)?$/.test(token)) return false;
+      if (token.includes('{') || token.includes('}')) return false;
+      if (path.isAbsolute(token)) return false;
+      return token.includes('/') || /\.[A-Za-z0-9]+$/.test(token);
+    });
+
+  return refs.filter((ref) => !exists(root, ref));
 }
 
 export function anchorId(root: string, anchorPath?: string): string | null {

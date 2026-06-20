@@ -92,7 +92,7 @@ export class Create {
       [
         '---',
         `name: ${normalized}`,
-        `description: TODO: Describe when to use ${normalized}.`,
+        `description: "TODO: Describe when to use ${normalized}."`,
         'requires: []',
         '---',
         '',
@@ -158,7 +158,7 @@ export class Create {
       [
         '---',
         `name: ${normalized}`,
-        `description: TODO: Describe when to use the ${normalized} playbook.`,
+        `description: "TODO: Describe when to use the ${normalized} playbook."`,
         'requires: []',
         '---',
         '',
@@ -186,7 +186,7 @@ export class Create {
       [
         'version: 1',
         `name: ${normalized}`,
-        `description: TODO: Describe the ${normalized} workflow.`,
+        `description: "TODO: Describe the ${normalized} workflow."`,
         '',
         'params:',
         `  path: params/${normalized}.yml`,

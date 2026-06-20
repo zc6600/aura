@@ -49,6 +49,7 @@ export class Kernel {
     tool: string,
     argsJson: string,
     projectPath?: string,
+    options: { pretty?: boolean } = {},
   ): Promise<void> {
     const root = Kernel.resolveProjectPath(projectPath);
     const runner = new Runner(root);
@@ -64,7 +65,7 @@ export class Kernel {
     if (typeof out === 'string') {
       console.log(out);
     } else {
-      console.log(JSON.stringify(out));
+      console.log(JSON.stringify(out, null, options.pretty ? 2 : 0));
     }
   }
 

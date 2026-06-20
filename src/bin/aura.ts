@@ -18,6 +18,7 @@ import { Git } from '../cli/commands/git.js';
 import { Hints } from '../cli/commands/hints.js';
 import { Info } from '../cli/commands/info.js';
 import { Kernel } from '../cli/commands/kernel.js';
+import { PackageCommand } from '../cli/commands/package.js';
 import { Project } from '../cli/commands/project.js';
 import { SessionCmd } from '../cli/commands/session.js';
 import { Skills } from '../cli/commands/skills.js';
@@ -150,9 +151,10 @@ class DoctorCommand extends BaseCommand {
     ],
   });
   prompts = Option.Boolean('-p,--prompts', false);
+  workspace = Option.Boolean('--workspace', false);
 
   async run() {
-    await Doctor.run({ prompts: this.prompts });
+    await Doctor.run({ prompts: this.prompts, workspace: this.workspace });
   }
 }
 
@@ -530,6 +532,19 @@ class ToolsInspectCommand extends BaseCommand {
   }
 }
 
+class ToolsDoctorCommand extends BaseCommand {
+  static paths = [['tools', 'doctor']];
+  static usage = Command.Usage({
+    description: 'Validate local tool manifests and entry files',
+  });
+  projectPath = Option.String('--project', { required: false });
+  json = Option.Boolean('--json', false);
+
+  async run() {
+    Tools.doctor(this.projectPath, { json: this.json });
+  }
+}
+
 class ToolsGenerateGroupCommand extends BaseCommand {
   static paths = [['tools', 'generate_group']];
   static usage = Command.Usage({
@@ -565,6 +580,25 @@ class ToolsInstallCommand extends BaseCommand {
 
   async run() {
     await Tools.install(this.urlOrPath, this.name);
+  }
+}
+
+class PackageInstallCommand extends BaseCommand {
+  static paths = [['package', 'install']];
+  static usage = Command.Usage({
+    description: 'Install a use-case/package into an Aura workspace',
+  });
+  sourcePath = Option.String({ required: true });
+  to = Option.String('--to', { required: false });
+  dryRun = Option.Boolean('--dry-run', false);
+  force = Option.Boolean('--force', false);
+
+  async run() {
+    PackageCommand.install(this.sourcePath, {
+      to: this.to,
+      dryRun: this.dryRun,
+      force: this.force,
+    });
   }
 }
 
@@ -656,6 +690,27 @@ class CreateWorkflowCommand extends BaseCommand {
   }
 }
 
+class WorkflowInitCommand extends BaseCommand {
+  static paths = [['workflow', 'init']];
+  static usage = Command.Usage({
+    description: 'Initialize a workflow contract and optional companion files',
+  });
+  name = Option.String({ required: true });
+  projectPath = Option.String('--project', { required: false });
+  withParams = Option.Boolean('--with-params', false);
+  withAnchors = Option.Boolean('--with-anchors', false);
+  withPrompts = Option.Boolean('--with-prompts', false);
+
+  async run() {
+    Workflow.init(this.name, {
+      projectPath: this.projectPath,
+      withParams: this.withParams,
+      withAnchors: this.withAnchors,
+      withPrompts: this.withPrompts,
+    });
+  }
+}
+
 class CreatePersonaCommand extends BaseCommand {
   static paths = [['create', 'persona']];
   static usage = Command.Usage({
@@ -717,6 +772,7 @@ class KernelRunCallCommand extends BaseCommand {
   tool = Option.String({ required: true });
   argsJson = Option.String({ required: true });
   projectPath = Option.String({ required: false });
+  pretty = Option.Boolean('--pretty', false);
 
   async run() {
     let finalTool = this.tool;
@@ -744,7 +800,9 @@ class KernelRunCallCommand extends BaseCommand {
       }
     }
 
-    await Kernel.runCall(finalTool, finalArgsJson, finalProjectPath);
+    await Kernel.runCall(finalTool, finalArgsJson, finalProjectPath, {
+      pretty: this.pretty,
+    });
   }
 }
 
@@ -1273,6 +1331,20 @@ class WorkflowStatusCommand extends BaseCommand {
   }
 }
 
+class WorkflowExplainCommand extends BaseCommand {
+  static paths = [['workflow', 'explain']];
+  static usage = Command.Usage({
+    description: 'Show the compiled workflow goal and loaded context contract',
+  });
+  name = Option.String({ required: false });
+  projectPath = Option.String('--project', { required: false });
+  json = Option.Boolean('--json', false);
+
+  async run() {
+    Workflow.explain(this.name, this.projectPath, { json: this.json });
+  }
+}
+
 class WorkflowDoctorCommand extends BaseCommand {
   static paths = [['workflow', 'doctor']];
   static usage = Command.Usage({
@@ -1283,6 +1355,34 @@ class WorkflowDoctorCommand extends BaseCommand {
 
   async run() {
     Workflow.doctor(this.name, this.projectPath);
+  }
+}
+
+class WorkflowSmokeCommand extends BaseCommand {
+  static paths = [['workflow', 'smoke']];
+  static usage = Command.Usage({
+    description: 'Run no-LLM smoke checks for a declared Aura workflow',
+  });
+  name = Option.String({ required: false });
+  projectPath = Option.String('--project', { required: false });
+  json = Option.Boolean('--json', false);
+
+  async run() {
+    Workflow.smoke(this.name, this.projectPath, { json: this.json });
+  }
+}
+
+class WorkflowGraphCommand extends BaseCommand {
+  static paths = [['workflow', 'graph']];
+  static usage = Command.Usage({
+    description: 'Print workflow stage dependencies',
+  });
+  name = Option.String({ required: false });
+  projectPath = Option.String('--project', { required: false });
+  mermaid = Option.Boolean('--mermaid', false);
+
+  async run() {
+    Workflow.graph(this.name, this.projectPath, { mermaid: this.mermaid });
   }
 }
 
@@ -1329,9 +1429,11 @@ export function createCli(): Cli {
   cli.register(ChatCommand);
   cli.register(ToolsListCommand);
   cli.register(ToolsInspectCommand);
+  cli.register(ToolsDoctorCommand);
   cli.register(ToolsGenerateGroupCommand);
   cli.register(ToolsAddCommand);
   cli.register(ToolsInstallCommand);
+  cli.register(PackageInstallCommand);
   cli.register(CreateListCommand);
   cli.register(CreateToolCommand);
   cli.register(CreateToolGroupCommand);
@@ -1341,6 +1443,7 @@ export function createCli(): Cli {
   cli.register(CreatePersonaCommand);
   cli.register(CreateAnchorCommand);
   cli.register(CreatePromptCommand);
+  cli.register(WorkflowInitCommand);
   cli.register(KernelObserveCommand);
   cli.register(KernelRunCallCommand);
   cli.register(KernelOnceCommand);
@@ -1377,7 +1480,10 @@ export function createCli(): Cli {
   cli.register(AnchorStatusCommand);
   cli.register(WorkflowRunCommand);
   cli.register(WorkflowStatusCommand);
+  cli.register(WorkflowExplainCommand);
   cli.register(WorkflowDoctorCommand);
+  cli.register(WorkflowSmokeCommand);
+  cli.register(WorkflowGraphCommand);
 
   return cli;
 }

@@ -114,6 +114,97 @@ export class Tools {
     }
   }
 
+  public static doctor(
+    projectPath?: string,
+    options: { json?: boolean } = {},
+  ): void {
+    const resolvedPath =
+      PathResolver.resolveProjectPath(projectPath || undefined) ||
+      projectPath ||
+      process.cwd();
+    const registry = new ToolRegistry(resolvedPath);
+    const checks: Array<{
+      tool: string;
+      check: string;
+      ok: boolean;
+      detail?: string;
+    }> = [];
+
+    for (const name of registry.allTools().sort()) {
+      const item = registry.find(name);
+      if (!item) {
+        checks.push({ tool: name, check: 'registered', ok: false });
+        continue;
+      }
+      const manifest = item.manifest || {};
+      checks.push({
+        tool: name,
+        check: 'manifest',
+        ok: fs.existsSync(path.join(item.path, 'manifest.json')),
+        detail: path.relative(resolvedPath, path.join(item.path, 'manifest.json')),
+      });
+      checks.push({
+        tool: name,
+        check: 'name',
+        ok: typeof manifest.name === 'string' && manifest.name.length > 0,
+        detail: String(manifest.name || ''),
+      });
+      const entry =
+        typeof manifest.entry === 'string'
+          ? manifest.entry
+          : typeof manifest.runtime === 'object' &&
+              typeof manifest.runtime.entry_point === 'string'
+            ? manifest.runtime.entry_point
+            : undefined;
+      checks.push({
+        tool: name,
+        check: 'entry',
+        ok: !!entry && fs.existsSync(path.join(item.path, entry)),
+        detail: entry ? path.join(path.relative(resolvedPath, item.path), entry) : 'missing entry',
+      });
+      checks.push({
+        tool: name,
+        check: 'input_schema',
+        ok:
+          !manifest.input_schema ||
+          (typeof manifest.input_schema === 'object' &&
+            !Array.isArray(manifest.input_schema)),
+        detail: manifest.input_schema ? 'present' : 'not declared',
+      });
+    }
+
+    if (options.json) {
+      const failed = checks.filter((c) => !c.ok);
+      console.log(
+        JSON.stringify(
+          {
+            workspace: resolvedPath,
+            checks,
+            failed: failed.length,
+          },
+          null,
+          2,
+        ),
+      );
+      if (failed.length > 0) {
+        throw new UI.ToolError(`${failed.length} tool check(s) failed.`);
+      }
+      return;
+    }
+
+    console.log(picocolors.blue('=== Aura Tools Doctor ==='));
+    for (const check of checks) {
+      const mark = check.ok ? picocolors.green('✓') : picocolors.red('✗');
+      const detail = check.detail ? picocolors.gray(` (${check.detail})`) : '';
+      console.log(`${mark} ${check.tool}: ${check.check}${detail}`);
+    }
+    const failed = checks.filter((c) => !c.ok);
+    if (failed.length > 0) {
+      throw new UI.ToolError(`${failed.length} tool check(s) failed.`);
+    }
+    UI.printSuccess('All tools passed doctor checks.');
+  }
+
   public static async add(toolNameOrUrl: string): Promise<void> {
     const isUrlOrLocal =
       toolNameOrUrl.startsWith('http://') ||

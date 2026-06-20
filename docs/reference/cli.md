@@ -9,6 +9,7 @@ Complete reference for all Aura OS commands organized by category.
 | Command | Description |
 |---------|-------------|
 | `aura doctor` | Run comprehensive environment checks |
+| `aura doctor --workspace` | Run workspace-local checks |
 | `aura info` | Display two-tier system and workspace information |
 | `aura daemon` | Start the background daemon server |
 | `aura web` | Start the Aura web interface server |
@@ -58,8 +59,10 @@ Complete reference for all Aura OS commands organized by category.
 |---------|-------------|
 | `aura tools list` | List available tools |
 | `aura tools inspect <name>` | Inspect a tool by name |
+| `aura tools doctor` | Validate local tool manifests and entry files |
 | `aura tools add <name_or_url>` | Install a library tool by name or URL/path |
 | `aura tools install <url_or_path> [name]` | Install a tool from a Git URL or local directory |
+| `aura package install <path>` | Install a use-case package into an Aura workspace |
 | `aura tools generate_group <name> [subtools...]` | Generate a hierarchical tool group |
 | `aura create tool <name>` | Create a new local tool scaffold |
 | `aura create tool-group <name> [subtools...]` | Create a contextual tool group scaffold |
@@ -77,7 +80,7 @@ Complete reference for all Aura OS commands organized by category.
 | `aura kernel loop` | Run an autonomous kernel loop |
 | `aura kernel workflow [name]` | Run a declared workflow through the kernel |
 | `aura kernel ralph` | Run the Ralph verification loop directly through the kernel |
-| `aura kernel run_call <tool> <args_json>` | Run a specific tool call |
+| `aura kernel run_call <tool> <args_json>` | Run a specific tool call; use `--pretty` for formatted JSON |
 | `aura session list` | List all conversation sessions |
 | `aura session create <name>` | Create and activate a session |
 | `aura session switch <name>` | Switch active session |
@@ -90,8 +93,12 @@ Complete reference for all Aura OS commands organized by category.
 | `aura garden list` | List all available Garden Playbooks |
 | `aura garden status` | Show workspace health and metrics |
 | `aura garden init <playbook>` | Initialize a Garden Playbook template |
+| `aura workflow init <name>` | Initialize a minimal workflow contract |
+| `aura workflow explain [name]` | Show loaded workflow context and compiled goal |
 | `aura workflow doctor [name]` | Validate a workflow contract |
 | `aura workflow status [name]` | Show workflow params, stages, tools, and context status |
+| `aura workflow smoke [name]` | Run no-LLM workflow smoke checks; supports `--json` |
+| `aura workflow graph [name]` | Print workflow stage dependencies |
 | `aura workflow run [name]` | Run a workflow by compiling its declared goal |
 | `aura hints list` | List files parsed for hint injection |
 | `aura hints toggle <path>` | Toggle hint injection status for a file |
@@ -143,6 +150,7 @@ Aura CLI: OK
 
 **Options:**
 - `-p,--prompts` - Run doctor checks with interactive environment setup prompts (e.g. to prompt for missing API keys).
+- `--workspace` - Check the current Aura workspace root, config, local tools, and declared workflow files.
 
 **When to use:**
 - After initial installation
@@ -491,6 +499,10 @@ aura tools inspect read_file
 # Inspect with human-readable format
 aura tools inspect read_file --human
 
+# Validate local tool manifests and entry files
+aura tools doctor
+aura tools doctor --json
+
 # Install a library tool by name
 aura tools add read_file
 
@@ -502,6 +514,22 @@ aura tools generate_group my_group subtool1 subtool2
 
 # Preferred new scaffold alias
 aura create tool-group my_group subtool1 subtool2
+```
+
+#### `aura package`
+
+Install a use-case package into an existing Aura workspace. Packages can provide `template/` files copied to the workspace root and `tools/` copied into the workspace `tools/` directory.
+
+**Examples:**
+```bash
+# Preview package installation
+aura package install use-cases/auto-kaggle --to ./my-workspace --dry-run
+
+# Install package files without overwriting existing files
+aura package install use-cases/auto-kaggle --to ./my-workspace
+
+# Overwrite conflicting files intentionally
+aura package install use-cases/auto-kaggle --to ./my-workspace --force
 ```
 
 #### `aura skill`
@@ -531,6 +559,9 @@ aura kernel plan . --goal "Fix failing tests"
 
 # Run a specific tool manually
 aura kernel run_call read_file '{"file_path": "README.md"}' .
+
+# Pretty-print object output
+aura kernel run_call read_file '{"file_path": "README.md"}' . --pretty
 
 # Run one kernel step with a direct payload
 aura kernel once . --call '{"tool":"read_file","args":{"file_path":"README.md"}}'
@@ -564,7 +595,7 @@ aura kernel ralph . --goal "Fix failing tests" --verify "npm test" --max-steps 5
 **Subcommands:**
 - `observe [projectPath]` - Assemble and print context.
 - `plan [projectPath]` - Produce the next planned step; supports `--goal`, `--human`, and `--preview-lines`.
-- `run_call <tool> <args_json> [projectPath]` - Execute one tool call.
+- `run_call <tool> <args_json> [projectPath]` - Execute one tool call; supports `--pretty`.
 - `once [projectPath]` - Run one kernel pass; supports `--call`, `--input`, `--ask`, `--human`, `--verbose`, and `--preview-lines`.
 - `loop [projectPath]` - Run an autonomous planner-executor loop; supports `--goal`, `--human`, `--verbose`, and `--max-steps`.
 - `workflow [name] [projectPath]` - Load `workflow.yml` or `workflows/<name>.yml`, validate it, compile its declared goal, and execute it through the kernel agent loop.
@@ -664,20 +695,37 @@ aura garden init kaggle
 Run and inspect a declared workflow contract. Aura looks for `workflow.yml` by default, or `workflows/<name>.yml` when a name is supplied.
 
 **Subcommands:**
+* `init <name>`: Initialize a minimal workflow contract. Add `--with-params`, `--with-prompts`, and `--with-anchors` when you want companion files.
+* `explain [name]`: Print loaded context, required tools, declared stages, and the compiled goal. Add `--json` for automation.
 * `doctor [name]`: Validate required files, prompts, tools, and stage anchors.
 * `status [name]`: Show params, stage progress, and workflow checks.
+* `smoke [name]`: Run doctor checks plus tool entry and registry initialization checks without starting an LLM loop. Add `--json` for CI output.
+* `graph [name]`: Print stage dependencies. Add `--mermaid` to emit a Mermaid graph.
 * `run [name]`: Compile the workflow goal and run it through the kernel workflow receiver.
 
 **Examples:**
 ```bash
+# Initialize a minimal workflow contract
+aura workflow init benchmark --with-params --with-prompts --with-anchors
+
 # Create a workflow contract scaffold
 aura create workflow benchmark
+
+# Inspect what will be sent as the workflow goal
+aura workflow explain
 
 # Validate the default workflow.yml
 aura workflow doctor
 
 # Show workflow status
 aura workflow status
+
+# Run no-LLM smoke checks
+aura workflow smoke
+aura workflow smoke --json
+
+# Print stage dependencies
+aura workflow graph --mermaid
 
 # Run the workflow
 aura workflow run

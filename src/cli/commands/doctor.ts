@@ -6,6 +6,9 @@ import { execa } from 'execa';
 import picocolors from 'picocolors';
 import yaml from 'yaml';
 import * as PromptRegistry from '../../core/llm/prompts/registry.js';
+import { ToolRegistry } from '../../core/kernel/registry.js';
+import { loadWorkflow } from '../../core/workflow/manifest.js';
+import { checkWorkflow } from '../../core/workflow/runner.js';
 import * as GlobalConfig from '../../utils/globalConfig.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 
@@ -13,10 +16,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export const Doctor = {
-  async run(options: { prompts?: boolean } = {}): Promise<void> {
+  async run(options: { prompts?: boolean; workspace?: boolean } = {}): Promise<void> {
     if (options.prompts) {
       Doctor.loadDotenvFiles();
       Doctor.checkPrompts();
+      return;
+    }
+    if (options.workspace) {
+      Doctor.checkWorkspace();
       return;
     }
 
@@ -206,6 +213,73 @@ export const Doctor = {
     console.log('\nChecking prompt templates...');
     Doctor.checkPrompts();
     console.log('='.repeat(70));
+  },
+
+  checkWorkspace(): void {
+    const root = PathResolver.resolveProjectPath(undefined) || process.cwd();
+    const checks: Array<{ label: string; ok: boolean; detail?: string }> = [];
+    checks.push({
+      label: 'workspace root',
+      ok: fs.existsSync(path.join(root, '.aura-workspace')),
+      detail: root,
+    });
+    checks.push({
+      label: 'config',
+      ok: fs.existsSync(path.join(root, '.aura-workspace', 'config', 'config.yml')),
+      detail: '.aura-workspace/config/config.yml',
+    });
+    try {
+      const registry = new ToolRegistry(root);
+      checks.push({
+        label: 'tools registry',
+        ok: true,
+        detail: `${registry.allTools().length} tool(s)`,
+      });
+    } catch (e: unknown) {
+      checks.push({
+        label: 'tools registry',
+        ok: false,
+        detail: (e as Error).message,
+      });
+    }
+    const hasWorkflow =
+      fs.existsSync(path.join(root, 'workflow.yml')) ||
+      fs.existsSync(path.join(root, 'workflows'));
+    if (hasWorkflow) {
+      try {
+        const workflow = loadWorkflow(root);
+        for (const check of checkWorkflow(workflow)) {
+          checks.push({
+            label: `workflow ${check.label}`,
+            ok: check.ok,
+            detail: check.detail,
+          });
+        }
+      } catch (e: unknown) {
+        checks.push({
+          label: 'workflow',
+          ok: false,
+          detail: (e as Error).message,
+        });
+      }
+    } else {
+      checks.push({
+        label: 'workflow',
+        ok: true,
+        detail: 'not declared',
+      });
+    }
+
+    console.log(picocolors.blue('=== Aura Workspace Doctor ==='));
+    for (const check of checks) {
+      const mark = check.ok ? picocolors.green('✓') : picocolors.red('✗');
+      const detail = check.detail ? picocolors.gray(` (${check.detail})`) : '';
+      console.log(`${mark} ${check.label}${detail}`);
+    }
+    const failed = checks.filter((check) => !check.ok);
+    if (failed.length > 0) {
+      throw new Error(`${failed.length} workspace check(s) failed.`);
+    }
   },
 
   checkPrompts(): void {

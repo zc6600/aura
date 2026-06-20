@@ -7,8 +7,11 @@ import { execa } from 'execa';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Create } from '../../src/cli/commands/create.js';
+import { Doctor } from '../../src/cli/commands/doctor.js';
+import { PackageCommand } from '../../src/cli/commands/package.js';
 import { Tools } from '../../src/cli/commands/tools.js';
 import { Workflow } from '../../src/cli/commands/workflow.js';
+import { Runner } from '../../src/core/kernel/runner.js';
 import { loadWorkflow } from '../../src/core/workflow/manifest.js';
 import { getWorkflowStatus } from '../../src/core/workflow/runner.js';
 import * as PathResolver from '../../src/utils/pathResolver.js';
@@ -184,6 +187,13 @@ describe('Generators Integration', { timeout: 30000 }, () => {
   describe('Create Scaffolds', () => {
     function initWorkspace(root: string) {
       fs.mkdirSync(path.join(root, '.aura-workspace'), { recursive: true });
+      fs.mkdirSync(path.join(root, '.aura-workspace', 'config'), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        path.join(root, '.aura-workspace', 'config', 'config.yml'),
+        'model: test\n',
+      );
     }
 
     it('creates a tool scaffold with manifest, logic, and hint', () => {
@@ -332,6 +342,15 @@ describe('Generators Integration', { timeout: 30000 }, () => {
           input_schema: { type: 'object', properties: {}, required: [] },
         }),
       );
+      fs.writeFileSync(
+        path.join(testDir, 'tools', 'demo_tool', 'logic.py'),
+        [
+          '#!/usr/bin/env python3',
+          'import json',
+          'print(json.dumps({"status": "ok"}))',
+          '',
+        ].join('\n'),
+      );
 
       fs.writeFileSync(
         path.join(testDir, 'workflow.yml'),
@@ -359,6 +378,7 @@ describe('Generators Integration', { timeout: 30000 }, () => {
 
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       expect(() => Workflow.doctor(undefined, testDir)).not.toThrow();
+      expect(() => Workflow.smoke(undefined, testDir)).not.toThrow();
       Workflow.status(undefined, testDir);
 
       expect(logSpy).toHaveBeenCalledWith(
@@ -367,6 +387,161 @@ describe('Generators Integration', { timeout: 30000 }, () => {
       expect(logSpy).toHaveBeenCalledWith(
         expect.stringContaining('required tool demo_tool'),
       );
+    });
+
+    it('initializes, explains, and graphs a workflow contract', () => {
+      initWorkspace(testDir);
+      vi.spyOn(process, 'cwd').mockReturnValue(testDir);
+
+      Workflow.init('bench-flow', {
+        withParams: true,
+        withPrompts: true,
+        withAnchors: true,
+      });
+
+      expect(fs.existsSync(path.join(testDir, 'workflow.yml'))).toBe(true);
+      expect(
+        fs.existsSync(path.join(testDir, 'params', 'bench-flow.yml')),
+      ).toBe(true);
+      expect(
+        fs.existsSync(path.join(testDir, 'prompts', 'system', 'SOUL.md')),
+      ).toBe(true);
+      expect(fs.existsSync(path.join(testDir, 'anchors', '00_ready.json'))).toBe(
+        true,
+      );
+
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      Workflow.explain(undefined, testDir);
+      Workflow.graph(undefined, testDir);
+
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Workflow: bench-flow'),
+      );
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('ready'));
+    });
+
+    it('validates local tool manifests with tools doctor', () => {
+      initWorkspace(testDir);
+      fs.mkdirSync(path.join(testDir, 'tools', 'demo_tool'), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        path.join(testDir, 'tools', 'demo_tool', 'manifest.json'),
+        JSON.stringify({
+          name: 'demo_tool',
+          runtime: 'python3',
+          entry: 'logic.py',
+          input_schema: { type: 'object', properties: {}, required: [] },
+        }),
+      );
+      fs.writeFileSync(
+        path.join(testDir, 'tools', 'demo_tool', 'logic.py'),
+        'print("{}")\n',
+      );
+
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      expect(() => Tools.doctor(testDir)).not.toThrow();
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('All tools passed doctor checks.'),
+      );
+    });
+
+    it('installs a use-case package into a workspace', () => {
+      initWorkspace(testDir);
+      const pkg = path.join(testDir, 'pkg');
+      fs.mkdirSync(path.join(pkg, 'template', 'src'), { recursive: true });
+      fs.mkdirSync(path.join(pkg, 'tools', 'pkg_tool'), { recursive: true });
+      fs.writeFileSync(
+        path.join(pkg, 'template', 'workflow.yml'),
+        'version: 1\nname: pkg\nrun:\n  goal: Run package.\n',
+      );
+      fs.writeFileSync(
+        path.join(pkg, 'template', 'src', 'main.py'),
+        'print("ok")\n',
+      );
+      fs.writeFileSync(
+        path.join(pkg, 'tools', 'pkg_tool', 'manifest.json'),
+        JSON.stringify({ name: 'pkg_tool', runtime: 'python3', entry: 'logic.py' }),
+      );
+      fs.writeFileSync(
+        path.join(pkg, 'tools', 'pkg_tool', 'logic.py'),
+        'print("{}")\n',
+      );
+
+      expect(() => PackageCommand.install(pkg, { to: testDir })).not.toThrow();
+      expect(fs.existsSync(path.join(testDir, 'workflow.yml'))).toBe(true);
+      expect(fs.existsSync(path.join(testDir, 'src', 'main.py'))).toBe(true);
+      expect(
+        fs.existsSync(path.join(testDir, 'tools', 'pkg_tool', 'manifest.json')),
+      ).toBe(true);
+    });
+
+    it('checks workspace health without requiring a workflow', () => {
+      initWorkspace(testDir);
+      vi.spyOn(process, 'cwd').mockReturnValue(testDir);
+
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      expect(() => Doctor.checkWorkspace()).not.toThrow();
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('not declared'));
+    });
+
+    it('fails workflow doctor when a ralph verify command references a missing file', () => {
+      initWorkspace(testDir);
+
+      fs.mkdirSync(path.join(testDir, 'anchors'), { recursive: true });
+      fs.writeFileSync(
+        path.join(testDir, 'anchors', 'verify.json'),
+        JSON.stringify({ id: 'verify', call_when: ['verify'] }),
+      );
+      fs.writeFileSync(
+        path.join(testDir, 'workflow.yml'),
+        [
+          'version: 1',
+          'name: ralph-missing',
+          'stages:',
+          '  - id: verify',
+          '    anchor: anchors/verify.json',
+          '    ralph:',
+          '      verify_cmd: "python scripts/missing_verify.py"',
+          'run:',
+          '  goal: Verify candidate.',
+          '',
+        ].join('\n'),
+      );
+
+      expect(() => Workflow.doctor(undefined, testDir)).toThrow(
+        /workflow check\(s\) failed/,
+      );
+    });
+
+    it('executes tools from the workspace root through kernel run_call', async () => {
+      initWorkspace(testDir);
+      fs.mkdirSync(path.join(testDir, 'tools', 'root_tool'), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        path.join(testDir, 'tools', 'root_tool', 'manifest.json'),
+        JSON.stringify({
+          name: 'root_tool',
+          runtime: 'python3',
+          entry: 'logic.py',
+          input_schema: { type: 'object', properties: {}, required: [] },
+        }),
+      );
+      fs.writeFileSync(
+        path.join(testDir, 'tools', 'root_tool', 'logic.py'),
+        [
+          '#!/usr/bin/env python3',
+          'import json',
+          'print(json.dumps({"status": "ok", "source": "workspace-root"}))',
+          '',
+        ].join('\n'),
+      );
+
+      const runner = new Runner(testDir);
+      const result = await runner.runCall({ tool: 'root_tool', args: {} });
+      expect(result.status).toBe('ok');
+      expect(result.source).toBe('workspace-root');
     });
 
     it('marks a stage completed using anchor file id instead of basename', () => {
