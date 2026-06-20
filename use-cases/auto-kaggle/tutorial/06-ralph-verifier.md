@@ -1,19 +1,19 @@
 # 6. 直接用 Ralph Loop 做提交前 verifier
 
-Ralph loop 已经原生支持物理 verifier，不需要额外 wrapper。
+Aura 工作流引擎已经深度集成了 Ralph 物理验证器与内置账本服务，不需要额外的手动胶水代码。
 
 正确流程是：
 
 ```text
 train candidate
   ↓
-ak_run_registry record
+aura.registry.record 记录实验
   ↓
-aura kernel ralph --verify "python src/verify_submission.py ..."
+Aura workflow.yml 声明 stage 的 ralph 属性
   ↓
-如果 Ralph 返回 completed，取 stdout 中的 result_path
+当 Agent 提交对应 Anchor 时，引擎自动调用 Ralph 进行 verify_cmd 校验
   ↓
-调用 ak_run_registry attach_ralph 关联 result_path
+校验成功后，引擎自动将 Ralph result_path 关联到内置账本的运行记录中
   ↓
 ak_submit_guard validate / submit
 ```
@@ -62,7 +62,7 @@ Return completed=true only if all are true:
 - The row count exactly matches sample_submission.csv.
 - The ID order exactly matches sample_submission.csv.
 - There are no missing prediction values.
-- The run exists in ak_run_registry with a CV score.
+- The run exists in the experiment registry with a CV score.
 - The verification did not modify unrelated experiment files.
 - No Kaggle submission was performed by the verifier.
 
@@ -104,25 +104,16 @@ aura kernel ralph \
 
 如果 `status` 不是 `completed`，不要提交。让 Ralph 根据 verifier 失败输出修复，或者停止交给用户。
 
-## 6.3 关联 Ralph result artifact
+## 6.3 自动管理 Ralph 验证与账本记录
 
-Ralph 成功后，把 stdout 中的 `result_path` 关联到 registry：
+在 Aura 框架下，物理验证与内置账本是深度集成的。在工作流的 `workflow.yml` 中声明 stage 级别的 `ralph` 配置时，当 Agent 在提交对应的 Anchor 节点（如运行 `anchor_submit`）时，引擎会自动拉起指定的 `verify_cmd` 进行物理检验。
 
-```bash
-aura kernel run_call ak_run_registry \
-  '{"action":"attach_ralph","run_id":"baseline_001","payload":{"ralph_result_path":".aura-workspace/state/ralph/runs/<ralph_run_id>/result.json"}}'
-```
+一旦物理检验通过，引擎会自动在 SQLite 账本的 `runs` 表中为最新的实验记录（例如 `baseline_001`）更新 `ralph_result_path` 字段，整个过程是**完全自动且隐式**的，无需开发者或 Agent 手动编写附加或关联的胶水指令。
 
-再检查：
+你可以通过内置工具查询确认关联状态：
 
 ```bash
-aura kernel run_call ak_run_registry '{"action":"get","run_id":"baseline_001"}'
-```
-
-registry 中应看到：
-
-```json
-"ralph_result_path": ".aura-workspace/state/ralph/runs/<ralph_run_id>/result.json"
+aura kernel run_call aura.registry.best '{}'
 ```
 
 ## 6.4 接入 submit guard
@@ -134,17 +125,16 @@ aura kernel run_call ak_submit_guard \
   '{"action":"validate","submission_path":"submissions/baseline_001.csv","run_id":"baseline_001","dry_run":true}'
 ```
 
-如果 submission 格式正确，并且 `ralph_result_path` 指向一个通过的 Ralph result artifact，guard 应返回 `status: "ok"`，或在预算不足时返回 `wait_required`。
+如果 submission 格式正确，并且内置账本中的 `ralph_result_path` 指向一个通过的 Ralph result artifact，guard 将会返回 `status: "ok"`，或在预算/冷却不足时返回 `wait_required`。
 
-## 6.5 Agent 自动调用规则
+## 6.5 Agent 自动循环执行规程
 
-在自动循环里，agent 应按这个顺序：
+在自动迭代循环中，主 Agent 应当遵循如下运行顺序：
 
 ```text
-python src/train_candidate.py --run-id <run_id> --hypothesis <hypothesis>
-aura kernel ralph --goal "Verify AutoKaggle run <run_id>..." --verify "python src/verify_submission.py --submission <submission_path> --run-id <run_id>" --max-steps 5
-aura kernel run_call ak_run_registry '{"action":"attach_ralph", ...}'
-aura kernel run_call ak_submit_guard '{"action":"validate", ...}'
+1. 运行实验脚本：python src/train_candidate.py --run-id <run_id>
+2. 执行物理验证并提交里程碑：aura kernel run_call anchor_submit '{"anchor_id":"验证节点ID", "summary":"..."}'
+3. 通过提交门禁：aura kernel run_call ak_submit_guard '{"action":"validate", "submission_path":"...", "run_id":"..."}'
 ```
 
-Ralph verifier 只负责提交前质量门禁，不负责决定下一轮实验方向。下一轮实验方向仍由主 agent 根据 registry 和 leaderboard 反馈决定。
+Aura 引擎会自动拦截并妥善串联起验证与日志链路。

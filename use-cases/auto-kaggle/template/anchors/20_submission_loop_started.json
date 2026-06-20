@@ -1,0 +1,7 @@
+{
+  "id": "20_submission_loop_started",
+  "call_when": [
+    "The guarded submit, wait, or poll loop has completed at least one dry-run or real submission step."
+  ],
+  "next": ["20_submission_loop_started", "30_feedback_recorded"]
+}

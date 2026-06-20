@@ -1,0 +1,49 @@
+competition:
+  slug: ""
+  title: ""
+  mode: "offline"      # offline | kaggle
+  rules_accepted: false
+  external_data_allowed: false
+
+data:
+  raw_dir: "data/raw"
+  train_file: "data/raw/train.csv"
+  test_file: "data/raw/test.csv"
+  sample_submission_file: "data/raw/sample_submission.csv"
+  id_column: "id"
+  target_column: "target"
+
+metric:
+  name: "accuracy"
+  higher_is_better: true
+  local_validation_required: true
+
+validation:
+  fold_file: "data/processed/folds.csv"
+  frozen: false
+  n_splits: 5
+  random_seed: 42
+  min_cv_delta_to_submit: 0.0001
+
+submission:
+  allow_submit: false
+  auto_wait: true
+  auto_poll_leaderboard: true
+  daily_budget: 3
+  cooldown_minutes: 30
+  max_wait_chunk_seconds: 900
+  message_prefix: "autokaggle"
+  require_ralph_verifier: true
+
+loop:
+  max_rounds: 50
+  max_real_submissions: 20
+  stop_when_no_cv_improvement_rounds: 8
+  target_public_score: null
+  sleep_after_failed_poll_seconds: 120
+
+paths:
+  registry_db: ".aura-workspace/state/experiments.db"
+  submissions_dir: "submissions"
+  reports_dir: "reports"
+  artifacts_dir: "experiments/artifacts"

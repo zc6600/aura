@@ -1,0 +1,1 @@
+Use ak_competition for Kaggle CLI operations and local data cataloging. Never print or store Kaggle credentials. Submit only through ak_submit_guard.

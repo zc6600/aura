@@ -92,8 +92,8 @@ tools/ak_competition
 tools/ak_submit_guard
   提交前门禁：格式、CV、预算、冷却、重复 hash、Ralph verifier 结果。
 
-tools/ak_run_registry
-  实验账本：记录每次训练、提交、LB 分数、结论。
+Aura Built-in Registry
+  内置实验账本：提供框架级的数据存储（在 workflow.yml 中配置），通过内置工具 aura.registry.record 与 aura.registry.best 访问。
 
 tools/timer
   Aura 已有等待工具：达到提交上限后按 guard 返回的 wait_seconds 等待。
@@ -175,6 +175,10 @@ submission:
 ## 1.7 本教程完成后的用户命令
 
 ```bash
+aura new ~/kaggle/playground-s5e1
+cd ~/kaggle/playground-s5e1
+
+# 按 02-07 章从零创建工具、训练脚本、verifier、Garden、Skill 和 workflow
 aura workflow doctor
 aura workflow status
 aura workflow run

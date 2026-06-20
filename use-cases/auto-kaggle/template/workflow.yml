@@ -1,0 +1,58 @@
+version: 1
+name: auto-kaggle
+description: Autonomous Kaggle competition workflow with guarded submission, wait, and feedback.
+
+params:
+  path: params/autokaggle.yml
+
+context:
+  garden: garden/auto-kaggle/garden.md
+  skill: skills/auto-kaggle/SKILL.md
+  prompts:
+    - prompts/system/SOUL.md
+    - prompts/system/TOOLS.md
+    - prompts/ralph/ralph_system.md
+    - prompts/ralph/critic_rules.md
+
+tools:
+  required:
+    - ak_competition
+    - ak_submit_guard
+    - timer
+
+registry:
+  db_path: ".aura-workspace/state/experiments.db"
+  metrics:
+    - name: cv_score
+      higher_is_better: true
+
+stages:
+  - id: ready
+    title: Workspace ready
+    anchor: anchors/00_ready.json
+  - id: validation_frozen
+    title: Validation frozen
+    anchor: anchors/10_validation_frozen.json
+  - id: submission_loop_started
+    title: Submission loop started
+    anchor: anchors/20_submission_loop_started.json
+    ralph:
+      verify_cmd: "python src/verify_latest_submission.py"
+      max_steps: 5
+  - id: feedback_recorded
+    title: Feedback recorded
+    anchor: anchors/30_feedback_recorded.json
+
+run:
+  mode: classic
+  max_steps: 80
+  goal: |
+    Run AutoKaggle autonomously.
+    Read params/autokaggle.yml before acting.
+    Use the AutoKaggle Garden for project context.
+    Follow the AutoKaggle Skill operating procedure.
+    Use aura.registry.record and aura.registry.best as the source of truth.
+    Use ak_submit_guard for every submission decision.
+    Use timer whenever submit guard or leaderboard polling requires waiting.
+    Never call raw Kaggle submit through shell.
+    Continue until a configured stop condition is met.

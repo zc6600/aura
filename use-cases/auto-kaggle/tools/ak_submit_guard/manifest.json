@@ -1,0 +1,25 @@
+{
+  "name": "ak_submit_guard",
+  "description": "Submission gate for format, budget, cooldown, duplicate hash, verifier evidence, and real submit.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": true,
+  "timeout": 300,
+  "agent_can_modify_timeout": true,
+  "permissions": {
+    "file_system": "read-write",
+    "allow_paths": ["./data", "./reports", "./submissions", "./params", "./experiments", "./.aura-workspace/state"],
+    "shell": false
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "action": { "type": "string" },
+      "submission_path": { "type": "string" },
+      "run_id": { "type": "string" },
+      "dry_run": { "type": "boolean" },
+      "message": { "type": "string" }
+    },
+    "required": ["action"]
+  }
+}

@@ -692,24 +692,6 @@ class CreatePromptCommand extends BaseCommand {
   }
 }
 
-class CreateUseCaseCommand extends BaseCommand {
-  static paths = [
-    ['create', 'use-case'],
-    ['create', 'usecase'],
-  ];
-  static usage = Command.Usage({
-    description: 'Create a new use-case workspace scaffold',
-    examples: [
-      ['Create auto-kaggle use-case', 'aura create use-case auto-kaggle'],
-    ],
-  });
-  name = Option.String({ required: true });
-
-  async run() {
-    Create.useCase(this.name);
-  }
-}
-
 class KernelObserveCommand extends BaseCommand {
   static paths = [['kernel', 'observe']];
   static usage = Command.Usage({
@@ -852,10 +834,10 @@ class KernelWorkflowCommand extends BaseCommand {
       'Loads workflow.yml or workflows/<name>.yml, validates the workflow contract, compiles the workflow goal, and executes it through the kernel agent loop.',
     examples: [
       ['Run default workflow.yml', 'aura kernel workflow'],
-      ['Run named workflow', 'aura kernel workflow auto-kaggle'],
+      ['Run named workflow', 'aura kernel workflow benchmark'],
       [
         'Run workflow in another project',
-        'aura kernel workflow auto-kaggle ./workspace --max-steps 80',
+        'aura kernel workflow benchmark ./workspace --max-steps 80',
       ],
     ],
   });
@@ -1359,7 +1341,6 @@ export function createCli(): Cli {
   cli.register(CreatePersonaCommand);
   cli.register(CreateAnchorCommand);
   cli.register(CreatePromptCommand);
-  cli.register(CreateUseCaseCommand);
   cli.register(KernelObserveCommand);
   cli.register(KernelRunCallCommand);
   cli.register(KernelOnceCommand);

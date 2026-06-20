@@ -4,7 +4,7 @@ This guide shows how to turn a real task into a project-specific agent in Aura. 
 
 Garden is the main design surface for this work. A Garden playbook answers: "How should this task become an agent-executable project?" It designs the meta agent, chooses which actions become tools, defines progress anchors, wires skills and prompts, and explains how the agent should move through the work.
 
-AutoKaggle is the reference pattern: the Garden assembles the competition workspace, guarded submit tools, leaderboard registry, Ralph verifier, anchors, prompts, and the internal `auto-kaggle` skill. The same shape applies to code audit agents, benchmark agents, research agents, migration agents, and other long-running workflows.
+Custom agent projects follow the same shape regardless of domain: a Garden assembles the workspace, deterministic tools, registry, verifier, anchors, prompts, and a domain skill. This applies to code audit agents, benchmark agents, research agents, migration agents, and other long-running workflows.
 
 ## Choose the Right Layer
 
@@ -43,12 +43,12 @@ Use this sequence when designing a new Garden:
 8. Add Ralph verification when a stage needs a must-pass check.
 9. Run `aura kernel observe`, `aura garden status`, and one dry-run goal to confirm the context is discoverable.
 
-For example, AutoKaggle maps the task "run a Kaggle competition until configured stop conditions" into:
+For example, a benchmark agent maps the task "run an evaluation suite until configured stop conditions" into:
 
-- A Garden that assembles the competition workspace, stage gates, prompts, anchors, tools, and `auto-kaggle` skill.
-- Tools for Kaggle download/submission, experiment registry, submit guard, and waiting.
-- Anchors for workspace ready, validation frozen, submission loop started, and feedback recorded.
-- Ralph verification before real submission.
+- A Garden that assembles the benchmark workspace, stage gates, prompts, anchors, tools, and `benchmark-runner` skill.
+- Tools for dataset preparation, run execution, experiment registry, result validation, and waiting.
+- Anchors for workspace ready, baseline recorded, evaluation loop started, and feedback recorded.
+- Ralph verification before accepting a candidate result.
 - A skill that tells the agent how to operate within that assembled context.
 
 ## Workspace Layout

@@ -18,7 +18,7 @@ aura kernel observe
 应看到：
 
 - `ak_competition`
-- `ak_run_registry`
+- 内置实验账本工具 (`aura.registry.record` / `aura.registry.best`)
 - `ak_submit_guard`
 - `timer`
 - `auto-kaggle` skill
@@ -29,34 +29,30 @@ aura kernel observe
 ## 8.2 离线训练测试
 
 ```bash
-aura kernel run_call ak_run_registry '{"action":"init"}'
+# 内置实验账本由 Aura 引擎自动初始化与管理，无需手动执行 init
 aura kernel run_call ak_competition '{"action":"catalog"}'
 python src/train_candidate.py --run-id baseline_001
-aura kernel run_call ak_run_registry '{"action":"best","top_k":3}'
+aura kernel run_call aura.registry.best '{}'
 ```
 
 期望：
 
 - `reports/data_catalog.json` 存在。
 - `submissions/baseline_001.csv` 存在。
-- `experiments/runs.sqlite` 中有 baseline。
+- `.aura-workspace/state/experiments.db` 中有 baseline 记录。
 
 ## 8.3 Ralph verifier 测试
 
 ```bash
-aura kernel ralph \
-  --goal "Verify AutoKaggle run baseline_001 before submission. Submission path: submissions/baseline_001.csv. Do not submit to Kaggle." \
-  --verify "python src/verify_submission.py --submission submissions/baseline_001.csv --run-id baseline_001" \
-  --max-steps 5
+# 提交关联有 ralph 配置的验证阶段 anchor
+# Aura 引擎会自动拉起 Ralph 物理验证并校验，通过后自动将验证状态与结果关联写入内置账本中
+aura kernel run_call anchor_submit '{"anchor_id":"验证阶段ID", "summary":"Verify baseline run"}'
 
-# Use the result_path from the JSON printed by the previous command.
-aura kernel run_call ak_run_registry \
-  '{"action":"attach_ralph","run_id":"baseline_001","payload":{"ralph_result_path":".aura-workspace/state/ralph/runs/<ralph_run_id>/result.json"}}'
-
-aura kernel run_call ak_run_registry '{"action":"get","run_id":"baseline_001"}'
+# 查看内置账本关联状态，确认 ralph_result_path 已被自动写入
+aura kernel run_call aura.registry.best '{}'
 ```
 
-期望 registry 中有 `ralph_result_path`。
+期望内置账本中最新的记录已被自动更新关联上 `ralph_result_path`。
 
 ## 8.4 Submit guard 测试
 
@@ -179,17 +175,7 @@ aura tools list
 
 ### Ralph result 没有关联到 registry
 
-检查：
-
-```bash
-aura kernel ralph \
-  --goal "Verify AutoKaggle run baseline_001 before submission." \
-  --verify "python src/verify_submission.py --submission submissions/baseline_001.csv --run-id baseline_001" \
-  --max-steps 5
-
-aura kernel run_call ak_run_registry \
-  '{"action":"attach_ralph","run_id":"baseline_001","payload":{"ralph_result_path":".aura-workspace/state/ralph/runs/<ralph_run_id>/result.json"}}'
-```
+检查对应阶段的 `workflow.yml` 中是否正确配置了 `ralph.verify_cmd`。物理验证结果会在执行 `anchor_submit` 里程碑提交时，由 Aura 引擎自动进行物理测试验证并回写至内置实验账本中，你无需手动执行 `attach_ralph` 关联。
 
 ### Agent 不会等待
 
@@ -207,9 +193,11 @@ If guard returns wait_required, call timer with wait_chunk_seconds, then retry.
 Never call raw Kaggle submit through shell. Only ak_submit_guard submit may perform real submission.
 ```
 
-## 8.9 发布为 use-case
+## 8.9 发布为 use-case 示例
 
-当教程中的文件稳定后，把它们整理成 `use-cases/auto-kaggle` 的可复制模板：
+本教程不应侵入 `aura create use-case` 这类系统级生成器。AutoKaggle 发布为 `use-cases/auto-kaggle` 下的示例、教程和可复制模板即可。
+
+推荐目录形状：
 
 ```text
 use-cases/auto-kaggle/
@@ -221,13 +209,30 @@ use-cases/auto-kaggle/
 └── tutorial/
 ```
 
-`bootstrap.py` 的职责是把教程中手动创建的文件复制到目标 workspace，并根据用户参数写入 `params/autokaggle.yml`。
+教程正文负责带用户从零写出：
+
+- `ak_competition`、`ak_submit_guard`。
+- 训练、验证、候选选择和 polling 脚本。
+- 完整 workflow 约束。
+- offline fixture 和 smoke test。
+
+`scripts/bootstrap.py` 可以作为可选辅助，用来把教程最终产物复制到一个目标 workspace，但不能成为系统级生成器的一部分，也不能替代教程里的从零实现路径。
+
+使用方式：
+
+```bash
+python /path/to/aura/use-cases/auto-kaggle/scripts/bootstrap.py \
+  --workspace ~/kaggle/playground-s5e1 \
+  --slug playground-s5e1 \
+  --mode offline
+```
 
 ## 8.10 完成标准
 
 一个可发布的 AutoKaggle 教程必须满足：
 
-- 用户只需要填写 `params/autokaggle.yml`。
+- 用户能从普通 Aura workspace 出发，按教程补齐 AutoKaggle agent。
+- 完成后，日常使用只需要维护 `params/autokaggle.yml`。
 - agent 能自动训练候选。
 - Ralph verifier 能在提交前运行。
 - submit guard 能阻止坏 submission。

@@ -1,0 +1,15 @@
+{
+  "name": "timer",
+  "description": "Pause for a bounded number of seconds.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": true,
+  "timeout": 1800,
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "seconds": { "type": "number" }
+    },
+    "required": ["seconds"]
+  }
+}

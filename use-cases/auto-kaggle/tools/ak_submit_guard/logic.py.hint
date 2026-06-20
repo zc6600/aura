@@ -1,0 +1,1 @@
+ak_submit_guard is the only permitted real submission path. If it returns wait_required, call timer with wait_chunk_seconds and retry the same guard action.

@@ -48,7 +48,7 @@ export class ExecutionEngine extends EventEmitter {
       options.envPath ||
       PathResolver.environmentPath(this.projectPath) ||
       this.projectPath;
-    this.registry = new ToolRegistry(this.envPath);
+    this.registry = new ToolRegistry(this.projectPath);
     this.mcpManager = new MCPManager(this.envPath);
     this.lspManager = options.lsp_manager;
 

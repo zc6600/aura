@@ -1,8 +1,8 @@
 # 3. 实现确定性工具
 
-本章创建三个 AutoKaggle 工具：
+本章介绍 Aura 内置的实验账本服务，并创建两个 AutoKaggle 自定义工具：
 
-- `ak_run_registry`：实验账本。
+- `Aura Built-in Registry`：内置实验账本（通过 workflow.yml 声明配置，无需编写 SQLite 胶水代码）。
 - `ak_competition`：Kaggle CLI 封装。
 - `ak_submit_guard`：提交前门禁、等待决策、真实提交入口。
 
@@ -31,253 +31,29 @@
 - 调用 `anchor_submit` 时，把 `summary + selected_next + anchor_runtime_update` 一起提交；
 - 最新的 anchor event 就是当前 workflow 的轻量 runtime snapshot。
 
-## 3.1 工具 1：ak_run_registry
+## 3.1 实验账本服务（Built-in Registry）
 
-创建目录：
+在以前的设计中，我们需要手动编写 `tools/ak_run_registry` 工具，在其中用 Python 手动创建 SQLite 表结构并处理 SQL 的增删改查。现在，Aura 引擎已经提供框架级的 **Built-in Registry** 服务。
 
-```bash
-mkdir -p tools/ak_run_registry
+### 1. 在 `workflow.yml` 中声明账本
+你只需要在工作流文件中添加 `registry` 声明即可：
+
+```yaml
+registry:
+  db_path: ".aura-workspace/state/experiments.db"
+  metrics:
+    - name: cv_score
+      higher_is_better: true
 ```
 
-创建 `tools/ak_run_registry/manifest.json`：
+Aura 将会自动初始化该路径下的 SQLite 数据库并创建适合比赛记录的 `runs` 数据表。
 
-```json
-{
-  "name": "ak_run_registry",
-  "description": "Record, query, and update AutoKaggle experiment runs and leaderboard feedback.",
-  "runtime": "python3",
-  "entry": "logic.py",
-  "auto_load": true,
-  "permissions": {
-    "file_system": "read-write",
-    "allow_paths": ["./experiments", "./reports", "./submissions", "./params"]
-  },
-  "input_schema": {
-    "type": "object",
-    "properties": {
-      "action": { "type": "string" },
-      "run_id": { "type": "string" },
-      "payload": { "type": "object" },
-      "top_k": { "type": "integer" }
-    },
-    "required": ["action"]
-  },
-  "memory": {
-    "retention": "ephemeral",
-    "summarize": true,
-    "max_steps": 5
-  }
-}
-```
+### 2. 内置账本工具
+引擎将自动向 Agent 加载以下两个内核工具：
+*   `aura.registry.record`：记录实验运行，支持传入 `run_id`、`cv_score`、`hypothesis`、`model_family`、`params`、`changed_files`、`artifacts` 和 `notes` 等。
+*   `aura.registry.best`：查询目前 CV 表现最好的运行记录。
 
-创建 `tools/ak_run_registry/logic.py`：
-
-```python
-#!/usr/bin/env python3
-import datetime as dt
-import hashlib
-import json
-import os
-import sqlite3
-import sys
-
-DB_PATH = "experiments/runs.sqlite"
-
-def read_args():
-    raw = sys.stdin.read().strip()
-    return json.loads(raw) if raw else {}
-
-def ensure_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS runs (
-      run_id TEXT PRIMARY KEY,
-      created_at TEXT NOT NULL,
-      status TEXT NOT NULL,
-      hypothesis TEXT,
-      model_family TEXT,
-      metric_name TEXT,
-      cv_score REAL,
-      cv_std REAL,
-      higher_is_better INTEGER,
-      params_json TEXT,
-      changed_files_json TEXT,
-      artifacts_json TEXT,
-      submission_path TEXT,
-      submission_sha256 TEXT,
-      ralph_result_path TEXT,
-      kaggle_submission_id TEXT,
-      public_score REAL,
-      private_score REAL,
-      lb_status TEXT,
-      notes TEXT
-    )
-    """)
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS submit_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      run_id TEXT,
-      created_at TEXT NOT NULL,
-      event_type TEXT NOT NULL,
-      payload_json TEXT
-    )
-    """)
-    conn.commit()
-    return conn
-
-def sha256_file(path):
-    if not path or not os.path.exists(path):
-        return None
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-def record(conn, run_id, payload):
-    now = dt.datetime.utcnow().isoformat() + "Z"
-    submission_path = payload.get("submission_path")
-    submission_sha = payload.get("submission_sha256") or sha256_file(submission_path)
-    conn.execute("""
-    INSERT OR REPLACE INTO runs (
-      run_id, created_at, status, hypothesis, model_family, metric_name,
-      cv_score, cv_std, higher_is_better, params_json, changed_files_json,
-      artifacts_json, submission_path, submission_sha256, ralph_result_path,
-      notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-      run_id,
-      payload.get("created_at") or now,
-      payload.get("status", "candidate"),
-      payload.get("hypothesis"),
-      payload.get("model_family"),
-      payload.get("metric_name"),
-      payload.get("cv_score"),
-      payload.get("cv_std"),
-      1 if payload.get("higher_is_better", True) else 0,
-      json.dumps(payload.get("params", {}), sort_keys=True),
-      json.dumps(payload.get("changed_files", []), sort_keys=True),
-      json.dumps(payload.get("artifacts", {}), sort_keys=True),
-      submission_path,
-      submission_sha,
-      payload.get("ralph_result_path"),
-      payload.get("notes")
-    ))
-    conn.commit()
-    return {"status": "ok", "run_id": run_id, "submission_sha256": submission_sha}
-
-def attach_lb(conn, run_id, payload):
-    conn.execute("""
-    UPDATE runs
-    SET kaggle_submission_id=?, public_score=?, private_score=?, lb_status=?, status=?
-    WHERE run_id=?
-    """, (
-      payload.get("kaggle_submission_id"),
-      payload.get("public_score"),
-      payload.get("private_score"),
-      payload.get("lb_status"),
-      payload.get("status", "submitted"),
-      run_id
-    ))
-    conn.execute(
-      "INSERT INTO submit_events(run_id, created_at, event_type, payload_json) VALUES (?, ?, ?, ?)",
-      (run_id, dt.datetime.utcnow().isoformat() + "Z", "leaderboard_feedback", json.dumps(payload, sort_keys=True))
-    )
-    conn.commit()
-    return {"status": "ok", "run_id": run_id, "attached": payload}
-
-def attach_ralph(conn, run_id, payload):
-    result_path = payload.get("ralph_result_path") or payload.get("result_path")
-    conn.execute(
-      "UPDATE runs SET ralph_result_path=? WHERE run_id=?",
-      (result_path, run_id)
-    )
-    conn.execute(
-      "INSERT INTO submit_events(run_id, created_at, event_type, payload_json) VALUES (?, ?, ?, ?)",
-      (run_id, dt.datetime.utcnow().isoformat() + "Z", "ralph_result_attached", json.dumps(payload, sort_keys=True))
-    )
-    conn.commit()
-    return {"status": "ok", "run_id": run_id, "ralph_result_path": result_path}
-
-def row_to_dict(row):
-    keys = [
-      "run_id", "created_at", "status", "hypothesis", "model_family", "metric_name",
-      "cv_score", "cv_std", "higher_is_better", "params_json", "changed_files_json",
-      "artifacts_json", "submission_path", "submission_sha256", "ralph_result_path",
-      "kaggle_submission_id", "public_score", "private_score",
-      "lb_status", "notes"
-    ]
-    return dict(zip(keys, row))
-
-def best(conn, top_k):
-    rows = conn.execute("SELECT * FROM runs WHERE cv_score IS NOT NULL").fetchall()
-    items = [row_to_dict(r) for r in rows]
-    def sort_key(x):
-        score = x["cv_score"]
-        hib = bool(x["higher_is_better"])
-        return -score if hib else score
-    items.sort(key=sort_key)
-    return {"status": "ok", "runs": items[:top_k]}
-
-def main():
-    try:
-        args = read_args()
-        action = args.get("action")
-        conn = ensure_db()
-        if action == "init":
-            print(json.dumps({"status": "ok", "db_path": DB_PATH}))
-        elif action == "record":
-            run_id = args.get("run_id") or args.get("payload", {}).get("run_id")
-            if not run_id:
-                print(json.dumps({"status": "failed", "error": "run_id required"})); return
-            print(json.dumps(record(conn, run_id, args.get("payload", {}))))
-        elif action == "attach_lb":
-            print(json.dumps(attach_lb(conn, args["run_id"], args.get("payload", {}))))
-        elif action == "attach_ralph":
-            print(json.dumps(attach_ralph(conn, args["run_id"], args.get("payload", {}))))
-        elif action == "best":
-            print(json.dumps(best(conn, int(args.get("top_k", 5)))))
-        elif action == "get":
-            row = conn.execute("SELECT * FROM runs WHERE run_id=?", (args.get("run_id"),)).fetchone()
-            print(json.dumps({"status": "ok", "run": row_to_dict(row) if row else None}))
-        else:
-            print(json.dumps({"status": "failed", "error": f"unknown action: {action}"}))
-    except Exception as e:
-        print(json.dumps({"status": "failed", "error": str(e)}))
-
-if __name__ == "__main__":
-    main()
-```
-
-创建 `tools/ak_run_registry/logic.py.hint`：
-
-```text
-Use ak_run_registry as the source of truth for experiment facts. Do not trust prose summaries for CV or leaderboard scores.
-```
-
-推荐输出约定：
-
-- `record` 至少返回当前 `run_id`，并把它写进 `anchor_runtime_update.active_run_id`
-- `attach_ralph` 返回 `ralph_result_path`，便于后续恢复时重新定位 verifier 结果
-- `attach_lb` 返回 leaderboard 绑定信息，便于恢复到 feedback 处理阶段
-
-示例：
-
-```json
-{
-  "status": "ok",
-  "run_id": "baseline_001",
-  "submission_sha256": "...",
-  "anchor_runtime_update": {
-    "phase": "candidate_recorded",
-    "active_run_id": "baseline_001",
-    "active_submission_path": "submissions/baseline_001.csv",
-    "resume_action": "run_verifier_for_same_candidate",
-    "tool_note": "registry recorded baseline_001"
-  }
-}
-```
+Agent 或训练脚本可以直接通过这组内置工具读写账本，无需再编写任何数据库连接与查询的胶水代码。
 
 ## 3.2 工具 2：ak_competition
 

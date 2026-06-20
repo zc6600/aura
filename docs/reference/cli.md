@@ -539,7 +539,7 @@ aura kernel once . --call '{"tool":"read_file","args":{"file_path":"README.md"}}
 aura kernel loop . --goal "Fix all TODO comments" --max-steps 10 --human
 
 # Run a declared workflow contract through the kernel
-aura kernel workflow auto-kaggle . --max-steps 80
+aura kernel workflow benchmark . --max-steps 80
 
 # Run the Ralph verification loop directly through the kernel
 aura kernel ralph . --goal "Fix failing tests" --verify "npm test" --max-steps 5
@@ -671,7 +671,7 @@ Run and inspect a declared workflow contract. Aura looks for `workflow.yml` by d
 **Examples:**
 ```bash
 # Create a workflow contract scaffold
-aura create workflow auto-kaggle
+aura create workflow benchmark
 
 # Validate the default workflow.yml
 aura workflow doctor
@@ -685,8 +685,8 @@ aura workflow run
 # Equivalent lower-level kernel entrypoint
 aura kernel workflow
 
-# Run a named workflow from workflows/auto-kaggle.yml
-aura workflow run auto-kaggle
+# Run a named workflow from workflows/benchmark.yml
+aura workflow run benchmark
 ```
 
 ---

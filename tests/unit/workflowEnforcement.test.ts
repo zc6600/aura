@@ -9,6 +9,12 @@ import { loadWorkflow } from '../../src/core/workflow/manifest.js';
 import { getWorkflowStatus } from '../../src/core/workflow/runner.js';
 import { initializeWorkspaceInPlace } from '../../src/utils/workspaceInitializer.js';
 
+interface RegistryBestRun {
+  run_id: string;
+  cv_score: number;
+  hypothesis: string;
+}
+
 describe('Workflow Stage and Registry Enforcement', () => {
   let tempDir = '';
 
@@ -300,8 +306,9 @@ run:
     });
     expect(bestRes.status).toBe('ok');
     expect(bestRes.best_run).toBeDefined();
-    expect(bestRes.best_run.run_id).toBe('candidate_002');
-    expect(bestRes.best_run.cv_score).toBe(0.78);
-    expect(bestRes.best_run.hypothesis).toBe('Try learning rate 0.005');
+    const bestRun = bestRes.best_run as RegistryBestRun;
+    expect(bestRun.run_id).toBe('candidate_002');
+    expect(bestRun.cv_score).toBe(0.78);
+    expect(bestRun.hypothesis).toBe('Try learning rate 0.005');
   });
 });

@@ -1,0 +1,24 @@
+{
+  "name": "ak_competition",
+  "description": "Controlled Kaggle CLI wrapper for download, catalog, submit, and submission polling.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": true,
+  "timeout": 300,
+  "agent_can_modify_timeout": true,
+  "permissions": {
+    "file_system": "read-write",
+    "allow_paths": ["./data", "./reports", "./submissions", "./params", "./experiments"],
+    "shell": false
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "action": { "type": "string" },
+      "submission_path": { "type": "string" },
+      "message": { "type": "string" },
+      "run_id": { "type": "string" }
+    },
+    "required": ["action"]
+  }
+}

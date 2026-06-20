@@ -96,9 +96,9 @@ import argparse
 import json
 import math
 import os
-import subprocess
 import time
 
+from ak_registry import record
 from data import as_float_matrix, feature_columns, load_data, target
 from metric import accuracy_from_probs
 
@@ -117,16 +117,8 @@ def write_submission(path, sample_rows, probs):
             f.write(f"{row['id']},{p:.8f}\n")
 
 def registry_record(run_id, payload):
-    proc = subprocess.run(
-        ["python", "tools/ak_run_registry/logic.py"],
-        input=json.dumps({"action": "record", "run_id": run_id, "payload": payload}),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(proc.stderr)
-    return json.loads(proc.stdout)
+    # 写入 Aura registry 兼容的 SQLite schema，避免额外 SDK 依赖。
+    return record(run_id, payload)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -172,26 +164,10 @@ if __name__ == "__main__":
 
 ```bash
 python src/train_candidate.py --run-id baseline_001
-aura kernel run_call ak_run_registry '{"action":"best","top_k":3}'
+aura kernel run_call aura.registry.best '{}'
 ```
 
-推荐把 `train_candidate.py` 视为生成 candidate 的脚本层，而不是恢复状态的事实源。跨中断真正需要记住的恢复信息，应由 `ak_run_registry` 这类 tool 通过返回值里的 `anchor_runtime_update` 提供，再由 agent 在调用 `anchor_submit` 时连同 `summary` 和 `selected_next` 一并提交。
-
-例如 `ak_run_registry record` 的返回结果里，至少应包含：
-
-```json
-{
-  "status": "ok",
-  "run_id": "baseline_001",
-  "anchor_runtime_update": {
-    "phase": "candidate_recorded",
-    "active_run_id": "baseline_001",
-    "active_submission_path": "submissions/baseline_001.csv",
-    "resume_action": "run_verifier_for_same_candidate",
-    "tool_note": "registry recorded baseline_001"
-  }
-}
-```
+推荐把 `train_candidate.py` 视为生成 candidate 的脚本层，而不是恢复状态的事实源。跨中断真正需要记住的恢复信息，直接通过 `RunRegistry` 写入内置实验账本中。在 Agent 执行 `anchor_submit` 时，Aura 引擎会自动关联对应的物理状态与检验结果。
 
 ## 4.5 创建 submission verifier
 
@@ -205,11 +181,11 @@ import argparse
 import csv
 import json
 import os
-import sqlite3
 import sys
 
+from ak_registry import get
+
 SAMPLE = "data/raw/sample_submission.csv"
-REGISTRY = "experiments/runs.sqlite"
 
 def read_csv(path):
     with open(path, newline="", encoding="utf-8") as f:
@@ -226,8 +202,6 @@ def main():
         problems.append(f"submission missing: {args.submission}")
     if not os.path.exists(SAMPLE):
         problems.append(f"sample submission missing: {SAMPLE}")
-    if not os.path.exists(REGISTRY):
-        problems.append(f"registry missing: {REGISTRY}")
 
     if not problems:
         sample = read_csv(SAMPLE)
@@ -242,10 +216,8 @@ def main():
             problems.append("submission contains missing values")
 
     if not problems:
-        conn = sqlite3.connect(REGISTRY)
-        row = conn.execute("SELECT cv_score FROM runs WHERE run_id=?", (args.run_id,)).fetchone()
-        conn.close()
-        if not row or row[0] is None:
+        run_data = get(args.run_id)
+        if not run_data or run_data.get("cv_score") is None:
             problems.append("run has no recorded CV score")
 
     result = {"completed": len(problems) == 0, "problems": problems}
@@ -266,4 +238,4 @@ if __name__ == "__main__":
 aura kernel run_call ak_submit_guard '{"action":"validate","submission_path":"submissions/baseline_001.csv","run_id":"baseline_001","dry_run":true}'
 ```
 
-此时如果 registry 还没有关联 Ralph `result.json`，guard 应拒绝真实提交。下一章会直接用 `aura kernel ralph --verify ...` 做提交前验证，验证通过后把 Ralph stdout 中的 `result_path` 通过 `ak_run_registry attach_ralph` 关联到该 run。
+此时如果 registry 还没有关联 Ralph `result.json`，guard 将会拒绝真实提交。在接下来的章节中，我们会把 `verify_submission.py` 声明在 `workflow.yml` 的 stage `ralph` 配置下。在 Agent 调用 `anchor_submit` 时，Aura 引擎会自动拉起 Ralph 物理验证并在通过后自动在内置账本中为本次 Run 关联 `ralph_result_path`，极大地简化了实验管理流程。

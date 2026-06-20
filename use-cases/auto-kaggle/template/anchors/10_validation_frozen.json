@@ -1,0 +1,7 @@
+{
+  "id": "10_validation_frozen",
+  "call_when": [
+    "Local validation has a recorded baseline and metric assumptions are written to reports."
+  ],
+  "next": ["20_submission_loop_started", "30_feedback_recorded"]
+}

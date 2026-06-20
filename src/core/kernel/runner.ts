@@ -101,7 +101,7 @@ export class Runner extends EventEmitter implements IRunner {
       PathResolver.environmentPath(this.projectPath) || this.projectPath;
     this.sessionName = process.env.AURA_SESSION_NAME || 'default';
 
-    this.registry = options.registry || new ToolRegistry(this.envPath);
+    this.registry = options.registry || new ToolRegistry(this.projectPath);
     this.memory = options.memory || this.defaultMemory();
     this.lspManager = options.lspManager || new LSPManager(this.projectPath);
     this.engine =

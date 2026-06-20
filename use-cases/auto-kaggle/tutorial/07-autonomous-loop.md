@@ -9,40 +9,27 @@
 ```python
 #!/usr/bin/env python3
 import json
-import os
-import sqlite3
 import time
 
-REGISTRY = "experiments/runs.sqlite"
+from ak_registry import latest
+
 
 def main():
-    if not os.path.exists(REGISTRY):
-        print(json.dumps({
+    last = latest()
+    if not last:
+        payload = {
             "status": "ok",
             "next_run_id": f"baseline_{int(time.time())}",
             "hypothesis": "Create the first baseline candidate."
-        }))
-        return
-
-    conn = sqlite3.connect(REGISTRY)
-    rows = conn.execute(
-        "SELECT run_id, cv_score, public_score, hypothesis FROM runs ORDER BY created_at DESC"
-    ).fetchall()
-    conn.close()
-
-    round_id = len(rows) + 1
-    if not rows:
-        hypothesis = "Create a stable baseline candidate."
+        }
     else:
-        hypothesis = "Try one conservative feature/model improvement over the best recorded CV run."
-
-    print(json.dumps({
-        "status": "ok",
-        "completed_runs": len(rows),
-        "recent_runs": rows[:5],
-        "next_run_id": f"candidate_{round_id}_{int(time.time())}",
-        "hypothesis": hypothesis
-    }, default=str))
+        payload = {
+            "status": "ok",
+            "next_run_id": f"candidate_{int(time.time())}",
+            "previous_run_id": last["run_id"],
+            "hypothesis": "Try one conservative improvement over the best recorded CV run."
+        }
+    print(json.dumps(payload, indent=2))
 
 if __name__ == "__main__":
     main()
@@ -85,16 +72,6 @@ def main():
         last = res
         text = json.dumps(res)
         if "complete" in text.lower() or "submitted" in text.lower():
-            call_tool("tools/ak_run_registry/logic.py", {
-                "action": "attach_lb",
-                "run_id": args.run_id,
-                "payload": {
-                    "lb_status": "polled",
-                    "kaggle_submission_id": None,
-                    "public_score": None,
-                    "raw": res
-                }
-            })
             print(json.dumps({"status": "ok", "poll": res}))
             return
         time.sleep(args.sleep_seconds)
@@ -104,23 +81,22 @@ if __name__ == "__main__":
     main()
 ```
 
-真实实现中可以把 Kaggle submissions 表格解析成具体 score。教程版先把原始 poll 结果写入 registry，确保反馈闭环存在。
+真实实现中可以把 Kaggle submissions 表格解析成具体 score。教程版使用 `RunRegistry` SDK 把结果写入内置账本，确保反馈闭环存在。
 
 ## 7.3 Workflow run 契约
 
-第 2 章已经把原来的长 agent goal 写入 `workflow.yml` 的 `run.goal`。这个 goal 仍然表达完整 AutoKaggle 循环：
+第 2 章已经把内置实验账本声明与 goal 写入了 `workflow.yml`。这个 goal 仍然表达完整的 AutoKaggle 循环：
 
 - 读取 `params/autokaggle.yml`。
 - 遵守 stop conditions。
-- 使用 `ak_run_registry` 作为事实源。
+- 使用内置实验账本工具 `aura.registry.record` 与 `aura.registry.best` 作为实验记录的唯一事实源。
 - 每次提交决策都通过 `ak_submit_guard`。
 - 需要等待时调用 `timer`，等待后重试同一个 candidate 和 guard action。
-- 真实提交前运行 Ralph verifier。
-- Ralph 通过后用 `ak_run_registry attach_ralph` 关联 `result_path`。
-- 提交或 dry-run 后 poll feedback 并写回 registry。
-- 禁止 raw Kaggle submit shell 命令。
+- 在 `workflow.yml` 的验证节点中声明 `ralph` 物理验证。Aura 在提交 Anchor 时会自动运行 Ralph，并在验证通过后自动把结果关联写入内置账本中。
+- 提交后 poll feedback 并使用 SDK 记录回内置账本。
+- 禁止在 shell 中裸跑 Kaggle submit 命令。
 
-`workflow.yml` 不是替代这些规则，而是让 Aura 能在运行前检查 params、Garden、Skill、prompts、tools 和 anchors 是否齐全，并用同一份契约启动 agent。
+`workflow.yml` 能够保证在运行前对 params、Garden、Skill、prompts、tools、anchors 以及内置账本配置进行完整检查，并用一份强约束契约启动 Agent 执行。
 
 ## 7.4 启动 workflow
 

@@ -1,0 +1,7 @@
+{
+  "id": "30_feedback_recorded",
+  "call_when": [
+    "A Kaggle submission result or dry-run result has been attached to the experiment registry."
+  ],
+  "next": ["20_submission_loop_started"]
+}

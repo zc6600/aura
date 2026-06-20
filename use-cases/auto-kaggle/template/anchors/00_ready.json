@@ -1,0 +1,7 @@
+{
+  "id": "00_ready",
+  "call_when": [
+    "AutoKaggle workspace has params, tools, skill, garden, prompts, data, and task.md."
+  ],
+  "next": ["10_validation_frozen"]
+}

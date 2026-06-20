@@ -39,7 +39,6 @@ name: auto-kaggle
 description: Garden playbook for assembling an AutoKaggle competition workspace: prompts, anchors, tools, skill, verification, guarded submit, wait, leaderboard polling, and registry feedback.
 requires:
   - ak_competition
-  - ak_run_registry
   - ak_submit_guard
   - timer
   - anchor_submit
@@ -72,7 +71,7 @@ Ensure the workspace has:
 - `prompts/system/SOUL.md` and `prompts/system/TOOLS.md` for persona and tool boundaries.
 - `prompts/ralph/ralph_system.md` and `prompts/ralph/critic_rules.md` for verifier behavior.
 - `anchors/` entries for ready, validation frozen, submission loop, and feedback recorded.
-- `tools/ak_competition`, `tools/ak_run_registry`, `tools/ak_submit_guard`, and `timer`.
+- `tools/ak_competition`, `tools/ak_submit_guard`, and `timer` as well as the built-in registry tools.
 
 ## Required Loop
 
@@ -83,14 +82,14 @@ Garden-level loop is:
 2. Ensure data exists. If missing and mode is `kaggle`, call `ak_competition download`.
 3. Call `ak_competition catalog`.
 4. Train or improve one candidate.
-5. Record candidate with `ak_run_registry`.
+5. Record candidate with `aura.registry.record`.
 6. Run Ralph verifier if real submission is possible.
 7. Call `ak_submit_guard validate`.
 8. If guard returns `wait_required`, call `timer` with `wait_chunk_seconds`, then retry the same guard.
 9. If guard passes and `allow_submit=true`, call `ak_submit_guard submit`.
 10. Poll result using `ak_competition submissions`.
-11. Attach leaderboard feedback using `ak_run_registry attach_lb`.
-12. Decide the next experiment from registry, not from intuition alone.
+11. Record leaderboard feedback using `aura.registry.record` (with public/private score).
+12. Decide the next experiment from registry (using `aura.registry.best`), not from intuition alone.
 13. Stop only when a stop condition in params is met.
 
 ## Wait Rule
@@ -180,7 +179,6 @@ name: auto-kaggle
 description: Procedure for autonomous Kaggle competition iteration with guarded submissions and wait handling.
 requires:
   - ak_competition
-  - ak_run_registry
   - ak_submit_guard
   - timer
 ---
@@ -190,13 +188,13 @@ requires:
 ## Operating Rules
 
 - Always read `params/autokaggle.yml` first.
-- Treat `ak_run_registry` as the source of truth.
+- Treat the experiment registry (aura.registry.record, aura.registry.best) as the source of truth.
 - Do not trust a model score unless it is recorded in registry.
 - Do not submit directly with shell or raw Kaggle CLI.
 - Before real submit, run Ralph verifier and record the result.
 - If submit guard returns `wait_required`, call `timer` for `wait_chunk_seconds`.
 - After waiting, retry the same candidate. Do not discard the candidate just because waiting was required.
-- After real submit, poll Kaggle submissions and attach feedback to registry.
+- After real submit, poll Kaggle submissions and record feedback to registry.
 - If leaderboard feedback is delayed, wait using `timer` and poll again.
 - If CV improves but leaderboard gets worse, write a report and investigate validation mismatch.
 - If leaderboard improves but CV worsens, mark the run as leaderboard-risk and avoid overfitting public LB.
@@ -251,7 +249,7 @@ competition rules, and the user's parameter file.
 For AutoKaggle:
 
 - Use `ak_competition` for Kaggle download, submit polling, and leaderboard feedback.
-- Use `ak_run_registry` for all experiment facts.
+- Use `aura.registry.record` and `aura.registry.best` for all experiment facts.
 - Use `ak_submit_guard` before every submission.
 - Use `timer` whenever guard or polling says to wait.
 - Use `anchor_submit` at major milestones.
@@ -274,4 +272,4 @@ aura kernel observe
 
 - Skill: auto-kaggle
 - Garden: auto-kaggle
-- Tools: `ak_competition`、`ak_run_registry`、`ak_submit_guard`、`timer`
+- Tools: `ak_competition`、`ak_submit_guard`、`timer`、内置实验账本工具
