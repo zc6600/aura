@@ -7,6 +7,7 @@ import picocolors from 'picocolors';
 import * as GlobalConfig from '../../utils/globalConfig.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import * as ProjectRegistry from '../../utils/projectRegistry.js';
+import { errorMessage } from '../../utils/typing.js';
 import * as UI from '../ui.js';
 import { Template } from './template.js';
 
@@ -82,7 +83,7 @@ export class Update {
       console.log(
         `\n${picocolors.green('✨ Aura Framework successfully updated to the latest GitHub version!')}`,
       );
-    } catch (_error: any) {
+    } catch (_error: unknown) {
       console.log(`\n${picocolors.red('❌ Automatic Git update failed.')}`);
       console.log('Please manually update in your source directory:');
       console.log(
@@ -224,8 +225,8 @@ export class Update {
         if (configBackup && configPath) {
           GlobalConfig.restoreAndMergeConfig(configBackup, configPath);
         }
-      } catch (e: any) {
-        console.log(`  ${picocolors.red(`✗ Error: ${e.message}`)}`);
+      } catch (e: unknown) {
+        console.log(`  ${picocolors.red(`✗ Error: ${errorMessage(e)}`)}`);
         failCount++;
       } finally {
         if (tmpDir) {
@@ -355,8 +356,8 @@ export class Update {
       if (configBackup && configPath) {
         GlobalConfig.restoreAndMergeConfig(configBackup, configPath);
       }
-    } catch (e: any) {
-      console.log(`  ${picocolors.red(`✗ Error: ${e.message}`)}`);
+    } catch (e: unknown) {
+      console.log(`  ${picocolors.red(`✗ Error: ${errorMessage(e)}`)}`);
     } finally {
       if (tmpDir) {
         try {
@@ -413,8 +414,8 @@ export class Update {
       if (configBackup && configPath) {
         GlobalConfig.restoreAndMergeConfig(configBackup, configPath);
       }
-    } catch (e: any) {
-      console.log(`  ${picocolors.red(`✗ Error: ${e.message}`)}`);
+    } catch (e: unknown) {
+      console.log(`  ${picocolors.red(`✗ Error: ${errorMessage(e)}`)}`);
     } finally {
       if (tmpDir) {
         try {

@@ -13,7 +13,7 @@ export interface RequestContext {
   server: DaemonServer;
   socket: Socket;
   id: unknown;
-  params: any;
+  params: unknown;
 }
 
 export type HandlerFunction = (ctx: RequestContext) => Promise<void> | void;

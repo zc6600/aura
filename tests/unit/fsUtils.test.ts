@@ -104,7 +104,7 @@ describe('deepMerge', () => {
       },
     };
 
-    const merged = deepMerge(target, source);
+    const merged = deepMerge(target, source) as typeof target;
 
     expect(merged).toEqual({
       system: {
@@ -133,7 +133,9 @@ describe('deepMerge', () => {
         fallbacks: [{ provider: 'gemini', model: 'gemini-2.5-flash' }],
       },
     };
-    const merged = deepMerge(target, source);
+    const merged = deepMerge(target, source) as {
+      llm: { fallbacks: Array<{ provider: string; model: string }> };
+    };
     expect(merged.llm.fallbacks).toEqual([
       { provider: 'gemini', model: 'gemini-2.5-flash' },
     ]);

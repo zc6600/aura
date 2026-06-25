@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readLastLinesSync } from '../../../utils/fsUtils.js';
 import * as PathResolver from '../../../utils/pathResolver.js';
+import { errorCode } from '../../../utils/typing.js';
 
 interface ProviderOptions {
   envPath?: string;
@@ -65,8 +66,8 @@ export class BackgroundProcessProvider {
         try {
           process.kill(pid, 0);
           isAlive = true;
-        } catch (err: any) {
-          isAlive = err.code === 'EPERM';
+        } catch (err: unknown) {
+          isAlive = errorCode(err) === 'EPERM';
         }
 
         if (!isAlive && meta.status === 'running') {

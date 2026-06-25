@@ -63,8 +63,8 @@ export class LSPManager {
     const client = new LSPClient(config.command, config.args, config.env || {});
     client.onNotification(
       'textDocument/publishDiagnostics',
-      (params: LSPPublishDiagnosticsParams) => {
-        this.updateDiagnostics(params);
+      (params: unknown) => {
+        this.updateDiagnostics(params as LSPPublishDiagnosticsParams);
       },
     );
 

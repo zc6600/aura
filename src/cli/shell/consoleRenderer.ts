@@ -2,10 +2,20 @@ import readline from 'node:readline';
 import picocolors from 'picocolors';
 import * as UI from '../ui.js';
 
+type Spinner = ReturnType<typeof UI.showSpinner>;
+type ToolResultLike = {
+  status?: unknown;
+  output?: unknown;
+  content?: unknown;
+  stdout?: unknown;
+  message?: unknown;
+  modified_files?: unknown;
+};
+
 export class ConsoleRenderer {
   private verbose: boolean;
   private lastStreamed = false;
-  private spinner: any = null;
+  private spinner: Spinner | null = null;
 
   constructor(options: { verbose?: boolean } = {}) {
     this.verbose = options.verbose || false;
@@ -51,12 +61,21 @@ export class ConsoleRenderer {
     process.stdout.write('\r\x1b[K');
   }
 
-  public onToolStart(tool: string, summary?: string | null, args?: any): void {
+  public onToolStart(
+    tool: string,
+    summary?: string | null,
+    args?: unknown,
+  ): void {
     console.log(`\n>> 🔧 Tool: ${picocolors.cyan(tool)}`);
     if (summary?.trim()) {
       console.log(`   🧾 Summary: ${summary.trim()}`);
     }
-    if (this.verbose && args && Object.keys(args).length > 0) {
+    if (
+      this.verbose &&
+      args &&
+      typeof args === 'object' &&
+      Object.keys(args).length > 0
+    ) {
       console.log(`   🧩 Args: ${this.formatArgs(args)}`);
     }
   }
@@ -65,7 +84,7 @@ export class ConsoleRenderer {
     console.log('   🚀 Executing...');
   }
 
-  public onToolResult(result: any): void {
+  public onToolResult(result: ToolResultLike): void {
     const status = result?.status;
     let statusColor = picocolors.yellow;
     if (status === 'ok' || status === 'success') {
@@ -149,7 +168,7 @@ export class ConsoleRenderer {
     return `${m}m ${s}s`;
   }
 
-  private formatArgs(args: any): string {
+  private formatArgs(args: unknown): string {
     try {
       const json = JSON.stringify(args);
       if (json.length > 100) {

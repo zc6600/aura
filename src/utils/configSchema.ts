@@ -2,7 +2,7 @@
  * Zod schemas for Aura configuration files (.aura-workspace/config/config.yml or fallback .aura/config/config.yml).
  *
  * Provides runtime validation + inferred TypeScript types for all config sections.
- * This replaces `Record<string, any>` / `any` config objects throughout the codebase.
+ * This replaces `Record<string, unknown>` / `any` config objects throughout the codebase.
  *
  * Usage:
  *   import { AuraConfigSchema, type AuraConfig } from './configSchema.js';

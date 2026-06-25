@@ -39,14 +39,18 @@ export class PackageCommand {
 
     if (options.dryRun) {
       console.log(picocolors.blue('=== Aura Package Install Plan ==='));
-      actions.forEach((a) => console.log(a));
+      for (const action of actions) {
+        console.log(action);
+      }
       return;
     }
 
     UI.printSuccess(`Installed package from ${src} into ${target}`);
   }
 
-  private static copyRoots(src: string): Array<{ source: string; dest: string }> {
+  private static copyRoots(
+    src: string,
+  ): Array<{ source: string; dest: string }> {
     const roots: Array<{ source: string; dest: string }> = [];
     if (fs.existsSync(path.join(src, 'template'))) {
       roots.push({ source: 'template', dest: '.' });
@@ -65,7 +69,11 @@ export class PackageCommand {
     const actions: string[] = [];
     const walk = (dir: string) => {
       for (const name of fs.readdirSync(dir)) {
-        if (name === '.git' || name === '__pycache__' || name.endsWith('.pyc')) {
+        if (
+          name === '.git' ||
+          name === '__pycache__' ||
+          name.endsWith('.pyc')
+        ) {
           continue;
         }
         const src = path.join(dir, name);
@@ -80,7 +88,9 @@ export class PackageCommand {
           actions.push(`skip ${dest}`);
           continue;
         }
-        actions.push(`${options.force && fs.existsSync(dest) ? 'overwrite' : 'write'} ${dest}`);
+        actions.push(
+          `${options.force && fs.existsSync(dest) ? 'overwrite' : 'write'} ${dest}`,
+        );
         if (!options.dryRun) {
           fs.mkdirSync(path.dirname(dest), { recursive: true });
           fs.copyFileSync(src, dest);

@@ -350,7 +350,7 @@ export class Runner extends EventEmitter implements IRunner {
               if (ralphRes.result_path) {
                 const regDbPath = getRegistryDbPath(this.projectPath);
                 if (fs.existsSync(regDbPath)) {
-                  let regDb: any;
+                  let regDb: Database.Database | null = null;
                   try {
                     regDb = new Database(regDbPath);
                     const latestRow = regDb
@@ -376,7 +376,7 @@ export class Runner extends EventEmitter implements IRunner {
             }
           }
         }
-      } catch (_e: any) {
+      } catch (_e: unknown) {
         // Fall through
       }
     }

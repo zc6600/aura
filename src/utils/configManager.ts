@@ -129,7 +129,7 @@ export function set(
   if (!configObj || !key) return;
 
   const parts = key.split('.');
-  let current: any = configObj;
+  let current: Record<string, unknown> = configObj;
 
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
@@ -140,7 +140,7 @@ export function set(
     ) {
       current[part] = {};
     }
-    current = current[part];
+    current = current[part] as Record<string, unknown>;
   }
 
   const lastPart = parts[parts.length - 1];

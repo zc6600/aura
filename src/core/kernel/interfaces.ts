@@ -136,7 +136,7 @@ export interface IRalphRunner extends IRunner {
       complete(
         messages: LLMMessage[],
         options: CompletionOptions,
-      ): Promise<{ content?: string; raw?: any }>;
+      ): Promise<{ content?: string; raw?: unknown }>;
     };
   };
 }

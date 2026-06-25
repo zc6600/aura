@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { errorCode, errorMessage } from '../../utils/typing.js';
 import { SQLiteStore } from './sqliteStore.js';
 
 export interface SessionInfo {
@@ -193,10 +194,10 @@ export class SessionManager {
           fs.unlinkSync(sidecar);
         }
       }
-    } catch (e: any) {
-      if (e.code !== 'ENOENT') {
+    } catch (e: unknown) {
+      if (errorCode(e) !== 'ENOENT') {
         throw new Error(
-          `Failed to delete session database files: ${e.message}`,
+          `Failed to delete session database files: ${errorMessage(e)}`,
         );
       }
     }

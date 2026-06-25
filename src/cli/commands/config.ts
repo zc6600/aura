@@ -99,13 +99,13 @@ export const Config = {
     value: string,
   ): void {
     const parts = key.split('.');
-    let curr: any = hash;
+    let curr: Record<string, unknown> = hash;
     for (let i = 0; i < parts.length - 1; i++) {
       const p = parts[i];
       if (!curr[p] || typeof curr[p] !== 'object') {
         curr[p] = {};
       }
-      curr = curr[p];
+      curr = curr[p] as Record<string, unknown>;
     }
 
     // Parse value type

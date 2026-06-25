@@ -154,7 +154,10 @@ export class LSPClient extends EventEmitter {
     this.writeMessage(payload);
   }
 
-  public onNotification(method: string, callback: (params: any) => void): void {
+  public onNotification(
+    method: string,
+    callback: (params: unknown) => void,
+  ): void {
     this.on(`notification:${method}`, callback);
   }
 

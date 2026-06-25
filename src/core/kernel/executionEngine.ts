@@ -7,6 +7,7 @@ import { loadTyped } from '../../utils/configManager.js';
 import { type AuraConfig, parseAuraConfig } from '../../utils/configSchema.js';
 import { readLastLinesSync } from '../../utils/fsUtils.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { errorCode } from '../../utils/typing.js';
 import type { LSPManager } from '../ext/lsp/manager.js';
 import { MCPManager } from '../ext/mcp/manager.js';
 import {
@@ -208,8 +209,8 @@ export class ExecutionEngine extends EventEmitter {
           try {
             process.kill(pid, 0);
             isAlive = true;
-          } catch (err: any) {
-            isAlive = err.code === 'EPERM';
+          } catch (err: unknown) {
+            isAlive = errorCode(err) === 'EPERM';
           }
 
           if (isAlive && tick % 10 === 0) {
@@ -407,7 +408,9 @@ export class ExecutionEngine extends EventEmitter {
           ptyState.resetPromptPending();
         }
         // node-pty uses write(), plain Writable streams also use write()
-        (ptyStdin as any).write(`${normalizedInput}\r`);
+        (ptyStdin as { write(input: string): void }).write(
+          `${normalizedInput}\r`,
+        );
         return { status: 'ok', message: `Input sent to process ${pid}.` };
       } catch (e: unknown) {
         return {

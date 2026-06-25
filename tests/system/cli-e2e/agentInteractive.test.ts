@@ -326,7 +326,10 @@ describeSystem('System interactive agent shell', { timeout: 240_000 }, () => {
     )?.db_path;
 
     expect(isolatedDb).toBeTruthy();
-    const isolatedStore = new SQLiteStore({ dbPath: isolatedDb! });
+    if (!isolatedDb) {
+      throw new Error(`Missing isolated session db for ${isolatedSession}`);
+    }
+    const isolatedStore = new SQLiteStore({ dbPath: isolatedDb });
 
     try {
       const isolatedPayload = isolatedStore

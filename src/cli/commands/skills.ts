@@ -6,6 +6,7 @@ import picocolors from 'picocolors';
 import yaml from 'yaml';
 import * as GlobalConfig from '../../utils/globalConfig.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { errorMessage } from '../../utils/typing.js';
 import * as UI from '../ui.js';
 
 export class Skills {
@@ -107,8 +108,10 @@ export class Skills {
         try {
           await execa('git', ['clone', '--depth', '1', urlOrPath, tmpDir]);
           srcDir = tmpDir;
-        } catch (err: any) {
-          throw new UI.SkillError(`Failed to clone repository: ${err.message}`);
+        } catch (err: unknown) {
+          throw new UI.SkillError(
+            `Failed to clone repository: ${errorMessage(err)}`,
+          );
         }
       } else {
         srcDir = path.resolve(urlOrPath);

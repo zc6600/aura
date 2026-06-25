@@ -1,8 +1,13 @@
 import { ProcessRuntime } from '../../core/kernel/processRuntime.js';
+import { errorMessage } from '../../utils/typing.js';
 import type { HandlerFunction } from '../router.js';
 
 const validSignals = ['SIGTERM', 'SIGKILL', 'SIGINT'] as const;
 type ValidSignal = (typeof validSignals)[number];
+
+function isNotTrackedError(error: unknown): boolean {
+  return errorMessage(error).includes('not tracked');
+}
 
 function processRuntime(ctx: Parameters<HandlerFunction>[0]): ProcessRuntime {
   const runner = ctx.server.runner as
@@ -71,12 +76,12 @@ export const getProcessLogs: HandlerFunction = async (ctx) => {
       ctx.id,
       processRuntime(ctx).getProcessLogs(pid, limit),
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     ctx.server.sendError(
       ctx.socket,
       ctx.id,
-      err.message?.includes('not tracked') ? -32602 : -32603,
-      `Failed to retrieve process logs: ${err.message}`,
+      isNotTrackedError(err) ? -32602 : -32603,
+      `Failed to retrieve process logs: ${errorMessage(err)}`,
     );
   }
 };
@@ -102,12 +107,12 @@ export const killProcess: HandlerFunction = async (ctx) => {
       ctx.id,
       processRuntime(ctx).killProcess(pid, signal as ValidSignal),
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     ctx.server.sendError(
       ctx.socket,
       ctx.id,
-      err.message?.includes('not tracked') ? -32602 : -32603,
-      `Failed to kill process ${pid}: ${err.message}`,
+      isNotTrackedError(err) ? -32602 : -32603,
+      `Failed to kill process ${pid}: ${errorMessage(err)}`,
     );
   }
 };
@@ -158,12 +163,12 @@ export const subscribeLogs: HandlerFunction = async (ctx) => {
     ctx.socket.on('close', removeListeners);
     ctx.socket.on('end', removeListeners);
     ctx.socket.on('error', removeListeners);
-  } catch (err: any) {
+  } catch (err: unknown) {
     ctx.server.sendError(
       ctx.socket,
       ctx.id,
-      err.message?.includes('not tracked') ? -32602 : -32603,
-      err.message,
+      isNotTrackedError(err) ? -32602 : -32603,
+      errorMessage(err),
     );
   }
 };
@@ -186,12 +191,12 @@ export const sendInput: HandlerFunction = async (ctx) => {
   try {
     const result = await processRuntime(ctx).sendInput(pid, input);
     ctx.server.sendResult(ctx.socket, ctx.id, result);
-  } catch (err: any) {
+  } catch (err: unknown) {
     ctx.server.sendError(
       ctx.socket,
       ctx.id,
       -32603,
-      `Failed to send input: ${err.message}`,
+      `Failed to send input: ${errorMessage(err)}`,
     );
   }
 };

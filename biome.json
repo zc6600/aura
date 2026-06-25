@@ -23,10 +23,22 @@
       },
       "suspicious": {
         "noControlCharactersInRegex": "off",
-        "noExplicitAny": "off"
+        "noExplicitAny": "error"
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["tests/**/*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "single"

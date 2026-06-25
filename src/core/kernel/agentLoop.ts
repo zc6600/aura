@@ -254,20 +254,24 @@ export class AgentLoop {
   }
 
   private async executeTool(plan: ParseResult): Promise<ToolResult> {
-    const planAsAny = plan as any;
+    const planAsRecord = plan as unknown as Record<string, unknown>;
     const tool =
       plan.type === 'tool_call'
         ? plan.tool
-        : (planAsAny.tool as string | undefined);
+        : (planAsRecord.tool as string | undefined);
     if (!tool) {
       throw new Error('Expected tool_call plan');
     }
     const call: ToolCall = {
       tool,
-      args: (plan.type === 'tool_call' ? plan.args : planAsAny.args) || {},
+      args:
+        (plan.type === 'tool_call'
+          ? plan.args
+          : (planAsRecord.args as Record<string, unknown> | undefined)) || {},
       summary:
-        (plan.type === 'tool_call' ? plan.summary : planAsAny.summary) ??
-        undefined,
+        (plan.type === 'tool_call'
+          ? plan.summary
+          : (planAsRecord.summary as string | undefined)) ?? undefined,
     };
     return await this.runner.runCall(call);
   }

@@ -5,6 +5,7 @@ import * as ConfigManager from '../../utils/configManager.js';
 import type { AuraConfig } from '../../utils/configSchema.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import * as ProjectRegistry from '../../utils/projectRegistry.js';
+import { errorMessage } from '../../utils/typing.js';
 import * as UI from '../ui.js';
 
 export class Project {
@@ -109,9 +110,11 @@ export class Project {
               `Successfully deleted physical sandbox at ${hidden}.`,
             ),
           );
-        } catch (e: any) {
+        } catch (e: unknown) {
           console.error(
-            picocolors.red(`Failed to delete physical sandbox: ${e.message}`),
+            picocolors.red(
+              `Failed to delete physical sandbox: ${errorMessage(e)}`,
+            ),
           );
         }
       }
@@ -157,10 +160,10 @@ export class Project {
         }
         cfg.project_name = projectName;
         ConfigManager.write(cfgPath, cfg);
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.warn(
           picocolors.yellow(
-            `⚠️ Warning: Failed to update project config: ${e.message}`,
+            `⚠️ Warning: Failed to update project config: ${errorMessage(e)}`,
           ),
         );
       }

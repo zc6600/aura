@@ -22,7 +22,7 @@ interface InspectToolResult {
   status?: string;
   error?: string;
   code?: string;
-  manifest?: Record<string, any>;
+  manifest?: Record<string, unknown>;
   files?: string[];
   hint?: string;
   magic_hints?: string[];
@@ -141,7 +141,10 @@ export class Tools {
         tool: name,
         check: 'manifest',
         ok: fs.existsSync(path.join(item.path, 'manifest.json')),
-        detail: path.relative(resolvedPath, path.join(item.path, 'manifest.json')),
+        detail: path.relative(
+          resolvedPath,
+          path.join(item.path, 'manifest.json'),
+        ),
       });
       checks.push({
         tool: name,
@@ -160,7 +163,9 @@ export class Tools {
         tool: name,
         check: 'entry',
         ok: !!entry && fs.existsSync(path.join(item.path, entry)),
-        detail: entry ? path.join(path.relative(resolvedPath, item.path), entry) : 'missing entry',
+        detail: entry
+          ? path.join(path.relative(resolvedPath, item.path), entry)
+          : 'missing entry',
       });
       checks.push({
         tool: name,
@@ -498,8 +503,14 @@ export class Tools {
     if (hint) lines.push(`Hint: ${hint}`);
 
     if (man.input_schema && typeof man.input_schema === 'object') {
-      const props = man.input_schema.properties || {};
-      const req = man.input_schema.required || [];
+      const schema = man.input_schema as Record<string, unknown>;
+      const props =
+        schema.properties &&
+        typeof schema.properties === 'object' &&
+        !Array.isArray(schema.properties)
+          ? (schema.properties as Record<string, unknown>)
+          : {};
+      const req = Array.isArray(schema.required) ? schema.required : [];
       if (Object.keys(props).length > 0) {
         lines.push(`Input keys: ${Object.keys(props).join(', ')}`);
       }

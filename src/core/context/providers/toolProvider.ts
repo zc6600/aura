@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as ConfigManager from '../../../utils/configManager.js';
 import { environmentPath } from '../../../utils/pathResolver.js';
+import { asRecord } from '../../../utils/typing.js';
 import { MCPManager, type MCPTool } from '../../ext/mcp/manager.js';
 import { type ToolManifest, ToolRegistry } from '../../kernel/registry.js';
 import { type ContextItem, ContextManager } from '../manager.js';
@@ -514,8 +515,9 @@ export class ToolProvider {
   }
 
   private fetchMaxFileChars(): number {
-    const cfg = this.loadConfig() as any;
-    const limit = cfg.hints?.max_file_chars;
+    const cfg = asRecord(this.loadConfig());
+    const hints = asRecord(cfg.hints);
+    const limit = hints.max_file_chars;
     return limit ? Number(limit) : 10000;
   }
 
@@ -530,8 +532,11 @@ export class ToolProvider {
   }
 
   private isIgnored(relPath: string): boolean {
-    const cfg = this.loadConfig() as any;
-    const ignoreList: string[] = cfg.hints?.ignore_list || [];
+    const cfg = asRecord(this.loadConfig());
+    const hints = asRecord(cfg.hints);
+    const ignoreList = Array.isArray(hints.ignore_list)
+      ? hints.ignore_list.map(String)
+      : [];
     return ignoreList.some(
       (pattern) => pattern === relPath || relPath.includes(pattern),
     );

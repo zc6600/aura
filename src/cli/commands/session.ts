@@ -4,6 +4,7 @@ import path from 'node:path';
 import picocolors from 'picocolors';
 import { SessionManager } from '../../core/memory/sessionManager.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { errorMessage } from '../../utils/typing.js';
 import * as UI from '../ui.js';
 
 export class SessionCmd {
@@ -190,8 +191,8 @@ export class SessionCmd {
 
     try {
       resolved = PathResolver.resolveProjectPath(undefined);
-    } catch (e: any) {
-      resolveError = e;
+    } catch (e: unknown) {
+      resolveError = e instanceof Error ? e : new Error(errorMessage(e));
     }
 
     if (resolved) {

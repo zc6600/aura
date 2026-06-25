@@ -51,9 +51,9 @@ export class Planner {
     this.validateParsedPlan(parsed, out.content);
 
     const result: ParseResult & { finish_reason?: string | null } = {
-      ...(parsed as any),
+      ...(parsed as object),
       finish_reason: out.finish_reason || null,
-    };
+    } as ParseResult & { finish_reason?: string | null };
     return result;
   }
 
@@ -96,9 +96,9 @@ export class Planner {
 
     if (finalParsed) {
       const result: ParseResult & { finish_reason?: string | null } = {
-        ...(finalParsed as any),
+        ...(finalParsed as object),
         finish_reason: res.finish_reason || null,
-      };
+      } as ParseResult & { finish_reason?: string | null };
       return result;
     }
 
@@ -108,9 +108,9 @@ export class Planner {
     }
 
     const result: ParseResult & { finish_reason?: string | null } = {
-      ...(parsed as any),
+      ...(parsed as object),
       finish_reason: res.finish_reason || null,
-    };
+    } as ParseResult & { finish_reason?: string | null };
     return result;
   }
 

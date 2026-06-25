@@ -14,6 +14,7 @@ import * as ConfigManager from '../../utils/configManager.js';
 import type { AuraConfig } from '../../utils/configSchema.js';
 import { hasMagicHint as hasMagicHintUtil } from '../../utils/fsUtils.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { errorMessage } from '../../utils/typing.js';
 import * as UI from '../ui.js';
 
 type Injectable = ScannedGlobalRule | ScannedHint;
@@ -98,10 +99,10 @@ export class Hints {
     if (fs.existsSync(cfgPath)) {
       try {
         cfg = ConfigManager.load(auraDir) || {};
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.warn(
           picocolors.yellow(
-            `⚠️ Warning: Failed to load configuration: ${e.message}`,
+            `⚠️ Warning: Failed to load configuration: ${errorMessage(e)}`,
           ),
         );
       }

@@ -8,7 +8,13 @@
   "agent_can_modify_timeout": true,
   "permissions": {
     "file_system": "read-write",
-    "allow_paths": ["./data", "./reports", "./submissions", "./params", "./experiments"],
+    "allow_paths": [
+      "./data",
+      "./reports",
+      "./submissions",
+      "./params",
+      "./experiments"
+    ],
     "shell": false
   },
   "input_schema": {

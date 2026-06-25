@@ -3,6 +3,7 @@ import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { readLastLinesSync } from '../../utils/fsUtils.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { errorCode } from '../../utils/typing.js';
 import type { ExecutionEngine } from './executionEngine.js';
 import type { ToolResult } from './interfaces.js';
 
@@ -412,8 +413,8 @@ export class ProcessRuntime {
     try {
       process.kill(pid, 0);
       return true;
-    } catch (err: any) {
-      return err.code === 'EPERM';
+    } catch (err: unknown) {
+      return errorCode(err) === 'EPERM';
     }
   }
 }

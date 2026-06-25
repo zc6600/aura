@@ -262,16 +262,19 @@ export class DaemonClient {
     }
   }
 
-  public request(
+  public request<T = Record<string, unknown>>(
     method: string,
     params: Record<string, unknown> = {},
-  ): Promise<any> {
+  ): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.socket || this.socket.destroyed) {
         return reject(new Error('Not connected to Aura Daemon.'));
       }
       const id = ++this.requestId;
-      this.pendingRequests.set(id, { resolve, reject });
+      this.pendingRequests.set(id, {
+        resolve: (value: unknown) => resolve(value as T),
+        reject,
+      });
       this.socket.write(
         `${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`,
       );

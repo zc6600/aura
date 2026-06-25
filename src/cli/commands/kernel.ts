@@ -194,20 +194,24 @@ export class Kernel {
       ? `[Subagent ${process.env.AURA_SUBAGENT_ID}]`
       : '[Agent]';
     const eventBus = {
-      emit: (event: string, payload?: Record<string, any>) => {
+      emit: (event: string, payload?: Record<string, unknown>) => {
         if (event === 'thought') {
-          const content = payload?.content?.trim();
+          const content = String(payload?.content || '').trim();
           if (content) process.stderr.write(`${prefix} Thought: ${content}\n`);
         } else if (event === 'tool_start') {
           process.stderr.write(
             `${prefix} Tool Call: ${payload?.tool} | ${payload?.summary || ''}\n`,
           );
         } else if (event === 'tool_result') {
+          const result =
+            payload?.result && typeof payload.result === 'object'
+              ? (payload.result as Record<string, unknown>)
+              : {};
           process.stderr.write(
-            `${prefix} Tool Result: ${payload?.result?.status || 'ok'}\n`,
+            `${prefix} Tool Result: ${result.status || 'ok'}\n`,
           );
         } else if (event === 'final_answer') {
-          const content = payload?.content?.trim();
+          const content = String(payload?.content || '').trim();
           if (content)
             process.stderr.write(`${prefix} Final Answer: ${content}\n`);
         }
@@ -289,20 +293,24 @@ export class Kernel {
       ? `[Subagent ${process.env.AURA_SUBAGENT_ID}]`
       : '[Workflow]';
     const eventBus = {
-      emit: (event: string, payload?: Record<string, any>) => {
+      emit: (event: string, payload?: Record<string, unknown>) => {
         if (event === 'thought') {
-          const content = payload?.content?.trim();
+          const content = String(payload?.content || '').trim();
           if (content) process.stderr.write(`${prefix} Thought: ${content}\n`);
         } else if (event === 'tool_start') {
           process.stderr.write(
             `${prefix} Tool Call: ${payload?.tool} | ${payload?.summary || ''}\n`,
           );
         } else if (event === 'tool_result') {
+          const result =
+            payload?.result && typeof payload.result === 'object'
+              ? (payload.result as Record<string, unknown>)
+              : {};
           process.stderr.write(
-            `${prefix} Tool Result: ${payload?.result?.status || 'ok'}\n`,
+            `${prefix} Tool Result: ${result.status || 'ok'}\n`,
           );
         } else if (event === 'final_answer') {
-          const content = payload?.content?.trim();
+          const content = String(payload?.content || '').trim();
           if (content)
             process.stderr.write(`${prefix} Final Answer: ${content}\n`);
         }
@@ -373,7 +381,7 @@ export class Kernel {
     let finalContent: string | null = null;
     const prefix = '[Ralph]';
     const eventBus = {
-      emit: (event: string, payload?: Record<string, any>) => {
+      emit: (event: string, payload?: Record<string, unknown>) => {
         if (event === 'final_answer') {
           finalContent = String(payload?.content || '');
         }
@@ -393,8 +401,12 @@ export class Kernel {
             `${prefix} Tool Call: ${payload?.tool} | ${payload?.summary || ''}\n`,
           );
         } else if (event === 'tool_result') {
+          const result =
+            payload?.result && typeof payload.result === 'object'
+              ? (payload.result as Record<string, unknown>)
+              : {};
           process.stderr.write(
-            `${prefix} Tool Result: ${payload?.result?.status || 'ok'}\n`,
+            `${prefix} Tool Result: ${result.status || 'ok'}\n`,
           );
         } else if (event === 'warning') {
           const message = String(payload?.message || '').trim();

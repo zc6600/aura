@@ -1,0 +1,29 @@
+source:
+  provider: "99.co"
+  mode: "offline"
+  search_url: "https://www.99.co/singapore/rent"
+
+preferences:
+  area: "one-north"
+  max_budget_sgd: 4200
+  bedrooms: 1
+  min_bathrooms: 1
+  max_mrt_minutes: 12
+  furnishing: "furnished"
+  move_in_days: 30
+  must_haves:
+    - "near MRT"
+  nice_to_haves:
+    - "fully furnished"
+    - "near grocery or mall"
+    - "quiet"
+
+advice:
+  max_recommendations: 5
+  require_source_url: true
+  include_tradeoffs: true
+  warn_about:
+    - "listing availability can change quickly"
+    - "verify agent fees, stamp duty, utilities, and lease terms"
+    - "do not share sensitive documents before confirming the agent and viewing"
+

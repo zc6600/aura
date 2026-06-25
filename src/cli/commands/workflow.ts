@@ -1,5 +1,5 @@
-import path from 'node:path';
 import fs from 'node:fs';
+import path from 'node:path';
 import picocolors from 'picocolors';
 import { loadWorkflow } from '../../core/workflow/manifest.js';
 import {
@@ -37,8 +37,14 @@ export class Workflow {
     if (options.withPrompts) {
       const systemDir = path.join(root, 'prompts', 'system');
       fs.mkdirSync(systemDir, { recursive: true });
-      Workflow.writeIfMissing(path.join(systemDir, 'SOUL.md'), '# AGENT PERSONA\n');
-      Workflow.writeIfMissing(path.join(systemDir, 'TOOLS.md'), '# TOOL GUIDELINES\n');
+      Workflow.writeIfMissing(
+        path.join(systemDir, 'SOUL.md'),
+        '# AGENT PERSONA\n',
+      );
+      Workflow.writeIfMissing(
+        path.join(systemDir, 'TOOLS.md'),
+        '# TOOL GUIDELINES\n',
+      );
     }
     if (options.withAnchors) {
       const anchorPath = path.join(root, 'anchors', '00_ready.json');
@@ -70,7 +76,12 @@ export class Workflow {
         'tools:',
         '  required: []',
         ...(options.withAnchors
-          ? ['', 'stages:', '  - id: ready', '    anchor: anchors/00_ready.json']
+          ? [
+              '',
+              'stages:',
+              '  - id: ready',
+              '    anchor: anchors/00_ready.json',
+            ]
           : []),
         '',
         'run:',
@@ -172,7 +183,9 @@ export class Workflow {
     console.log(`Workflow: ${payload.workflow}`);
     console.log(`Path: ${payload.path}`);
     console.log(`Tools: ${payload.tools.join(', ') || '(none)'}`);
-    console.log(`Stages: ${payload.stages.map((s) => s.id).join(', ') || '(none)'}`);
+    console.log(
+      `Stages: ${payload.stages.map((s) => s.id).join(', ') || '(none)'}`,
+    );
     console.log('\n[Compiled Goal]');
     console.log(payload.compiled_goal);
   }
@@ -254,8 +267,12 @@ export class Workflow {
       return;
     }
     for (const stage of stages) {
-      const deps = stage.requires?.length ? ` requires: ${stage.requires.join(', ')}` : '';
-      console.log(`${stage.id}${stage.title ? ` (${stage.title})` : ''}${deps}`);
+      const deps = stage.requires?.length
+        ? ` requires: ${stage.requires.join(', ')}`
+        : '';
+      console.log(
+        `${stage.id}${stage.title ? ` (${stage.title})` : ''}${deps}`,
+      );
     }
   }
 

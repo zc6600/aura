@@ -92,11 +92,13 @@ export function readLastLinesSync(
   }
 }
 
+type JsonObject = Record<string, unknown>;
+
 /**
  * Performs a deep merge of two configuration objects recursively.
  * If properties are both objects, they are merged. Otherwise, the source overrides the target.
  */
-export function deepMerge(target: any, source: any): any {
+export function deepMerge(target: unknown, source: unknown): unknown {
   if (target === null || target === undefined) return source;
   if (source === null || source === undefined) return target;
 
@@ -108,11 +110,13 @@ export function deepMerge(target: any, source: any): any {
     return source !== undefined ? source : target;
   }
 
-  const output = { ...target };
+  const targetObj = target as JsonObject;
+  const sourceObj = source as JsonObject;
+  const output: JsonObject = { ...targetObj };
 
-  for (const key of Object.keys(source)) {
-    const sourceVal = source[key];
-    const targetVal = target[key];
+  for (const key of Object.keys(sourceObj)) {
+    const sourceVal = sourceObj[key];
+    const targetVal = targetObj[key];
 
     if (
       typeof sourceVal === 'object' &&

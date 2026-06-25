@@ -3,6 +3,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import yaml from 'yaml';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { asRecord, errorMessage } from '../../utils/typing.js';
 import { AgentLoop } from '../kernel/agentLoop.js';
 import { ToolRegistry } from '../kernel/registry.js';
 import type { Runner } from '../kernel/runner.js';
@@ -42,7 +43,7 @@ export interface WorkflowStatus {
 export interface WorkflowRunOptions {
   maxSteps?: number;
   eventBus?: {
-    emit: (event: string, payload?: Record<string, any>) => void;
+    emit: (event: string, payload?: Record<string, unknown>) => void;
   };
 }
 
@@ -448,16 +449,13 @@ export function parseCSV(content: string): string[][] {
 
 export function runCsvValidate(
   root: string,
-  args: Record<string, any>,
+  args: Record<string, unknown>,
 ): { status: 'ok' | 'failed'; error?: string; problems?: string[] } {
-  const target = args.target;
-  const alignWith = args.align_with;
-  const rules = args.rules || [
-    'columns_match',
-    'row_count_match',
-    'id_ordered',
-    'no_missing',
-  ];
+  const target = typeof args.target === 'string' ? args.target : '';
+  const alignWith = typeof args.align_with === 'string' ? args.align_with : '';
+  const rules = Array.isArray(args.rules)
+    ? args.rules.map(String)
+    : ['columns_match', 'row_count_match', 'id_ordered', 'no_missing'];
 
   if (!target)
     return { status: 'failed', error: 'Missing target file parameter.' };
@@ -528,16 +526,16 @@ export function runCsvValidate(
       return { status: 'failed', problems };
     }
     return { status: 'ok' };
-  } catch (e: any) {
-    return { status: 'failed', error: `CSV parsing error: ${e.message}` };
+  } catch (e: unknown) {
+    return { status: 'failed', error: `CSV parsing error: ${errorMessage(e)}` };
   }
 }
 
 export function getRegistryDbPath(root: string): string {
   try {
     const loaded = loadWorkflow(root);
-    const reg = (loaded.manifest as any).registry;
-    if (reg?.db_path) {
+    const reg = asRecord(asRecord(loaded.manifest).registry);
+    if (typeof reg.db_path === 'string') {
       return path.resolve(root, reg.db_path);
     }
   } catch {}
@@ -576,9 +574,9 @@ export function initRegistryDb(dbPath: string): Database.Database {
 
 export function runRegistryRecord(
   root: string,
-  args: Record<string, any>,
+  args: Record<string, unknown>,
 ): { status: 'ok' | 'failed'; error?: string; run_id?: string } {
-  const run_id = args.run_id;
+  const run_id = typeof args.run_id === 'string' ? args.run_id : '';
   if (!run_id) {
     return { status: 'failed', error: 'Missing run_id parameter.' };
   }
@@ -595,17 +593,20 @@ export function runRegistryRecord(
     if (higherIsBetter === undefined || metricName === undefined) {
       try {
         const loaded = loadWorkflow(root);
-        const reg = (loaded.manifest as any).registry;
-        const mainMetric = reg?.metrics?.[0];
-        if (mainMetric) {
-          if (metricName === undefined) metricName = mainMetric.name;
+        const reg = asRecord(asRecord(loaded.manifest).registry);
+        const metrics = Array.isArray(reg.metrics) ? reg.metrics : [];
+        const mainMetric = asRecord(metrics[0]);
+        if (Object.keys(mainMetric).length > 0) {
+          if (metricName === undefined && typeof mainMetric.name === 'string') {
+            metricName = mainMetric.name;
+          }
           if (higherIsBetter === undefined)
             higherIsBetter = mainMetric.higher_is_better ?? true;
         }
       } catch {}
     }
     if (higherIsBetter === undefined) higherIsBetter = true;
-    if (metricName === undefined) metricName = 'cv_score';
+    if (typeof metricName !== 'string') metricName = 'cv_score';
 
     const stmt = db.prepare(`
       INSERT OR REPLACE INTO runs (
@@ -629,15 +630,24 @@ export function runRegistryRecord(
       JSON.stringify(payload.params || {}),
       JSON.stringify(payload.changed_files || []),
       JSON.stringify(payload.artifacts || {}),
-      payload.submission_path || null,
-      payload.submission_sha256 || null,
-      payload.ralph_result_path || null,
-      payload.notes || null,
+      typeof payload.submission_path === 'string'
+        ? payload.submission_path
+        : null,
+      typeof payload.submission_sha256 === 'string'
+        ? payload.submission_sha256
+        : null,
+      typeof payload.ralph_result_path === 'string'
+        ? payload.ralph_result_path
+        : null,
+      typeof payload.notes === 'string' ? payload.notes : null,
     );
 
     return { status: 'ok', run_id };
-  } catch (e: any) {
-    return { status: 'failed', error: `Failed to record run: ${e.message}` };
+  } catch (e: unknown) {
+    return {
+      status: 'failed',
+      error: `Failed to record run: ${errorMessage(e)}`,
+    };
   } finally {
     if (db) db.close();
   }
@@ -645,11 +655,11 @@ export function runRegistryRecord(
 
 export function runRegistryBest(
   root: string,
-  args: Record<string, any>,
+  args: Record<string, unknown>,
 ): {
   status: 'ok' | 'failed';
   error?: string;
-  best_run?: any;
+  best_run?: unknown;
   message?: string;
 } {
   const dbPath = getRegistryDbPath(root);
@@ -669,11 +679,17 @@ export function runRegistryBest(
 
     try {
       const loaded = loadWorkflow(root);
-      const reg = (loaded.manifest as any).registry;
-      const mainMetric = reg?.metrics?.[0];
-      if (mainMetric) {
-        if (!metricName) metricName = mainMetric.name;
-        higherIsBetter = mainMetric.higher_is_better ?? true;
+      const reg = asRecord(asRecord(loaded.manifest).registry);
+      const metrics = Array.isArray(reg.metrics) ? reg.metrics : [];
+      const mainMetric = asRecord(metrics[0]);
+      if (Object.keys(mainMetric).length > 0) {
+        if (!metricName && typeof mainMetric.name === 'string') {
+          metricName = mainMetric.name;
+        }
+        higherIsBetter =
+          typeof mainMetric.higher_is_better === 'boolean'
+            ? mainMetric.higher_is_better
+            : true;
       }
     } catch {}
 
@@ -684,7 +700,7 @@ export function runRegistryBest(
       .prepare(
         `SELECT * FROM runs WHERE metric_name = ? AND cv_score IS NOT NULL ORDER BY cv_score ${order} LIMIT 1`,
       )
-      .get(metricName) as Record<string, any> | undefined;
+      .get(metricName) as Record<string, unknown> | undefined;
 
     if (!row) {
       return {
@@ -696,17 +712,17 @@ export function runRegistryBest(
 
     const best_run = {
       ...row,
-      params: JSON.parse(row.params_json || '{}'),
-      changed_files: JSON.parse(row.changed_files_json || '[]'),
-      artifacts: JSON.parse(row.artifacts_json || '{}'),
+      params: JSON.parse(String(row.params_json || '{}')),
+      changed_files: JSON.parse(String(row.changed_files_json || '[]')),
+      artifacts: JSON.parse(String(row.artifacts_json || '{}')),
       higher_is_better: row.higher_is_better === 1,
     };
 
     return { status: 'ok', best_run };
-  } catch (e: any) {
+  } catch (e: unknown) {
     return {
       status: 'failed',
-      error: `Failed to query best run: ${e.message}`,
+      error: `Failed to query best run: ${errorMessage(e)}`,
     };
   } finally {
     if (db) db.close();

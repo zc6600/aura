@@ -16,7 +16,7 @@ interface MetabolismPayload {
 export class Bridge {
   public readonly runner: Runner;
   public lastResult: AgentLoopResult | null = null;
-  private callbacks: Record<string, (...args: any[]) => any> = {};
+  private callbacks: Record<string, (...args: never[]) => unknown> = {};
   private subscribed = false;
 
   constructor(projectPath: string, options: { runner?: Runner } = {}) {
@@ -26,13 +26,20 @@ export class Bridge {
   /**
    * Register callbacks for UI events
    */
-  public on(event: string, callback: (...args: any[]) => any): void {
-    this.callbacks[event] = callback;
+  public on<T extends unknown[]>(
+    event: string,
+    callback: (...args: T) => unknown,
+  ): void {
+    this.callbacks[event] = callback as unknown as (
+      ...args: never[]
+    ) => unknown;
   }
 
   private notify(event: string, ...args: unknown[]): void {
     if (this.callbacks[event]) {
-      this.callbacks[event](...args);
+      (this.callbacks[event] as unknown as (...args: unknown[]) => unknown)(
+        ...args,
+      );
     }
   }
 
@@ -204,9 +211,11 @@ export class Bridge {
 
         if (dangerousTools.includes(String(tool))) {
           if (this.callbacks.ask_confirmation) {
-            return await this.callbacks.ask_confirmation(
-              `DANGEROUS TOOL: ${tool}. Execute?`,
-            );
+            const askConfirmation = this.callbacks
+              .ask_confirmation as unknown as (
+              message: string,
+            ) => boolean | Promise<boolean>;
+            return await askConfirmation(`DANGEROUS TOOL: ${tool}. Execute?`);
           }
         }
         return true;

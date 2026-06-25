@@ -1,0 +1,43 @@
+version: 1
+name: rental-advisor
+description: Rental search and recommendation workflow using a controlled listing tool.
+
+params:
+  path: params/rental_advisor.yml
+
+context:
+  garden: garden/rental-advisor/garden.md
+  skill: skills/rental-advisor/SKILL.md
+  prompts:
+    - prompts/system/SOUL.md
+    - prompts/system/TOOLS.md
+
+tools:
+  required:
+    - rental_search
+
+stages:
+  - id: ready
+    title: Workspace ready
+    anchor: anchors/00_ready.json
+  - id: preferences_loaded
+    title: Preferences loaded
+    anchor: anchors/10_preferences_loaded.json
+  - id: listings_collected
+    title: Listings collected
+    anchor: anchors/20_listings_collected.json
+  - id: advice_written
+    title: Advice written
+    anchor: anchors/30_advice_written.json
+
+run:
+  mode: classic
+  max_steps: 30
+  goal: |
+    Act as a rental advisor.
+    Read params/rental_advisor.yml before searching.
+    Ask at most one concise clarification if the request is missing budget or location.
+    Use rental_search for listing data; do not invent available listings.
+    Rank listings against the user's budget, location, commute, size, furnishing, and move-in constraints.
+    Return a short recommendation with reasons, tradeoffs, and viewing/verification questions.
+

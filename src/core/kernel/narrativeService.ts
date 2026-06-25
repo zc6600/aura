@@ -1,4 +1,5 @@
 import * as ConfigManager from '../../utils/configManager.js';
+import { asRecord, errorMessage } from '../../utils/typing.js';
 import { LLMClient } from '../llm/client.js';
 import type { EventRecord } from '../memory/sqliteStore.js';
 
@@ -16,22 +17,17 @@ export class NarrativeService {
 
     let client: LLMClient;
     try {
-      const cfg = (ConfigManager.load(this.projectPath) || {}) as Record<
-        string,
-        any
-      >;
-      const llmCfg = { ...((cfg.llm as Record<string, unknown>) || {}) };
-      const sumModel = (
-        cfg.state_management?.summarization as
-          | Record<string, unknown>
-          | undefined
-      )?.model;
+      const cfg = asRecord(ConfigManager.load(this.projectPath) || {});
+      const llmCfg = { ...asRecord(cfg.llm) };
+      const stateManagement = asRecord(cfg.state_management);
+      const summarization = asRecord(stateManagement.summarization);
+      const sumModel = summarization.model;
       if (sumModel && typeof sumModel === 'string') {
         llmCfg.model = sumModel;
       }
       client = LLMClient.fromConfig(llmCfg, this.projectPath);
     } catch (e: unknown) {
-      return `Metabolism synthesis failed to load config: ${(e as Error).message}`;
+      return `Metabolism synthesis failed to load config: ${errorMessage(e)}`;
     }
 
     const prompt = this.composePrompt(events);

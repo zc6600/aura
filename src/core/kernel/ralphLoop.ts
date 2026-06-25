@@ -139,7 +139,6 @@ export class RalphLoop {
   private tempSessions: string[] = [];
   private startedAt = '';
   private latestVerification: RalphVerificationResult | null = null;
-  private resultPath: string | null = null;
 
   constructor(
     runner: IRalphRunner,
@@ -184,7 +183,6 @@ export class RalphLoop {
     }
     this.runId = `${new Date().toISOString().replace(/[-:T.Z]/g, '')}_${crypto.randomBytes(4).toString('hex')}`;
     this.startedAt = new Date().toISOString();
-    this.resultPath = null;
     this.latestVerification = null;
     this.iterationCount = 1;
     const startingSession = process.env.AURA_SESSION_NAME || 'default';
@@ -584,7 +582,7 @@ export class RalphLoop {
           messages,
           options,
         );
-        content = res.content || res.raw || '';
+        content = res.content || (res.raw ? String(res.raw) : '');
       }
 
       const parsed = ResponseParser.safeJsonParse(content);
@@ -892,7 +890,6 @@ export class RalphLoop {
       const relResultPath = path.relative(this.projectPath, resultPath);
       result.result_path = relResultPath;
       fs.writeFileSync(resultPath, JSON.stringify(result, null, 2), 'utf-8');
-      this.resultPath = relResultPath;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       this.eventBus.emit('warning', {

@@ -1,0 +1,29 @@
+{
+  "name": "rental_search",
+  "description": "Controlled rental listing search for Singapore rentals, with offline fixtures and best-effort 99.co live parsing.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": true,
+  "timeout": 120,
+  "agent_can_modify_timeout": true,
+  "permissions": {
+    "file_system": "read-write",
+    "allow_paths": ["./data", "./reports", "./params"],
+    "shell": false,
+    "network": "full-access"
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "action": { "type": "string" },
+      "area": { "type": "string" },
+      "max_budget": { "type": "number" },
+      "bedrooms": { "type": "number" },
+      "max_mrt_minutes": { "type": "number" },
+      "furnishing": { "type": "string" },
+      "mode": { "type": "string" },
+      "limit": { "type": "number" }
+    },
+    "required": ["action"]
+  }
+}

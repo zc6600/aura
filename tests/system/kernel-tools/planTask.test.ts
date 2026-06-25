@@ -143,10 +143,11 @@ describeSystem('System task checklist workflow', { timeout: 180000 }, () => {
       true,
     );
     expect(createPayload.final.task_path).toBeTruthy();
-    const runTaskPath = path.join(
-      workspace.root,
-      createPayload.final.task_path!,
-    );
+    const taskPath = createPayload.final.task_path;
+    if (!taskPath) {
+      throw new Error('plan_task did not return a task_path');
+    }
+    const runTaskPath = path.join(workspace.root, taskPath);
     expect(fs.existsSync(runTaskPath)).toBe(true);
     expect(fs.readFileSync(runTaskPath, 'utf-8')).toContain(`- [x] ${taskOne}`);
     expect(fs.readFileSync(runTaskPath, 'utf-8')).toContain(`- [ ] ${taskTwo}`);

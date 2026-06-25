@@ -6,6 +6,7 @@ import { execa } from 'execa';
 import picocolors from 'picocolors';
 import { VERSION } from '../../index.js';
 import * as GlobalConfig from '../../utils/globalConfig.js';
+import { errorMessage, errorOutput } from '../../utils/typing.js';
 import * as UI from '../ui.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -96,8 +97,10 @@ export class Template {
           console.log(
             `  ${picocolors.yellow('⚠️  Backed up global config.yml')}`,
           );
-        } catch (err: any) {
-          console.warn(`  ⚠️ Failed to back up global config: ${err.message}`);
+        } catch (err: unknown) {
+          console.warn(
+            `  ⚠️ Failed to back up global config: ${errorMessage(err)}`,
+          );
         }
       }
 
@@ -321,10 +324,11 @@ export class Template {
         console.log(stdout);
         console.log('\nTo sync, run: aura template sync');
       }
-    } catch (e: any) {
-      if (e.stdout?.toString().trim()) {
+    } catch (e: unknown) {
+      const { stdout } = errorOutput(e);
+      if (stdout?.toString().trim()) {
         console.log(`${picocolors.yellow('⚠️  Differences found:')}\n`);
-        console.log(e.stdout.toString());
+        console.log(stdout.toString());
         console.log('\nTo sync, run: aura template sync');
       } else {
         console.log(

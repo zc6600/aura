@@ -29,12 +29,15 @@ export interface MCPTool {
   input_schema: Record<string, unknown>;
   auto_load: boolean;
   hint: string;
-  raw: any;
+  raw: unknown;
 }
 
 type MCPClient = {
-  request: (method: string, params?: any) => Promise<any>;
-  notify: (method: string, params?: any) => Promise<void>;
+  request: (
+    method: string,
+    params?: Record<string, unknown>,
+  ) => Promise<Record<string, unknown>>;
+  notify: (method: string, params?: Record<string, unknown>) => Promise<void>;
   close: () => void;
 };
 
@@ -294,20 +297,40 @@ const handleLine = async (line) => {
         name: tool,
         arguments: args || {},
       });
-      if (resp?.error) {
-        return { status: 'failed', error: resp.error.message || resp.error };
+      const error =
+        resp.error && typeof resp.error === 'object'
+          ? (resp.error as Record<string, unknown>)
+          : resp.error;
+      if (error) {
+        const errorRecord =
+          typeof error === 'object' && error !== null
+            ? (error as Record<string, unknown>)
+            : null;
+        return {
+          status: 'failed',
+          error:
+            errorRecord !== null
+              ? String(errorRecord.message || JSON.stringify(errorRecord))
+              : String(error),
+        };
       }
 
-      const res = resp.result || {};
-      const text = this.extractText(res.content);
+      const res =
+        resp.result && typeof resp.result === 'object'
+          ? (resp.result as Record<string, unknown>)
+          : {};
+      const content = Array.isArray(res.content)
+        ? (res.content as Record<string, unknown>[])
+        : [];
+      const text = this.extractText(content);
       const status = res.isError ? 'failed' : 'ok';
       const out: ToolResult = {
         status,
-        content: text || res.content,
+        content: text || (res.content ? JSON.stringify(res.content) : null),
         mcp: res,
       };
       if (res.isError) {
-        out.error = res.content;
+        out.error = text || (res.content ? JSON.stringify(res.content) : null);
       }
       return out;
     } catch (e: unknown) {

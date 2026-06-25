@@ -16,6 +16,9 @@ import {
 } from '../utils/testSandbox.js';
 
 type BridgeCallbackMap = Record<string, (...args: any[]) => unknown>;
+type ProcessListRpc = { processes: Array<{ pid: number }> };
+type FileTreeNodeRpc = { path: string; children?: FileTreeNodeRpc[] };
+type FileTreeRpc = { tree: FileTreeNodeRpc[] };
 
 describe('Daemon advanced integration', { timeout: 30000 }, () => {
   let workspacePath: string;
@@ -464,10 +467,8 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
       'utf-8',
     );
 
-    const list = await client.request('execute/listProcesses');
-    expect(list.processes.some((item: any) => item.pid === child.pid)).toBe(
-      true,
-    );
+    const list = await client.request<ProcessListRpc>('execute/listProcesses');
+    expect(list.processes.some((item) => item.pid === child.pid)).toBe(true);
 
     const logs = await client.request('execute/getProcessLogs', {
       pid: child.pid,
@@ -554,9 +555,9 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
       'too deep',
     );
 
-    const result = await client.request('workspace/getFileTree');
+    const result = await client.request<FileTreeRpc>('workspace/getFileTree');
     const paths: string[] = [];
-    const collect = (nodes: any[]) => {
+    const collect = (nodes: FileTreeNodeRpc[]) => {
       for (const node of nodes) {
         paths.push(node.path);
         if (node.children) {

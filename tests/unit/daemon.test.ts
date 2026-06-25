@@ -18,6 +18,21 @@ vi.mock('node:child_process', async (importOriginal) => {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+type SessionRpc = { name: string };
+type AnchorRpc = { id: string; status?: string; summary?: string };
+type TreeNodeRpc = {
+  name: string;
+  type: string;
+  path?: string;
+  children?: TreeNodeRpc[];
+};
+type GardenStatusRpc = {
+  soilSize?: unknown;
+  sessionsCount: number;
+  anchorsProgress: { total: number; completed: number };
+  activeHintsCount?: unknown;
+};
+
 describe('Daemon IPC Protocol', () => {
   const tempDir = path.resolve(__dirname, 'temp-daemon-test');
 
@@ -115,20 +130,25 @@ describe('Daemon IPC Protocol', () => {
 
     // --- Session APIs ---
     // 1. Create session
-    const createRes = await client.request('session/create', {
-      name: 'test-rpc-session',
-      description: 'Test session created via RPC',
-      tags: ['test', 'rpc'],
-    });
+    const createRes = await client.request<{ session: SessionRpc }>(
+      'session/create',
+      {
+        name: 'test-rpc-session',
+        description: 'Test session created via RPC',
+        tags: ['test', 'rpc'],
+      },
+    );
     expect(createRes.session).toBeDefined();
     expect(createRes.session.name).toBe('test-rpc-session');
 
     // 2. List sessions
-    const listRes = await client.request('session/list');
+    const listRes = await client.request<{ sessions: SessionRpc[] }>(
+      'session/list',
+    );
     expect(listRes.sessions).toBeDefined();
-    expect(
-      listRes.sessions.some((s: any) => s.name === 'test-rpc-session'),
-    ).toBe(true);
+    expect(listRes.sessions.some((s) => s.name === 'test-rpc-session')).toBe(
+      true,
+    );
 
     // 3. Activate session
     const activateRes = await client.request('session/activate', {
@@ -137,18 +157,24 @@ describe('Daemon IPC Protocol', () => {
     expect(activateRes.activeSession).toBe('test-rpc-session');
 
     // 4. Duplicate session
-    const dupRes = await client.request('session/duplicate', {
-      sourceName: 'test-rpc-session',
-      newName: 'test-rpc-session-copy',
-    });
+    const dupRes = await client.request<{ session: SessionRpc }>(
+      'session/duplicate',
+      {
+        sourceName: 'test-rpc-session',
+        newName: 'test-rpc-session-copy',
+      },
+    );
     expect(dupRes.session).toBeDefined();
     expect(dupRes.session.name).toBe('test-rpc-session-copy');
 
     // 5. Rename session
-    const renameRes = await client.request('session/rename', {
-      oldName: 'test-rpc-session-copy',
-      newName: 'test-rpc-session-renamed',
-    });
+    const renameRes = await client.request<{ session: SessionRpc }>(
+      'session/rename',
+      {
+        oldName: 'test-rpc-session-copy',
+        newName: 'test-rpc-session-renamed',
+      },
+    );
     expect(renameRes.session).toBeDefined();
     expect(renameRes.session.name).toBe('test-rpc-session-renamed');
 
@@ -173,12 +199,12 @@ describe('Daemon IPC Protocol', () => {
     expect(readRes.content).toBe('hello world from rpc');
 
     // 3. Get file tree
-    const treeRes = await client.request('workspace/getFileTree');
+    const treeRes = await client.request<{ tree: TreeNodeRpc[] }>(
+      'workspace/getFileTree',
+    );
     expect(treeRes.tree).toBeDefined();
     expect(
-      treeRes.tree.some(
-        (n: any) => n.name === 'test-file.txt' && n.type === 'file',
-      ),
+      treeRes.tree.some((n) => n.name === 'test-file.txt' && n.type === 'file'),
     ).toBe(true);
 
     // --- Garden/Anchor APIs ---
@@ -203,12 +229,15 @@ describe('Daemon IPC Protocol', () => {
     expect(submitRes.success).toBe(true);
 
     // 3. Get anchors list and verify completed
-    const getAnchorsRes = await client.request('anchor/getAnchors');
-    expect(getAnchorsRes.anchors).toBeDefined();
-    const testAnchor = getAnchorsRes.anchors.find(
-      (a: any) => a.id === 'anchor-1',
+    const getAnchorsRes = await client.request<{ anchors: AnchorRpc[] }>(
+      'anchor/getAnchors',
     );
+    expect(getAnchorsRes.anchors).toBeDefined();
+    const testAnchor = getAnchorsRes.anchors.find((a) => a.id === 'anchor-1');
     expect(testAnchor).toBeDefined();
+    if (!testAnchor) {
+      throw new Error('Expected anchor-1 to be present');
+    }
     expect(testAnchor.status).toBe('completed');
     expect(testAnchor.summary).toBe('completed step 1 successfully');
 
@@ -220,15 +249,18 @@ describe('Daemon IPC Protocol', () => {
     expect(revokeRes.success).toBe(true);
 
     // 5. Verify anchor is back to pending
-    const getAnchorsRes2 = await client.request('anchor/getAnchors');
-    const testAnchor2 = getAnchorsRes2.anchors.find(
-      (a: any) => a.id === 'anchor-1',
+    const getAnchorsRes2 = await client.request<{ anchors: AnchorRpc[] }>(
+      'anchor/getAnchors',
     );
+    const testAnchor2 = getAnchorsRes2.anchors.find((a) => a.id === 'anchor-1');
     expect(testAnchor2).toBeDefined();
+    if (!testAnchor2) {
+      throw new Error('Expected anchor-1 to be present after revoke');
+    }
     expect(testAnchor2.status).toBe('pending');
 
     // 6. Get garden status
-    const statusRes = await client.request('garden/getStatus');
+    const statusRes = await client.request<GardenStatusRpc>('garden/getStatus');
     expect(statusRes.soilSize).toBeDefined();
     expect(statusRes.sessionsCount).toBeGreaterThanOrEqual(1);
     expect(statusRes.anchorsProgress).toBeDefined();

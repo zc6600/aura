@@ -11,6 +11,17 @@ import * as GlobalConfig from '../../utils/globalConfig.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import * as UI from '../ui.js';
 
+type ShellConfig = Record<string, unknown> & {
+  llm?: {
+    provider?: string;
+    model?: string;
+    api_key?: string;
+    api_key_env?: string;
+    api_base?: string;
+    max_retries?: number;
+  };
+};
+
 export class SlashCommandManager {
   private projectPath: string;
   private configLoader: () => Record<string, unknown>;
@@ -311,7 +322,7 @@ export class SlashCommandManager {
   }
 
   private async handleModel(args?: string): Promise<void> {
-    const config = this.configLoader() as any;
+    const config = this.configLoader() as ShellConfig;
     if (!args || args.trim().length === 0) {
       const provider = config?.llm?.provider || 'local';
       const currentModel = config?.llm?.model || 'default';
@@ -415,7 +426,7 @@ export class SlashCommandManager {
   }
 
   private async handleProvider(args?: string): Promise<void> {
-    const config = this.configLoader() as any;
+    const config = this.configLoader() as ShellConfig;
     if (!args || args.trim().length === 0) {
       const currentProvider = config?.llm?.provider || 'local';
       const providers = [
@@ -454,19 +465,19 @@ export class SlashCommandManager {
   }
 
   private handleSettings(): void {
-    const config = this.configLoader() as any;
+    const config = this.configLoader() as ShellConfig;
     const sessionMgr = new SessionManager(this.projectPath);
     const currentSession = sessionMgr.currentName() || 'default';
     const provider = config?.llm?.provider || 'local';
     const model = config?.llm?.model || 'default';
 
     Env.loadFrom(this.projectPath);
-    let apiKey = config?.llm?.api_key || null;
+    let apiKey: string | null = config?.llm?.api_key || null;
     if (!apiKey && config?.llm?.api_key_env) {
-      apiKey = process.env[config.llm.api_key_env] || null;
+      apiKey = process.env[config.llm.api_key_env] ?? null;
     }
     if (!apiKey) {
-      apiKey = Env.resolveApiKey(provider);
+      apiKey = Env.resolveApiKey(provider) ?? null;
     }
 
     const cfgPath = PathResolver.resolveConfigPath(this.projectPath) || '';
@@ -531,19 +542,27 @@ export class SlashCommandManager {
     }
   }
 
-  private updateConfig(section: string, key: string, value: any): void {
+  private updateConfig(section: string, key: string, value: unknown): void {
     const cfgPath = PathResolver.resolveConfigPath(this.projectPath);
     if (!cfgPath) return;
 
-    let data: any = {};
+    let data: Record<string, unknown> = {};
     if (fs.existsSync(cfgPath)) {
       try {
-        data = yaml.parse(fs.readFileSync(cfgPath, 'utf-8')) || {};
+        const parsed = yaml.parse(fs.readFileSync(cfgPath, 'utf-8'));
+        data =
+          parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>)
+            : {};
       } catch {}
     }
 
-    data[section] = data[section] || {};
-    data[section][key] = value;
+    const sectionData =
+      data[section] && typeof data[section] === 'object'
+        ? (data[section] as Record<string, unknown>)
+        : {};
+    sectionData[key] = value;
+    data[section] = sectionData;
     fs.writeFileSync(cfgPath, yaml.stringify(data), 'utf-8');
   }
 }

@@ -149,7 +149,7 @@ export async function selectPrompt<T>(
 ): Promise<T | symbol> {
   return (await clack.select({
     message,
-    options: options as any,
+    options: options as Parameters<typeof clack.select<T>>[0]['options'],
     initialValue,
   })) as T | symbol;
 }

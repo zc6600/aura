@@ -406,9 +406,9 @@ describe('Generators Integration', { timeout: 30000 }, () => {
       expect(
         fs.existsSync(path.join(testDir, 'prompts', 'system', 'SOUL.md')),
       ).toBe(true);
-      expect(fs.existsSync(path.join(testDir, 'anchors', '00_ready.json'))).toBe(
-        true,
-      );
+      expect(
+        fs.existsSync(path.join(testDir, 'anchors', '00_ready.json')),
+      ).toBe(true);
 
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       Workflow.explain(undefined, testDir);
@@ -461,7 +461,11 @@ describe('Generators Integration', { timeout: 30000 }, () => {
       );
       fs.writeFileSync(
         path.join(pkg, 'tools', 'pkg_tool', 'manifest.json'),
-        JSON.stringify({ name: 'pkg_tool', runtime: 'python3', entry: 'logic.py' }),
+        JSON.stringify({
+          name: 'pkg_tool',
+          runtime: 'python3',
+          entry: 'logic.py',
+        }),
       );
       fs.writeFileSync(
         path.join(pkg, 'tools', 'pkg_tool', 'logic.py'),
@@ -482,7 +486,9 @@ describe('Generators Integration', { timeout: 30000 }, () => {
 
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       expect(() => Doctor.checkWorkspace()).not.toThrow();
-      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('not declared'));
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('not declared'),
+      );
     });
 
     it('fails workflow doctor when a ralph verify command references a missing file', () => {

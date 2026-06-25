@@ -1,0 +1,8 @@
+Controlled rental listing search tool.
+
+Actions:
+- inspect: show params, fixture, report, and defaults.
+- search: return ranked Singapore rental listings from offline fixture or best-effort 99.co live parsing.
+
+The agent should call this tool instead of inventing listing data.
+

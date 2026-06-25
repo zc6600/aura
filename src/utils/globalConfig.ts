@@ -6,6 +6,7 @@ import { execa } from 'execa';
 import picocolors from 'picocolors';
 import yaml from 'yaml';
 import { deepMerge } from './fsUtils.js';
+import { errorMessage, errorOutput } from './typing.js';
 
 // Helper to get directory name safely in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -22,10 +23,11 @@ export async function gitRun(
       stderr: stderr.toString().trim(),
       success: true,
     };
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const { stdout, stderr } = errorOutput(e);
     return {
-      stdout: e.stdout?.toString().trim() || '',
-      stderr: e.stderr?.toString().trim() || e.message || '',
+      stdout: stdout?.toString().trim() || '',
+      stderr: stderr?.toString().trim() || errorMessage(e),
       success: false,
     };
   }
@@ -184,7 +186,7 @@ export function restoreAndMergeConfig(
         fs.unlinkSync(options.templateConfigPath);
       } catch {}
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     try {
       const dir = path.dirname(configPath);
       if (!fs.existsSync(dir)) {
@@ -193,12 +195,12 @@ export function restoreAndMergeConfig(
       fs.copyFileSync(configBackup, configPath);
       console.log(
         `  ${picocolors.yellow(
-          `⚠️  Merge failed: ${e.message}. Restored ${label} config.yml from backup.`,
+          `⚠️  Merge failed: ${errorMessage(e)}. Restored ${label} config.yml from backup.`,
         )}`,
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(
-        `  🔴 Critical: Failed to restore config.yml backup: ${err.message}`,
+        `  🔴 Critical: Failed to restore config.yml backup: ${errorMessage(err)}`,
       );
     }
   } finally {

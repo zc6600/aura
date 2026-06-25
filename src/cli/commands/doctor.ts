@@ -5,18 +5,21 @@ import dotenv from 'dotenv';
 import { execa } from 'execa';
 import picocolors from 'picocolors';
 import yaml from 'yaml';
-import * as PromptRegistry from '../../core/llm/prompts/registry.js';
 import { ToolRegistry } from '../../core/kernel/registry.js';
+import * as PromptRegistry from '../../core/llm/prompts/registry.js';
 import { loadWorkflow } from '../../core/workflow/manifest.js';
 import { checkWorkflow } from '../../core/workflow/runner.js';
 import * as GlobalConfig from '../../utils/globalConfig.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { errorMessage } from '../../utils/typing.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export const Doctor = {
-  async run(options: { prompts?: boolean; workspace?: boolean } = {}): Promise<void> {
+  async run(
+    options: { prompts?: boolean; workspace?: boolean } = {},
+  ): Promise<void> {
     if (options.prompts) {
       Doctor.loadDotenvFiles();
       Doctor.checkPrompts();
@@ -148,10 +151,10 @@ export const Doctor = {
       console.log(
         `Global Repository (~/.aura-framework/repo): ${picocolors.green('OK')}`,
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.log(
         picocolors.red(
-          `Global Repository: Failed to initialize! (${e.message})`,
+          `Global Repository: Failed to initialize! (${errorMessage(e)})`,
         ),
       );
     }
@@ -225,7 +228,9 @@ export const Doctor = {
     });
     checks.push({
       label: 'config',
-      ok: fs.existsSync(path.join(root, '.aura-workspace', 'config', 'config.yml')),
+      ok: fs.existsSync(
+        path.join(root, '.aura-workspace', 'config', 'config.yml'),
+      ),
       detail: '.aura-workspace/config/config.yml',
     });
     try {
@@ -292,8 +297,8 @@ export const Doctor = {
     try {
       const standardPrompt = PromptRegistry.resolve('standard', workspacePath);
       Doctor.validateAndPrintPrompt('standard', standardPrompt);
-    } catch (e: any) {
-      console.log(picocolors.red(`  Failed to resolve: ${e.message}`));
+    } catch (e: unknown) {
+      console.log(picocolors.red(`  Failed to resolve: ${errorMessage(e)}`));
     }
 
     // Validate Ralph developer prompt
@@ -304,8 +309,8 @@ export const Doctor = {
         workspacePath,
       );
       Doctor.validateAndPrintPrompt('ralph_developer', ralphDevPrompt);
-    } catch (e: any) {
-      console.log(picocolors.red(`  Failed to resolve: ${e.message}`));
+    } catch (e: unknown) {
+      console.log(picocolors.red(`  Failed to resolve: ${errorMessage(e)}`));
     }
 
     // Validate Ralph critic prompt
@@ -316,8 +321,8 @@ export const Doctor = {
         workspacePath,
       );
       Doctor.validateAndPrintPrompt('ralph_critic', ralphCriticPrompt);
-    } catch (e: any) {
-      console.log(picocolors.red(`  Failed to resolve: ${e.message}`));
+    } catch (e: unknown) {
+      console.log(picocolors.red(`  Failed to resolve: ${errorMessage(e)}`));
     }
 
     // Sync checks

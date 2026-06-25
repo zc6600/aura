@@ -12,9 +12,9 @@ export interface CompletionOptions {
   top_p?: number;
   top_k?: number;
   stream?: boolean;
-  invoked_tools?: any[];
+  invoked_tools?: unknown[];
   signal?: AbortSignal;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export type AdapterConstructor = new (config: ProviderConfig) => BaseAdapter;

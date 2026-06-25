@@ -7,6 +7,7 @@ import { execa } from 'execa';
 import yaml from 'yaml';
 import { VERSION } from '../../index.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { errorMessage } from '../../utils/typing.js';
 
 export class WebServer {
   private projectPath: string;
@@ -183,10 +184,10 @@ export class WebServer {
                     res.write(`data: ${row.payload}\n\n`);
                     lastId = Number(row.id);
                   }
-                } catch (e: any) {
+                } catch (e: unknown) {
                   if (!res.destroyed) {
                     try {
-                      res.write(`event: error\ndata: ${e.message}\n\n`);
+                      res.write(`event: error\ndata: ${errorMessage(e)}\n\n`);
                     } catch {}
                   }
                 }
@@ -219,7 +220,7 @@ export class WebServer {
             res.end(JSON.stringify({ sessions }));
           } else if (pathname.startsWith('/api/sessions/')) {
             const sessionId = pathname.substring('/api/sessions/'.length);
-            let events: any[] = [];
+            let events: unknown[] = [];
             const db = this.getDb();
             if (db) {
               try {
@@ -250,10 +251,12 @@ export class WebServer {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(this.buildDashboardHtml());
           }
-        } catch (e: any) {
-          console.error(`Error handling ${pathname}: ${e.message}`);
+        } catch (e: unknown) {
+          console.error(`Error handling ${pathname}: ${errorMessage(e)}`);
           res.writeHead(500, jsonHeaders);
-          res.end(JSON.stringify({ error: e.message, timestamp: Date.now() }));
+          res.end(
+            JSON.stringify({ error: errorMessage(e), timestamp: Date.now() }),
+          );
         }
       });
 
@@ -296,13 +299,20 @@ export class WebServer {
     let totalEvents = 0;
     let totalSessions = 0;
     const cfgFile = PathResolver.resolveConfigPath(this.projectPath) || '';
-    let cfg: any = {};
+    let cfg: Record<string, unknown> = {};
     if (cfgFile && (await this.fileExists(cfgFile))) {
       try {
-        cfg = yaml.parse(await fsPromises.readFile(cfgFile, 'utf-8')) || {};
+        const parsed = yaml.parse(await fsPromises.readFile(cfgFile, 'utf-8'));
+        cfg =
+          parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>)
+            : {};
       } catch {}
     }
-    const llmConfig = cfg.llm || {};
+    const llmConfig =
+      cfg.llm && typeof cfg.llm === 'object'
+        ? (cfg.llm as Record<string, unknown>)
+        : {};
 
     const currentPath = this.getDbPath();
     const dbExists = await this.fileExists(currentPath);
@@ -371,8 +381,8 @@ export class WebServer {
             diffBody = stdoutUnstaged;
           }
         }
-      } catch (e: any) {
-        diffBody = `Error querying diff: ${e.message}`;
+      } catch (e: unknown) {
+        diffBody = `Error querying diff: ${errorMessage(e)}`;
       }
     }
     return diffBody;
