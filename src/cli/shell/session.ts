@@ -596,7 +596,7 @@ export class Session {
     } else if (type === 'tool_result') {
       renderer.onToolResult(payload.result as ToolResult);
     } else if (type === 'loop_aborted') {
-      renderer.onError(`Ralph Loop aborted: ${payload.reason}`);
+      renderer.onError(`Agent loop aborted: ${payload.reason || 'unknown reason'}`);
     } else if (type === 'error') {
       renderer.onError(payload.message as string);
     } else if (type === 'ralph_start') {

@@ -139,6 +139,16 @@ export class Bridge {
         );
       } else if (loopAbortedPayload.reason === 'tool_errors') {
         this.notify('on_warning', 'Too many tool errors (3). Aborting.');
+      } else if (loopAbortedPayload.reason === 'empty_results') {
+        this.notify(
+          'on_warning',
+          'Agent stopped: too many consecutive empty results. The agent could not retrieve useful data through repeated queries. Try rephrasing the goal or providing more context.',
+        );
+      } else if (loopAbortedPayload.reason === 'repeat_calls') {
+        this.notify(
+          'on_warning',
+          'Agent stopped: detected a tool-call loop (same tool called repeatedly with no progress). The agent is stuck. Try rephrasing the goal or breaking it into smaller steps.',
+        );
       } else {
         this.notify(
           'on_warning',
