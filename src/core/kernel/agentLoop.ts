@@ -214,7 +214,23 @@ export class AgentLoop {
       }
 
       const toolName = planTool;
+      const toolArgs =
+        plan.type === 'tool_call'
+          ? plan.args || {}
+          : (planAsAny.args as Record<string, unknown>) || {};
+      const toolSummary =
+        plan.type === 'tool_call'
+          ? (plan.summary ?? null)
+          : ((planAsAny.summary as string | null) ?? null);
+
       formatErrors = 0;
+
+      this.eventBus.emit('tool_start', {
+        tool: toolName,
+        summary: toolSummary,
+        args: toolArgs,
+      });
+      this.eventBus.emit('tool_executing', { tool: toolName });
 
       // 4. Act step
       stepCount++;
@@ -236,16 +252,12 @@ export class AgentLoop {
           advice: 'The tool execution process crashed unexpectedly.',
         };
       }
+      this.eventBus.emit('tool_result', { tool: toolName, result });
+
       steps.push({
         tool: toolName,
-        args:
-          plan.type === 'tool_call'
-            ? plan.args || {}
-            : (planAsAny.args as Record<string, unknown>) || {},
-        summary:
-          plan.type === 'tool_call'
-            ? (plan.summary ?? null)
-            : ((planAsAny.summary as string | null) ?? null),
+        args: toolArgs,
+        summary: toolSummary,
         result,
       });
 

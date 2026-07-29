@@ -102,6 +102,24 @@ export class Bridge {
       this.notify('on_final_answer', finalAnswerPayload.content || '');
     });
 
+    bus.on('tool_start', (payload: unknown) => {
+      const p = payload as {
+        tool: string;
+        summary?: string | null;
+        args?: unknown;
+      };
+      this.notify('on_tool_start', p.tool, p.summary, p.args);
+    });
+
+    bus.on('tool_executing', () => {
+      this.notify('on_tool_executing');
+    });
+
+    bus.on('tool_result', (payload: unknown) => {
+      const p = payload as { tool: string; result: ToolResult };
+      this.notify('on_tool_result', p.result);
+    });
+
     bus.on('tool_halted', (payload: unknown) => {
       const toolResultPayload = payload as ToolResult;
       this.notify(
