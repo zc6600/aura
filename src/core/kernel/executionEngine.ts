@@ -502,10 +502,10 @@ export class ExecutionEngine extends EventEmitter {
 
       if (toolName === 'bash_command') {
         const bashCfg = cfg.tool_protocol?.bash || {};
-        if (bashCfg.base_wait_seconds) {
-          cleanArgs.timeout_seconds =
-            cleanArgs.timeout_seconds ?? bashCfg.base_wait_seconds;
-        }
+        cleanArgs.timeout_seconds =
+          cleanArgs.timeout_seconds ??
+          bashCfg.base_wait_seconds ??
+          Math.max(60, Math.floor(resolvedTimeout / 1000));
       }
     } catch (_e) {}
 

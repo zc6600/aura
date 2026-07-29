@@ -481,14 +481,24 @@ export class AgentLoop {
     const output = this.stringifyToolResult(result);
     const isEmptyOutput =
       !output || output.trim().length === 0 || output === '{}';
-    const guidance = isEmptyOutput
-      ? [
-          `⚠️  WARNING: Tool '${toolName}' returned an EMPTY result.`,
-          'Do NOT retry this tool with only minor parameter changes.',
-          'You MUST switch to a completely different approach, tool, or data source.',
-          'If you have exhausted all reasonable approaches, provide your best answer based on what you know.',
-        ].join(' ')
-      : 'Next step guidance: if this successful tool result satisfies the current user task, finish with a final answer instead of repeating completed tool calls.';
+    const isRunning = result.status === 'running' || (result as Record<string, unknown>).pid !== undefined;
+    const pidVal = (result as Record<string, unknown>).pid;
+
+    let guidance: string;
+    if (isRunning && pidVal) {
+      guidance = `[SYSTEM DIRECTIVE] Process PID ${pidVal} is running in the background. You MUST NOT terminate or finish your response yet. Use bash_command with args {"pid": ${pidVal}, "fetch": true, "wait_seconds": 5} to poll and inspect its output until it finishes, or sleep_and_wake to wait.`;
+    } else if (isEmptyOutput) {
+      guidance = [
+        `⚠️  WARNING: Tool '${toolName}' returned an EMPTY result.`,
+        'Do NOT retry this tool with only minor parameter changes.',
+        'You MUST switch to a completely different approach, tool, or data source.',
+        'If you have exhausted all reasonable approaches, provide your best answer based on what you know.',
+      ].join(' ');
+    } else {
+      guidance =
+        'Next step guidance: if this successful tool result satisfies the current user task, finish with a final answer instead of repeating completed tool calls.';
+    }
+
     return [
       ctx,
       '## MOST RECENT TOOL RESULT',
