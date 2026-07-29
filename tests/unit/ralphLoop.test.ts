@@ -72,12 +72,13 @@ class MockLLMClient {
     if (response instanceof Error) {
       throw response;
     }
+    const text = response?.content || response?.raw || '';
     if (response && onChunk) {
-      onChunk(response.content || '');
+      onChunk(text);
     }
     return {
-      content: response?.content || '',
-      raw: null,
+      content: text,
+      raw: response?.raw || null,
       finish_reason: response?.finish_reason || 'stop',
     };
   }
@@ -305,7 +306,7 @@ describe('RalphLoop', () => {
         finish_reason: 'tool_calls',
       },
       {
-        raw: 'Finished step 1',
+        raw: 'Developer finished step 1',
         finish_reason: 'stop',
       },
       {
@@ -317,7 +318,7 @@ describe('RalphLoop', () => {
         finish_reason: 'tool_calls',
       },
       {
-        raw: 'Finished step 2',
+        raw: 'Developer finished step 2',
         finish_reason: 'stop',
       },
       {
@@ -331,7 +332,6 @@ describe('RalphLoop', () => {
       critic_mode: 'heavy',
     });
     const result = await loopInst.run();
-
     expect(result.status).toBe('completed');
   });
 
@@ -370,8 +370,8 @@ describe('RalphLoop', () => {
   it('test_verification_command_timeout', async () => {
     mockClient.responses = [{ content: 'Finished', finish_reason: 'stop' }];
 
-    // Configure verify_command to a command that takes 500ms
-    mockRunner.config.ralph.verify_command = `node -e "setTimeout(() => {}, 500)"`;
+    // Configure verify_command to a command that takes 2 seconds
+    mockRunner.config.ralph.verify_command = `sleep 2`;
 
     // Timeout of 0.05 seconds (50ms)
     const loopInst = new RalphLoop(mockRunner, 'fix bug', {

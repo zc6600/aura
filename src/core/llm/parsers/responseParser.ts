@@ -216,10 +216,14 @@ export class ResponseParser {
       };
     }
 
+    const serialized =
+      typeof obj === 'object' && obj !== null
+        ? JSON.stringify(obj)
+        : String(obj);
     return {
       type: 'text',
-      content: String(obj),
-      thought: String(obj),
+      content: serialized,
+      thought: serialized,
     };
   }
 
