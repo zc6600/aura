@@ -1,4 +1,12 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import {
   BaseAdapter,
   type CompletionResult,
@@ -131,6 +139,60 @@ beforeAll(() => {
   Client.registerAdapter('mock_fail', MockFailAdapter);
   Client.registerAdapter('mock_transient', MockTransientAdapter);
   Client.registerAdapter('mock_stream', MockStreamAdapter);
+});
+
+describe('LLM Client provider auto-detection', () => {
+  const providerKeys = [
+    'OPENROUTER_API_KEY',
+    'OPENAI_API_KEY',
+    'ANTHROPIC_API_KEY',
+    'GEMINI_API_KEY',
+    'DEEPSEEK_API_KEY',
+  ];
+
+  beforeEach(() => {
+    for (const k of providerKeys) delete process.env[k];
+    delete process.env.AURA_LLM_API_KEY;
+  });
+
+  afterEach(() => {
+    for (const k of providerKeys) delete process.env[k];
+    delete process.env.AURA_LLM_API_KEY;
+  });
+
+  it('falls back to a provider with an available key when config says local', () => {
+    process.env.GEMINI_API_KEY = 'sk-gemini-test';
+
+    const client = Client.fromConfig({ provider: 'local' });
+    const chain = client.configsChain();
+
+    expect(chain[0].provider).toBe('gemini');
+    expect(chain[0].apiKey).toBe('sk-gemini-test');
+  });
+
+  it('falls back the same way when provider is entirely unset', () => {
+    process.env.OPENROUTER_API_KEY = 'sk-or-test';
+
+    const client = Client.fromConfig({});
+    const chain = client.configsChain();
+
+    expect(chain[0].provider).toBe('openrouter');
+    expect(chain[0].apiKey).toBe('sk-or-test');
+  });
+
+  it('respects an explicitly configured non-local provider even without its key set', () => {
+    const client = Client.fromConfig({ provider: 'anthropic' });
+    const chain = client.configsChain();
+
+    expect(chain[0].provider).toBe('anthropic');
+  });
+
+  it('stays local when no provider key is available anywhere', () => {
+    const client = Client.fromConfig({ provider: 'local' });
+    const chain = client.configsChain();
+
+    expect(chain[0].provider).toBe('local');
+  });
 });
 
 describe('LLM Client Failover & Retries', () => {

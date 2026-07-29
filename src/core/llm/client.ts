@@ -94,7 +94,14 @@ export class Client {
       Env.loadFrom(projectPath);
     }
 
-    const provider = config.provider || 'local';
+    // config.provider is 'local' both when the user explicitly chose it and
+    // when it's just the schema default (unset). In the latter case, prefer
+    // whichever provider actually has a key available — silently, since an
+    // ad-hoc/uninitialized project has no config.yml to say otherwise.
+    const provider =
+      config.provider && config.provider !== 'local'
+        ? config.provider
+        : Env.autoDetectProvider() || 'local';
 
     // Resolve primary API key
     let apiKey = config.api_key;

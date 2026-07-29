@@ -289,6 +289,19 @@ class ContextCommand extends BaseCommand {
   }
 }
 
+/**
+ * Resolves the project root for commands that accept an implicit path:
+ * reuse the existing project the cwd already belongs to, or auto-initialize
+ * one in place at cwd if there isn't one yet (no prompt — this is the
+ * explicit "just make it work" default for one-shot invocations).
+ */
+export async function resolveOrCreateProjectRoot(cwd: string): Promise<string> {
+  const auraDir = PathResolver.findAuraDir(cwd);
+  if (auraDir) return path.dirname(auraDir);
+  await initializeWorkspaceInPlace(cwd);
+  return cwd;
+}
+
 class AgentCommand extends BaseCommand {
   static paths = [['agent']];
   static usage = Command.Usage({
@@ -307,9 +320,24 @@ class AgentCommand extends BaseCommand {
         'Run with Ralph autonomous loop',
         'aura agent --mode ralph -g "Implement feature X"',
       ],
+      [
+        'Send a message directly (shorthand for -g)',
+        'aura agent "Fix all failing tests"',
+      ],
     ],
   });
-  projectPath = Option.String({ required: false });
+  /**
+   * Always the goal — same as -g, just without typing the flag. `agent` is
+   * the interactive/human entrypoint and always operates on cwd's project
+   * (auto-initializing one if none exists yet, see resolveOrCreateProjectRoot);
+   * it deliberately does NOT accept a project path positionally the way the
+   * `kernel *` scripting commands do — that reading was unused dead weight
+   * copied from that family, and worse, ambiguous (a message that happens to
+   * match a real directory name in cwd, e.g. "test", would misfire). Point
+   * agent at another directory by `cd`-ing there, or use `aura kernel loop
+   * <path>` for scripted/multi-project use.
+   */
+  message = Option.String({ required: false });
 
   verbose = Option.Boolean('-v,--verbose', false);
   goal = Option.String('-g,--goal');
@@ -322,9 +350,9 @@ class AgentCommand extends BaseCommand {
   noDaemon = Option.Boolean('--no-daemon', false);
 
   async run() {
-    const root = this.projectPath
-      ? path.resolve(this.projectPath)
-      : process.cwd();
+    const goal = this.goal ?? this.message;
+    const root = await resolveOrCreateProjectRoot(process.cwd());
+
     let steps: number | undefined;
     if (this.maxSteps !== undefined) {
       try {
@@ -335,7 +363,7 @@ class AgentCommand extends BaseCommand {
     }
     const options = {
       verbose: this.verbose,
-      goal: this.goal,
+      goal,
       'non-interactive': this.nonInteractive,
       mode: this.mode,
       verify: this.verify,
@@ -865,10 +893,7 @@ class KernelLoopCommand extends BaseCommand {
         'aura kernel loop -g "Refactor auth module" --max-steps 10',
       ],
       ['Human-readable output', 'aura kernel loop -g "..." --human'],
-      [
-        'Resume after a sandbox path was approved',
-        'aura kernel loop --resume',
-      ],
+      ['Resume after a sandbox path was approved', 'aura kernel loop --resume'],
     ],
   });
   projectPath = Option.String({ required: false });

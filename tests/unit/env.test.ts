@@ -77,4 +77,41 @@ describe('LLM Env Loader', () => {
     delete process.env.AZURE_OPENAI_API_KEY;
     delete process.env.OPENAI_GPT_4_API_KEY;
   });
+
+  describe('autoDetectProvider', () => {
+    const providerKeys = [
+      'OPENROUTER_API_KEY',
+      'OPENAI_API_KEY',
+      'ANTHROPIC_API_KEY',
+      'GEMINI_API_KEY',
+      'DEEPSEEK_API_KEY',
+      'AURA_LLM_API_KEY',
+    ];
+
+    beforeAll(() => {
+      for (const k of providerKeys) delete process.env[k];
+    });
+
+    afterAll(() => {
+      for (const k of providerKeys) delete process.env[k];
+    });
+
+    it('returns null when no provider key is configured anywhere', () => {
+      expect(Env.autoDetectProvider()).toBeNull();
+    });
+
+    it('picks the provider matching whichever key is present', () => {
+      process.env.GEMINI_API_KEY = 'sk-gemini';
+      expect(Env.autoDetectProvider()).toBe('gemini');
+      delete process.env.GEMINI_API_KEY;
+    });
+
+    it('prefers openrouter when multiple vendor keys are present', () => {
+      process.env.ANTHROPIC_API_KEY = 'sk-anthropic';
+      process.env.OPENROUTER_API_KEY = 'sk-openrouter';
+      expect(Env.autoDetectProvider()).toBe('openrouter');
+      delete process.env.ANTHROPIC_API_KEY;
+      delete process.env.OPENROUTER_API_KEY;
+    });
+  });
 });

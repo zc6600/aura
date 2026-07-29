@@ -399,7 +399,12 @@ aura agent --goal "Create a file named hello.txt containing hello world"
 
 # Run in non-interactive mode (for automation/cron)
 aura agent --goal "Find the count of files in the current folder" --non-interactive
+
+# Shorthand: a bare message is the same as --goal
+aura agent "Find the count of files in the current folder"
 ```
+
+`aura agent` always operates on the current directory's project — it auto-initializes one in place (like `aura new .`) if cwd isn't inside one yet, and reuses it on subsequent runs. It does not take a project path argument; for automation against an explicit path use `aura kernel loop <path> --goal "..."` instead.
 
 **Options:**
 - `-g,--goal "..."` - Run autonomous goal execution (exits when goal is achieved)

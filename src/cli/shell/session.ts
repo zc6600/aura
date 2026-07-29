@@ -186,34 +186,14 @@ export class Session {
       this.config.verbose = true;
     }
 
-    // LLM auto-configure defaults matching setup_environment in session.rb
+    // LLM auto-configure defaults: silently pick whichever provider has a
+    // key available when config.yml doesn't name one. Kept in sync with the
+    // same detection Client.fromConfig() uses for the actual call, so the
+    // dashboard/status display shown here doesn't drift from reality.
     const llmConfig = (this.config.llm as Record<string, unknown>) || {};
     let provider = llmConfig.provider as string;
     if (!provider || provider.trim() === '' || provider === 'local') {
-      if (process.env.OPENROUTER_API_KEY) {
-        provider = 'openrouter';
-        console.log(
-          picocolors.green(
-            'ℹ️ Auto-configured LLM provider: openrouter (from OPENROUTER_API_KEY)',
-          ),
-        );
-      } else if (process.env.OPENAI_API_KEY) {
-        provider = 'openai';
-        console.log(
-          picocolors.green(
-            'ℹ️ Auto-configured LLM provider: openai (from OPENAI_API_KEY)',
-          ),
-        );
-      } else if (process.env.ANTHROPIC_API_KEY) {
-        provider = 'anthropic';
-        console.log(
-          picocolors.green(
-            'ℹ️ Auto-configured LLM provider: anthropic (from ANTHROPIC_API_KEY)',
-          ),
-        );
-      } else {
-        provider = 'local';
-      }
+      provider = Env.autoDetectProvider() || 'local';
     }
 
     let model = llmConfig.model as string;

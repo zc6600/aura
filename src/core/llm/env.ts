@@ -70,3 +70,28 @@ export function resolveApiKey(provider: string): string | undefined {
 
   return process.env.AURA_LLM_API_KEY;
 }
+
+/** Providers checked by autoDetectProvider(), in priority order. */
+const AUTO_DETECT_PROVIDERS = [
+  'openrouter',
+  'openai',
+  'anthropic',
+  'gemini',
+  'deepseek',
+];
+
+/**
+ * Picks a provider whose API key is already present in process.env, for use
+ * when config.yml doesn't name one explicitly (or still says the unset
+ * default 'local'). Returns null if no known provider has a key configured
+ * anywhere (project .env, global .env, or the shell environment).
+ */
+export function autoDetectProvider(): string | null {
+  for (const provider of AUTO_DETECT_PROVIDERS) {
+    const key = resolveApiKey(provider);
+    if (key && key.trim().length > 0) {
+      return provider;
+    }
+  }
+  return null;
+}
