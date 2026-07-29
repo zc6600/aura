@@ -217,13 +217,13 @@ export async function initializeWorkspaceInPlace(
       fs.writeFileSync(innerIgnorePath, updatedRules, 'utf-8');
     }
 
-    ProjectRegistry.register(projectName, projectPath);
+    const registeredName = ProjectRegistry.register(projectName, projectPath);
 
     const cfgPath = path.join(hidden, 'config', 'config.yml');
     if (fs.existsSync(cfgPath)) {
       try {
         const cfg = ConfigManager.load(projectPath) || {};
-        cfg.project_name = projectName;
+        cfg.project_name = registeredName;
         ConfigManager.write(cfgPath, cfg);
       } catch (e: unknown) {
         console.warn(

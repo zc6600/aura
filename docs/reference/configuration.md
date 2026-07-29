@@ -78,7 +78,7 @@ Fallback provider objects support `provider`, `api_base`, `api_key`, `api_key_en
 | `read_only_directories` | string array | Directories treated as read-only |
 | `git_snapshots` | boolean | Schema default `false` |
 | `sandbox.enabled` | boolean | Schema default `false` |
-| `sandbox.provider` | `docker` or `local` | Optional sandbox backend |
+| `sandbox.provider` | `docker` or `local` | Optional sandbox backend. `local` is currently an **unimplemented passthrough** (no real isolation) — use `docker` for actual containment |
 | `sandbox.image` | string | Optional Docker image |
 | `sandbox.allow_paths` | string array | Extra paths shell tools (e.g. `bash_command`) may access besides `project_path`. Schema default `[]` |
 | `sandbox.unattended_full_access` | boolean | Skips the path guard entirely for unattended runs (`kernel loop`/`ralph`/`workflow`). Schema default `false` |

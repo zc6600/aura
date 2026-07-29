@@ -289,7 +289,7 @@ security:
     - "core_protocols"
   sandbox:
     enabled: false
-    provider: "local"          # or "docker"
+    provider: "local"          # or "docker" — "local" is currently an unimplemented passthrough (no real isolation); use "docker" for actual containment
     image: "aura-sandbox:latest"
     allow_paths: []             # extra paths shell tools may access besides project_path
     unattended_full_access: false   # true disables the path guard entirely for kernel loop/ralph/workflow
@@ -337,7 +337,7 @@ To optimize context window usage, Aura OS uses a state-aware compression policy 
 
 ## Sandbox Path Guard
 
-Shell-capable tools (`bash_command` and any custom tool with `permissions.shell: true`) can run arbitrary commands. To catch commands that stray outside the current project by mistake, Aura scans each command for path-like tokens and checks them against an allow-list before running it. This is a **best-effort heuristic**, not a security sandbox — it exists to catch honest mistakes, not to contain an adversarial agent. If you need a real containment boundary, enable `security.sandbox.enabled` (Docker or local provider) above.
+Shell-capable tools (`bash_command` and any custom tool with `permissions.shell: true`) can run arbitrary commands. To catch commands that stray outside the current project by mistake, Aura scans each command for path-like tokens and checks them against an allow-list before running it. This is a **best-effort heuristic**, not a security sandbox — it exists to catch honest mistakes, not to contain an adversarial agent. If you need a real containment boundary, enable `security.sandbox.enabled` with `provider: docker` above (`provider: local` does not currently provide real isolation — see the Sandbox Path Guard config table).
 
 By default, a shell command may only touch:
 

@@ -7,6 +7,7 @@ import yaml from 'yaml';
 import { ToolRegistry } from '../../core/kernel/registry.js';
 import * as GlobalConfig from '../../utils/globalConfig.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { resolvePythonBinary } from '../../utils/pythonRuntime.js';
 import * as UI from '../ui.js';
 
 interface ManifestOverrides {
@@ -457,12 +458,15 @@ export class Tools {
     try {
       if (fs.existsSync(configYml)) {
         const data = yaml.parse(fs.readFileSync(configYml, 'utf-8')) || {};
-        let resolved = data.tool_protocol?.runtimes?.python || 'python';
-        if (resolved === 'python3') resolved = 'python';
-        return resolved;
+        const resolved = data.tool_protocol?.runtimes?.python;
+        // Explicit config override wins; otherwise detect what's actually
+        // on PATH rather than assuming a bare `python` binary exists.
+        if (resolved && resolved !== 'python' && resolved !== 'python3') {
+          return resolved;
+        }
       }
     } catch {}
-    return 'python';
+    return resolvePythonBinary();
   }
 
   private static availableLibraryTools(libraryToolsDir: string): string[] {

@@ -54,7 +54,42 @@ export class Update {
           'Skipping git merge update. Proceeding with dependency updates and rebuild...',
         );
       } else {
+        const statusOut = await execa('git', ['status', '--porcelain'], {
+          cwd: rootDir,
+        });
+        const dirtyFiles = statusOut.stdout
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(Boolean);
+
+        if (dirtyFiles.length > 0 && !options.force) {
+          console.log(
+            picocolors.yellow(
+              `⚠️  You have ${dirtyFiles.length} uncommitted change(s) in ${rootDir}.`,
+            ),
+          );
+          console.log('\nOptions:');
+          console.log('  1. Commit or stash changes first (recommended)');
+          console.log(
+            '  2. Use --force to discard local changes and reset to origin',
+          );
+          throw new UI.CliError(
+            'Update cancelled: uncommitted changes present in the framework source checkout. Commit/stash them, or use --force to discard.',
+          );
+        }
+
         if (options.force) {
+          if (dirtyFiles.length > 0) {
+            console.log(
+              picocolors.yellow(
+                `⚠️  Discarding ${dirtyFiles.length} uncommitted change(s) in ${rootDir}:`,
+              ),
+            );
+            for (const f of dirtyFiles.slice(0, 10)) console.log(`    ${f}`);
+            if (dirtyFiles.length > 10) {
+              console.log(`    ... and ${dirtyFiles.length - 10} more`);
+            }
+          }
           console.log(
             `📥 Force updating branch [${branch}] from origin/${branch}...`,
           );
@@ -83,7 +118,13 @@ export class Update {
       console.log(
         `\n${picocolors.green('✨ Aura Framework successfully updated to the latest GitHub version!')}`,
       );
-    } catch (_error: unknown) {
+    } catch (error: unknown) {
+      // A deliberate cancellation (e.g. uncommitted changes without
+      // --force) already printed its own actionable guidance above —
+      // don't bury it under the generic "git update failed" message.
+      if (error instanceof UI.CliError) {
+        throw error;
+      }
       console.log(`\n${picocolors.red('❌ Automatic Git update failed.')}`);
       console.log('Please manually update in your source directory:');
       console.log(

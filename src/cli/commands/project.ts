@@ -147,8 +147,10 @@ export class Project {
 
     const workspaceRoot = path.dirname(auraDir);
 
-    // Register globally
-    ProjectRegistry.register(projectName, workspaceRoot);
+    // Register globally — may come back different from projectName if that
+    // name was already taken by a different path (register() disambiguates
+    // rather than silently repointing the existing entry).
+    const registeredName = ProjectRegistry.register(projectName, workspaceRoot);
 
     // Write local config name
     const cfgPath = PathResolver.resolveConfigPath(auraDir);
@@ -158,7 +160,7 @@ export class Project {
         if (fs.existsSync(cfgPath)) {
           cfg = ConfigManager.load(auraDir) || {};
         }
-        cfg.project_name = projectName;
+        cfg.project_name = registeredName;
         ConfigManager.write(cfgPath, cfg);
       } catch (e: unknown) {
         console.warn(
@@ -171,7 +173,7 @@ export class Project {
 
     console.log(
       picocolors.green(
-        `Successfully registered workspace at ${workspaceRoot} as '${projectName}'!`,
+        `Successfully registered workspace at ${workspaceRoot} as '${registeredName}'!`,
       ),
     );
   }

@@ -7,6 +7,7 @@ import { loadTyped } from '../../utils/configManager.js';
 import { type AuraConfig, parseAuraConfig } from '../../utils/configSchema.js';
 import { readLastLinesSync } from '../../utils/fsUtils.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { resolvePythonBinary } from '../../utils/pythonRuntime.js';
 import { errorCode } from '../../utils/typing.js';
 import type { LSPManager } from '../ext/lsp/manager.js';
 import { MCPManager } from '../ext/mcp/manager.js';
@@ -889,11 +890,13 @@ export class ExecutionEngine extends EventEmitter {
 
   private resolveRuntime(key: unknown, cfg: AuraConfig): string {
     const runtimeKey = String(key || 'python');
-    let resolved =
+    const resolved =
       (cfg?.tool_protocol?.runtimes as Record<string, string>)?.[runtimeKey] ||
       runtimeKey;
-    if (resolved === 'python3') {
-      resolved = 'python';
+    if (resolved === 'python' || resolved === 'python3') {
+      // Real PATH detection, not a hardcoded rewrite — see pythonRuntime.ts.
+      // Config's tool_protocol.runtimes override (checked above) always wins.
+      return resolvePythonBinary();
     }
     return resolved;
   }
@@ -1102,6 +1105,15 @@ export class ExecutionEngine extends EventEmitter {
     }
 
     if (sandbox.provider === 'local') {
+      // The shipped sandbox-wrapper.sh is currently an unimplemented
+      // passthrough (`exec "$@"`) — it provides no real isolation. Warn
+      // loudly every time so nobody mistakes "provider: local" for an
+      // actual security boundary; use "docker" for real containment.
+      console.warn(
+        '\x1b[33m⚠️  security.sandbox.provider "local" does not provide real isolation yet ' +
+          '(sandbox-wrapper.sh is an unimplemented passthrough). Tools run with full host access. ' +
+          'Use provider "docker" for actual containment.\x1b[0m',
+      );
       let wrapper = path.join(this.envPath, 'bin', 'sandbox-wrapper');
       if (!fs.existsSync(wrapper)) {
         wrapper = path.join(this.envPath, 'sandbox-wrapper.sh');

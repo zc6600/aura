@@ -110,4 +110,38 @@ describe('projectRegistry', () => {
     expect(unregister('my-project')).toBe(false);
     expect(() => register('my-project', '/path')).toThrow();
   });
+
+  describe('name collisions', () => {
+    it('returns the same name unchanged when re-registering the same path', () => {
+      const name1 = register('backend', '/repos/team-a/backend');
+      const name2 = register('backend', '/repos/team-a/backend');
+
+      expect(name1).toBe('backend');
+      expect(name2).toBe('backend');
+      expect(registeredProjects()).toEqual({
+        backend: '/repos/team-a/backend',
+      });
+    });
+
+    it('disambiguates instead of silently repointing an existing name to a different path', () => {
+      const first = register('backend', '/repos/team-a/backend');
+      const second = register('backend', '/repos/team-b/backend');
+
+      expect(first).toBe('backend');
+      expect(second).toBe('backend-2');
+      expect(registeredProjects()).toEqual({
+        backend: '/repos/team-a/backend',
+        'backend-2': '/repos/team-b/backend',
+      });
+    });
+
+    it('keeps incrementing the suffix past existing disambiguated names', () => {
+      register('backend', '/repos/team-a/backend');
+      register('backend', '/repos/team-b/backend'); // -> backend-2
+      const third = register('backend', '/repos/team-c/backend');
+
+      expect(third).toBe('backend-3');
+      expect(registeredProjects()['backend-3']).toBe('/repos/team-c/backend');
+    });
+  });
 });

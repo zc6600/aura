@@ -35,9 +35,15 @@ interface GlobalProjectsConfig {
 }
 
 /**
- * Register a workspace path with a project name globally
+ * Register a workspace path with a project name globally. If `name` is
+ * already registered under a *different* path (e.g. two unrelated projects
+ * that happen to share a directory basename — "backend", "api", ...),
+ * silently overwriting that entry would point every future lookup of that
+ * name at the wrong project. Instead this disambiguates by appending
+ * `-2`, `-3`, ... and returns the name actually used, so callers (and, for
+ * `aura register`, the user) can see when that happened.
  */
-export function register(name: string, projectPath: string): void {
+export function register(name: string, projectPath: string): string {
   const p = configPath();
   fs.mkdirSync(path.dirname(p), { recursive: true });
 
@@ -58,8 +64,28 @@ export function register(name: string, projectPath: string): void {
     data.projects = {};
   }
 
-  data.projects[name] = path.resolve(projectPath);
+  const resolvedPath = path.resolve(projectPath);
+  let finalName = name;
+  if (
+    data.projects[finalName] !== undefined &&
+    data.projects[finalName] !== resolvedPath
+  ) {
+    let suffix = 2;
+    while (
+      data.projects[`${name}-${suffix}`] !== undefined &&
+      data.projects[`${name}-${suffix}`] !== resolvedPath
+    ) {
+      suffix++;
+    }
+    finalName = `${name}-${suffix}`;
+    console.warn(
+      `\x1b[33m⚠️  Project name '${name}' is already registered for a different path (${data.projects[name]}). Registering this one as '${finalName}' instead.\x1b[0m`,
+    );
+  }
+
+  data.projects[finalName] = resolvedPath;
   fs.writeFileSync(p, yaml.stringify(data), 'utf-8');
+  return finalName;
 }
 
 /**

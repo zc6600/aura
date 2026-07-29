@@ -23,6 +23,7 @@ describe('CLI config Subcommand Integration', { timeout: 120000 }, () => {
   let testGlobalRepo: string;
   let testWorkspace: string;
   let origEnvRepo: string | undefined;
+  let origProjectsConfig: string | undefined;
   let origForceColor: string | undefined;
   let origNoColor: string | undefined;
 
@@ -45,6 +46,17 @@ describe('CLI config Subcommand Integration', { timeout: 120000 }, () => {
     origEnvRepo = process.env.AURA_GLOBAL_REPO_PATH;
     process.env.AURA_GLOBAL_REPO_PATH = testGlobalRepo;
 
+    // Isolate the global project registry too: every test here registers a
+    // workspace named "my_project" at a different real path, and the
+    // registry now disambiguates same-name/different-path collisions
+    // instead of silently overwriting — so tests sharing one registry file
+    // would see 'my_project-2', 'my_project-3', etc. Give each test its own.
+    origProjectsConfig = process.env.AURA_GLOBAL_PROJECTS_CONFIG_PATH;
+    process.env.AURA_GLOBAL_PROJECTS_CONFIG_PATH = path.join(
+      tempDir,
+      'projects.yml',
+    );
+
     // Disable colors to prevent stdout mismatch due to terminal colors
     origForceColor = process.env.FORCE_COLOR;
     delete process.env.FORCE_COLOR;
@@ -60,6 +72,12 @@ describe('CLI config Subcommand Integration', { timeout: 120000 }, () => {
       process.env.AURA_GLOBAL_REPO_PATH = origEnvRepo;
     } else {
       delete process.env.AURA_GLOBAL_REPO_PATH;
+    }
+
+    if (origProjectsConfig !== undefined) {
+      process.env.AURA_GLOBAL_PROJECTS_CONFIG_PATH = origProjectsConfig;
+    } else {
+      delete process.env.AURA_GLOBAL_PROJECTS_CONFIG_PATH;
     }
 
     if (origForceColor !== undefined) {

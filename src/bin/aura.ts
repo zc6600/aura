@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Cli, Command, Option } from 'clipanion';
@@ -33,7 +34,10 @@ import * as UI from '../cli/ui.js';
 import { Runner } from '../core/kernel/runner.js';
 import { VERSION } from '../index.js';
 import * as PathResolver from '../utils/pathResolver.js';
-import { initializeWorkspaceInPlace } from '../utils/workspaceInitializer.js';
+import {
+  initializeSandbox,
+  initializeWorkspaceInPlace,
+} from '../utils/workspaceInitializer.js';
 
 // ---------------------------------------------------------------------------
 // Base Command
@@ -294,12 +298,49 @@ class ContextCommand extends BaseCommand {
  * reuse the existing project the cwd already belongs to, or auto-initialize
  * one in place at cwd if there isn't one yet (no prompt — this is the
  * explicit "just make it work" default for one-shot invocations).
+ *
+ * Exception: never auto-initialize inside the Aura framework's own source
+ * checkout. This is the same risk the old isSourceRoot() command block
+ * existed for (an autonomous agent editing the framework's own code), and
+ * it's not hypothetical — the first version of this function did exactly
+ * that during manual testing (cloned a full .aura-workspace into the repo
+ * root and registered it globally). Route to the shared global sandbox
+ * workspace instead, which still means "it just works" with no prompt.
  */
 export async function resolveOrCreateProjectRoot(cwd: string): Promise<string> {
   const auraDir = PathResolver.findAuraDir(cwd);
   if (auraDir) return path.dirname(auraDir);
+
+  if (findAuraFrameworkRoot(cwd)) {
+    console.log(
+      picocolors.yellow(
+        "⚠️  You're inside the Aura framework's own source checkout — not creating a workspace here. Routing to the global sandbox workspace instead.",
+      ),
+    );
+    return await initializeSandbox();
+  }
+
   await initializeWorkspaceInPlace(cwd);
   return cwd;
+}
+
+/** Walks up from `startDir` looking for the aura-cli package's own root. */
+function findAuraFrameworkRoot(startDir: string): string | null {
+  const homeDir = os.homedir();
+  let dir = path.resolve(startDir);
+  while (true) {
+    if (dir === homeDir) return null;
+    const pkgPath = path.join(dir, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        if (pkg.name === 'aura-cli') return dir;
+      } catch {}
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
 }
 
 class AgentCommand extends BaseCommand {
