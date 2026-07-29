@@ -132,7 +132,7 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         openai)
             read -p "  🔑 Enter OpenAI API Key (or press Enter to skip): " API_KEY < /dev/tty
             if [ ! -z "$API_KEY" ]; then
-                AURA_ALLOW_ROOT=true node dist/bin/aura.js env set OPENAI_API_KEY "$API_KEY" --global > /dev/null
+                node dist/bin/aura.js env set OPENAI_API_KEY "$API_KEY" --global > /dev/null
                 echo -e "    - OpenAI API Key saved to .env."
             fi
             read -p "  🤖 Enter OpenAI Model name (default: gpt-4o-mini): " OPENAI_MODEL < /dev/tty
@@ -145,16 +145,16 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         openrouter)
             read -p "  🔑 Enter OpenRouter API Key (or press Enter to skip): " API_KEY < /dev/tty
             if [ ! -z "$API_KEY" ]; then
-                AURA_ALLOW_ROOT=true node dist/bin/aura.js env set OPENROUTER_API_KEY "$API_KEY" --global > /dev/null
+                node dist/bin/aura.js env set OPENROUTER_API_KEY "$API_KEY" --global > /dev/null
                 echo -e "    - OpenRouter API Key saved to .env."
             fi
-            read -p "  🤖 Enter OpenRouter Model name (default: google/gemini-2.5-flash): " OR_MODEL < /dev/tty
-            SELECTED_MODEL=${OR_MODEL:-"google/gemini-2.5-flash"}
+            read -p "  🤖 Enter OpenRouter Model name (default: google/gemini-3.5-flash-lite): " OR_MODEL < /dev/tty
+            SELECTED_MODEL=${OR_MODEL:-"google/gemini-3.5-flash-lite"}
             ;;
         deepseek)
             read -p "  🔑 Enter DeepSeek API Key (or press Enter to skip): " API_KEY < /dev/tty
             if [ ! -z "$API_KEY" ]; then
-                AURA_ALLOW_ROOT=true node dist/bin/aura.js env set DEEPSEEK_API_KEY "$API_KEY" --global > /dev/null
+                node dist/bin/aura.js env set DEEPSEEK_API_KEY "$API_KEY" --global > /dev/null
                 echo -e "    - DeepSeek API Key saved to .env."
             fi
             read -p "  🤖 Enter DeepSeek Model name (default: deepseek-chat): " DS_MODEL < /dev/tty
@@ -163,16 +163,16 @@ if [[ "$RESPONSE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         gemini)
             read -p "  🔑 Enter Gemini API Key (or press Enter to skip): " API_KEY < /dev/tty
             if [ ! -z "$API_KEY" ]; then
-                AURA_ALLOW_ROOT=true node dist/bin/aura.js env set GEMINI_API_KEY "$API_KEY" --global > /dev/null
+                node dist/bin/aura.js env set GEMINI_API_KEY "$API_KEY" --global > /dev/null
                 echo -e "    - Gemini API Key saved to .env."
             fi
-            read -p "  🤖 Enter Gemini Model name (default: gemini-2.5-flash): " GEM_MODEL < /dev/tty
-            SELECTED_MODEL=${GEM_MODEL:-"gemini-2.5-flash"}
+            read -p "  🤖 Enter Gemini Model name (default: gemini-3.5-flash-lite): " GEM_MODEL < /dev/tty
+            SELECTED_MODEL=${GEM_MODEL:-"gemini-3.5-flash-lite"}
             ;;
         anthropic)
             read -p "  🔑 Enter Anthropic API Key (or press Enter to skip): " API_KEY < /dev/tty
             if [ ! -z "$API_KEY" ]; then
-                AURA_ALLOW_ROOT=true node dist/bin/aura.js env set ANTHROPIC_API_KEY "$API_KEY" --global > /dev/null
+                node dist/bin/aura.js env set ANTHROPIC_API_KEY "$API_KEY" --global > /dev/null
                 echo -e "    - Anthropic API Key saved to .env."
             fi
             read -p "  🤖 Enter Anthropic Model name (default: claude-3-5-haiku-20241022): " ANT_MODEL < /dev/tty
@@ -206,14 +206,14 @@ echo -e "${GREEN}✓ CLI linked!${NC}\n"
 # Only non-secret settings (provider, model, api_base) go into config.yml.
 if [ ! -z "$SELECTED_PROVIDER" ]; then
     echo -e "  - Configuring global default LLM provider to ${GREEN}$SELECTED_PROVIDER${NC}..."
-    AURA_ALLOW_ROOT=true node dist/bin/aura.js config llm.provider "$SELECTED_PROVIDER" --global > /dev/null
+    node dist/bin/aura.js config llm.provider "$SELECTED_PROVIDER" --global > /dev/null
     if [ ! -z "$SELECTED_MODEL" ]; then
         echo -e "  - Configuring global default LLM model to ${GREEN}$SELECTED_MODEL${NC}..."
-        AURA_ALLOW_ROOT=true node dist/bin/aura.js config llm.model "$SELECTED_MODEL" --global > /dev/null
+        node dist/bin/aura.js config llm.model "$SELECTED_MODEL" --global > /dev/null
     fi
     if [ ! -z "$SELECTED_BASE" ]; then
         echo -e "  - Configuring global default LLM API base to ${GREEN}$SELECTED_BASE${NC}..."
-        AURA_ALLOW_ROOT=true node dist/bin/aura.js config llm.api_base "$SELECTED_BASE" --global > /dev/null
+        node dist/bin/aura.js config llm.api_base "$SELECTED_BASE" --global > /dev/null
     fi
 fi
 
