@@ -73,34 +73,13 @@ export class Planner {
     }
 
     let buf = '';
-    let yieldedPlan = false;
-    let finalParsed: ParseResult | null = null;
 
     const res = await this.client.completeStream(messages, options, (delta) => {
       if (onEvent) {
         onEvent({ type: 'delta', text: delta });
       }
       buf += delta || '';
-
-      if (buf.includes('}') && !yieldedPlan) {
-        const parsed = ResponseParser.parse(buf);
-        if (parsed.type === 'tool_call') {
-          yieldedPlan = true;
-          finalParsed = parsed;
-          if (onEvent) {
-            onEvent({ type: 'plan', plan: parsed });
-          }
-        }
-      }
     });
-
-    if (finalParsed) {
-      const result: ParseResult & { finish_reason?: string | null } = {
-        ...(finalParsed as object),
-        finish_reason: res.finish_reason || null,
-      } as ParseResult & { finish_reason?: string | null };
-      return result;
-    }
 
     const parsed = ResponseParser.parse(res.raw || res.content || buf);
     if (onEvent) {
