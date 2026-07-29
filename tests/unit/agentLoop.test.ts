@@ -501,13 +501,13 @@ describe('AgentLoop', () => {
   });
 
   it('test_uses_default_max_steps', async () => {
-    runner.config = {};
-    runner.plans = Array(35).fill({
+    runner.config = { system: { max_repeat_calls: 100, max_empty_results: 100 } };
+    runner.plans = Array.from({ length: 35 }, (_, i) => ({
       tool: 'bash',
-      args: {},
+      args: { cmd: `echo ${i}` },
       finish_reason: 'tool_calls',
-    });
-    runner.toolResults = Array(35).fill({ status: 'ok' });
+    }));
+    runner.toolResults = Array(35).fill({ status: 'ok', output: 'some output' });
 
     const result = await loop.run('long running');
 
@@ -516,13 +516,13 @@ describe('AgentLoop', () => {
   });
 
   it('test_custom_max_steps_parameter', async () => {
-    runner.config = { system: { max_steps: 100 } };
-    runner.plans = Array(10).fill({
+    runner.config = { system: { max_steps: 100, max_repeat_calls: 100, max_empty_results: 100 } };
+    runner.plans = Array.from({ length: 10 }, (_, i) => ({
       tool: 'bash',
-      args: {},
+      args: { cmd: `echo ${i}` },
       finish_reason: 'tool_calls',
-    });
-    runner.toolResults = Array(10).fill({ status: 'ok' });
+    }));
+    runner.toolResults = Array(10).fill({ status: 'ok', output: 'some output' });
 
     const result = await loop.run('task', { max_steps: 5 });
 

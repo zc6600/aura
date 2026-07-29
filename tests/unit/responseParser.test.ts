@@ -102,4 +102,40 @@ describe('ResponseParser', () => {
       a: 1,
     });
   });
+
+  it('should extract tool call from object with content string containing markdown json block', () => {
+    const body = {
+      content:
+        'Let us query arXiv.\n\n```json\n{\n  "tool": "bash_command",\n  "args": {"command": "echo hello"}\n}\n```',
+    };
+    const res = ResponseParser.parse(body);
+    expect(res.type).toBe('tool_call');
+    if (res.type === 'tool_call') {
+      expect(res.tool).toBe('bash_command');
+      expect(res.args).toEqual({ command: 'echo hello' });
+      expect(res.thought).toBe('Let us query arXiv.');
+    }
+  });
+
+  it('should extract tool call from raw OpenAI API response object with content containing json block', () => {
+    const body = {
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: {
+            content:
+              'Thinking step...\n```json\n{\n  "tool": "bash_command",\n  "args": {"command": "python3 script.py"}\n}\n```',
+          },
+        },
+      ],
+    };
+    const res = ResponseParser.parse(body);
+    expect(res.type).toBe('tool_call');
+    if (res.type === 'tool_call') {
+      expect(res.tool).toBe('bash_command');
+      expect(res.args).toEqual({ command: 'python3 script.py' });
+      expect(res.thought).toBe('Thinking step...');
+    }
+  });
 });
+

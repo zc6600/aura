@@ -18,41 +18,157 @@ export type ParseResult = ToolCallResult | TextResult;
 
 export class ResponseParser {
   public static parse(output: unknown): ParseResult {
-    const raw = typeof output === 'string' ? output : String(output || '');
-    const obj =
-      typeof output === 'string'
-        ? ResponseParser.safeJsonParse(raw) || raw
-        : output;
+    if (output === null || output === undefined) {
+      return { type: 'text', content: '', thought: '' };
+    }
 
-    if (obj && typeof obj === 'object') {
-      const toolVal = (obj as Record<string, unknown>).tool;
-      if (toolVal) {
-        const argsVal = (obj as Record<string, unknown>).args;
-        const summaryVal = (obj as Record<string, unknown>).summary;
-        let thoughtVal: unknown =
-          (obj as Record<string, unknown>).thought ??
-          (obj as Record<string, unknown>).content ??
-          (obj as Record<string, unknown>).message ??
-          null;
-        if (
-          thoughtVal &&
-          typeof thoughtVal === 'object' &&
-          (thoughtVal as Record<string, unknown>).content
-        ) {
-          thoughtVal = (thoughtVal as Record<string, unknown>).content;
+    // 1. If output is string
+    if (typeof output === 'string') {
+      const trimmed = output.trim();
+      const obj = ResponseParser.safeJsonParse(trimmed);
+      if (obj && typeof obj === 'object') {
+        const parsed = ResponseParser.parseObject(obj);
+        if (!parsed.thought && parsed.type === 'tool_call') {
+          const preText = ResponseParser.extractPreJsonText(trimmed);
+          if (preText) parsed.thought = preText;
+        }
+        return parsed;
+      }
+      return { type: 'text', content: output, thought: output };
+    }
+
+    // 2. If output is an object
+    if (typeof output === 'object') {
+      // Try parsing object directly (tool, tool_calls, choices[0].message.tool_calls)
+      const parsedObj = ResponseParser.parseObject(output);
+      if (parsedObj.type === 'tool_call') {
+        return parsedObj;
+      }
+
+      // Check if this is an API response / adapter wrapper containing text content
+      const record = output as Record<string, unknown>;
+      let textContent: string | null = null;
+
+      if (typeof record.content === 'string' && record.content.trim()) {
+        textContent = record.content;
+      } else if (Array.isArray(record.choices) && record.choices.length > 0) {
+        const msg = (record.choices[0] as Record<string, unknown>)?.message as
+          | Record<string, unknown>
+          | undefined;
+        if (typeof msg?.content === 'string' && msg.content.trim()) {
+          textContent = msg.content;
+        }
+      }
+
+      if (textContent) {
+        const subParse = ResponseParser.parse(textContent);
+        if (subParse.type === 'tool_call') {
+          return subParse;
         }
         return {
-          type: 'tool_call',
-          tool: String(toolVal),
-          args: ResponseParser.normalizeArgs(argsVal),
-          summary: summaryVal ? String(summaryVal) : null,
-          thought: thoughtVal ? String(thoughtVal) : null,
+          type: 'text',
+          content: textContent,
+          thought: record.thought ? String(record.thought) : textContent,
         };
       }
 
-      const tc = (obj as Record<string, unknown>).tool_calls;
-      if (Array.isArray(tc) && tc.length > 0) {
-        const call = (tc[0] || {}) as Record<string, unknown>;
+      const contentVal =
+        record.content !== undefined ? String(record.content) : String(output);
+      const thoughtVal =
+        record.thought !== undefined ? String(record.thought) : contentVal;
+      return {
+        type: 'text',
+        content: contentVal,
+        thought: thoughtVal,
+      };
+    }
+
+    const str = String(output);
+    return { type: 'text', content: str, thought: str };
+  }
+
+  public static parseObject(obj: unknown): ParseResult {
+    if (!obj || typeof obj !== 'object') {
+      return {
+        type: 'text',
+        content: String(obj || ''),
+        thought: String(obj || ''),
+      };
+    }
+
+    const record = obj as Record<string, unknown>;
+
+    // Case A: { tool: "name", args: {...} }
+    const toolVal = record.tool;
+    if (toolVal) {
+      const argsVal = record.args;
+      const summaryVal = record.summary;
+      let thoughtVal: unknown =
+        record.thought ?? record.content ?? record.message ?? null;
+      if (
+        thoughtVal &&
+        typeof thoughtVal === 'object' &&
+        (thoughtVal as Record<string, unknown>).content
+      ) {
+        thoughtVal = (thoughtVal as Record<string, unknown>).content;
+      }
+      return {
+        type: 'tool_call',
+        tool: String(toolVal),
+        args: ResponseParser.normalizeArgs(argsVal),
+        summary: summaryVal ? String(summaryVal) : null,
+        thought: thoughtVal ? String(thoughtVal) : null,
+      };
+    }
+
+    // Case B: { tool_calls: [...] }
+    const tc = record.tool_calls;
+    if (Array.isArray(tc) && tc.length > 0) {
+      const call = (tc[0] || {}) as Record<string, unknown>;
+      const tool =
+        call.tool ??
+        call.name ??
+        (call.function as Record<string, unknown>)?.name;
+      let args =
+        call.args ??
+        call.arguments ??
+        call.input ??
+        (call.function as Record<string, unknown>)?.arguments ??
+        {};
+      args = ResponseParser.normalizeArgs(args);
+      const summary =
+        record.summary ??
+        call.summary ??
+        (typeof args === 'object'
+          ? (args as Record<string, unknown>).summary
+          : null);
+      if (args && typeof args === 'object') {
+        delete (args as Record<string, unknown>).summary;
+      }
+      const thought =
+        record.content ??
+        (record.message as Record<string, unknown>)?.content ??
+        null;
+      return {
+        type: 'tool_call',
+        tool: String(tool || ''),
+        args: (args as Record<string, unknown>) || {},
+        summary: summary ? String(summary) : null,
+        thought: thought ? String(thought) : null,
+      };
+    }
+
+    // Case C: { choices: [{ message: { tool_calls: [...] } }] }
+    const choices = record.choices;
+    if (Array.isArray(choices) && choices.length > 0) {
+      const nested = (
+        (choices[0] as Record<string, unknown>)?.message as Record<
+          string,
+          unknown
+        >
+      )?.tool_calls;
+      if (Array.isArray(nested) && nested.length > 0) {
+        const call = (nested[0] || {}) as Record<string, unknown>;
         const tool =
           call.tool ??
           call.name ??
@@ -65,7 +181,7 @@ export class ResponseParser {
           {};
         args = ResponseParser.normalizeArgs(args);
         const summary =
-          (obj as Record<string, unknown>).summary ??
+          record.summary ??
           call.summary ??
           (typeof args === 'object'
             ? (args as Record<string, unknown>).summary
@@ -74,10 +190,12 @@ export class ResponseParser {
           delete (args as Record<string, unknown>).summary;
         }
         const thought =
-          (obj as Record<string, unknown>).content ??
-          ((obj as Record<string, unknown>).message as Record<string, unknown>)
-            ?.content ??
-          null;
+          (
+            (choices[0] as Record<string, unknown>)?.message as Record<
+              string,
+              unknown
+            >
+          )?.content ?? null;
         return {
           type: 'tool_call',
           tool: String(tool || ''),
@@ -86,71 +204,37 @@ export class ResponseParser {
           thought: thought ? String(thought) : null,
         };
       }
+    }
 
-      // Check choices[0].message.tool_calls
-      const choices = (obj as Record<string, unknown>).choices;
-      if (Array.isArray(choices) && choices.length > 0) {
-        const nested = (
-          (choices[0] as Record<string, unknown>)?.message as Record<
-            string,
-            unknown
-          >
-        )?.tool_calls;
-        if (Array.isArray(nested) && nested.length > 0) {
-          const call = (nested[0] || {}) as Record<string, unknown>;
-          const tool =
-            call.tool ??
-            call.name ??
-            (call.function as Record<string, unknown>)?.name;
-          let args =
-            call.args ??
-            call.arguments ??
-            call.input ??
-            (call.function as Record<string, unknown>)?.arguments ??
-            {};
-          args = ResponseParser.normalizeArgs(args);
-          const summary =
-            (obj as Record<string, unknown>).summary ??
-            call.summary ??
-            (typeof args === 'object'
-              ? (args as Record<string, unknown>).summary
-              : null);
-          if (args && typeof args === 'object') {
-            delete (args as Record<string, unknown>).summary;
-          }
-          const thought =
-            (
-              (choices[0] as Record<string, unknown>)?.message as Record<
-                string,
-                unknown
-              >
-            )?.content ?? null;
-          return {
-            type: 'tool_call',
-            tool: String(tool || ''),
-            args: (args as Record<string, unknown>) || {},
-            summary: summary ? String(summary) : null,
-            thought: thought ? String(thought) : null,
-          };
-        }
-      }
-
-      const contentVal = (obj as Record<string, unknown>).content;
-      const thoughtVal = (obj as Record<string, unknown>).thought ?? contentVal;
-      if (contentVal !== undefined || thoughtVal !== undefined) {
-        return {
-          type: 'text',
-          content: contentVal !== undefined ? String(contentVal) : '',
-          thought: thoughtVal !== undefined ? String(thoughtVal) : '',
-        };
-      }
+    const contentVal = record.content;
+    const thoughtVal = record.thought ?? contentVal;
+    if (contentVal !== undefined || thoughtVal !== undefined) {
+      return {
+        type: 'text',
+        content: contentVal !== undefined ? String(contentVal) : '',
+        thought: thoughtVal !== undefined ? String(thoughtVal) : '',
+      };
     }
 
     return {
       type: 'text',
-      content: raw,
-      thought: raw,
+      content: String(obj),
+      thought: String(obj),
     };
+  }
+
+  public static extractPreJsonText(s: string): string | null {
+    const jsonBlockIndex = s.indexOf('```');
+    if (jsonBlockIndex > 0) {
+      const preText = s.substring(0, jsonBlockIndex).trim();
+      if (preText) return preText;
+    }
+    const braceIndex = s.indexOf('{');
+    if (braceIndex > 0) {
+      const preText = s.substring(0, braceIndex).trim();
+      if (preText) return preText;
+    }
+    return null;
   }
 
   public static safeJsonParse(s: string): unknown {
