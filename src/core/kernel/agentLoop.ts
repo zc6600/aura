@@ -139,10 +139,6 @@ export class AgentLoop {
       const plan = await this.callPlanner(goal, ctx);
       const finishReason = String(plan.finish_reason || '');
 
-      console.error(
-        `[DEBUG AGENTLOOP] Step: ${stepCount}, PlanType: ${plan.type}, Tool: ${(plan as any).tool}, FinishReason: ${finishReason}`,
-      );
-
       // 2. Check stop conditions
       const isStop = ['stop', 'end_turn', 'stop_sequence', ''].includes(
         finishReason,
