@@ -107,7 +107,10 @@ export class AgentLoop {
               ? plan.thought
               : undefined;
         if (thought?.trim()) {
-          this.eventBus.emit('thought', { content: thought });
+          this.eventBus.emit('thought', {
+            content: thought,
+            streamed_live: plan.streamedLive,
+          });
         } else {
           this.eventBus.emit('no_response', {});
         }
@@ -127,7 +130,10 @@ export class AgentLoop {
       // Emit thought
       const thought = plan.thought;
       if (thought?.trim()) {
-        this.eventBus.emit('thought', { content: thought });
+        this.eventBus.emit('thought', {
+          content: thought,
+          streamed_live: plan.streamedLive,
+        });
       }
 
       const toolName = planTool;
@@ -256,12 +262,17 @@ export class AgentLoop {
   private async callPlanner(
     goal: string,
     ctx: string,
-  ): Promise<ParseResult & { finish_reason?: string | null }> {
+  ): Promise<
+    ParseResult & { finish_reason?: string | null; streamedLive?: boolean }
+  > {
     this.eventBus.emit('plan_stream_start', {});
+    let streamedLive = false;
     try {
-      return await this.runner.planStream(goal, ctx, (ev) => {
+      const result = await this.runner.planStream(goal, ctx, (ev) => {
+        if (ev?.type === 'delta' && ev.text) streamedLive = true;
         this.eventBus.emit('plan_event', ev);
       });
+      return { ...result, streamedLive };
     } finally {
       this.eventBus.emit('plan_stream_end', {});
     }

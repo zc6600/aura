@@ -74,14 +74,19 @@ export class Session {
               critic_mode: this.options.critic_mode,
             },
           });
-          if (res.status === 'completed') {
-            if (res.final_content) {
-              console.log(res.final_content);
-            }
-          } else {
-            throw new Error(
-              `Daemon task loop finished with status: ${res.status}`,
-            );
+          // final_content has already been printed live via the
+          // onToken/onStreamEnd progress notifications above — don't
+          // print it again here.
+          if (res.status !== 'completed') {
+            // The specific failure reason was already reported via the
+            // on_error progress notification (rendered above as it
+            // streamed in). We still need to throw to get a non-zero exit
+            // code (main() calls process.exit(0) unconditionally after a
+            // successful run), but as a short CliError rather than a
+            // generic Error — so it's reported as an expected failure
+            // instead of "An unexpected error occurred", and without
+            // restating the reason that was already printed above.
+            throw new UI.CliError('Agent run did not complete successfully.');
           }
         } finally {
           client.disconnect();
@@ -236,11 +241,19 @@ export class Session {
   private async runLoop(): Promise<void> {
     const goal = this.options.goal as string;
     if (goal && goal.trim().length > 0) {
-      const summary = await this.executor.processGoal(goal.trim(), {
-        max_steps: this.options.max_steps as number | undefined,
-      });
-      if (summary && summary.trim().length > 0) {
-        console.log(summary);
+      try {
+        // The final answer is already printed live via the executor's
+        // renderer (onToken/onStreamEnd) as it streams in — no need to
+        // print the returned summary again here.
+        await this.executor.processGoal(goal.trim(), {
+          max_steps: this.options.max_steps as number | undefined,
+        });
+      } catch (_e: unknown) {
+        // The specific failure reason was already reported via the
+        // on_warning/on_error progress notifications rendered above as the
+        // loop ran — throw a short CliError instead of letting the raw
+        // Error bubble up as a second, less specific "unexpected error".
+        throw new UI.CliError('Agent run did not complete successfully.');
       }
       return;
     }

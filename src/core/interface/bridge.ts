@@ -101,7 +101,14 @@ export class Bridge {
     });
 
     bus.on('thought', (payload: unknown) => {
-      const thoughtPayload = payload as { content: string };
+      const thoughtPayload = payload as {
+        content: string;
+        streamed_live?: boolean;
+      };
+      // This bridge already renders the model's text live via on_token as it
+      // streams in (see plan_event above) — if that happened, don't also
+      // print the same text again here as a "thought" recap.
+      if (thoughtPayload.streamed_live) return;
       const elapsed = startTime ? (Date.now() - startTime) / 1000 : 0;
       this.notify('on_thought', thoughtPayload.content || '', elapsed);
     });

@@ -107,19 +107,42 @@ export const runGoal: HandlerFunction = async (ctx) => {
       let final_content: string | undefined;
       let status: 'completed' | 'failed' = 'completed';
 
+      let waitingTimer: ReturnType<typeof setInterval> | null = null;
+      const clearWaitingTimer = () => {
+        if (waitingTimer) {
+          clearInterval(waitingTimer);
+          waitingTimer = null;
+        }
+      };
+
       bridge.on('on_final_answer', (content: string) => {
         final_content = content;
       });
       bridge.on(
         'on_waiting',
-        (startTimeMs: number, _streamedCheck: () => boolean) => {
-          server.sendNotification('agent/onProgress', {
-            type: 'waiting',
-            payload: { elapsed: (Date.now() - startTimeMs) / 1000 },
-          });
+        (startTimeMs: number, streamedCheck: () => boolean) => {
+          clearWaitingTimer();
+          const sendElapsed = () => {
+            server.sendNotification('agent/onProgress', {
+              type: 'waiting',
+              payload: { elapsed: (Date.now() - startTimeMs) / 1000 },
+            });
+          };
+          sendElapsed();
+          // Keep re-sending on an interval so the client's elapsed-time
+          // display keeps advancing while waiting for the first token,
+          // instead of being stuck at the ~0s value from the call above.
+          waitingTimer = setInterval(() => {
+            if (streamedCheck()) {
+              clearWaitingTimer();
+              return;
+            }
+            sendElapsed();
+          }, 500);
         },
       );
       bridge.on('on_clear_waiting', () => {
+        clearWaitingTimer();
         server.sendNotification('agent/onProgress', {
           type: 'clear_waiting',
           payload: {},
@@ -132,6 +155,7 @@ export const runGoal: HandlerFunction = async (ctx) => {
         });
       });
       bridge.on('on_stream_end', () => {
+        clearWaitingTimer();
         server.sendNotification('agent/onProgress', {
           type: 'stream_end',
           payload: {},
@@ -199,6 +223,8 @@ export const runGoal: HandlerFunction = async (ctx) => {
         }
       } catch (_err: unknown) {
         status = 'failed';
+      } finally {
+        clearWaitingTimer();
       }
 
       server.sendResult(ctx.socket, ctx.id, { status, final_content });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Bridge } from '../../src/core/interface/bridge.js';
 import type {
+  PlanEvent,
   PlanResult,
   ToolCall,
   ToolResult,
@@ -31,7 +32,11 @@ class MockRunner {
     return 'mock context';
   }
 
-  public async planStream(): Promise<PlanResult> {
+  public async planStream(
+    _goal?: string | null,
+    _ctx?: unknown,
+    _onEvent?: (ev: PlanEvent) => void,
+  ): Promise<PlanResult> {
     return {
       type: 'tool_call',
       tool: 'read_file',
@@ -58,5 +63,51 @@ describe('Bridge', () => {
     expect(runner.endedJob?.error?.message).toContain(
       'Max execution steps reached (2)',
     );
+  });
+
+  it('does not emit on_thought for text already streamed live via on_token', async () => {
+    const runner = new MockRunner();
+    runner.planStream = async (_goal, _ctx, onEvent) => {
+      onEvent?.({ type: 'delta', text: 'reading the file' });
+      return {
+        type: 'tool_call',
+        tool: 'read_file',
+        args: { file_path: 'README.md' },
+        thought: 'reading the file',
+        finish_reason: 'tool_calls',
+      } as PlanResult;
+    };
+    const bridge = new Bridge('/tmp/project', { runner: runner as any });
+
+    const thoughts: string[] = [];
+    bridge.on('on_thought', (content: string) => {
+      thoughts.push(content);
+    });
+
+    await bridge.chat('read a file', { auto_mode: true, max_steps: 1 });
+
+    expect(thoughts).toHaveLength(0);
+  });
+
+  it('emits on_thought when the plan text was not streamed live', async () => {
+    const runner = new MockRunner();
+    runner.planStream = async () =>
+      ({
+        type: 'tool_call',
+        tool: 'read_file',
+        args: { file_path: 'README.md' },
+        thought: 'thinking without streaming',
+        finish_reason: 'tool_calls',
+      }) as PlanResult;
+    const bridge = new Bridge('/tmp/project', { runner: runner as any });
+
+    const thoughts: string[] = [];
+    bridge.on('on_thought', (content: string) => {
+      thoughts.push(content);
+    });
+
+    await bridge.chat('read a file', { auto_mode: true, max_steps: 1 });
+
+    expect(thoughts).toContain('thinking without streaming');
   });
 });
