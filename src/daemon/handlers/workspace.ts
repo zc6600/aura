@@ -5,13 +5,22 @@ import type { HandlerFunction } from '../router.js';
 export const initialize: HandlerFunction = async (ctx) => {
   const server = ctx.server;
   if (server.activeLoopJob.status === 'running') {
-    server.sendError(
-      ctx.socket,
-      ctx.id,
-      -32603,
-      'Cannot initialize workspace while a goal loop is running.',
-    );
-    return;
+    if (!server.activeJobSocket || server.activeJobSocket.destroyed) {
+      if (server.activeAbortController) {
+        try {
+          server.activeAbortController.abort();
+        } catch {}
+      }
+      server.activeLoopJob = { status: 'idle' };
+    } else {
+      server.sendError(
+        ctx.socket,
+        ctx.id,
+        -32603,
+        'Cannot initialize workspace while a goal loop is running.',
+      );
+      return;
+    }
   }
   const p = ctx.params as Record<string, unknown> | null | undefined;
   const { sessionName } = p || {};

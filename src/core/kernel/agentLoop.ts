@@ -321,24 +321,30 @@ export class AgentLoop {
       // --- Repeat-call loop detection ---
       // If the agent calls the exact same tool with the same argument structure
       // N times in a row, it's stuck. Fingerprint = toolName + sorted arg keys.
-      const callFp = this.buildCallFingerprint(
-        toolName,
-        plan.type === 'tool_call' ? (plan.args ?? {}) : ((plan as unknown as Record<string, unknown>).args as Record<string, unknown> ?? {}),
-      );
-      this.recentCallFingerprints.push(callFp);
-      if (this.recentCallFingerprints.length > maxRepeatCalls) {
-        this.recentCallFingerprints.shift();
-      }
-      if (
-        this.recentCallFingerprints.length >= maxRepeatCalls &&
-        this.recentCallFingerprints.every((fp) => fp === callFp)
-      ) {
-        this.eventBus.emit('loop_aborted', { reason: 'repeat_calls' });
-        return {
-          status: 'failed',
-          steps,
-          failure_reason: `Repeat-call loop detected: '${toolName}' called ${maxRepeatCalls} times in a row with the same argument structure. Switch to a different strategy.`,
-        };
+      const currentArgs =
+        plan.type === 'tool_call'
+          ? plan.args ?? {}
+          : ((plan as unknown as Record<string, unknown>).args as Record<string, unknown> ?? {});
+      const isPidPolling =
+        toolName === 'bash_command' && currentArgs.pid !== undefined;
+
+      if (!isPidPolling) {
+        const callFp = this.buildCallFingerprint(toolName, currentArgs);
+        this.recentCallFingerprints.push(callFp);
+        if (this.recentCallFingerprints.length > maxRepeatCalls) {
+          this.recentCallFingerprints.shift();
+        }
+        if (
+          this.recentCallFingerprints.length >= maxRepeatCalls &&
+          this.recentCallFingerprints.every((fp) => fp === callFp)
+        ) {
+          this.eventBus.emit('loop_aborted', { reason: 'repeat_calls' });
+          return {
+            status: 'failed',
+            steps,
+            failure_reason: `Repeat-call loop detected: '${toolName}' called ${maxRepeatCalls} times in a row with the same argument structure. Switch to a different strategy.`,
+          };
+        }
       }
 
       // 5. Observe step — if agent just woke from sleep, annotate the fresh context
@@ -486,7 +492,7 @@ export class AgentLoop {
 
     let guidance: string;
     if (isRunning && pidVal) {
-      guidance = `[SYSTEM DIRECTIVE] Process PID ${pidVal} is running in the background. You MUST NOT terminate or finish your response yet. Use bash_command with args {"pid": ${pidVal}, "fetch": true, "wait_seconds": 5} to poll and inspect its output until it finishes, or sleep_and_wake to wait.`;
+      guidance = `[SYSTEM DIRECTIVE] Process PID ${pidVal} is running in the background. You MUST NOT terminate or finish your response yet. Use bash_command with args {"pid": ${pidVal}, "fetch": true, "wait_seconds": 60} to wait for the process to complete and fetch its output.`;
     } else if (isEmptyOutput) {
       guidance = [
         `⚠️  WARNING: Tool '${toolName}' returned an EMPTY result.`,
