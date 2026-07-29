@@ -33,8 +33,9 @@ This page is lookup material for Aura's test layout, commands, and helper files.
 | File | Role |
 |------|------|
 | `vitest.config.ts` | Vitest project configuration |
-| `tests/globalSetup.ts` | Shared setup before tests |
-| `tests/utils/testSandbox.ts` | Temporary workspace/sandbox utilities |
+| `tests/globalSetup.ts` | Setup/teardown for the whole run (shared socket dir; final sandbox cleanup) |
+| `tests/setupSandboxIsolation.ts` | Runs once per test **file** — gives it its own `AURA_HOME`/repo/`projects.yml`/`TMPDIR` |
+| `tests/utils/testSandbox.ts` | Per-test sandbox helper, for finer-grained isolation than the per-file default |
 | `tests/utils/rmRetry.ts` | Retry helper for filesystem cleanup |
 | `tests/system/utils/systemHarness.ts` | System-test harness for agent workflows |
 
@@ -61,7 +62,7 @@ Tests should not depend on a real user workspace. Use temporary directories and 
 
 Tests should not require real provider keys unless they are explicitly smoke tests. Keep paid or network-dependent tests out of default CI.
 
-Tests that mutate global-ish state should isolate `HOME`, `AURA_HOME`, project registries, or filesystem roots through the provided helpers.
+Every test file already gets its own `HOME`/`AURA_HOME`/project registry automatically (`tests/setupSandboxIsolation.ts`). If a single file needs finer isolation than that — e.g. multiple tests registering a project under the same name — isolate further per-test via `tests/utils/testSandbox.ts` or by overriding the relevant `AURA_GLOBAL_*` env var in that test's own `beforeEach`/`afterEach`.
 
 ## Layer Selection
 

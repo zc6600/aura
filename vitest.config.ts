@@ -5,9 +5,6 @@ import { configDefaults, defineConfig } from 'vitest/config';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const sandboxRoot = path.join(__dirname, 'tests', '.sandbox');
-const sandboxHome = path.join(sandboxRoot, 'home');
-const sandboxAuraHome = path.join(sandboxHome, '.aura-framework');
-const sandboxTmp = path.join(sandboxRoot, 'tmp');
 
 export default defineConfig({
   server: {
@@ -22,6 +19,9 @@ export default defineConfig({
   },
   test: {
     globalSetup: path.join(__dirname, 'tests', 'globalSetup.ts'),
+    // Gives each test FILE its own AURA_HOME/repo/projects.yml — see the
+    // file for why: sharing one across concurrent files raced under load.
+    setupFiles: [path.join(__dirname, 'tests', 'setupSandboxIsolation.ts')],
     hookTimeout: 30000,
     testTimeout: 60000,
     exclude: [...configDefaults.exclude, 'tests/.sandbox/**'],
@@ -32,17 +32,10 @@ export default defineConfig({
       '**/.aura-workspace/**',
     ],
     env: {
-      HOME: sandboxHome,
-      USERPROFILE: sandboxHome,
-      TMPDIR: sandboxTmp,
-      TEMP: sandboxTmp,
-      TMP: sandboxTmp,
-      AURA_HOME: sandboxAuraHome,
-      AURA_GLOBAL_REPO_PATH: path.join(sandboxAuraHome, 'repo'),
-      AURA_GLOBAL_PROJECTS_CONFIG_PATH: path.join(
-        sandboxAuraHome,
-        'projects.yml',
-      ),
+      // Shared and short on purpose: unix socket paths have a ~104 byte
+      // limit and this repo's absolute path already leaves little headroom.
+      // Safe to share — socket filenames are content-hashed per project
+      // path, so concurrent test files never collide on the same file here.
       AURA_DAEMON_SOCKET_DIR: path.join(sandboxRoot, 'sockets'),
     },
     coverage: {

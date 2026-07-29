@@ -97,8 +97,9 @@ Those belong in manual evaluation, benchmark suites, or environment-gated smoke 
 
 - Test command: `npm test` runs `vitest run`.
 - Config: `vitest.config.ts`.
-- Shared setup: `tests/globalSetup.ts`.
-- Temporary sandbox helper: `tests/utils/testSandbox.ts`.
+- Whole-run setup/teardown: `tests/globalSetup.ts`.
+- Per-file isolation (runs before each test file): `tests/setupSandboxIsolation.ts`.
+- Per-test sandbox helper: `tests/utils/testSandbox.ts`.
 - System harness: `tests/system/utils/systemHarness.ts`.
 
 See also [Test Aura](../how-to/test-aura.md) for commands and [Testing Reference](../reference/testing.md) for directory and helper details.

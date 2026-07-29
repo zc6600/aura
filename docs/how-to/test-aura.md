@@ -61,11 +61,17 @@ Notes:
 
 ### Test Environment Isolation
 
-Most unit/integration tests run with an isolated environment configured at the Vitest level:
-- `HOME`, `USERPROFILE`, `TMPDIR`, `TEMP`, `TMP` point to `tests/.sandbox/**`
-- `AURA_HOME`, `AURA_GLOBAL_REPO_PATH`, `AURA_GLOBAL_PROJECTS_CONFIG_PATH`, `AURA_DAEMON_SOCKET_DIR` are set to sandboxed paths
+Every test **file** gets its own isolated environment automatically, via `tests/setupSandboxIsolation.ts` (wired in as a Vitest `setupFiles` entry — it runs once per file, before that file's tests):
+- `HOME`, `USERPROFILE`, `AURA_HOME`, `AURA_GLOBAL_REPO_PATH`, `AURA_GLOBAL_PROJECTS_CONFIG_PATH` point to a fresh `tests/.sandbox/runs/<pid>-<random>/` for that file, cleaned up in `afterAll`.
+- `TMPDIR`/`TEMP`/`TMP` point to a short-prefixed directory under the *real* system `/tmp` (`aura-vitest-<pid>-<random>`), not nested inside the repo checkout — see below for why.
+- `AURA_DAEMON_SOCKET_DIR` is the one exception: it stays on a short **shared** path (`tests/.sandbox/sockets`) set once in `vitest.config.ts`, not per-file.
 
-Some tests also create per-test temporary sandboxes (mkdtemp) for stronger isolation and easier cleanup, especially for socket paths.
+This exists because Vitest runs test files concurrently across its worker pool. Before per-file isolation, every file shared one `AURA_HOME` — under load, that produced corrupted git clones ("failed to copy object file"), `ENOENT` on `projects.yml` mid-write, and spurious project-name collisions. Two path-length traps to know about if you touch this setup:
+
+- **Unix socket paths are capped around ~104 bytes.** This repo's absolute path (spaces, "Towards AGI") already leaves little headroom, so `AURA_DAEMON_SOCKET_DIR` deliberately stays shared and short rather than nested per-file — it's safe to share because socket filenames are content-hashed per project path, so files never collide on the same socket file anyway.
+- **`TMPDIR` hits the same limit indirectly**: tools we spawn create their own sockets/pipes under `TMPDIR` (e.g. `tsx`'s `--import` loader creates an IPC pipe there). Nesting `TMPDIR` inside the repo checkout plus a per-file id pushed that pipe path over the limit (measured: 106 bytes, `EINVAL`). `TMPDIR` is pointed at real `/tmp` instead — short, and already collision-safe on its own since every `mkdtemp` call gets a random unique subdirectory.
+
+For **per-test** (not just per-file) isolation — e.g. a file that registers several projects under the same name across its `it()` blocks, or daemon/socket tests that want tight control — use `tests/utils/testSandbox.ts`'s `createTestSandbox()`, or override the relevant `AURA_GLOBAL_*` env var directly in that test's `beforeEach`/`afterEach` (see `tests/integration/config.test.ts` for an example).
 
 ### System Tests
 

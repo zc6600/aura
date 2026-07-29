@@ -6,19 +6,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const sandboxRoot = path.join(__dirname, '.sandbox');
-const sandboxHome = path.join(sandboxRoot, 'home');
-const sandboxAuraHome = path.join(sandboxHome, '.aura-framework');
 const tempProjectsRoot = path.join(__dirname, 'temp-projects');
 
 export function setup() {
-  for (const dir of [
-    path.join(sandboxRoot, 'tmp'),
-    path.join(sandboxRoot, 'sockets'),
-    sandboxAuraHome,
-    path.join(sandboxAuraHome, 'repo'),
-  ]) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+  // Per-file AURA_HOME/repo/projects.yml are created by
+  // setupSandboxIsolation.ts as each test file starts. Only the shared
+  // socket directory (see vitest.config.ts for why it stays shared) needs
+  // to exist up front.
+  fs.mkdirSync(path.join(sandboxRoot, 'sockets'), { recursive: true });
 }
 
 export function teardown() {
