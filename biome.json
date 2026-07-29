@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**/*.ts", "**/*.js", "**/*.json"],
+    "includes": ["**/*.ts", "**/*.js", "**/*.json", "!src/cli/shell/dashboard"],
     "ignoreUnknown": false
   },
   "formatter": {

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import readline from 'node:readline';
+import type { PauseSignal } from '../core/kernel/agentLoop.js';
 import { RalphLoop } from '../core/kernel/ralphLoop.js';
 import type { Runner } from '../core/kernel/runner.js';
 import { SessionManager } from '../core/memory/sessionManager.js';
@@ -31,6 +32,12 @@ export class DaemonServer {
   >();
   public activeAbortController: AbortController | null = null;
   public activeJobSocket: net.Socket | null = null;
+  /**
+   * Set while a pausable job is running. Distinct from activeAbortController:
+   * aborting unwinds and discards the run, whereas this asks the loop to stop
+   * at its next step boundary and write a resumable checkpoint.
+   */
+  public activePauseSignal: PauseSignal | null = null;
   private static readonly IDLE_TIMEOUT_MS = 600000; // 10 minutes
 
   constructor(projectPath: string) {

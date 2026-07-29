@@ -165,6 +165,37 @@ export class SQLiteStore {
 
     const rows = this.db.prepare(query).all(...args) as EventRecord[];
 
+    return this.hydrateEvents(rows);
+  }
+
+  /**
+   * The subset of events that reconstructs a plain user/assistant transcript:
+   * user turns plus the agent's spoken replies (`plan` events carrying the
+   * `final` pseudo-tool). Tool calls and their results are deliberately left
+   * out — callers wanting the full trace use `fetchEvents`.
+   *
+   * Filtering in SQL rather than over-fetching keeps this cheap on sessions
+   * with long tool-heavy histories, where the conversational events can be a
+   * small fraction of the table.
+   */
+  public fetchConversationEvents(limit?: number | null): EventRecord[] {
+    let query =
+      'SELECT id, timestamp, phase, tool, payload FROM events ' +
+      "WHERE phase = 'user' OR (phase = 'plan' AND tool = 'final') " +
+      'ORDER BY id DESC';
+    const args: unknown[] = [];
+
+    if (limit !== undefined && limit !== null) {
+      query += ' LIMIT ?';
+      args.push(limit);
+    }
+
+    const rows = this.db.prepare(query).all(...args) as EventRecord[];
+
+    return this.hydrateEvents(rows);
+  }
+
+  private hydrateEvents(rows: EventRecord[]): EventRecord[] {
     const events = rows.map((row) => {
       let parsedPayload: Record<string, unknown> = row.payload;
       if (typeof row.payload === 'string') {
@@ -193,6 +224,21 @@ export class SQLiteStore {
     this.db
       .prepare(`DELETE FROM events WHERE id IN (${placeholders})`)
       .run(...eventIds);
+  }
+
+  /**
+   * Drops the whole transcript for this session — events, summaries, and the
+   * undo/redo staging tables. Variables survive on purpose: they hold tool
+   * status rather than conversation, and wiping them would make the next agent
+   * turn re-probe every tool.
+   */
+  public clearHistory(): void {
+    this.transaction(() => {
+      this.db.prepare('DELETE FROM events').run();
+      this.db.prepare('DELETE FROM summaries').run();
+      this.db.prepare('DELETE FROM undone_events').run();
+      this.db.prepare('DELETE FROM undone_summaries').run();
+    });
   }
 
   public countEvents(): number {

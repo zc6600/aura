@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura OS - Developer Console</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <svg class="svg-defs">
+    <defs>
+      <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#0d9488" />
+        <stop offset="100%" stop-color="#5eead4" />
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <header>
+    <div class="header-logo">
+      <svg class="logo-icon" viewBox="0 0 24 24">
+        <path d="M12 2L2 22h20L12 2zm0 3.99L19.53 19H4.47L12 5.99zM11 16h2v2h-2v-2zm0-6h2v4h-2v-4z" />
+      </svg>
+      <span>AURA OS</span>
+    </div>
+    <div class="connection-status">
+      <span class="status-indicator-dot disconnected" id="connection-dot"></span>
+      <span id="connection-text">Connecting...</span>
+    </div>
+    <div class="project-badge">
+      <div class="pulse-dot"></div>
+      <span>Workspace: <strong id="workspace-name">-</strong></span>
+    </div>
+  </header>
+
+  <div class="dashboard-body">
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <h3>Active Session</h3>
+        <div class="session-selector-container">
+          <select id="session-select" onchange="loadSessionEvents()">
+            <option value="">Live Stream</option>
+          </select>
+          <button class="btn btn-refresh" onclick="loadSessions()" title="Refresh sessions">🔄</button>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Log Filters</h3>
+        <div class="filter-pills">
+          <button class="filter-pill active" data-filter="all" onclick="setFilter('all')">All Events</button>
+          <button class="filter-pill" data-filter="user" onclick="setFilter('user')">User Messages</button>
+          <button class="filter-pill" data-filter="plan" onclick="setFilter('plan')">Agent Plans</button>
+          <button class="filter-pill" data-filter="execution" onclick="setFilter('execution')">Tool Executions</button>
+          <button class="filter-pill" data-filter="interception" onclick="setFilter('interception')">Interceptions</button>
+        </div>
+      </div>
+
+      <div class="sidebar-section flex-grow">
+        <h3>Controls</h3>
+        <div class="control-grid">
+          <button class="btn btn-secondary" onclick="clearConsole()">🧹 Clear View</button>
+          <button class="btn btn-secondary" onclick="fetchDiff()">🔄 Refresh Diff</button>
+          <button class="btn btn-secondary" onclick="exportLogs()">📥 Export Logs</button>
+          <div class="toggle-container">
+            <span>Auto-Scroll</span>
+            <label class="switch">
+              <input type="checkbox" id="autoscroll-toggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section system-mini-card">
+        <div>Database: <span id="db-session-name" class="highlight-text">-</span></div>
+        <div>LLM Model: <span id="sidebar-model-badge" class="model-badge">-</span></div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="tab-header">
+        <button class="tab-btn active" id="btn-tab-logs" onclick="switchTab('tab-logs')">Timeline & Logs</button>
+        <button class="tab-btn" id="btn-tab-diff" onclick="switchTab('tab-diff')">Workspace Diff</button>
+        <button class="tab-btn" id="btn-tab-status" onclick="switchTab('tab-status')">System Status</button>
+      </div>
+
+      <div class="tab-content active" id="tab-logs">
+        <div class="log-search-container">
+          <input type="text" id="log-search" placeholder="Search event logs (text, tools, thoughts...)" oninput="filterSearch()">
+        </div>
+        <div class="timeline-container" id="timeline">
+          <div class="no-events-msg">Waiting for events to stream...</div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-diff">
+        <div class="diff-actions">
+          <button class="btn btn-primary" onclick="fetchDiff()">Refresh Git Diff</button>
+          <button class="btn btn-secondary" onclick="copyWholeDiff()">Copy Diff</button>
+        </div>
+        <div class="diff-container" id="diff-files-container">
+          <div class="no-diff-msg">Loading shadow workspace diffs...</div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-status">
+        <div class="status-grid">
+          <div class="status-card">
+            <h3>Workspace Directory</h3>
+            <div class="status-card-body">
+              <div class="status-item">
+                <span class="label">Project Name:</span>
+                <span class="val" id="stat-project-name">-</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Project Path:</span>
+                <span class="val path-text" id="stat-project-path">-</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Active Session:</span>
+                <span class="val" id="stat-session-name">-</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Database Size:</span>
+                <span class="val" id="stat-db-size">-</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="status-card">
+            <h3>LLM Parameters</h3>
+            <div class="status-card-body">
+              <div class="status-item">
+                <span class="label">LLM Provider:</span>
+                <span class="val" id="stat-provider">-</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Model ID:</span>
+                <span class="val model-badge" id="stat-model">-</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Temperature:</span>
+                <span class="val" id="stat-temp">-</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="status-card">
+            <h3>OS Environment</h3>
+            <div class="status-card-body">
+              <div class="status-item">
+                <span class="label">Total Events Logged:</span>
+                <span class="val" id="stat-total-events">-</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Total Sessions:</span>
+                <span class="val" id="stat-total-sessions">-</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Aura CLI Version:</span>
+                <span class="val" id="stat-aura-version">-</span>
+              </div>
+              <div class="status-item">
+                <span class="label">Node.js Engine:</span>
+                <span class="val" id="stat-ruby-version">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

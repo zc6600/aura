@@ -1,0 +1,50 @@
+{
+  "name": "mailbox",
+  "description": "Send and read direct 1:1 messages with another named agent (letters and replies), backed by an append-only shared thread file.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": false,
+  "permissions": {
+    "file_system": "read-write",
+    "allow_paths": [
+      "./state",
+      "./state/bus",
+      "./.aura-workspace/state",
+      "./.aura-workspace/state/bus",
+      "./.aura/state",
+      "./.aura/state/bus"
+    ]
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": ["send", "read", "list"],
+        "description": "The action to perform."
+      },
+      "to": {
+        "type": "string",
+        "description": "Recipient agent id (used with action='send')."
+      },
+      "content": {
+        "type": "string",
+        "description": "Message text (used with action='send')."
+      },
+      "reply_to": {
+        "type": "string",
+        "description": "Optional id of the message this is replying to — keeps the reply attached to the original letter in the same thread (used with action='send')."
+      },
+      "with": {
+        "type": "string",
+        "description": "The other agent id in the thread to read (used with action='read'). Omit to read every thread I'm a party to."
+      },
+      "limit": {
+        "type": "integer",
+        "description": "Max number of most-recent messages to return for action='read'.",
+        "default": 20
+      }
+    },
+    "required": ["action"]
+  }
+}

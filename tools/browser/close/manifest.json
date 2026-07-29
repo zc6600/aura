@@ -1,0 +1,20 @@
+{
+  "description": "Description for browser_close",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": false,
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "context_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "context_id"
+    ]
+  },
+  "name": "browser_close",
+  "requires_context": "browser_session",
+  "destroys_context": true
+}

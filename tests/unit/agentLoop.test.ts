@@ -236,14 +236,146 @@ describe('AgentLoop', () => {
       attempts: 3,
       threshold: 3,
     });
-    expect(result.checkpoint).toEqual({
+    expect(result.checkpoint).toMatchObject({
+      version: 1,
+      goal: 'read a system file',
       ctx: 'mock observation',
       stepCount: 1,
+      reason: 'sandbox_path_blocked',
+      blockedPath: '/etc/passwd',
+      formatErrors: 0,
+      toolErrors: 0,
     });
+    // The escalating step is carried in the checkpoint, so a resumed run keeps
+    // the history rather than restarting from an empty step list.
+    expect(result.checkpoint?.steps.length).toBe(1);
 
     const abortedEvents = events.filter((e) => e[0] === 'loop_aborted');
     expect(abortedEvents.length).toBe(1);
     expect(abortedEvents[0][1].reason).toBe('sandbox_path_blocked');
+  });
+
+  it('test_suspends_at_iteration_boundary_and_preserves_loop_state', async () => {
+    const pauseSignal = { requested: false };
+    runner.plans = [
+      {
+        type: 'tool_call',
+        tool: 'bash',
+        args: { command: 'ls' },
+        thought: 'listing',
+        finish_reason: 'tool_calls',
+      },
+    ];
+    // Requesting the pause from inside the tool proves the current step is
+    // allowed to finish rather than being torn down mid-execution.
+    runner.runCall = async (call) => {
+      runner.toolCalls.push(call);
+      pauseSignal.requested = true;
+      return { status: 'ok', output: 'listed' };
+    };
+
+    const result = await loop.run('list things', { pauseSignal });
+
+    expect(result.status).toBe('suspended');
+    expect(result.failure_reason).toBeNull();
+    // The in-flight step completed and was recorded before parking.
+    expect(result.steps.length).toBe(1);
+    expect(result.steps[0].tool).toBe('bash');
+    expect(result.steps[0].result.status).toBe('ok');
+    expect(result.checkpoint).toMatchObject({
+      version: 1,
+      goal: 'list things',
+      stepCount: 1,
+      reason: 'user_paused',
+      formatErrors: 0,
+      toolErrors: 0,
+    });
+    expect(result.checkpoint?.steps.length).toBe(1);
+
+    const suspendedEvents = events.filter((e) => e[0] === 'loop_suspended');
+    expect(suspendedEvents.length).toBe(1);
+    expect(suspendedEvents[0][1].stepCount).toBe(1);
+  });
+
+  it('test_resume_continues_step_count_and_keeps_history', async () => {
+    const checkpoint = {
+      version: 1 as const,
+      goal: 'finish the job',
+      ctx: 'context as of the pause',
+      stepCount: 2,
+      steps: [
+        {
+          tool: 'bash',
+          args: { command: 'step one' },
+          summary: null,
+          result: { status: 'ok' },
+        },
+        {
+          tool: 'bash',
+          args: { command: 'step two' },
+          summary: null,
+          result: { status: 'ok' },
+        },
+      ],
+      formatErrors: 0,
+      toolErrors: 1,
+      reason: 'user_paused' as const,
+      sessionName: 'default',
+      createdAt: new Date().toISOString(),
+    };
+    runner.plans = [
+      {
+        type: 'text',
+        content: 'All done.',
+        finish_reason: 'stop',
+      },
+    ];
+
+    const result = await loop.run('finish the job', { checkpoint });
+
+    expect(result.status).toBe('completed');
+    // History survives the round trip instead of restarting from zero.
+    expect(result.steps.length).toBe(2);
+    expect(result.steps.map((s) => s.args.command)).toEqual([
+      'step one',
+      'step two',
+    ]);
+    // The resumed run re-primes the model with the saved context plus a banner
+    // rather than re-observing from scratch.
+    expect(runner.planCalls[0].ctx).toContain('[RESUMED]');
+    expect(runner.planCalls[0].ctx).toContain('context as of the pause');
+    expect(runner.observeCalls.length).toBe(0);
+  });
+
+  it('test_resume_respects_total_step_budget', async () => {
+    // Restored stepCount counts against max_steps, so a resumed run cannot
+    // silently buy itself a fresh budget.
+    const checkpoint = {
+      version: 1 as const,
+      goal: 'long job',
+      ctx: 'saved ctx',
+      stepCount: 5,
+      steps: [],
+      formatErrors: 0,
+      toolErrors: 0,
+      reason: 'user_paused' as const,
+      sessionName: 'default',
+      createdAt: new Date().toISOString(),
+    };
+    runner.plans = [
+      {
+        type: 'tool_call',
+        tool: 'bash',
+        args: { command: 'ls' },
+        finish_reason: 'tool_calls',
+      },
+    ];
+
+    const result = await loop.run('long job', { checkpoint, max_steps: 5 });
+
+    expect(result.status).toBe('failed');
+    expect(result.failure_reason).toBe('Max execution steps reached (5)');
+    expect(runner.toolCalls.length).toBe(0);
   });
 
   it('test_aborts_on_length_finish', async () => {

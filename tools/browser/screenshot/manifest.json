@@ -1,0 +1,19 @@
+{
+  "description": "Description for browser_screenshot",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": false,
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "context_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "context_id"
+    ]
+  },
+  "name": "browser_screenshot",
+  "requires_context": "browser_session"
+}

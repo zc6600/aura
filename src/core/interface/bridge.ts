@@ -1,4 +1,9 @@
-import { AgentLoop, type AgentLoopResult } from '../kernel/agentLoop.js';
+import {
+  AgentLoop,
+  type AgentLoopResult,
+  type PauseSignal,
+} from '../kernel/agentLoop.js';
+import type { LoopCheckpoint } from '../kernel/checkpoint.js';
 import type { PlanEvent, ToolCall, ToolResult } from '../kernel/interfaces.js';
 import { Runner } from '../kernel/runner.js';
 import { MemoryEventBus } from '../memory/eventBus.js';
@@ -48,7 +53,12 @@ export class Bridge {
    */
   public async chat(
     input: string,
-    options: { auto_mode?: boolean; max_steps?: number | null } = {},
+    options: {
+      auto_mode?: boolean;
+      max_steps?: number | null;
+      pauseSignal?: PauseSignal | null;
+      checkpoint?: LoopCheckpoint | null;
+    } = {},
   ): Promise<void> {
     const autoMode = options.auto_mode || false;
     this.lastResult = null;
@@ -165,9 +175,18 @@ export class Bridge {
     const agentLoop = new AgentLoop(this.runner, { eventBus: bus });
 
     try {
-      const res = await agentLoop.run(input, { max_steps: options.max_steps });
+      const res = await agentLoop.run(input, {
+        max_steps: options.max_steps,
+        pauseSignal: options.pauseSignal,
+        checkpoint: options.checkpoint,
+      });
       this.lastResult = res;
       if (res.status === 'completed') {
+        this.runner.endJob('completed');
+      } else if (res.status === 'suspended') {
+        // A parked run is not a failure. Job status has no 'suspended' member,
+        // so close the job cleanly and let the checkpoint carry the state.
+        this.notify('on_suspended', res.checkpoint ?? null);
         this.runner.endJob('completed');
       } else {
         this.runner.endJob(
@@ -181,7 +200,7 @@ export class Bridge {
         this.runner.endJob('failed', new Error('Interrupted by user'));
         this.lastResult = {
           status: 'failed',
-          steps: [],
+          steps: agentLoop.completedSteps,
           failure_reason: 'Interrupted by user',
         };
       } else {

@@ -373,6 +373,7 @@ export class SessionManager {
     if (name.includes('..')) {
       throw new Error("Session name cannot contain '..'");
     }
+    PathResolver.assertSessionNameNotReserved(name);
   }
 
   private saveMetadata(sessions: Record<string, SessionInfo>): void {

@@ -1,0 +1,25 @@
+{
+  "group_name": "browser",
+  "description": "Browser tool group",
+  "entry_tool": "open",
+  "context": {
+    "name": "browser_session",
+    "multi_instance": true,
+    "lifecycle": {
+      "created_by": "open",
+      "destroyed_by": [
+        "close"
+      ],
+      "ttl": {
+        "turns": 20,
+        "seconds": 600,
+        "policy": "any"
+      }
+    }
+  },
+  "subtools": [
+    "close",
+    "click",
+    "screenshot"
+  ]
+}

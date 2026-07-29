@@ -1,7 +1,50 @@
 import { Bridge } from '../../core/interface/bridge.js';
+import type { PauseSignal } from '../../core/kernel/agentLoop.js';
+import {
+  checkpointPath,
+  clearCheckpoint,
+  type LoopCheckpoint,
+  loadCheckpoint,
+  saveCheckpoint,
+} from '../../core/kernel/checkpoint.js';
 import { RalphLoop } from '../../core/kernel/ralphLoop.js';
 import { Runner } from '../../core/kernel/runner.js';
 import type { HandlerFunction } from '../router.js';
+
+/**
+ * Asks the running loop to park itself at its next step boundary.
+ *
+ * Only the client that owns the job may pause it — mirroring the identity
+ * check on disconnect-abort, so a second shell watching the same daemon
+ * cannot suspend someone else's run.
+ */
+export const pause: HandlerFunction = async (ctx) => {
+  const server = ctx.server;
+  if (server.activeLoopJob.status !== 'running') {
+    server.sendError(ctx.socket, ctx.id, -32603, 'No goal loop is running.');
+    return;
+  }
+  if (server.activeJobSocket !== ctx.socket) {
+    server.sendError(
+      ctx.socket,
+      ctx.id,
+      -32603,
+      'Only the client that started the goal loop can pause it.',
+    );
+    return;
+  }
+  if (!server.activePauseSignal) {
+    server.sendError(
+      ctx.socket,
+      ctx.id,
+      -32603,
+      'The running loop does not support pausing (Ralph mode). Disconnect to abort it.',
+    );
+    return;
+  }
+  server.activePauseSignal.requested = true;
+  server.sendResult(ctx.socket, ctx.id, { pausing: true });
+};
 
 export const runGoal: HandlerFunction = async (ctx) => {
   const server = ctx.server;
@@ -25,10 +68,34 @@ export const runGoal: HandlerFunction = async (ctx) => {
   }
 
   const p = ctx.params as Record<string, unknown> | null | undefined;
-  const { goal, mode, options } = p || {};
-  if (!goal || typeof goal !== 'string') {
-    server.sendError(ctx.socket, ctx.id, -32602, 'Invalid goal parameter.');
-    return;
+  const { mode, options } = p || {};
+  const cpPath = checkpointPath(
+    server.projectPath,
+    server.runner.sessionName || 'default',
+  );
+
+  // Resuming reads the goal back off the checkpoint, so the client does not
+  // have to remember (or re-type) what it was working on.
+  let resumeCheckpoint: LoopCheckpoint | null = null;
+  let goal: string;
+  if (p?.resume) {
+    resumeCheckpoint = loadCheckpoint(cpPath);
+    if (!resumeCheckpoint) {
+      server.sendError(
+        ctx.socket,
+        ctx.id,
+        -32602,
+        `No suspended run to resume in session '${server.runner.sessionName || 'default'}'.`,
+      );
+      return;
+    }
+    goal = resumeCheckpoint.goal;
+  } else {
+    if (!p?.goal || typeof p.goal !== 'string') {
+      server.sendError(ctx.socket, ctx.id, -32602, 'Invalid goal parameter.');
+      return;
+    }
+    goal = p.goal;
   }
 
   server.activeLoopJob = {
@@ -40,6 +107,12 @@ export const runGoal: HandlerFunction = async (ctx) => {
 
   server.activeAbortController = new AbortController();
   server.activeJobSocket = ctx.socket;
+  // Ralph tears down its per-step sessions on exit, so it has nothing
+  // resumable to park; leaving the signal null makes agent/pause reject
+  // with an explanation rather than silently doing nothing.
+  const pauseSignal: PauseSignal | null =
+    mode === 'ralph' ? null : { requested: false };
+  server.activePauseSignal = pauseSignal;
   const signal = server.activeAbortController.signal;
   server.runner.abortSignal = signal;
 
@@ -105,7 +178,7 @@ export const runGoal: HandlerFunction = async (ctx) => {
       });
 
       let final_content: string | undefined;
-      let status: 'completed' | 'failed' = 'completed';
+      let status: 'completed' | 'failed' | 'suspended' = 'completed';
 
       let waitingTimer: ReturnType<typeof setInterval> | null = null;
       const clearWaitingTimer = () => {
@@ -206,10 +279,14 @@ export const runGoal: HandlerFunction = async (ctx) => {
       const isAuto =
         optionsRecord.auto_mode !== undefined ? optionsRecord.auto_mode : true;
 
+      let suspendedAt: number | null = null;
+
       try {
         await bridge.chat(goal, {
           auto_mode: isAuto as boolean,
           max_steps: optionsRecord.max_steps as number | undefined,
+          pauseSignal,
+          checkpoint: resumeCheckpoint,
         });
         const result = bridge.lastResult;
         if (result) {
@@ -220,6 +297,14 @@ export const runGoal: HandlerFunction = async (ctx) => {
           ) {
             final_content = result.final_content;
           }
+          // Persist on suspend so the run survives this daemon: the client can
+          // disconnect, the daemon can idle out, and /resume still works.
+          if (result.status === 'suspended' && result.checkpoint) {
+            saveCheckpoint(cpPath, result.checkpoint);
+            suspendedAt = result.checkpoint.stepCount;
+          } else if (result.status === 'completed') {
+            clearCheckpoint(cpPath);
+          }
         }
       } catch (_err: unknown) {
         status = 'failed';
@@ -227,7 +312,13 @@ export const runGoal: HandlerFunction = async (ctx) => {
         clearWaitingTimer();
       }
 
-      server.sendResult(ctx.socket, ctx.id, { status, final_content });
+      server.sendResult(ctx.socket, ctx.id, {
+        status,
+        final_content,
+        ...(suspendedAt !== null
+          ? { stepCount: suspendedAt, goal, resumable: true }
+          : {}),
+      });
     }
   } finally {
     if (server.runner) {
@@ -239,6 +330,7 @@ export const runGoal: HandlerFunction = async (ctx) => {
     server.activeLoopJob = { status: 'idle' };
     server.activeAbortController = null;
     server.activeJobSocket = null;
+    server.activePauseSignal = null;
     server.resetIdleTimer();
   }
 };

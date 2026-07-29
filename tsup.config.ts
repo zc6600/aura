@@ -47,5 +47,19 @@ export default defineConfig({
       fs.cpSync(srcTemplates, distTemplates, { recursive: true });
       console.log('✓ Copied generators templates to dist/generators');
     }
+
+    // Copy the web console's static assets (html/css/js)
+    const srcDashboard = path.join(
+      process.cwd(),
+      'src',
+      'cli',
+      'shell',
+      'dashboard',
+    );
+    const distDashboard = path.join(process.cwd(), 'dist', 'dashboard');
+    if (fs.existsSync(srcDashboard)) {
+      fs.cpSync(srcDashboard, distDashboard, { recursive: true });
+      console.log('✓ Copied dashboard assets to dist/dashboard');
+    }
   },
 });

@@ -88,6 +88,36 @@ export function sanitizeSessionName(name?: string): string {
 }
 
 /**
+ * Session-name prefixes owned by the runtime, which users must not claim.
+ *
+ * `ralph_` sessions are scratch databases created per Ralph iteration and are
+ * garbage-collected after 24 hours by
+ * `RalphLoop.cleanupOrphanedRalphSessions`. A user session sharing that prefix
+ * would be deleted out from under them, silently.
+ */
+export const RESERVED_SESSION_PREFIXES = ['ralph_'] as const;
+
+/**
+ * Rejects user-supplied session names that collide with a runtime-owned
+ * prefix.
+ *
+ * Kept out of `sanitizeSessionName` on purpose: that function is also on the
+ * path the runtime itself takes when resolving a session DB (see
+ * `sessionDbPath`), so enforcing the reservation there would break the very
+ * sessions it protects. Call this only where a human supplies the name.
+ */
+export function assertSessionNameNotReserved(name: string): void {
+  const lowered = name.trim().toLowerCase();
+  for (const prefix of RESERVED_SESSION_PREFIXES) {
+    if (lowered.startsWith(prefix)) {
+      throw new ArgumentError(
+        `Session name cannot start with '${prefix}' — that prefix is reserved for internal runtime sessions and is cleaned up automatically`,
+      );
+    }
+  }
+}
+
+/**
  * Validates web server port numbers.
  */
 export function validatePort(port: string | number): number {

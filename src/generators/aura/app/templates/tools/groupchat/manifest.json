@@ -1,0 +1,47 @@
+{
+  "name": "groupchat",
+  "description": "Send and read messages in a named multi-agent channel (many-to-many), backed by an append-only shared channel file. Use this for coordination among 3+ agents; use mailbox for a private 1:1 conversation.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": false,
+  "permissions": {
+    "file_system": "read-write",
+    "allow_paths": [
+      "./state",
+      "./state/bus",
+      "./.aura-workspace/state",
+      "./.aura-workspace/state/bus",
+      "./.aura/state",
+      "./.aura/state/bus"
+    ]
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": ["send", "read", "list_channels"],
+        "description": "The action to perform."
+      },
+      "channel": {
+        "type": "string",
+        "description": "Channel name (used with action='send' and action='read'). Created on first send if it doesn't exist yet."
+      },
+      "content": {
+        "type": "string",
+        "description": "Message text (used with action='send')."
+      },
+      "mentions": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Optional list of agent ids being specifically addressed within the channel (used with action='send')."
+      },
+      "limit": {
+        "type": "integer",
+        "description": "Max number of most-recent messages to return for action='read'.",
+        "default": 30
+      }
+    },
+    "required": ["action"]
+  }
+}

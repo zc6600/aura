@@ -1,6 +1,10 @@
 import path from 'node:path';
 import readline from 'node:readline';
 import picocolors from 'picocolors';
+import {
+  checkpointPath,
+  loadCheckpoint,
+} from '../../core/kernel/checkpoint.js';
 import type { ToolResult } from '../../core/kernel/interfaces.js';
 import { RalphLoop } from '../../core/kernel/ralphLoop.js';
 import { Runner } from '../../core/kernel/runner.js';
@@ -50,6 +54,8 @@ export class Session {
       client.onConfirmRequest(async (msg) => {
         return await renderer.askConfirmation(msg);
       });
+
+      this.announceSuspendedRun(currentSession);
 
       if (goal && goal.trim().length > 0) {
         client.onNotification((method, params) => {
@@ -386,7 +392,34 @@ export class Session {
       isClosed = true;
     });
 
+    // While a goal is in flight the readline has no pending question, so
+    // Ctrl+C is the user's only channel. Use it to park the run rather than
+    // kill it — the daemon accepts agent/pause on the same socket that the
+    // pending agent/runGoal is already using.
+    let goalRunning = false;
+    let pauseRequested = false;
     rl.on('SIGINT', () => {
+      if (goalRunning) {
+        if (pauseRequested) {
+          console.log(
+            picocolors.yellow('\n⏹  Forcing shutdown (run will not be saved).'),
+          );
+          rl.close();
+          return;
+        }
+        pauseRequested = true;
+        console.log(
+          picocolors.yellow(
+            '\n⏸  Suspending after the current step finishes… (Ctrl+C again to force quit)',
+          ),
+        );
+        client.request('agent/pause').catch((e: unknown) => {
+          console.error(
+            picocolors.red(`Could not suspend: ${(e as Error).message}`),
+          );
+        });
+        return;
+      }
       if (rl.line.length > 0) {
         process.stdout.write('\n');
         rl.prompt();
@@ -449,13 +482,19 @@ export class Session {
           continue;
         }
 
-        if (await this.slashManager.handle(input)) {
+        // Handled here rather than in SlashCommandManager because resuming is
+        // a daemon round-trip, and the manager has no client to talk to.
+        const isResume = ['resume', '/resume'].includes(input.toLowerCase());
+
+        if (!isResume && (await this.slashManager.handle(input))) {
           continue;
         }
 
         try {
+          goalRunning = true;
+          pauseRequested = false;
           const res = await client.request('agent/runGoal', {
-            goal: input,
+            ...(isResume ? { resume: true } : { goal: input }),
             mode: 'classic',
             options: {
               auto_mode: this.auto,
@@ -465,7 +504,13 @@ export class Session {
               critic_mode: this.options.critic_mode,
             },
           });
-          if (res.status !== 'completed' && res.status !== 'failed') {
+          if (res.status === 'suspended') {
+            console.log(
+              picocolors.yellow(
+                `⏸  Suspended after ${res.stepCount} step(s). Type ${picocolors.bold('/resume')} to continue.`,
+              ),
+            );
+          } else if (res.status !== 'completed' && res.status !== 'failed') {
             throw new Error(
               `Daemon task loop finished with status: ${res.status}`,
             );
@@ -476,6 +521,8 @@ export class Session {
               `⛔️ Error processing command: ${(e as Error).message}`,
             ),
           );
+        } finally {
+          goalRunning = false;
         }
       }
     } finally {
@@ -483,6 +530,34 @@ export class Session {
       if (!isClosed) {
         rl.close();
       }
+    }
+  }
+
+  /**
+   * Tells the user up front that this session has a parked run, including what
+   * it was working on — a checkpoint survives daemon restarts, so it may well
+   * be from a previous day.
+   */
+  private announceSuspendedRun(sessionName: string | null): void {
+    try {
+      const saved = loadCheckpoint(
+        checkpointPath(this.projectPath, sessionName || 'default'),
+      );
+      if (saved?.reason !== 'user_paused') {
+        return;
+      }
+      const goalPreview =
+        saved.goal.length > 70 ? `${saved.goal.slice(0, 70)}…` : saved.goal;
+      console.log(
+        picocolors.yellow(
+          `⏸  Suspended run in this session (${saved.stepCount} step(s), ${saved.createdAt}): ${goalPreview}`,
+        ),
+      );
+      console.log(
+        picocolors.gray(`   Type ${picocolors.bold('/resume')} to continue.`),
+      );
+    } catch {
+      // A missing or unreadable checkpoint is not worth interrupting startup.
     }
   }
 

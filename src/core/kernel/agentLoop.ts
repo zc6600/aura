@@ -1,4 +1,10 @@
 import type { ParseResult } from '../llm/parsers/responseParser.js';
+import type {
+  CheckpointReason,
+  LoopCheckpoint,
+  LoopStep,
+} from './checkpoint.js';
+import { resumeBanner } from './checkpoint.js';
 import type { IEventBus, IRunner, ToolCall, ToolResult } from './interfaces.js';
 
 interface SystemConfig {
@@ -7,34 +13,58 @@ interface SystemConfig {
   max_tool_errors?: number;
 }
 
+/**
+ * A pause request the loop polls at each iteration boundary.
+ *
+ * Deliberately a mutable flag rather than an AbortSignal: the loop needs to
+ * *finish* the current step and return a checkpoint, which is the opposite of
+ * abort's unwind-the-stack semantics. Keeping the two separate avoids the
+ * string-matched abort handling below ever swallowing a pause.
+ */
+export interface PauseSignal {
+  requested: boolean;
+}
+
 export interface AgentLoopResult {
-  status: 'completed' | 'failed';
+  status: 'completed' | 'failed' | 'suspended';
   final_content?: string | null;
-  steps: Array<{
-    tool: string;
-    args: Record<string, unknown>;
-    summary?: string | null;
-    result: ToolResult;
-  }>;
+  steps: LoopStep[];
   failure_reason?: string | null;
   /** Present when failure_reason is 'sandbox_path_blocked'; the path a human needs to approve. */
   blocked_path?: { path: string; attempts: number; threshold: number } | null;
-  /** Present when failure_reason is 'sandbox_path_blocked'; lets the run be resumed after the fix. */
-  checkpoint?: { ctx: string; stepCount: number } | null;
+  /** Present on 'suspended', and on a 'sandbox_path_blocked' failure. Lets the run be resumed. */
+  checkpoint?: LoopCheckpoint | null;
 }
 
 export class AgentLoop {
   private runner: IRunner;
   private eventBus: IEventBus;
+  private steps: LoopStep[] = [];
 
   constructor(runner: IRunner, options: { eventBus?: IEventBus } = {}) {
     this.runner = runner;
     this.eventBus = options.eventBus || { emit: () => {} };
   }
 
+  /**
+   * Steps completed so far. Readable after `run()` throws — an interrupt
+   * unwinds the stack, and callers still need the real step history rather
+   * than an empty list.
+   */
+  public get completedSteps(): LoopStep[] {
+    return this.steps;
+  }
+
   public async run(
     goal: string,
-    options: { ctx?: string | null; max_steps?: number | null } = {},
+    options: {
+      ctx?: string | null;
+      max_steps?: number | null;
+      /** Polled at each iteration boundary; set it to park the run. */
+      pauseSignal?: PauseSignal | null;
+      /** Restores a previously suspended run instead of starting fresh. */
+      checkpoint?: LoopCheckpoint | null;
+    } = {},
   ): Promise<AgentLoopResult> {
     const cfg =
       typeof this.runner.loadConfig === 'function'
@@ -45,13 +75,50 @@ export class AgentLoop {
     const maxFmtErrs = systemConfig.max_format_errors ?? 5;
     const maxToolErrs = systemConfig.max_tool_errors ?? 3;
 
-    let ctx = options.ctx || (await this.observe());
-    let formatErrors = 0;
-    let toolErrors = 0;
-    const steps: AgentLoopResult['steps'] = [];
-    let stepCount = 0;
+    // Resuming restores the full loop state, not just the prompt: dropping
+    // steps/error budgets would silently hand the run a fresh set of retries
+    // and lose the step history from the caller's result.
+    const resumed = options.checkpoint ?? null;
+    let ctx = resumed
+      ? resumeBanner(resumed)
+      : options.ctx || (await this.observe());
+    let formatErrors = resumed?.formatErrors ?? 0;
+    let toolErrors = resumed?.toolErrors ?? 0;
+    const steps: LoopStep[] = resumed ? [...resumed.steps] : [];
+    let stepCount = resumed?.stepCount ?? 0;
+    this.steps = steps;
+
+    const buildCheckpoint = (
+      reason: CheckpointReason,
+      blockedPath?: string,
+    ): LoopCheckpoint => ({
+      version: 1,
+      goal,
+      ctx,
+      stepCount,
+      steps,
+      formatErrors,
+      toolErrors,
+      reason,
+      blockedPath,
+      sessionName: this.runner.sessionName || 'default',
+      createdAt: new Date().toISOString(),
+    });
 
     while (true) {
+      // Park before spending another planner call. At this point the previous
+      // iteration has finished observing, so ctx and the counters are all
+      // consistent and there is nothing in flight to serialize.
+      if (options.pauseSignal?.requested) {
+        this.eventBus.emit('loop_suspended', { stepCount });
+        return {
+          status: 'suspended',
+          steps,
+          failure_reason: null,
+          checkpoint: buildCheckpoint('user_paused'),
+        };
+      }
+
       if (stepCount >= limitSteps) {
         const reason = `Max execution steps reached (${limitSteps})`;
         this.eventBus.emit('loop_aborted', { reason });
@@ -180,7 +247,10 @@ export class AgentLoop {
           steps,
           failure_reason: 'sandbox_path_blocked',
           blocked_path: result.sandbox_violation ?? null,
-          checkpoint: { ctx, stepCount },
+          checkpoint: buildCheckpoint(
+            'sandbox_path_blocked',
+            result.sandbox_violation?.path,
+          ),
         };
       }
       if (['blocked', 'upgrade_required', 'failed'].includes(status)) {

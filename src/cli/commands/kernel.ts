@@ -1,6 +1,11 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { AgentLoop } from '../../core/kernel/agentLoop.js';
+import {
+  checkpointPath,
+  clearCheckpoint,
+  type LoopCheckpoint,
+  loadCheckpoint,
+  saveCheckpoint,
+} from '../../core/kernel/checkpoint.js';
 import type { ToolCall } from '../../core/kernel/interfaces.js';
 import { RalphLoop } from '../../core/kernel/ralphLoop.js';
 import { Runner } from '../../core/kernel/runner.js';
@@ -11,14 +16,6 @@ import {
 import { checkWorkflow } from '../../core/workflow/runner.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import * as UI from '../ui.js';
-
-interface LoopCheckpoint {
-  goal: string;
-  ctx: string;
-  stepCount: number;
-  blockedPath: string;
-  createdAt: string;
-}
 
 interface FormattedLoopStep {
   tool: string;
@@ -196,27 +193,19 @@ export class Kernel {
   ): Promise<void> {
     const root = Kernel.resolveProjectPath(projectPath);
     const runner = new Runner(root);
-    const cpPath = Kernel.checkpointPath(root, runner.sessionName);
+    const cpPath = checkpointPath(root, runner.sessionName);
 
     let goal = options.goal || '';
-    let startCtx: string | undefined;
-    let stepsAlready = 0;
+    let resumeCheckpoint: LoopCheckpoint | null = null;
 
     if (options.resume) {
-      const saved = Kernel.loadCheckpoint(cpPath);
-      if (!saved) {
+      resumeCheckpoint = loadCheckpoint(cpPath);
+      if (!resumeCheckpoint) {
         throw new UI.CliError(
           `No checkpoint found for session '${runner.sessionName}'. Nothing to resume.`,
         );
       }
-      goal = saved.goal;
-      stepsAlready = saved.stepCount;
-      startCtx = [
-        `[RESUMED] This run was paused because a command needed a path outside the sandbox: ${saved.blockedPath}`,
-        'That path should now be approved (or you were told to try a different approach). Continue the task below.',
-        '',
-        saved.ctx,
-      ].join('\n');
+      goal = resumeCheckpoint.goal;
     } else if (options.goal?.trim()) {
       runner.recordUserInput(options.goal.trim());
     }
@@ -250,26 +239,24 @@ export class Kernel {
     };
 
     const agentLoop = new AgentLoop(runner, { eventBus });
-    const maxSteps = options.maxSteps || 30;
-    const remainingSteps = Math.max(1, maxSteps - stepsAlready);
+    // The loop restores its own step count from the checkpoint, so max_steps
+    // stays the total budget rather than a per-attempt remainder.
     const res = await agentLoop.run(goal, {
-      ctx: startCtx,
-      max_steps: remainingSteps,
+      checkpoint: resumeCheckpoint,
+      max_steps: options.maxSteps || 30,
     });
 
     if (res.failure_reason === 'sandbox_path_blocked' && res.checkpoint) {
-      Kernel.saveCheckpoint(cpPath, {
-        goal,
-        ctx: res.checkpoint.ctx,
-        stepCount: stepsAlready + res.checkpoint.stepCount,
-        blockedPath: res.blocked_path?.path || 'unknown',
-        createdAt: new Date().toISOString(),
-      });
+      saveCheckpoint(cpPath, res.checkpoint);
       console.error(Kernel.formatSandboxLockedMessage(res.blocked_path));
       process.exitCode = 1;
       return;
     }
-    Kernel.clearCheckpoint(cpPath);
+    // Only a finished run invalidates the checkpoint. Clearing on every other
+    // exit (max steps, tool errors) would throw away a still-resumable run.
+    if (res.status === 'completed') {
+      clearCheckpoint(cpPath);
+    }
 
     const formattedSteps = res.steps.map((step) => {
       const payload = {
@@ -647,37 +634,6 @@ export class Kernel {
       };
       process.stdin.on('data', onData);
     });
-  }
-
-  private static checkpointPath(root: string, sessionName: string): string {
-    const envPath = PathResolver.environmentPath(root) || root;
-    const dir = path.join(envPath, 'state', 'kernel_checkpoints');
-    fs.mkdirSync(dir, { recursive: true });
-    return path.join(dir, `${sessionName}.json`);
-  }
-
-  private static loadCheckpoint(cpPath: string): LoopCheckpoint | null {
-    if (!fs.existsSync(cpPath)) return null;
-    try {
-      return JSON.parse(fs.readFileSync(cpPath, 'utf-8')) as LoopCheckpoint;
-    } catch {
-      return null;
-    }
-  }
-
-  private static saveCheckpoint(
-    cpPath: string,
-    checkpoint: LoopCheckpoint,
-  ): void {
-    try {
-      fs.writeFileSync(cpPath, JSON.stringify(checkpoint, null, 2));
-    } catch {}
-  }
-
-  private static clearCheckpoint(cpPath: string): void {
-    try {
-      if (fs.existsSync(cpPath)) fs.unlinkSync(cpPath);
-    } catch {}
   }
 
   private static formatSandboxLockedMessage(

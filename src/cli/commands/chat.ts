@@ -5,6 +5,16 @@ import picocolors from 'picocolors';
 import { Client } from '../../core/llm/client.js';
 import * as Env from '../../core/llm/env.js';
 import type { ChatMessage } from '../../core/llm/types.js';
+import {
+  importLegacyChatHistory,
+  legacyChatHistoryPath,
+} from '../../core/memory/legacyChatImport.js';
+import {
+  MemoryProvider,
+  type TranscriptMessage,
+} from '../../core/memory/provider.js';
+import { MemoryRecorder } from '../../core/memory/recorder.js';
+import { SQLiteStore } from '../../core/memory/sqliteStore.js';
 import * as ConfigManager from '../../utils/configManager.js';
 import type { AuraConfig } from '../../utils/configSchema.js';
 import * as GlobalConfig from '../../utils/globalConfig.js';
@@ -13,6 +23,106 @@ import * as UI from '../ui.js';
 
 interface ChatReadline extends readline.Interface {
   closed?: boolean;
+}
+
+/** How many past messages are replayed to the model on each turn. */
+const CONTEXT_MESSAGE_LIMIT = 10;
+
+/**
+ * Chat's view onto a session's shared event log.
+ *
+ * Chat used to keep a flat JSON transcript of its own, invisible to every
+ * other execution path. It now reads and writes the same SQLite event log the
+ * agent uses, so a human turn and an autonomous turn land on one timeline.
+ * What stays chat-specific is the *context*: this only ever replays plain
+ * user/assistant messages, never tool output or context providers.
+ */
+class ChatHistory {
+  public readonly dbPath: string;
+  private store: SQLiteStore | null = null;
+  private pendingNotice: string | null = null;
+
+  constructor(
+    private readonly stateDir: string,
+    public readonly sessionName: string,
+  ) {
+    this.dbPath = path.join(stateDir, 'sessions', `${sessionName}.db`);
+  }
+
+  /**
+   * Opening a store creates the database file, so read-only callers pass
+   * `create: false` to avoid littering empty sessions across the workspace
+   * just because someone ran `chat context` on a name that does not exist.
+   */
+  private open(create: boolean): SQLiteStore | null {
+    if (this.store) return this.store;
+
+    const hasHistory =
+      fs.existsSync(this.dbPath) ||
+      fs.existsSync(legacyChatHistoryPath(this.stateDir, this.sessionName));
+    if (!create && !hasHistory) return null;
+
+    this.store = new SQLiteStore({ dbPath: this.dbPath });
+
+    const migration = importLegacyChatHistory(
+      this.store,
+      this.stateDir,
+      this.sessionName,
+    );
+    if (migration.skippedReason === 'session-not-empty') {
+      this.pendingNotice =
+        `⚠️ Legacy chat history at ${migration.legacyPath} was left in place: ` +
+        `session '${this.sessionName}' already has events, and replaying old turns would misorder the timeline.`;
+    } else if (migration.skippedReason === 'unreadable') {
+      this.pendingNotice = `⚠️ Could not read legacy chat history at ${migration.legacyPath}; it was left untouched.`;
+    }
+
+    return this.store;
+  }
+
+  /** Emits any one-time migration warning; safe to call repeatedly. */
+  public flushNotice(): void {
+    if (this.pendingNotice) {
+      console.warn(picocolors.yellow(this.pendingNotice));
+      this.pendingNotice = null;
+    }
+  }
+
+  public messages(limit?: number): TranscriptMessage[] {
+    const store = this.open(false);
+    if (!store) return [];
+    this.flushNotice();
+    return new MemoryProvider(store).toChatMessages({ limit });
+  }
+
+  public appendTurn(userContent: string, assistantContent: string): void {
+    const store = this.open(true);
+    if (!store) return;
+    const recorder = new MemoryRecorder(store);
+    store.transaction(() => {
+      // Tying the reply to the user event id matches how the kernel groups a
+      // turn (see Runner.recordExecution), keeping undo and metabolism honest.
+      const userEventId = recorder.recordUser(userContent);
+      recorder.recordAssistant(assistantContent, userEventId);
+    });
+  }
+
+  public clear(): void {
+    this.open(false)?.clearHistory();
+  }
+
+  public undo(): boolean {
+    return this.open(false)?.undoLastTurn() ?? false;
+  }
+
+  public close(): void {
+    try {
+      this.store?.close();
+    } catch {
+      // A failed close only matters at process exit, where it is harmless.
+    }
+    this.store = null;
+  }
 }
 
 export class Chat {

@@ -1,0 +1,20 @@
+{
+  "description": "Description for db_close",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": false,
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "context_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "context_id"
+    ]
+  },
+  "name": "db_close",
+  "requires_context": "db_session",
+  "destroys_context": true
+}

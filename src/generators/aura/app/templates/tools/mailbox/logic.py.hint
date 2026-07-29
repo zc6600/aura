@@ -1,0 +1,19 @@
+用于两个具名 agent 之间一对一通信的信箱。信和回信共存于同一个按双方名字排序命名的
+线程文件里（追加写入，JSON Lines 格式），发送者身份取自 AURA_AGENT_ID 环境变量。
+
+核心操作：
+- send: 给某个 agent 发一条消息，可选 reply_to 关联到某条历史消息，视作回信。
+- read: 读某个线程（指定 with）或读我参与的所有线程（不指定 with），返回最近 N 条。
+- list: 列出我参与的所有线程对象（跟我通过信的 agent 列表）。
+
+示例：
+{"action": "send", "to": "software-engineer", "content": "数据里有异常值，能查一下 ETL 那段吗？"}
+{"action": "send", "to": "data-scientist", "content": "查到了，是时区转换的 bug，已经修了。", "reply_to": "<上一条的 id>"}
+{"action": "read", "with": "software-engineer", "limit": 10}
+{"action": "read"}
+{"action": "list"}
+
+协作模式：
+- 明确提问：给需要特定专家判断的问题发信，对方下次运行时（或被同步唤起时）会看到。
+- 保留记录：信和回信都留在同一个线程文件里，之后可以完整读出对话历史。
+- 广播类信息（所有 agent 都该看到的通知）不要用 mailbox，改用 @aura-hint 标记。

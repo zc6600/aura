@@ -48,6 +48,32 @@ export class MemoryRecorder {
     });
   }
 
+  /**
+   * Records a plain assistant reply that involved no tool call.
+   *
+   * It is stored as a `plan` event carrying the `final` pseudo-tool — the same
+   * shape AgentLoop produces when it answers directly — so that the retention
+   * policy, the metabolizer, and `MemoryProvider.formatEvent` all treat a chat
+   * reply exactly like any other agent turn. Introducing a separate phase here
+   * would make chat history invisible to metabolism and let it grow unbounded.
+   */
+  public recordAssistant(content: string, callSeq?: number | null): number {
+    const payload = {
+      tool: 'final',
+      args: { content },
+      summary: null,
+      thought: null,
+      call_seq: callSeq ?? null,
+      phase: 'plan',
+    };
+    return this.store.insertEvent({
+      timestamp: Math.floor(Date.now() / 1000),
+      phase: 'plan',
+      tool: 'final',
+      payload,
+    });
+  }
+
   public recordExecution(
     toolName: string,
     result: Record<string, unknown>,
@@ -120,6 +146,12 @@ export class MemoryRecorder {
         switch (type) {
           case 'user':
             this.recordUser(event.content as string, event.call_seq as number);
+            break;
+          case 'assistant':
+            this.recordAssistant(
+              event.content as string,
+              event.call_seq as number,
+            );
             break;
           case 'plan':
             this.recordPlan(

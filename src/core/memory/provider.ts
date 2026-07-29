@@ -8,11 +8,61 @@ export interface HistoryEntry {
   body: string;
 }
 
+export interface TranscriptMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export class MemoryProvider {
   private store: SQLiteStore;
 
   constructor(store: SQLiteStore) {
     this.store = store;
+  }
+
+  /**
+   * Rebuilds a user/assistant transcript from the event log, at full fidelity.
+   *
+   * Deliberately not built on `toMarkdown`: that path truncates final answers
+   * to 200 characters because it feeds a context summary, which would silently
+   * corrupt history replayed back to the model.
+   *
+   * `limit` caps how many transcript events are read, keeping the newest;
+   * merging can yield fewer messages than that. Consecutive same-role messages
+   * are merged because a session where the agent ran tools can hold two user
+   * turns with no spoken reply between them, which several providers reject.
+   */
+  public toChatMessages(
+    options: { limit?: number | null } = {},
+  ): TranscriptMessage[] {
+    const events = this.store.fetchConversationEvents(options.limit);
+    const messages: TranscriptMessage[] = [];
+
+    for (const e of events) {
+      const pl = (e.payload || {}) as Record<string, unknown>;
+      let role: 'user' | 'assistant';
+      let content: string;
+
+      if (e.phase === 'user') {
+        role = 'user';
+        content = String(pl.content ?? pl.text ?? '');
+      } else {
+        role = 'assistant';
+        const args = pl.args as { content?: unknown } | undefined;
+        content = String(args?.content ?? pl.thought ?? pl.summary ?? '');
+      }
+
+      if (content.trim().length === 0) continue;
+
+      const previous = messages.at(-1);
+      if (previous?.role === role) {
+        previous.content = `${previous.content}\n\n${content}`;
+      } else {
+        messages.push({ role, content });
+      }
+    }
+
+    return messages;
   }
 
   public recentEvents(

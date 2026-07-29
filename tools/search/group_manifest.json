@@ -1,0 +1,23 @@
+{
+  "group_name": "search",
+  "description": "Search tool group",
+  "entry_tool": "open",
+  "context": {
+    "name": "search_session",
+    "multi_instance": true,
+    "lifecycle": {
+      "created_by": "open",
+      "destroyed_by": [
+        "close"
+      ],
+      "ttl": {
+        "turns": 20,
+        "seconds": 600,
+        "policy": "any"
+      }
+    }
+  },
+  "subtools": [
+    "close"
+  ]
+}

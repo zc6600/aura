@@ -1,0 +1,18 @@
+用于三个及以上 agent 协作的群聊频道。任何 agent 都能读写任意频道（追加写入，
+JSON Lines 格式），发送者身份取自 AURA_AGENT_ID 环境变量。频道不需要预先创建，
+第一次 send 就会自动建立。
+
+核心操作：
+- send: 往某个频道发一条消息，可选 mentions 标出这条消息特别想让哪些 agent 注意。
+- read: 读某个频道最近 N 条消息。
+- list_channels: 列出当前会话里已经存在的所有频道。
+
+示例：
+{"action": "send", "channel": "release-planning", "content": "本周五发布，谁负责回归测试？"}
+{"action": "send", "channel": "release-planning", "content": "我来。", "mentions": ["software-engineer"]}
+{"action": "read", "channel": "release-planning", "limit": 20}
+{"action": "list_channels"}
+
+跟 mailbox 的区别：
+- mailbox 是两个 agent 之间的私聊，信和回信都在同一个线程文件里。
+- groupchat 是多个 agent 共同可见的频道，适合需要多方都同步进展的协作场景。

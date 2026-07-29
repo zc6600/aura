@@ -6,6 +6,10 @@ import readline from 'node:readline';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import yaml from 'yaml';
 import { Bridge } from '../../src/core/interface/bridge.js';
+import {
+  checkpointPath,
+  loadCheckpoint,
+} from '../../src/core/kernel/checkpoint.js';
 import { DaemonClient } from '../../src/daemon/client.js';
 import { DaemonServer } from '../../src/daemon/server.js';
 import { initializeWorkspaceInPlace } from '../../src/utils/workspaceInitializer.js';
@@ -644,5 +648,153 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
     const result = await pending;
     expect(result).toBeInstanceOf(Error);
     expect((result as Error).message).toMatch(/connection.*closed/i);
+  });
+
+  describe('suspend and resume', () => {
+    /**
+     * Stands in for a real loop: parks as soon as the daemon flips the pause
+     * signal, and reports the checkpoint the way AgentLoop does.
+     */
+    function mockPausableChat(stepCount = 2): void {
+      vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+        this: Bridge,
+        input: string,
+        options: any = {},
+      ) {
+        if (options.checkpoint) {
+          this.lastResult = {
+            status: 'completed',
+            steps: options.checkpoint.steps,
+            final_content: `resumed from step ${options.checkpoint.stepCount}`,
+          };
+          return;
+        }
+        await vi.waitFor(() => {
+          expect(options.pauseSignal?.requested).toBe(true);
+        });
+        this.lastResult = {
+          status: 'suspended',
+          steps: [],
+          failure_reason: null,
+          checkpoint: {
+            version: 1,
+            goal: input,
+            ctx: 'ctx at pause',
+            stepCount,
+            steps: [],
+            formatErrors: 0,
+            toolErrors: 0,
+            reason: 'user_paused',
+            sessionName: 'default',
+            createdAt: new Date().toISOString(),
+          },
+        };
+      });
+    }
+
+    it('pauses a running goal over the same socket and writes a checkpoint', async () => {
+      mockPausableChat(2);
+      const client = await initializedClient();
+
+      const request = client.request('agent/runGoal', {
+        goal: 'a long task',
+        options: { auto_mode: false },
+      });
+
+      await vi.waitFor(() => {
+        expect(server?.activeLoopJob.status).toBe('running');
+      });
+
+      // The pause travels on the same connection while runGoal is still pending.
+      const ack = await client.request('agent/pause');
+      expect(ack).toEqual({ pausing: true });
+
+      const result = await request;
+      expect(result.status).toBe('suspended');
+      expect(result.stepCount).toBe(2);
+      expect(result.resumable).toBe(true);
+
+      const cpPath = checkpointPath(workspacePath, 'default');
+      expect(fs.existsSync(cpPath)).toBe(true);
+      const saved = loadCheckpoint(cpPath);
+      expect(saved?.goal).toBe('a long task');
+      expect(saved?.reason).toBe('user_paused');
+
+      // A parked job frees the daemon rather than pinning it as busy.
+      expect(server?.activeLoopJob.status).toBe('idle');
+      expect(server?.activePauseSignal).toBeNull();
+    });
+
+    it('resumes a suspended run without being given the goal again', async () => {
+      mockPausableChat(3);
+      const client = await initializedClient();
+
+      const request = client.request('agent/runGoal', {
+        goal: 'work to finish later',
+        options: { auto_mode: false },
+      });
+      await vi.waitFor(() => {
+        expect(server?.activeLoopJob.status).toBe('running');
+      });
+      await client.request('agent/pause');
+      await request;
+
+      const resumed = await client.request('agent/runGoal', {
+        resume: true,
+        options: { auto_mode: false },
+      });
+
+      expect(resumed.status).toBe('completed');
+      expect(resumed.final_content).toBe('resumed from step 3');
+      // Finishing the run retires the checkpoint.
+      expect(fs.existsSync(checkpointPath(workspacePath, 'default'))).toBe(
+        false,
+      );
+    });
+
+    it('refuses to resume when there is no suspended run', async () => {
+      const client = await initializedClient();
+      const error = await client
+        .request('agent/runGoal', { resume: true })
+        .catch((e: Error) => e);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(/no suspended run/i);
+    });
+
+    it('only lets the client that started the goal pause it', async () => {
+      mockPausableChat();
+      const activeClient = await initializedClient();
+      const observerClient = await startClient();
+
+      const request = activeClient.request('agent/runGoal', {
+        goal: 'not yours to pause',
+        options: { auto_mode: false },
+      });
+      await vi.waitFor(() => {
+        expect(server?.activeLoopJob.status).toBe('running');
+      });
+
+      const error = await observerClient
+        .request('agent/pause')
+        .catch((e: Error) => e);
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(/only the client that started/i);
+
+      // The owner can still pause, so the rejection did not consume the signal.
+      await activeClient.request('agent/pause');
+      const result = await request;
+      expect(result.status).toBe('suspended');
+    });
+
+    it('rejects a pause when no goal is running', async () => {
+      const client = await initializedClient();
+      const error = await client
+        .request('agent/pause')
+        .catch((e: Error) => e);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(/no goal loop is running/i);
+    });
   });
 });
