@@ -11,6 +11,10 @@ interface SystemConfig {
   max_steps?: number;
   max_format_errors?: number;
   max_tool_errors?: number;
+  /** Max consecutive empty/blank tool results before aborting (default: 5). */
+  max_empty_results?: number;
+  /** Max consecutive calls to the same tool (by name+arg-keys fingerprint) before aborting (default: 4). */
+  max_repeat_calls?: number;
 }
 
 /**
@@ -40,6 +44,8 @@ export class AgentLoop {
   private runner: IRunner;
   private eventBus: IEventBus;
   private steps: LoopStep[] = [];
+  /** Sliding window of recent tool-call fingerprints for loop detection. */
+  private recentCallFingerprints: string[] = [];
 
   constructor(runner: IRunner, options: { eventBus?: IEventBus } = {}) {
     this.runner = runner;
@@ -74,6 +80,8 @@ export class AgentLoop {
     const limitSteps = options.max_steps ?? systemConfig.max_steps ?? 30;
     const maxFmtErrs = systemConfig.max_format_errors ?? 5;
     const maxToolErrs = systemConfig.max_tool_errors ?? 3;
+    const maxEmptyResults = systemConfig.max_empty_results ?? 5;
+    const maxRepeatCalls = systemConfig.max_repeat_calls ?? 4;
 
     // Resuming restores the full loop state, not just the prompt: dropping
     // steps/error budgets would silently hand the run a fresh set of retries
@@ -84,6 +92,8 @@ export class AgentLoop {
       : options.ctx || (await this.observe());
     let formatErrors = resumed?.formatErrors ?? 0;
     let toolErrors = resumed?.toolErrors ?? 0;
+    let emptyResults = 0;
+    this.recentCallFingerprints = [];
     const steps: LoopStep[] = resumed ? [...resumed.steps] : [];
     let stepCount = resumed?.stepCount ?? 0;
     this.steps = steps;
@@ -274,6 +284,51 @@ export class AgentLoop {
         toolErrors = 0;
       }
 
+      // --- Empty result detection ---
+      // A tool that returns status:ok but an empty/blank output is not a true
+      // success — the agent gained nothing. Count these separately so the loop
+      // doesn't spin indefinitely on queries that produce no data.
+      const rawOutput = this.stringifyToolResult(result);
+      const isEmptyOutput =
+        !rawOutput || rawOutput.trim().length === 0 || rawOutput === '{}';
+      if (isEmptyOutput) {
+        emptyResults++;
+        this.eventBus.emit('empty_result', { tool: toolName, count: emptyResults });
+        if (emptyResults >= maxEmptyResults) {
+          this.eventBus.emit('loop_aborted', { reason: 'empty_results' });
+          return {
+            status: 'failed',
+            steps,
+            failure_reason: `Max consecutive empty results reached (${maxEmptyResults}). The agent was unable to retrieve useful data.`,
+          };
+        }
+      } else {
+        emptyResults = 0;
+      }
+
+      // --- Repeat-call loop detection ---
+      // If the agent calls the exact same tool with the same argument structure
+      // N times in a row, it's stuck. Fingerprint = toolName + sorted arg keys.
+      const callFp = this.buildCallFingerprint(
+        toolName,
+        plan.type === 'tool_call' ? (plan.args ?? {}) : ((plan as unknown as Record<string, unknown>).args as Record<string, unknown> ?? {}),
+      );
+      this.recentCallFingerprints.push(callFp);
+      if (this.recentCallFingerprints.length > maxRepeatCalls) {
+        this.recentCallFingerprints.shift();
+      }
+      if (
+        this.recentCallFingerprints.length >= maxRepeatCalls &&
+        this.recentCallFingerprints.every((fp) => fp === callFp)
+      ) {
+        this.eventBus.emit('loop_aborted', { reason: 'repeat_calls' });
+        return {
+          status: 'failed',
+          steps,
+          failure_reason: `Repeat-call loop detected: '${toolName}' called ${maxRepeatCalls} times in a row with the same argument structure. Switch to a different strategy.`,
+        };
+      }
+
       // 5. Observe step — if agent just woke from sleep, annotate the fresh context
       if (status === 'sleeping') {
         const freshCtx = await this.observe();
@@ -411,14 +466,25 @@ export class AgentLoop {
     toolName: string,
     result: ToolResult,
   ): string {
+    const output = this.stringifyToolResult(result);
+    const isEmptyOutput =
+      !output || output.trim().length === 0 || output === '{}';
+    const guidance = isEmptyOutput
+      ? [
+          `⚠️  WARNING: Tool '${toolName}' returned an EMPTY result.`,
+          'Do NOT retry this tool with only minor parameter changes.',
+          'You MUST switch to a completely different approach, tool, or data source.',
+          'If you have exhausted all reasonable approaches, provide your best answer based on what you know.',
+        ].join(' ')
+      : 'Next step guidance: if this successful tool result satisfies the current user task, finish with a final answer instead of repeating completed tool calls.';
     return [
       ctx,
       '## MOST RECENT TOOL RESULT',
       `Tool: ${toolName}`,
       `Status: ${String(result.status || 'ok')}`,
       'Result:',
-      this.stringifyToolResult(result),
-      'Next step guidance: if this successful tool result satisfies the current user task, finish with a final answer instead of repeating completed tool calls.',
+      isEmptyOutput ? '(empty)' : output,
+      guidance,
     ].join('\n');
   }
 
@@ -438,5 +504,18 @@ export class AgentLoop {
       return String(found);
     }
     return JSON.stringify(result);
+  }
+
+  /**
+   * Builds a lightweight fingerprint for loop detection.
+   * Uses toolName + sorted argument keys (not values) so that minor value
+   * tweaks (e.g. changing a query string) are still detected as repeats.
+   */
+  private buildCallFingerprint(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): string {
+    const argKeys = Object.keys(args || {}).sort().join(',');
+    return `${toolName}:[${argKeys}]`;
   }
 }
