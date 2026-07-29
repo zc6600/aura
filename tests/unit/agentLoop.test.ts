@@ -201,6 +201,51 @@ describe('AgentLoop', () => {
     expect(haltedEvents[0][1].status).toBe('failed');
   });
 
+  it('test_escalates_immediately_on_sandbox_locked', async () => {
+    runner.config = { system: { max_tool_errors: 5 } };
+    runner.plans = [
+      {
+        type: 'tool_call',
+        tool: 'bash_command',
+        args: { command: 'cat /etc/passwd' },
+        thought: 'reading outside path',
+        finish_reason: 'tool_calls',
+      },
+    ];
+    runner.toolResults = [
+      {
+        status: 'sandbox_locked',
+        advice: 'human approval required',
+        sandbox_violation: {
+          path: '/etc/passwd',
+          attempts: 3,
+          threshold: 3,
+        },
+      },
+    ];
+
+    const result = await loop.run('read a system file');
+
+    // Stops on the very step it escalates, not after burning the full
+    // max_tool_errors budget — a human needs to act, retrying won't help.
+    expect(result.status).toBe('failed');
+    expect(result.failure_reason).toBe('sandbox_path_blocked');
+    expect(result.steps.length).toBe(1);
+    expect(result.blocked_path).toEqual({
+      path: '/etc/passwd',
+      attempts: 3,
+      threshold: 3,
+    });
+    expect(result.checkpoint).toEqual({
+      ctx: 'mock observation',
+      stepCount: 1,
+    });
+
+    const abortedEvents = events.filter((e) => e[0] === 'loop_aborted');
+    expect(abortedEvents.length).toBe(1);
+    expect(abortedEvents[0][1].reason).toBe('sandbox_path_blocked');
+  });
+
   it('test_aborts_on_length_finish', async () => {
     runner.plans = [
       {

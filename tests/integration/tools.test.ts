@@ -704,4 +704,37 @@ if __name__ == "__main__":
     expect(res.status).toBe('failed');
     expect(res.error).toBeDefined();
   });
+
+  // 17. bash_command sandbox path guard
+  it('bash_command sandbox path guard scenario', async () => {
+    // First attempts at an out-of-project path are recoverable 'blocked' results.
+    const blocked1 = (await runner.runCall({
+      tool: 'bash_command',
+      args: { command: 'cat /etc/hostname' },
+      summary: 'Attempt to read outside project',
+    })) as any;
+    expect(blocked1.status).toBe('blocked');
+    expect(blocked1.sandbox_violation?.path).toBe('/etc/hostname');
+    expect(blocked1.sandbox_violation?.attempts).toBe(1);
+
+    const blocked2 = (await runner.runCall({
+      tool: 'bash_command',
+      args: { command: 'cat /etc/hostname' },
+      summary: 'Attempt again',
+    })) as any;
+    expect(blocked2.status).toBe('blocked');
+    expect(blocked2.sandbox_violation?.attempts).toBe(2);
+
+    // The default threshold is 3 — the 3rd consecutive attempt at the SAME
+    // path escalates to a hard stop instead of another retryable denial.
+    const locked = (await runner.runCall({
+      tool: 'bash_command',
+      args: { command: 'cat /etc/hostname' },
+      summary: 'Attempt a third time',
+    })) as any;
+    expect(locked.status).toBe('sandbox_locked');
+    expect(locked.sandbox_violation?.attempts).toBe(3);
+    expect(locked.sandbox_violation?.threshold).toBe(3);
+    expect(locked.advice).toContain('allow_paths');
+  });
 });

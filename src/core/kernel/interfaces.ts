@@ -28,7 +28,9 @@ export interface ToolResult {
     | 'upgrade_required'
     | 'running'
     | 'sleeping'
-    | 'deferred';
+    | 'deferred'
+    /** Same out-of-sandbox path denied `unattended_retry_threshold` times in a row — the run must stop, not retry. */
+    | 'sandbox_locked';
   /** Some Python tools return success:true/false alongside status */
   success?: boolean;
   output?: string | null;
@@ -36,6 +38,12 @@ export interface ToolResult {
   error?: string | null;
   advice?: string | null;
   modified_files?: string[];
+  /** Present when status is 'blocked' or 'sandbox_locked' due to the sandbox path guard. */
+  sandbox_violation?: {
+    path: string;
+    attempts: number;
+    threshold: number;
+  };
   [key: string]: unknown;
 }
 

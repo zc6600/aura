@@ -17,6 +17,10 @@ export interface AgentLoopResult {
     result: ToolResult;
   }>;
   failure_reason?: string | null;
+  /** Present when failure_reason is 'sandbox_path_blocked'; the path a human needs to approve. */
+  blocked_path?: { path: string; attempts: number; threshold: number } | null;
+  /** Present when failure_reason is 'sandbox_path_blocked'; lets the run be resumed after the fix. */
+  checkpoint?: { ctx: string; stepCount: number } | null;
 }
 
 export class AgentLoop {
@@ -163,6 +167,16 @@ export class AgentLoop {
       });
 
       const status = String(result.status || '');
+      if (status === 'sandbox_locked') {
+        this.eventBus.emit('loop_aborted', { reason: 'sandbox_path_blocked' });
+        return {
+          status: 'failed',
+          steps,
+          failure_reason: 'sandbox_path_blocked',
+          blocked_path: result.sandbox_violation ?? null,
+          checkpoint: { ctx, stepCount },
+        };
+      }
       if (['blocked', 'upgrade_required', 'failed'].includes(status)) {
         toolErrors++;
         this.eventBus.emit('tool_halted', {

@@ -97,6 +97,12 @@ export const SecurityConfigSchema = z
         enabled: z.boolean().default(false),
         provider: z.enum(['docker', 'local']).optional(),
         image: z.string().optional(),
+        /** Extra paths (besides project_path) shell tools may access without triggering the sandbox guard. */
+        allow_paths: z.array(z.string()).default([]),
+        /** When true, unattended runs (kernel loop/ralph/workflow) skip the sandbox path guard entirely. */
+        unattended_full_access: z.boolean().default(false),
+        /** Consecutive denied attempts at the same out-of-sandbox path before the run escalates to a hard stop. */
+        unattended_retry_threshold: z.number().int().positive().default(3),
       })
       .optional(),
   })

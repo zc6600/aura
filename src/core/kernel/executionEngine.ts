@@ -18,6 +18,7 @@ import {
 import { GitState } from './gitState.js';
 import type { ToolResult } from './interfaces.js';
 import { ToolRegistry } from './registry.js';
+import { findOutsideSandboxPath } from './sandboxPathGuard.js';
 import { ShadowBackup } from './shadowBackup.js';
 
 export interface ExecutionOptions {
@@ -38,6 +39,8 @@ export class ExecutionEngine extends EventEmitter {
   /** Active PTY processes keyed by PID (populated when background:true + pty:true). */
   private ptyProcesses = new Map<number, import('node:stream').Writable>();
   private ptyStates = new Map<number, { resetPromptPending: () => void }>();
+  /** Consecutive denial count per out-of-sandbox path, scoped to this engine's lifetime (one run). */
+  private sandboxPathAttempts = new Map<string, number>();
 
   constructor(
     projectPath: string,
@@ -475,6 +478,16 @@ export class ExecutionEngine extends EventEmitter {
       cleanArgs.context_permissions = Array.from(
         new Set(perms.filter(Boolean)),
       );
+    }
+
+    if (manifest.permissions?.shell === true) {
+      const guardResult = this.checkSandboxPath(
+        typeof cleanArgs.command === 'string' ? cleanArgs.command : '',
+        cfg,
+      );
+      if (guardResult) {
+        return guardResult;
+      }
     }
 
     // Default truncation / bash commands limits
@@ -939,6 +952,59 @@ export class ExecutionEngine extends EventEmitter {
         }
       }
     }
+  }
+
+  /**
+   * Best-effort guard for shell-capable tools: flags commands that reference a
+   * path outside project_path + security.sandbox.allow_paths. The first few
+   * hits on a given path are fed back to the agent as a normal recoverable
+   * error (it may not actually need that path); repeated hits on the SAME
+   * path are treated as a real blocker that a human must resolve, and the
+   * caller should stop the run rather than keep retrying.
+   */
+  private checkSandboxPath(
+    command: string,
+    cfg: AuraConfig,
+  ): ToolResult | null {
+    if (!command) return null;
+
+    const sandboxCfg = cfg.security?.sandbox;
+    if (sandboxCfg?.unattended_full_access === true) return null;
+
+    const allowRoots = (sandboxCfg?.allow_paths || []).map((p: string) =>
+      path.resolve(this.projectPath, p),
+    );
+    const violation = findOutsideSandboxPath(
+      command,
+      this.projectPath,
+      allowRoots,
+    );
+    if (!violation) return null;
+
+    const threshold = sandboxCfg?.unattended_retry_threshold ?? 3;
+    const attempts = (this.sandboxPathAttempts.get(violation) || 0) + 1;
+    this.sandboxPathAttempts.set(violation, attempts);
+
+    if (attempts >= threshold) {
+      return {
+        status: 'sandbox_locked',
+        error: `Repeated attempts (${attempts}) to access a path outside the sandbox: ${violation}`,
+        advice:
+          `This path is not reachable and retrying will not help — a human needs to approve it.\n` +
+          `To allow it, add to config.yml:\n` +
+          `  security:\n    sandbox:\n      allow_paths:\n        - "${violation}"\n` +
+          `Then resume this run with: aura kernel loop --resume\n` +
+          `(or set security.sandbox.unattended_full_access: true to disable this guard entirely)`,
+        sandbox_violation: { path: violation, attempts, threshold },
+      };
+    }
+
+    return {
+      status: 'blocked',
+      error: `Access denied: ${violation} is outside the sandbox (project_path + security.sandbox.allow_paths).`,
+      advice: `If you don't actually need this path, try a different approach (attempt ${attempts}/${threshold}).`,
+      sandbox_violation: { path: violation, attempts, threshold },
+    };
   }
 
   private applySandbox(

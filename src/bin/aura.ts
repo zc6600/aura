@@ -865,6 +865,10 @@ class KernelLoopCommand extends BaseCommand {
         'aura kernel loop -g "Refactor auth module" --max-steps 10',
       ],
       ['Human-readable output', 'aura kernel loop -g "..." --human'],
+      [
+        'Resume after a sandbox path was approved',
+        'aura kernel loop --resume',
+      ],
     ],
   });
   projectPath = Option.String({ required: false });
@@ -873,6 +877,7 @@ class KernelLoopCommand extends BaseCommand {
   human = Option.Boolean('-H,--human', false);
   verbose = Option.Boolean('-v,--verbose', false);
   maxSteps = Option.String('-m,--max-steps', '30');
+  resume = Option.Boolean('--resume', false);
 
   async run() {
     await Kernel.loop(this.projectPath, {
@@ -880,6 +885,7 @@ class KernelLoopCommand extends BaseCommand {
       human: this.human,
       verbose: this.verbose,
       maxSteps: parseInt(this.maxSteps, 10),
+      resume: this.resume,
     });
   }
 }
@@ -1488,81 +1494,12 @@ export function createCli(): Cli {
   return cli;
 }
 
-const WHITELISTED_COMMANDS = new Set([
-  'help',
-  'doctor',
-  'info',
-  'version',
-  'new',
-  'create',
-  'anchor',
-  'chat',
-  'list',
-  'delete',
-  'branch',
-  'register',
-  'prune',
-  'web',
-  'template',
-  'completion',
-  '-h',
-  '--help',
-  '-V',
-  '--version',
-]);
-
-function isSourceRoot(): boolean {
-  try {
-    const pkgPath = path.join(process.cwd(), 'package.json');
-    if (fs.existsSync(pkgPath)) {
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-      return pkg.name === 'aura-cli';
-    }
-  } catch {
-    // Ignore errors reading/parsing package.json
-  }
-  return false;
-}
-
 export async function main(argv: string[] = process.argv): Promise<void> {
   const args = [...argv];
-
-  // Intercept and strip --allow-root
-  let allowRoot = process.env.AURA_ALLOW_ROOT === 'true';
-  while (true) {
-    const idx = args.indexOf('--allow-root');
-    if (idx === -1) break;
-    allowRoot = true;
-    args.splice(idx, 1);
-  }
 
   const firstArg = args[2];
   if (firstArg && aliasMap[firstArg]) {
     args.splice(2, 1, ...aliasMap[firstArg]);
-  }
-
-  // Source root protection check
-  if (isSourceRoot() && !allowRoot) {
-    const commandName = args[2];
-    if (commandName && !WHITELISTED_COMMANDS.has(commandName)) {
-      console.error(
-        picocolors.red(
-          `⛔️ Security Check: Running restricted command inside the Aura framework source root is not allowed.`,
-        ),
-      );
-      console.error(
-        picocolors.yellow(
-          `If you are developing the Aura framework and intend to run this command here, you can bypass this protection by:`,
-        ),
-      );
-      console.error(
-        `  - Appending ${picocolors.cyan('--allow-root')} to your command (e.g., aura ${args.slice(2).join(' ')} --allow-root)`,
-      );
-      console.error(
-        `  - Or setting the environment variable ${picocolors.cyan('AURA_ALLOW_ROOT=true')}`,
-      );
-      process.exit(1);
-    }
   }
 
   const cli = createCli();

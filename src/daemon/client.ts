@@ -139,7 +139,6 @@ export class DaemonClient {
     const child = spawn(command, args, {
       detached: true,
       stdio: ['ignore', out, err],
-      env: { ...process.env, AURA_ALLOW_ROOT: 'true' },
     });
 
     try {

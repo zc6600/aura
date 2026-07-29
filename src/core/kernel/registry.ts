@@ -20,7 +20,7 @@ export interface ToolManifest {
   entry?: string;
   timeout?: number;
   agent_can_modify_timeout?: boolean;
-  permissions?: { allow_paths?: string[] };
+  permissions?: { allow_paths?: string[]; shell?: boolean };
   input_schema?: Record<string, unknown>;
   input?: Record<string, unknown>;
   requires_context?: string;

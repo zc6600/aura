@@ -174,40 +174,6 @@ aura doctor
 
 ---
 
-## Source Root Protection
-
-To prevent accidental pollution of the raw framework codebase, Aura restricts certain commands when run from the source root directory (where `package.json` with the name `aura-cli` exists).
-
-### Whitelisted Commands
-
-These commands can be run from the source root:
-
-- `aura help` - Display help information
-- `aura doctor` - Run environment checks
-- `aura info` - Display system information
-- `aura version` - Print version
-- `aura new <project>` - Create new workspace
-- `aura chat "question"` - Direct LLM query
-- `aura list` - List registered projects
-- `aura delete <name>` - Delete a project
-- `aura branch` - Manage agent profiles
-- `aura register <name>` - Register project
-- `aura prune` - Prune projects
-- `aura web` - Start web dashboard server
-- `aura template` - Manage templates
-- `aura completion` - Generate shell completion
-
-All other commands must be run from within a workspace directory.
-
-### Bypassing Source Root Protection
-
-For developers working directly on the Aura OS source code who wish to run commands (like `aura agent`) in the source root directory, the restriction can be bypassed:
-
-- By setting the environment variable `AURA_ALLOW_ROOT=true` (e.g. `AURA_ALLOW_ROOT=true aura agent`)
-- By appending the `--allow-root` option to the command line (e.g. `aura agent --allow-root`)
-
----
-
 ## Next Steps
 
 Now that you have Aura installed and running:

@@ -569,6 +569,10 @@ aura kernel once . --call '{"tool":"read_file","args":{"file_path":"README.md"}}
 # Run the planner-executor loop
 aura kernel loop . --goal "Fix all TODO comments" --max-steps 10 --human
 
+# Resume a loop that stopped because a command needed a path outside the
+# sandbox (see "Sandbox Path Guard" in the configuration how-to guide)
+aura kernel loop . --resume
+
 # Run a declared workflow contract through the kernel
 aura kernel workflow benchmark . --max-steps 80
 
@@ -597,7 +601,7 @@ aura kernel ralph . --goal "Fix failing tests" --verify "npm test" --max-steps 5
 - `plan [projectPath]` - Produce the next planned step; supports `--goal`, `--human`, and `--preview-lines`.
 - `run_call <tool> <args_json> [projectPath]` - Execute one tool call; supports `--pretty`.
 - `once [projectPath]` - Run one kernel pass; supports `--call`, `--input`, `--ask`, `--human`, `--verbose`, and `--preview-lines`.
-- `loop [projectPath]` - Run an autonomous planner-executor loop; supports `--goal`, `--human`, `--verbose`, and `--max-steps`.
+- `loop [projectPath]` - Run an autonomous planner-executor loop; supports `--goal`, `--human`, `--verbose`, `--max-steps`, and `--resume` (continue a run that stopped on the sandbox path guard — see [Sandbox Path Guard](../how-to/configure-aura.md#sandbox-path-guard)).
 - `workflow [name] [projectPath]` - Load `workflow.yml` or `workflows/<name>.yml`, validate it, compile its declared goal, and execute it through the kernel agent loop.
 - `ralph [projectPath]` - Run `RalphLoop` without the daemon or agent session UI; supports `--goal`, `--verify`, `--critic`, `--critic-mode`, and `--max-steps`.
 

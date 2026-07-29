@@ -98,6 +98,17 @@ security:
     provider: "docker" # 选项: docker, local
     image: "aura-sandbox:latest"
 
+    # 除 project_path 外，shell 工具（如 bash_command）额外允许访问的路径白名单
+    allow_paths: []
+
+    # 无人值守运行（kernel loop/ralph/workflow）时，是否完全跳过路径守卫，放行所有路径
+    # 默认 false：越界路径会被拒绝，仅限 project_path + allow_paths
+    unattended_full_access: false
+
+    # 无人值守时，同一个越界路径被连续拒绝多少次后，判定为"目录问题"并中止运行
+    # （而不是让 agent 无限重试）；中止后可在补充 allow_paths 后用 --resume 续跑
+    unattended_retry_threshold: 3
+
 # ----------------------------------------------------------------
 # 感知引导系统 (Hint System)
 # ----------------------------------------------------------------

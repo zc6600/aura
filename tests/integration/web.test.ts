@@ -10,7 +10,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const auraBinPath = path.resolve(__dirname, '../../src/bin/aura.ts');
-process.env.AURA_ALLOW_ROOT = 'true';
 
 describe('Web Server Integration', { timeout: 90000 }, () => {
   let projectPath: string;

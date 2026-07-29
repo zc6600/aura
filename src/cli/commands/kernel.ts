@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { AgentLoop } from '../../core/kernel/agentLoop.js';
 import type { ToolCall } from '../../core/kernel/interfaces.js';
 import { RalphLoop } from '../../core/kernel/ralphLoop.js';
@@ -9,6 +11,14 @@ import {
 import { checkWorkflow } from '../../core/workflow/runner.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import * as UI from '../ui.js';
+
+interface LoopCheckpoint {
+  goal: string;
+  ctx: string;
+  stepCount: number;
+  blockedPath: string;
+  createdAt: string;
+}
 
 interface FormattedLoopStep {
   tool: string;
@@ -181,12 +191,33 @@ export class Kernel {
       human?: boolean;
       verbose?: boolean;
       maxSteps?: number;
+      resume?: boolean;
     } = {},
   ): Promise<void> {
     const root = Kernel.resolveProjectPath(projectPath);
     const runner = new Runner(root);
+    const cpPath = Kernel.checkpointPath(root, runner.sessionName);
 
-    if (options.goal?.trim()) {
+    let goal = options.goal || '';
+    let startCtx: string | undefined;
+    let stepsAlready = 0;
+
+    if (options.resume) {
+      const saved = Kernel.loadCheckpoint(cpPath);
+      if (!saved) {
+        throw new UI.CliError(
+          `No checkpoint found for session '${runner.sessionName}'. Nothing to resume.`,
+        );
+      }
+      goal = saved.goal;
+      stepsAlready = saved.stepCount;
+      startCtx = [
+        `[RESUMED] This run was paused because a command needed a path outside the sandbox: ${saved.blockedPath}`,
+        'That path should now be approved (or you were told to try a different approach). Continue the task below.',
+        '',
+        saved.ctx,
+      ].join('\n');
+    } else if (options.goal?.trim()) {
       runner.recordUserInput(options.goal.trim());
     }
 
@@ -220,9 +251,25 @@ export class Kernel {
 
     const agentLoop = new AgentLoop(runner, { eventBus });
     const maxSteps = options.maxSteps || 30;
-    const res = await agentLoop.run(options.goal || '', {
-      max_steps: maxSteps,
+    const remainingSteps = Math.max(1, maxSteps - stepsAlready);
+    const res = await agentLoop.run(goal, {
+      ctx: startCtx,
+      max_steps: remainingSteps,
     });
+
+    if (res.failure_reason === 'sandbox_path_blocked' && res.checkpoint) {
+      Kernel.saveCheckpoint(cpPath, {
+        goal,
+        ctx: res.checkpoint.ctx,
+        stepCount: stepsAlready + res.checkpoint.stepCount,
+        blockedPath: res.blocked_path?.path || 'unknown',
+        createdAt: new Date().toISOString(),
+      });
+      console.error(Kernel.formatSandboxLockedMessage(res.blocked_path));
+      process.exitCode = 1;
+      return;
+    }
+    Kernel.clearCheckpoint(cpPath);
 
     const formattedSteps = res.steps.map((step) => {
       const payload = {
@@ -321,6 +368,15 @@ export class Kernel {
       maxSteps: options.maxSteps,
       eventBus,
     });
+
+    if (res.failure_reason === 'sandbox_path_blocked') {
+      console.error(Kernel.formatSandboxLockedMessage(res.blocked_path));
+      console.error(
+        '(Workflow runs do not support --resume yet; rerun the workflow after updating config.yml.)',
+      );
+      process.exitCode = 1;
+      return;
+    }
 
     const formattedSteps = res.steps.map((step) => {
       const payload = {
@@ -591,5 +647,62 @@ export class Kernel {
       };
       process.stdin.on('data', onData);
     });
+  }
+
+  private static checkpointPath(root: string, sessionName: string): string {
+    const envPath = PathResolver.environmentPath(root) || root;
+    const dir = path.join(envPath, 'state', 'kernel_checkpoints');
+    fs.mkdirSync(dir, { recursive: true });
+    return path.join(dir, `${sessionName}.json`);
+  }
+
+  private static loadCheckpoint(cpPath: string): LoopCheckpoint | null {
+    if (!fs.existsSync(cpPath)) return null;
+    try {
+      return JSON.parse(fs.readFileSync(cpPath, 'utf-8')) as LoopCheckpoint;
+    } catch {
+      return null;
+    }
+  }
+
+  private static saveCheckpoint(
+    cpPath: string,
+    checkpoint: LoopCheckpoint,
+  ): void {
+    try {
+      fs.writeFileSync(cpPath, JSON.stringify(checkpoint, null, 2));
+    } catch {}
+  }
+
+  private static clearCheckpoint(cpPath: string): void {
+    try {
+      if (fs.existsSync(cpPath)) fs.unlinkSync(cpPath);
+    } catch {}
+  }
+
+  private static formatSandboxLockedMessage(
+    blocked:
+      | { path: string; attempts: number; threshold: number }
+      | null
+      | undefined,
+  ): string {
+    const target = blocked?.path || 'unknown path';
+    const attempts = blocked?.attempts ?? '?';
+    return [
+      `⛔ Run stopped: repeated (${attempts}) attempts to access a path outside the sandbox.`,
+      `   Path: ${target}`,
+      '',
+      '   Not covered by project_path or security.sandbox.allow_paths.',
+      '   To allow it, add to config.yml:',
+      '     security:',
+      '       sandbox:',
+      '         allow_paths:',
+      `           - "${target}"`,
+      '',
+      '   Then resume this run:',
+      '     aura kernel loop --resume',
+      '',
+      '   (or set security.sandbox.unattended_full_access: true to disable this check entirely)',
+    ].join('\n');
   }
 }

@@ -80,6 +80,11 @@ Fallback provider objects support `provider`, `api_base`, `api_key`, `api_key_en
 | `sandbox.enabled` | boolean | Schema default `false` |
 | `sandbox.provider` | `docker` or `local` | Optional sandbox backend |
 | `sandbox.image` | string | Optional Docker image |
+| `sandbox.allow_paths` | string array | Extra paths shell tools (e.g. `bash_command`) may access besides `project_path`. Schema default `[]` |
+| `sandbox.unattended_full_access` | boolean | Skips the path guard entirely for unattended runs (`kernel loop`/`ralph`/`workflow`). Schema default `false` |
+| `sandbox.unattended_retry_threshold` | positive integer | Consecutive denied attempts at the same out-of-sandbox path before an unattended run escalates to a hard stop instead of retrying. Schema default `3` |
+
+See [Sandbox Path Guard](../how-to/configure-aura.md#sandbox-path-guard) for the full behavior and how to resume a stopped run.
 
 ## `state_management`
 

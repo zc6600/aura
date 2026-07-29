@@ -299,6 +299,16 @@ export class RalphLoop {
           result = { status: 'failed', steps: [], failure_reason: msg };
         }
 
+        if (result.failure_reason === 'sandbox_path_blocked') {
+          const target = result.blocked_path?.path || 'unknown path';
+          const reason =
+            `Blocked by sandbox path guard: ${target} is outside project_path + ` +
+            `security.sandbox.allow_paths, and was denied ${result.blocked_path?.attempts ?? '?'} times in a row. ` +
+            `Add it to config.yml security.sandbox.allow_paths (or set unattended_full_access: true) and rerun.`;
+          this.eventBus.emit('loop_aborted', { reason });
+          return this.finalizeRun('failed', null, reason);
+        }
+
         if (result.steps && result.steps.length > 0) {
           const lastStep = result.steps[result.steps.length - 1];
           this.lastToolName = lastStep.tool || 'None';

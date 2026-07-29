@@ -14,7 +14,6 @@ import * as PathResolver from '../../src/utils/pathResolver.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const auraBinPath = path.resolve(__dirname, '../../src/bin/aura.ts');
-process.env.AURA_ALLOW_ROOT = 'true';
 
 describe('Miscellaneous Integration', { timeout: 40000 }, () => {
   let projectPath: string;
