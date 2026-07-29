@@ -241,18 +241,68 @@ export class ResponseParser {
     return null;
   }
 
-  public static safeJsonParse(s: string): unknown {
-    try {
-      return JSON.parse(s);
-    } catch (_e) {
-      const blk = ResponseParser.extractJsonBlock(s);
-      if (blk) {
-        try {
-          return JSON.parse(blk);
-        } catch (_err) {}
+  public static repairJson(jsonStr: string): string {
+    let s = jsonStr.trim();
+    let inString = false;
+    let escaped = false;
+    let out = '';
+    for (let i = 0; i < s.length; i++) {
+      const char = s[i];
+      if (escaped) {
+        out += char;
+        escaped = false;
+        continue;
       }
-      return null;
+      if (char === '\\') {
+        out += char;
+        escaped = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        out += char;
+        continue;
+      }
+      if (inString && char === '\n') {
+        out += '\\n';
+        continue;
+      }
+      if (inString && char === '\r') {
+        out += '\\r';
+        continue;
+      }
+      if (inString && char === '\t') {
+        out += '\\t';
+        continue;
+      }
+      out += char;
     }
+    return out;
+  }
+
+  public static safeJsonParse(s: string): unknown {
+    const tryParse = (str: string): unknown => {
+      try {
+        return JSON.parse(str);
+      } catch (_e) {
+        try {
+          return JSON.parse(ResponseParser.repairJson(str));
+        } catch (_e2) {
+          return null;
+        }
+      }
+    };
+
+    const direct = tryParse(s);
+    if (direct !== null) return direct;
+
+    const blk = ResponseParser.extractJsonBlock(s);
+    if (blk) {
+      const parsedBlk = tryParse(blk);
+      if (parsedBlk !== null) return parsedBlk;
+    }
+
+    return null;
   }
 
   public static extractJsonBlock(s: string): string | null {
@@ -275,6 +325,19 @@ export class ResponseParser {
       const candidate = match[1].trim();
       if (candidate.startsWith('{')) {
         return candidate;
+      }
+    }
+
+    const openJsonBlockRegex = /```json\s*([\s\S]*)/i;
+    const openMatch = openJsonBlockRegex.exec(s);
+    if (openMatch?.[1]) {
+      const textAfter = openMatch[1].trim();
+      const endIdx = textAfter.lastIndexOf('}');
+      if (endIdx !== -1) {
+        const candidate = textAfter.substring(0, endIdx + 1).trim();
+        if (candidate.startsWith('{')) {
+          return candidate;
+        }
       }
     }
 

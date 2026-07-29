@@ -137,5 +137,16 @@ describe('ResponseParser', () => {
       expect(res.thought).toBe('Thinking step...');
     }
   });
+
+  it('should repair and parse tool call with unescaped multiline string in json block', () => {
+    const multilineContent =
+      '◇  \n```json\n{\n  "tool": "bash_command",\n  "args": {\n    "command": "python3 -c \'\nimport urllib.request\nprint(1)\n\'"\n  },\n  "summary": "run python"\n}\n```';
+    const res = ResponseParser.parse(multilineContent);
+    expect(res.type).toBe('tool_call');
+    if (res.type === 'tool_call') {
+      expect(res.tool).toBe('bash_command');
+      expect((res.args as any).command).toContain('import urllib.request');
+    }
+  });
 });
 
