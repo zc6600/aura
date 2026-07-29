@@ -305,12 +305,20 @@ describe('RalphLoop', () => {
         finish_reason: 'tool_calls',
       },
       {
+        raw: 'Finished step 1',
+        finish_reason: 'stop',
+      },
+      {
         raw: '{"completed": false, "critique": "not fixed yet", "advice": "edit file"}',
         finish_reason: 'stop',
       },
       {
         raw: '{"tool": "read_file", "args": {"path": "b.txt"}, "summary": "reading critique"}',
         finish_reason: 'tool_calls',
+      },
+      {
+        raw: 'Finished step 2',
+        finish_reason: 'stop',
       },
       {
         raw: '{"completed": true, "critique": "perfect now", "advice": ""}',
