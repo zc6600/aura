@@ -202,6 +202,77 @@ describe('AgentLoop', () => {
     expect(haltedEvents[0][1].status).toBe('failed');
   });
 
+  it('test_aborts_on_repeat_calls_with_identical_args', async () => {
+    runner.config = { system: { max_repeat_calls: 4 } };
+    runner.plans = Array(6).fill({
+      type: 'tool_call',
+      tool: 'bash_command',
+      args: { command: 'ls -la' },
+      thought: 'checking files',
+      finish_reason: 'tool_calls',
+    });
+    runner.toolResults = Array(6).fill({ status: 'ok', output: 'file1.rb' });
+
+    const result = await loop.run('stuck task');
+
+    expect(result.status).toBe('failed');
+    expect(result.failure_reason).toMatch(/Repeat-call loop detected/);
+    expect(result.steps.length).toBe(4);
+
+    const abortedEvents = events.filter((e) => e[0] === 'loop_aborted');
+    expect(abortedEvents.length).toBe(1);
+    expect(abortedEvents[0][1].reason).toBe('repeat_calls');
+  });
+
+  it('test_does_not_abort_on_repeat_calls_when_arg_values_differ', async () => {
+    // Regression test: four consecutive bash_command calls that share the
+    // same argument shape (a single `command` key) but carry genuinely
+    // different content should NOT be flagged as a repeat-call loop. The
+    // fingerprint must be sensitive to argument values, not just their keys.
+    runner.config = { system: { max_repeat_calls: 4 } };
+    runner.plans = [
+      {
+        type: 'tool_call',
+        tool: 'bash_command',
+        args: { command: 'curl https://example.com/search?q=a' },
+        finish_reason: 'tool_calls',
+      },
+      {
+        type: 'tool_call',
+        tool: 'bash_command',
+        args: { command: 'curl https://example.com/search?q=b' },
+        finish_reason: 'tool_calls',
+      },
+      {
+        type: 'tool_call',
+        tool: 'bash_command',
+        args: { command: 'curl https://example.com/search?q=c' },
+        finish_reason: 'tool_calls',
+      },
+      {
+        type: 'tool_call',
+        tool: 'bash_command',
+        args: { command: 'curl https://example.com/search?q=d' },
+        finish_reason: 'tool_calls',
+      },
+      {
+        type: 'text',
+        content: 'Found the answer',
+        finish_reason: 'stop',
+      },
+    ];
+    runner.toolResults = Array(4).fill({ status: 'ok', output: 'result' });
+
+    const result = await loop.run('progressive search task');
+
+    expect(result.status).toBe('completed');
+    expect(result.final_content).toBe('Found the answer');
+    expect(result.steps.length).toBe(4);
+
+    const abortedEvents = events.filter((e) => e[0] === 'loop_aborted');
+    expect(abortedEvents.length).toBe(0);
+  });
+
   it('test_escalates_immediately_on_sandbox_locked', async () => {
     runner.config = { system: { max_tool_errors: 5 } };
     runner.plans = [

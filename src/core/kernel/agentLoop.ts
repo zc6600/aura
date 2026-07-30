@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { ParseResult } from '../llm/parsers/responseParser.js';
 import type {
   CheckpointReason,
@@ -13,7 +14,7 @@ interface SystemConfig {
   max_tool_errors?: number;
   /** Max consecutive empty/blank tool results before aborting (default: 5). */
   max_empty_results?: number;
-  /** Max consecutive calls to the same tool (by name+arg-keys fingerprint) before aborting (default: 4). */
+  /** Max consecutive calls to the same tool (by name+normalized-argument fingerprint) before aborting (default: 4). */
   max_repeat_calls?: number;
 }
 
@@ -535,15 +536,38 @@ export class AgentLoop {
   }
 
   /**
-   * Builds a lightweight fingerprint for loop detection.
-   * Uses toolName + sorted argument keys (not values) so that minor value
-   * tweaks (e.g. changing a query string) are still detected as repeats.
+   * Builds a fingerprint for loop detection: toolName + each argument's key
+   * paired with a normalized digest of its value.
+   *
+   * Key-only fingerprinting (the previous approach) collapses every call to
+   * a tool with a fixed argument shape — e.g. bash_command's single
+   * `command` field — into the same fingerprint regardless of what the
+   * command actually does, so 4 genuinely different investigative steps
+   * (list candidates, filter by keyword, fetch one result, ...) look
+   * identical to the detector and trip a false-positive abort.
+   *
+   * Values are normalized (case-folded, whitespace-collapsed) before
+   * hashing so trivial cosmetic edits — re-wording a query, re-indenting a
+   * script — still count as a repeat, while substantively different
+   * arguments produce a different fingerprint. Hashing (rather than
+   * embedding raw text) keeps fingerprints small and keeps full command
+   * bodies out of anything built from them.
    */
   private buildCallFingerprint(
     toolName: string,
     args: Record<string, unknown>,
   ): string {
-    const argKeys = Object.keys(args || {}).sort().join(',');
-    return `${toolName}:[${argKeys}]`;
+    const sortedKeys = Object.keys(args || {}).sort();
+    const parts = sortedKeys.map(
+      (key) => `${key}=${this.normalizeArgValue(args[key])}`,
+    );
+    return `${toolName}:[${parts.join(',')}]`;
+  }
+
+  private normalizeArgValue(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    const raw = typeof value === 'string' ? value : JSON.stringify(value);
+    const normalized = raw.toLowerCase().replace(/\s+/g, ' ').trim();
+    return createHash('sha1').update(normalized).digest('hex').slice(0, 16);
   }
 }
