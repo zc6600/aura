@@ -79,16 +79,6 @@ export class Client {
     this.adapter = this.buildAdapter(this.currentConfig);
   }
 
-  /** The provider actually in effect (after config/env auto-detection) — for status display. */
-  public get provider(): string {
-    return this.currentConfig.provider;
-  }
-
-  /** The model actually in effect (after the adapter's own default fill-in) — for status display. */
-  public get model(): string {
-    return this.adapter.model;
-  }
-
   /**
    * Instantiates a Client using values loaded from config objects and environment paths.
    */

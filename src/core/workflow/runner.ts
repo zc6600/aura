@@ -5,6 +5,8 @@ import yaml from 'yaml';
 import * as PathResolver from '../../utils/pathResolver.js';
 import { asRecord, errorMessage } from '../../utils/typing.js';
 import { AgentLoop } from '../kernel/agentLoop.js';
+import type { ToolResult } from '../kernel/interfaces.js';
+import { RalphLoop } from '../kernel/ralphLoop.js';
 import { ToolRegistry } from '../kernel/registry.js';
 import type { Runner } from '../kernel/runner.js';
 import { memorySessionExists, openMemorySession } from '../memory/session.js';
@@ -345,6 +347,100 @@ export async function runWorkflow(
   return agentLoop.run(goal, {
     max_steps: options.maxSteps || loaded.manifest.run.max_steps || 30,
   });
+}
+
+/**
+ * Pre-flight check run before an anchor_submit tool call actually executes:
+ * finds the workflow stage the submitted anchor belongs to (if any) and runs
+ * its guard check and Ralph verification. Returns a ToolResult to
+ * short-circuit the caller's runCall() on failure, or null to let execution
+ * proceed normally — no matching stage, or an unexpected error here, is
+ * treated as "nothing to verify" rather than blocking the call.
+ */
+export async function verifyAnchorSubmitStage(
+  runner: Runner,
+  args: Record<string, unknown>,
+): Promise<ToolResult | null> {
+  try {
+    const loaded = loadWorkflow(runner.projectPath);
+    const stage = loaded.manifest.stages?.find((s) => {
+      const aid = anchorId(runner.projectPath, s.anchor);
+      return aid === args.anchor_id || s.id === args.anchor_id;
+    });
+    if (!stage) return null;
+
+    if (stage.guard) {
+      if (stage.guard.tool === 'aura.csv.validate') {
+        const guardRes = runCsvValidate(
+          runner.projectPath,
+          stage.guard.args || {},
+        );
+        if (guardRes.status === 'failed') {
+          const problemsStr = guardRes.problems?.join(', ') || '';
+          const detail = guardRes.error || problemsStr;
+          return {
+            status: 'failed',
+            error: `Stage guard validation failed: ${detail}`,
+          };
+        }
+      } else {
+        return {
+          status: 'failed',
+          error: `Unsupported stage guard tool: ${stage.guard.tool}`,
+        };
+      }
+    }
+
+    if (stage.ralph) {
+      const previousAutoMode = runner.autoMode;
+      runner.toggleAuto(true);
+      try {
+        const ralphGoal = `Verify stage: ${stage.title || stage.id}`;
+        const ralphLoop = new RalphLoop(runner, ralphGoal, {
+          max_steps: stage.ralph.max_steps || 5,
+          verify_command: stage.ralph.verify_cmd,
+        });
+        const ralphRes = await ralphLoop.run();
+        if (ralphRes.status !== 'completed') {
+          return {
+            status: 'failed',
+            error: `Ralph verification failed for stage '${stage.id}': ${ralphRes.failure_reason || 'Check failed'}`,
+          };
+        }
+
+        if (ralphRes.result_path) {
+          recordRalphResultPath(runner.projectPath, ralphRes.result_path);
+        }
+      } finally {
+        runner.toggleAuto(previousAutoMode);
+      }
+    }
+
+    return null;
+  } catch (_e: unknown) {
+    return null;
+  }
+}
+
+function recordRalphResultPath(projectPath: string, resultPath: string): void {
+  const regDbPath = getRegistryDbPath(projectPath);
+  if (!fs.existsSync(regDbPath)) return;
+
+  let regDb: Database.Database | null = null;
+  try {
+    regDb = new Database(regDbPath);
+    const latestRow = regDb
+      .prepare('SELECT run_id FROM runs ORDER BY created_at DESC LIMIT 1')
+      .get() as { run_id: string } | undefined;
+    if (latestRow?.run_id) {
+      regDb
+        .prepare('UPDATE runs SET ralph_result_path = ? WHERE run_id = ?')
+        .run(resultPath, latestRow.run_id);
+    }
+  } catch {
+  } finally {
+    if (regDb) regDb.close();
+  }
 }
 
 function exists(root: string, relPath: string): boolean {

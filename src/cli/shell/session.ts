@@ -8,9 +8,7 @@ import {
 import type { ToolResult } from '../../core/kernel/interfaces.js';
 import { RalphLoop } from '../../core/kernel/ralphLoop.js';
 import { Runner } from '../../core/kernel/runner.js';
-import { LLMClient } from '../../core/llm/client.js';
 import * as Env from '../../core/llm/env.js';
-import type { LLMConfig } from '../../core/llm/types.js';
 import { SessionManager } from '../../core/memory/sessionManager.js';
 import type { DaemonClient } from '../../daemon/client.js';
 import { Dashboard } from '../commands/dashboard.js';
@@ -200,27 +198,36 @@ export class Session {
     }
 
     // LLM auto-configure defaults: silently pick whichever provider has a
-    // key available when config.yml doesn't name one, and whatever default
-    // model that provider's adapter falls back to. Delegates to the exact
-    // same resolution Client.fromConfig() uses for the actual call — reading
-    // it off a real Client instead of re-deriving it here means this display
-    // can't drift from what actually gets used.
+    // key available when config.yml doesn't name one. Kept in sync with the
+    // same detection Client.fromConfig() uses for the actual call, so the
+    // dashboard/status display shown here doesn't drift from reality.
     const llmConfig = (this.config.llm as Record<string, unknown>) || {};
-    const client = LLMClient.fromConfig(
-      llmConfig as LLMConfig,
-      this.projectPath,
-    );
-    const previousModel = llmConfig.model as string | undefined;
-
-    llmConfig.provider = client.provider;
-    llmConfig.model = client.model;
-    this.config.llm = llmConfig;
-
-    if (!previousModel && client.model && this.options.verbose) {
-      console.log(
-        picocolors.green(`ℹ️ Using default model: ${client.model}`),
-      );
+    let provider = llmConfig.provider as string;
+    if (!provider || provider.trim() === '' || provider === 'local') {
+      provider = Env.autoDetectProvider() || 'local';
     }
+
+    let model = llmConfig.model as string;
+    if (!model || model.trim() === '') {
+      if (provider === 'openrouter') {
+        model = 'openai/gpt-4o-mini';
+      } else if (provider === 'openai') {
+        model = 'gpt-4o-mini';
+      } else if (provider === 'anthropic') {
+        model = 'claude-3-5-haiku-latest';
+      } else if (provider === 'gemini') {
+        model = 'gemini-2.5-flash';
+      } else if (provider === 'deepseek') {
+        model = 'deepseek-chat';
+      }
+      if (model && this.options.verbose) {
+        console.log(picocolors.green(`ℹ️ Using default model: ${model}`));
+      }
+    }
+
+    llmConfig.provider = provider;
+    if (model) llmConfig.model = model;
+    this.config.llm = llmConfig;
 
     this.slashManager = new SlashCommandManager(
       this.projectPath,

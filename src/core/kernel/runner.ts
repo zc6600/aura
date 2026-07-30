@@ -1,7 +1,6 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
-import Database from 'better-sqlite3';
 import { loadTyped } from '../../utils/configManager.js';
 import type { AuraConfig } from '../../utils/configSchema.js';
 import * as PathResolver from '../../utils/pathResolver.js';
@@ -11,14 +10,13 @@ import type { ContextPayload } from '../context/payload.js';
 import { LSPManager } from '../ext/lsp/manager.js';
 import { MemoryBase } from '../memory/base.js';
 import { MemoryConfig } from '../memory/config.js';
-import { type LoadedWorkflow, loadWorkflow } from '../workflow/manifest.js';
+import type { LoadedWorkflow } from '../workflow/manifest.js';
 import {
-  anchorId,
-  getRegistryDbPath,
-  runCsvValidate,
   runWorkflow,
+  verifyAnchorSubmitStage,
   type WorkflowRunOptions,
 } from '../workflow/runner.js';
+import { SyncScanWatcher } from '../workspace/syncScanWatcher.js';
 import { KernelConfig } from './config.js';
 import { ExecutionEngine } from './executionEngine.js';
 import { Hooks } from './hooks.js';
@@ -34,7 +32,6 @@ import type {
 import { Job } from './job.js';
 import { Planner } from './planner.js';
 import { ProcessRuntime } from './processRuntime.js';
-import { RalphLoop } from './ralphLoop.js';
 import { ToolRegistry } from './registry.js';
 import { WorkspaceRuntime } from './workspaceRuntime.js';
 
@@ -55,39 +52,15 @@ export class Runner extends EventEmitter implements IRunner {
   private lastUserEventId: number | null = null;
   private _autoMode: boolean = false;
   /**
-   * Optional persistent watcher (only set by long-lived hosts like the
-   * Daemon). When present, file-change tracking is a cheap in-memory diff
-   * instead of a recursive filesystem scan — see trackFileModifications().
+   * File-change tracker for trackFileModifications(). Long-lived hosts like
+   * the Daemon inject a persistent WorkspaceWatcherService (cheap in-memory
+   * diff off real fs events); anyone who doesn't gets a SyncScanWatcher, which
+   * does a recursive mtime/size scan per call instead — same interface either
+   * way, so Runner never branches on which one it has.
    */
-  private watcher?: IWorkspaceWatcher;
+  private watcher: IWorkspaceWatcher;
   /** Optional abort signal set by the Daemon on socket disconnect. */
   public abortSignal: AbortSignal | null = null;
-
-  public static readonly IGNORED_SCAN_DIRS = [
-    '.git',
-    '.aura',
-    '.aura-workspace',
-    'node_modules',
-    '.bundle',
-    'vendor/bundle',
-    'tmp',
-    'log',
-    'coverage',
-    '.next',
-    '.nuxt',
-    'dist',
-    'build',
-    '__pycache__',
-    '.pytest_cache',
-    '.mypy_cache',
-    '.venv',
-    'venv',
-    'env',
-    '.cargo',
-    'target',
-    '.idea',
-    '.vscode',
-  ];
 
   constructor(
     projectPath: string,
@@ -125,7 +98,7 @@ export class Runner extends EventEmitter implements IRunner {
     this.planner =
       options.planner ||
       new Planner(this.projectPath, { envPath: this.envPath });
-    this.watcher = options.watcher;
+    this.watcher = options.watcher || new SyncScanWatcher(this.projectPath);
   }
 
   public getRegistry(): ToolRegistry {
@@ -309,86 +282,9 @@ export class Runner extends EventEmitter implements IRunner {
     let res: ToolResult = { status: 'ok' };
 
     if (tool === 'anchor_submit') {
-      try {
-        const loaded = loadWorkflow(this.projectPath);
-        const stage = loaded.manifest.stages?.find((s) => {
-          const aid = anchorId(this.projectPath, s.anchor);
-          return aid === args.anchor_id || s.id === args.anchor_id;
-        });
-
-        if (stage) {
-          // 1. Guard check
-          if (stage.guard) {
-            if (stage.guard.tool === 'aura.csv.validate') {
-              const guardRes = runCsvValidate(
-                this.projectPath,
-                stage.guard.args || {},
-              );
-              if (guardRes.status === 'failed') {
-                const problemsStr = guardRes.problems?.join(', ') || '';
-                const detail = guardRes.error || problemsStr;
-                return {
-                  status: 'failed',
-                  error: `Stage guard validation failed: ${detail}`,
-                };
-              }
-            } else {
-              return {
-                status: 'failed',
-                error: `Unsupported stage guard tool: ${stage.guard.tool}`,
-              };
-            }
-          }
-
-          // 2. Ralph verification
-          if (stage.ralph) {
-            const previousAutoMode = this.autoMode;
-            this.toggleAuto(true);
-            try {
-              const ralphGoal = `Verify stage: ${stage.title || stage.id}`;
-              const ralphLoop = new RalphLoop(this, ralphGoal, {
-                max_steps: stage.ralph.max_steps || 5,
-                verify_command: stage.ralph.verify_cmd,
-              });
-              const ralphRes = await ralphLoop.run();
-              if (ralphRes.status !== 'completed') {
-                return {
-                  status: 'failed',
-                  error: `Ralph verification failed for stage '${stage.id}': ${ralphRes.failure_reason || 'Check failed'}`,
-                };
-              }
-
-              if (ralphRes.result_path) {
-                const regDbPath = getRegistryDbPath(this.projectPath);
-                if (fs.existsSync(regDbPath)) {
-                  let regDb: Database.Database | null = null;
-                  try {
-                    regDb = new Database(regDbPath);
-                    const latestRow = regDb
-                      .prepare(
-                        'SELECT run_id FROM runs ORDER BY created_at DESC LIMIT 1',
-                      )
-                      .get() as { run_id: string } | undefined;
-                    if (latestRow?.run_id) {
-                      regDb
-                        .prepare(
-                          'UPDATE runs SET ralph_result_path = ? WHERE run_id = ?',
-                        )
-                        .run(ralphRes.result_path, latestRow.run_id);
-                    }
-                  } catch {
-                  } finally {
-                    if (regDb) regDb.close();
-                  }
-                }
-              }
-            } finally {
-              this.toggleAuto(previousAutoMode);
-            }
-          }
-        }
-      } catch (_e: unknown) {
-        // Fall through
+      const preflight = await verifyAnchorSubmitStage(this, args);
+      if (preflight) {
+        return preflight;
       }
     }
 
@@ -528,76 +424,8 @@ export class Runner extends EventEmitter implements IRunner {
   private async trackFileModifications(
     fn: () => Promise<void>,
   ): Promise<string[]> {
-    if (this.watcher) {
-      const snapshotId = this.watcher.markSnapshot();
-      await fn();
-      return this.watcher.getModifiedFilesSince(snapshotId);
-    }
-
-    const beforeState = this.getFileState();
+    const snapshotId = this.watcher.markSnapshot();
     await fn();
-    const afterState = this.getFileState();
-
-    const modified: string[] = [];
-    const _beforeKeys = Object.keys(beforeState);
-    const afterKeys = Object.keys(afterState);
-
-    // Added files
-    for (const key of afterKeys) {
-      if (!beforeState[key]) {
-        modified.push(key);
-      } else {
-        const b = beforeState[key];
-        const a = afterState[key];
-        if (b.mtime !== a.mtime || b.size !== a.size) {
-          modified.push(key);
-        }
-      }
-    }
-
-    return modified
-      .filter((f) => f.startsWith(this.projectPath))
-      .map((f) => path.relative(this.projectPath, f).replace(/\\/g, '/'));
-  }
-
-  private getFileState(): Record<string, { mtime: number; size: number }> {
-    const state: Record<string, { mtime: number; size: number }> = {};
-    const walk = (dir: string) => {
-      let children: string[] = [];
-      try {
-        children = fs.readdirSync(dir);
-      } catch (_e) {
-        return;
-      }
-      for (const name of children) {
-        const fullPath = path.join(dir, name);
-        try {
-          const stat = fs.statSync(fullPath);
-          const relative = path
-            .relative(this.projectPath, fullPath)
-            .replace(/\\/g, '/');
-
-          // Skip ignored directories
-          const isIgnored = Runner.IGNORED_SCAN_DIRS.some(
-            (d) =>
-              relative === d ||
-              relative.startsWith(`${d}/`) ||
-              relative.includes(`/${d}/`),
-          );
-          if (isIgnored) continue;
-
-          if (stat.isDirectory()) {
-            walk(fullPath);
-          } else if (stat.isFile()) {
-            state[fullPath] = {
-              mtime: Math.floor(stat.mtimeMs),
-              size: stat.size,
-            };
-          }
-        } catch (_e) {}
-      }
-    };
-    walk(this.projectPath);
-    return state;
+    return this.watcher.getModifiedFilesSince(snapshotId);
   }
 }

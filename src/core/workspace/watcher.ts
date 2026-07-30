@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { type FSWatcher, watch } from 'chokidar';
 import type { IWorkspaceWatcher } from '../kernel/interfaces.js';
-import { Runner } from '../kernel/runner.js';
+import { isIgnoredRelativePath } from './ignoredDirs.js';
 
 interface FileChangeEvent {
   id: number;
@@ -89,21 +89,15 @@ export class WorkspaceWatcherService implements IWorkspaceWatcher {
 
   /**
    * chokidar v4 dropped glob-string support for `ignored` — only a function,
-   * RegExp, or exact path is accepted — so this reimplements the same
-   * directory-name matching Runner's old sync scan used, rather than passing
+   * RegExp, or exact path is accepted — so this reuses the same
+   * directory-name matching the sync-scan fallback uses, rather than passing
    * '**\/node_modules/**'-style patterns that would silently match nothing.
    */
   private isIgnored(filePath: string): boolean {
     const relative = path
       .relative(this.projectPath, filePath)
       .replace(/\\/g, '/');
-    if (!relative || relative.startsWith('..')) return false;
-    return Runner.IGNORED_SCAN_DIRS.some(
-      (d) =>
-        relative === d ||
-        relative.startsWith(`${d}/`) ||
-        relative.includes(`/${d}/`),
-    );
+    return isIgnoredRelativePath(relative);
   }
 
   /** Evicts events older than the oldest snapshot still awaiting a diff. */

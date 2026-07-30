@@ -56,8 +56,7 @@ export interface CompletionResult {
 export abstract class BaseAdapter {
   protected apiBase: string;
   protected apiKey?: string;
-  /** Public so Client can surface the resolved value (post default fill-in) for status display. */
-  public model: string;
+  protected model: string;
 
   constructor(config: AdapterConfig) {
     this.apiBase = config.apiBase || '';

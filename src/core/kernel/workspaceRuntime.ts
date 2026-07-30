@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import * as PathResolver from '../../utils/pathResolver.js';
-import { Runner } from './runner.js';
+import { isIgnoredRelativePath } from '../workspace/ignoredDirs.js';
 
 interface FileNode {
   name: string;
@@ -53,13 +53,7 @@ export class WorkspaceRuntime {
           .relative(this.projectPath, fullPath)
           .replace(/\\/g, '/');
 
-        const isIgnored = Runner.IGNORED_SCAN_DIRS.some(
-          (d) =>
-            relPath === d ||
-            relPath.startsWith(`${d}/`) ||
-            relPath.includes(`/${d}/`),
-        );
-        if (isIgnored) continue;
+        if (isIgnoredRelativePath(relPath)) continue;
 
         try {
           const stat = fs.statSync(fullPath);
