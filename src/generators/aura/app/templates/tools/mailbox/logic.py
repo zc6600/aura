@@ -290,7 +290,7 @@ def mailbox_read(with_agent=None, limit=20):
 
     # No partner given: merge every thread my id is a party to.
     if not os.path.exists(mailbox_dir):
-        return {"status": "success", "messages": []}
+        return {"status": "success", "messages": [], "note": "Mailbox is empty. No new messages."}
 
     merged = []
     for fname in sorted(os.listdir(mailbox_dir)):
@@ -304,14 +304,18 @@ def mailbox_read(with_agent=None, limit=20):
     merged.sort(key=lambda m: m.get("at", ""))
     if limit:
         merged = merged[-limit:]
-    return {"status": "success", "messages": merged}
+        
+    res = {"status": "success", "messages": merged}
+    if not merged:
+        res["note"] = "Mailbox is empty. No new messages."
+    return res
 
 
 def mailbox_list():
     me = current_agent_id()
     mailbox_dir = resolve_bus_dir("mailbox")
     if not os.path.exists(mailbox_dir):
-        return {"status": "success", "threads": []}
+        return {"status": "success", "threads": [], "note": "No active mailbox threads found. Mailbox is empty."}
 
     partners = []
     for fname in sorted(os.listdir(mailbox_dir)):
@@ -322,7 +326,11 @@ def mailbox_list():
             continue
         other = [p for p in parties if p != me]
         partners.append(other[0] if other else me)
-    return {"status": "success", "threads": partners}
+        
+    res = {"status": "success", "threads": partners}
+    if not partners:
+        res["note"] = "No active mailbox threads found. Mailbox is empty."
+    return res
 
 
 def main():
