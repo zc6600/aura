@@ -178,7 +178,12 @@ export class AgentLoop {
         if (thought?.trim()) {
           this.eventBus.emit('thought', {
             content: thought,
-            streamed_live: plan.streamedLive,
+            // Only a genuine `text` plan's content is literally what streamed
+            // on screen. A `tool_call`-shaped plan's thought lives inside the
+            // same raw JSON blob that JSON-suppressing renderers (e.g. the
+            // CLI's ConsoleRenderer) hide during streaming — tokens arrived,
+            // but nothing was actually shown, so it must not be marked live.
+            streamed_live: plan.type === 'text' ? plan.streamedLive : false,
           });
         } else {
           this.eventBus.emit('no_response', {});
@@ -196,12 +201,17 @@ export class AgentLoop {
         continue;
       }
 
-      // Emit thought
+      // Emit thought. This always accompanies a tool_call plan (we only reach
+      // here once planTool is resolved), whose raw JSON — including its
+      // embedded `thought` field — is exactly what JSON-suppressing renderers
+      // hide during streaming. Tokens may have streamed, but that content was
+      // never actually shown, so it must fall through to the UI's non-live
+      // thought rendering rather than being skipped as a duplicate.
       const thought = plan.thought;
       if (thought?.trim()) {
         this.eventBus.emit('thought', {
           content: thought,
-          streamed_live: plan.streamedLive,
+          streamed_live: false,
         });
       }
 
