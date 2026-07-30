@@ -10,6 +10,11 @@
 - 【异步轮询】：使用 "async_mode": true 并行派发后，记录返回的 job_id，使用 {"action": "status", "job_id": "..."} 检查进度。
 - 【轨迹追溯】：子智能体执行失败时，可直接读取 state/subagents/{parent_id}/{child_id}/trajectory.txt 追溯原因。
 
+防偷懒与真实执行规范：
+- 【禁止 Python 脚本伪造】：Subagent 必须真刀真枪调用相关工具或推理，严禁使用 `bash_command` 写 `python3 -c "for day in range..."` 等脚本去批量 Mock/伪造假的输出文件。
+- 【禁止一次性跨大步口号包办】：对于长多阶段任务（如 14 天仿真），必须按步骤/天数真实迭代发派，不可一次性口号式包办后直接假装完成。
+- 【真实性校验】：主进程在收割结果时，需检查产出的真实性，拒绝接收用 Python 脚本批量刷出来的 Mock 结果。
+
 子智能体报错处理与诊断：
 - 【轨迹定位】：直接读取轨迹文件 `state/subagents/{parent_id}/{child_id}/trajectory.txt` 分析失败根源。
 - 【重编排】：主进程不直接下场调试，可派发 `persona: "diagnostician"` 的子智能体分析报错并产出修复 SOP。
