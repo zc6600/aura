@@ -108,3 +108,17 @@ def attach_ralph(run_id, result_path, db_path=DB_PATH):
     conn.commit()
     conn.close()
     return {"status": "ok", "run_id": run_id, "ralph_result_path": result_path}
+
+
+def attach_lb(run_id, public_score, private_score=None, kaggle_submission_id=None, lb_status="complete", db_path=DB_PATH):
+    conn = connect(db_path)
+    conn.execute(
+        """
+        UPDATE runs SET public_score = ?, private_score = ?, kaggle_submission_id = ?, lb_status = ?
+        WHERE run_id = ?
+        """,
+        (public_score, private_score, kaggle_submission_id, lb_status, run_id),
+    )
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "run_id": run_id, "public_score": public_score, "private_score": private_score}

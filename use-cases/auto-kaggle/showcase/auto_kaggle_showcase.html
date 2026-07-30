@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoKaggle — Real Titanic Validation Showcase (Aura OS)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --panel-bg: rgba(18, 26, 43, 0.7);
+      --border-color: rgba(94, 234, 212, 0.15);
+      --border-bright: rgba(94, 234, 212, 0.4);
+      --accent-teal: #14b8a6;
+      --accent-emerald: #10b981;
+      --accent-cyan: #06b6d4;
+      --accent-amber: #f59e0b;
+      --accent-red: #f87171;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      background-image:
+        radial-gradient(circle at 15% 15%, rgba(20, 184, 166, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.08) 0%, transparent 40%);
+      padding-bottom: 3rem;
+    }
+    header {
+      padding: 1.25rem 2rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      backdrop-filter: blur(12px);
+      background: rgba(9, 13, 22, 0.85);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand { display: flex; align-items: center; gap: 0.75rem; }
+    .logo-badge {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent-teal), var(--accent-cyan));
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1.1rem; color: #090d16;
+      box-shadow: 0 0 20px rgba(20, 184, 166, 0.4);
+    }
+    .brand-title { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+    .brand-sub { color: var(--accent-teal); font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .kpi-pills { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+    .kpi-pill {
+      font-size: 0.78rem; padding: 0.45rem 0.8rem; border-radius: 999px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border-color);
+      color: var(--text-muted);
+    }
+    .kpi-value { color: var(--text-main); font-weight: 700; margin-left: 0.3rem; }
+
+    main { max-width: 1180px; margin: 0 auto; padding: 1.75rem 2rem; }
+
+    .panel {
+      background: var(--panel-bg); border: 1px solid var(--border-color);
+      border-radius: 14px; padding: 1.4rem 1.6rem; margin-bottom: 1.6rem;
+    }
+    .panel-title {
+      font-size: 0.95rem; font-weight: 700; margin-bottom: 1rem;
+      display: flex; align-items: center; justify-content: space-between;
+      color: var(--text-main);
+    }
+    .panel-title .tag { font-size: 0.72rem; color: var(--accent-teal); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* chart */
+    #chart-wrap { width: 100%; overflow-x: auto; }
+    svg { display: block; }
+    .chart-grid-line { stroke: rgba(255,255,255,0.06); stroke-width: 1; }
+    .cv-line { fill: none; stroke: var(--accent-teal); stroke-width: 2.5; }
+    .cv-dot { fill: var(--accent-teal); stroke: #090d16; stroke-width: 2; }
+    .cv-dot.down { fill: var(--accent-red); }
+    .pub-dot { fill: var(--accent-amber); stroke: #090d16; stroke-width: 2; }
+    .chart-label { font-size: 11px; fill: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+    .chart-value-label { font-size: 11px; fill: var(--text-main); font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+    .legend { display: flex; gap: 1.2rem; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.6rem; flex-wrap: wrap; }
+    .legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 0.4rem; vertical-align: middle; }
+
+    /* round cards */
+    .round-grid { display: flex; flex-direction: column; gap: 0.9rem; }
+    .round-card {
+      background: rgba(255,255,255,0.02); border: 1px solid var(--border-color);
+      border-left: 3px solid var(--accent-teal); border-radius: 10px; padding: 1rem 1.2rem;
+    }
+    .round-card.regressed { border-left-color: var(--accent-red); }
+    .round-head {
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;
+    }
+    .round-name { font-weight: 700; font-size: 0.95rem; }
+    .round-hypothesis { color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem; line-height: 1.5; max-width: 640px; }
+    .round-scores { text-align: right; white-space: nowrap; }
+    .cv-score { font-family: 'JetBrains Mono', monospace; font-size: 1.15rem; font-weight: 700; color: var(--accent-teal); }
+    .cv-delta { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; margin-left: 0.4rem; }
+    .cv-delta.up { color: var(--accent-emerald); }
+    .cv-delta.down { color: var(--accent-red); }
+    .cv-delta.flat { color: var(--text-muted); }
+    .pub-score-tag {
+      display: inline-block; margin-top: 0.3rem; font-size: 0.72rem; padding: 0.15rem 0.5rem;
+      border-radius: 6px; background: rgba(245, 158, 11, 0.12); color: var(--accent-amber);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .round-note {
+      margin-top: 0.7rem; font-size: 0.8rem; color: var(--accent-amber); line-height: 1.5;
+      background: rgba(245, 158, 11, 0.07); border: 1px solid rgba(245, 158, 11, 0.2);
+      border-radius: 8px; padding: 0.55rem 0.8rem;
+    }
+    .round-note::before { content: "⚠ CV/LB divergence — "; font-weight: 700; }
+    .feature-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.7rem; }
+    .feature-chip {
+      font-size: 0.72rem; padding: 0.2rem 0.55rem; border-radius: 5px;
+      background: rgba(6, 182, 212, 0.1); color: var(--accent-cyan);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    pre.code-snippet {
+      margin-top: 0.7rem; font-family: 'JetBrains Mono', monospace; font-size: 0.76rem;
+      background: rgba(0,0,0,0.35); border: 1px solid var(--border-color); border-radius: 8px;
+      padding: 0.6rem 0.85rem; overflow-x: auto; color: #a5f3fc;
+    }
+
+    /* bug list */
+    .bug-list { list-style: none; display: flex; flex-direction: column; gap: 0.55rem; }
+    .bug-list li {
+      font-size: 0.85rem; color: var(--text-muted); padding-left: 1.4rem; position: relative; line-height: 1.5;
+    }
+    .bug-list li::before { content: "🐛"; position: absolute; left: 0; top: 0; }
+
+    footer { text-align: center; color: var(--text-muted); font-size: 0.78rem; padding: 1.5rem 0; }
+    a.src-link { color: var(--accent-cyan); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo-badge">AK</div>
+      <div>
+        <div class="brand-title">AUTOKAGGLE</div>
+        <div class="brand-sub">Real Kaggle Validation Run</div>
+      </div>
+    </div>
+    <div class="kpi-pills" id="kpi-pills">
+      <div class="kpi-pill">Loading…</div>
+    </div>
+  </header>
+
+  <main>
+    <div class="panel">
+      <div class="panel-title">
+        <span>Local CV vs. Real Kaggle Public Score</span>
+        <span class="tag" id="competition-tag">—</span>
+      </div>
+      <div id="chart-wrap"></div>
+      <div class="legend">
+        <span><span class="legend-dot" style="background:#14b8a6"></span>Local 5-fold CV (accuracy)</span>
+        <span><span class="legend-dot" style="background:#f87171"></span>CV regressed vs. previous round</span>
+        <span><span class="legend-dot" style="background:#f59e0b"></span>Real Kaggle public leaderboard score</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">
+        <span>Round-by-Round: Code, Method, Score</span>
+        <span class="tag" id="rounds-tag">—</span>
+      </div>
+      <div class="round-grid" id="round-grid"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title"><span>Bugs Found &amp; Fixed by Actually Running This</span></div>
+      <ul class="bug-list" id="bug-list"></ul>
+    </div>
+  </main>
+
+  <footer>
+    Data source: <a class="src-link" href="/api/autokaggle/history">/api/autokaggle/history</a>
+    · Full log: <span style="font-family:'JetBrains Mono',monospace">use-cases/auto-kaggle/VALIDATION_LOG.md</span>
+  </footer>
+
+  <script>
+    async function loadHistory() {
+      let data;
+      try {
+        const res = await fetch('/api/autokaggle/history');
+        data = await res.json();
+      } catch (e) {
+        document.getElementById('kpi-pills').innerHTML = '<div class="kpi-pill">Failed to load experiment_history.json</div>';
+        return;
+      }
+      render(data);
+    }
+
+    function render(data) {
+      const rounds = data.rounds || [];
+      const bestCv = Math.max(...rounds.map(r => r.cv_score));
+      const submitted = rounds.filter(r => r.public_score !== null && r.public_score !== undefined);
+      const bestPublic = submitted.length ? Math.max(...submitted.map(r => r.public_score)) : null;
+
+      document.getElementById('competition-tag').textContent = data.competition_title || data.competition || '';
+
+      document.getElementById('kpi-pills').innerHTML = `
+        <div class="kpi-pill">🏁 Competition: <span class="kpi-value">${data.competition_title}</span></div>
+        <div class="kpi-pill">🔁 Rounds: <span class="kpi-value">${rounds.length}</span></div>
+        <div class="kpi-pill">📈 Best Local CV: <span class="kpi-value">${bestCv.toFixed(4)}</span></div>
+        <div class="kpi-pill">🏆 Best Real Public Score: <span class="kpi-value">${bestPublic !== null ? bestPublic.toFixed(5) : 'pending'}</span></div>
+        <div class="kpi-pill">⚙️ Model: <span class="kpi-value">${data.model_family}</span></div>
+      `;
+
+      document.getElementById('rounds-tag').textContent = `${rounds.length} rounds · ${data.validation}`;
+
+      renderChart(rounds);
+      renderRounds(rounds);
+
+      const bugList = document.getElementById('bug-list');
+      bugList.innerHTML = (data.bugs_fixed_during_validation || []).map(b => `<li>${b}</li>`).join('');
+    }
+
+    function renderChart(rounds) {
+      const w = Math.max(640, rounds.length * 140);
+      const h = 220;
+      const padL = 50, padR = 30, padT = 20, padB = 34;
+      const plotW = w - padL - padR, plotH = h - padT - padB;
+
+      const cvVals = rounds.map(r => r.cv_score);
+      const pubVals = rounds.filter(r => r.public_score != null).map(r => r.public_score);
+      const allVals = cvVals.concat(pubVals);
+      const minV = Math.min(...allVals) - 0.03;
+      const maxV = Math.max(...allVals) + 0.03;
+
+      const x = i => padL + (rounds.length === 1 ? plotW / 2 : (i / (rounds.length - 1)) * plotW);
+      const y = v => padT + plotH - ((v - minV) / (maxV - minV)) * plotH;
+
+      let gridLines = '';
+      let gridLabels = '';
+      for (let g = 0; g <= 4; g++) {
+        const v = minV + (g / 4) * (maxV - minV);
+        const yy = y(v);
+        gridLines += `<line class="chart-grid-line" x1="${padL}" y1="${yy}" x2="${w - padR}" y2="${yy}" />`;
+        gridLabels += `<text class="chart-label" x="8" y="${yy + 4}">${v.toFixed(2)}</text>`;
+      }
+
+      let linePath = rounds.map((r, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(r.cv_score)}`).join(' ');
+
+      let dots = '';
+      let xLabels = '';
+      rounds.forEach((r, i) => {
+        const regressed = i > 0 && r.cv_score < rounds[i - 1].cv_score;
+        dots += `<circle class="cv-dot ${regressed ? 'down' : ''}" cx="${x(i)}" cy="${y(r.cv_score)}" r="5" />`;
+        dots += `<text class="chart-value-label" x="${x(i)}" y="${y(r.cv_score) - 12}" text-anchor="middle">${r.cv_score.toFixed(3)}</text>`;
+        if (r.public_score != null) {
+          dots += `<circle class="pub-dot" cx="${x(i)}" cy="${y(r.public_score)}" r="5" />`;
+          dots += `<text class="chart-value-label" x="${x(i)}" y="${y(r.public_score) + 18}" text-anchor="middle" style="fill:#f59e0b">${r.public_score.toFixed(5)}</text>`;
+        }
+        xLabels += `<text class="chart-label" x="${x(i)}" y="${h - 8}" text-anchor="middle">${r.label}</text>`;
+      });
+
+      document.getElementById('chart-wrap').innerHTML = `
+        <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+          ${gridLines}
+          ${gridLabels}
+          <path class="cv-line" d="${linePath}" />
+          ${dots}
+          ${xLabels}
+        </svg>
+      `;
+    }
+
+    function renderRounds(rounds) {
+      const grid = document.getElementById('round-grid');
+      grid.innerHTML = rounds.map((r, i) => {
+        const prev = i > 0 ? rounds[i - 1] : null;
+        let deltaHtml = '';
+        if (prev) {
+          const delta = r.cv_score - prev.cv_score;
+          const cls = delta > 0.0005 ? 'up' : (delta < -0.0005 ? 'down' : 'flat');
+          const sign = delta > 0 ? '+' : '';
+          deltaHtml = `<span class="cv-delta ${cls}">${sign}${delta.toFixed(4)} vs ${prev.label}</span>`;
+        }
+        const regressed = prev && r.cv_score < prev.cv_score - 0.0005;
+        const chips = (r.features || []).map(f => `<span class="feature-chip">${f}</span>`).join('');
+        const pubTag = r.public_score != null
+          ? `<div class="pub-score-tag">real public score: ${r.public_score.toFixed(5)}${r.kaggle_submission_id ? ' · id ' + r.kaggle_submission_id : ''}</div>`
+          : (r.final_submission_pending ? `<div class="pub-score-tag" style="opacity:0.6">real submission pending…</div>` : '');
+        return `
+          <div class="round-card ${regressed ? 'regressed' : ''}">
+            <div class="round-head">
+              <div>
+                <div class="round-name">${r.label} — ${r.run_id}</div>
+                <div class="round-hypothesis">${r.hypothesis}</div>
+              </div>
+              <div class="round-scores">
+                <span class="cv-score">${r.cv_score.toFixed(4)}</span>${deltaHtml}
+                ${pubTag}
+              </div>
+            </div>
+            <div class="feature-chips">${chips}</div>
+            <pre class="code-snippet">${r.cli}
+lr=${r.params.lr}  epochs=${r.params.epochs}  l2=${r.params.l2}  n_splits=${r.params.n_splits}</pre>
+            ${r.note ? `<div class="round-note">${r.note}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    loadHistory();
+  </script>
+</body>
+</html>

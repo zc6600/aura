@@ -291,7 +291,8 @@ export class WebServer {
           } else if (pathname === '/tinyville') {
             const tinyvillePaths = [
               path.join(process.cwd(), 'use-cases', 'smallville-town', 'tinyville_usecase.html'),
-              path.join(process.cwd(), 'aura_test', 'smallville', 'tinyville_usecase.html')
+              path.join(process.cwd(), 'aura_test', 'smallville', 'tinyville_usecase.html'),
+              path.join(packageRoot, 'use-cases', 'smallville-town', 'tinyville_usecase.html')
             ];
             for (const p of tinyvillePaths) {
               if (fs.existsSync(p)) {
@@ -300,6 +301,32 @@ export class WebServer {
                 return;
               }
             }
+          } else if (pathname === '/autokaggle') {
+            const autokagglePaths = [
+              path.join(process.cwd(), 'use-cases', 'auto-kaggle', 'showcase', 'auto_kaggle_showcase.html'),
+              path.join(packageRoot, 'use-cases', 'auto-kaggle', 'showcase', 'auto_kaggle_showcase.html')
+            ];
+            for (const p of autokagglePaths) {
+              if (fs.existsSync(p)) {
+                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+                res.end(fs.readFileSync(p, 'utf-8'));
+                return;
+              }
+            }
+          } else if (pathname === '/api/autokaggle/history') {
+            const historyPaths = [
+              path.join(process.cwd(), 'use-cases', 'auto-kaggle', 'showcase', 'state', 'experiment_history.json'),
+              path.join(packageRoot, 'use-cases', 'auto-kaggle', 'showcase', 'state', 'experiment_history.json')
+            ];
+            let historyContent = '{}';
+            for (const hp of historyPaths) {
+              if (fs.existsSync(hp)) {
+                historyContent = fs.readFileSync(hp, 'utf-8');
+                break;
+              }
+            }
+            res.writeHead(200, jsonHeaders);
+            res.end(historyContent);
           } else if (pathname === '/api/tinyville/logs') {
             const logPaths = [
               path.join(process.cwd(), 'use-cases', 'smallville-town', 'state', 'rich_emergence_simulation.log'),
