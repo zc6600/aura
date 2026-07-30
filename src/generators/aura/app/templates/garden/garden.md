@@ -23,11 +23,11 @@ Aura OS is an AI-native operating system that treats the filesystem as an agent'
 
 Aura provides several native mechanisms to construct dynamic execution constraints, guide agent reasoning, and set up task-specific scaffolding:
 
-1. **Modular Prompts & Persona Customization (提示词与角色定制)**
+1. **Modular Prompts & Persona Customization**
     - Modular prompt files are loaded from a priority-ordered set of candidate paths. The recommended location for new workspaces is `prompts/system/<FILE>` (e.g. `prompts/system/SOUL.md`), which mirrors the generated template structure. The `.aura-workspace/prompts/system/<FILE>` path (or `.aura/prompts/system/<FILE>` fallback) is also supported as an alternative.
    - Supported named files: `SOUL.md` (persona & tone boundaries), `AGENTS.md` (operating instructions & safety rules), `USER.md` (user profile preferences), `TOOLS.md` (tool usage tips), `IDENTITY.md` (agent name & self-concept), `MEMORY.md` (curated long-term memory).
 
-2. **Task Nodes & Anchors (任务锚点图)**
+2. **Task Nodes & Anchors**
    - **`anchors/` Directory**: JSON/YAML files containing step-by-step task nodes with trigger conditions (`call_when`). Each file must include an `id` field and a `call_when` array. Only the first element of `call_when` is shown in the injected context label.
    - Combined with the current high-level `plan` stored in SQLite, they form a stateful progress checklist injected into the agent's context to prevent loop drift.
    - **Anchor format example**:
@@ -35,21 +35,21 @@ Aura provides several native mechanisms to construct dynamic execution constrain
      { "id": "01_baseline_verified", "call_when": ["Baseline benchmark has been run and metrics recorded in task.md"] }
      ```
 
- 3. **Workspace Hints & Local Guidance (局部提示与双通道引导)**
+ 3. **Workspace Hints & Local Guidance**
    - **`@aura-hint:` comment tags**: Scanned in text files (`.py`, `.rb`, `.sh`, `.md`, `.txt`) up to depth 5 in the workspace (skipping hidden directories like `.git`, and common output dirs like `node_modules`, `vendor`, `state`, `build`). Any comment matching `@aura-hint:` in the **first `hints.max_scan_lines` lines** of a file (default: **2000**) is extracted and injected as an active, top-level constraint. **Each hint is capped at `hints.max_hint_chars` characters (default: 1000)**; longer hints are truncated.
    - **Companion `.hint` files**: For files inside `knowledge/`, create a companion `<filename>.hint` file (e.g. `knowledge/paper.pdf.hint`) listing key context. The hint content is appended in the compiled index (e.g. `- paper.pdf (Context: ...)`), allowing the agent to understand document contents without loading large files. **Content is capped at `hints.max_file_chars` characters (default: 10,000)**. For files outside `knowledge/` (e.g. `lib/core/parser.rb.hint`), creating a companion `.hint` file allows adding hints for large or code files without cluttering the source code with comment tags. The system scans the entire workspace for these `.hint` files and loads their entire contents as top-level active constraints, subject to the standard `hints.max_hint_chars` limit (default: 1000).
 
-4. **Subagent Spawning & Multi-Agent Collaboration (子智能体派生与多智能体协作)**
+4. **Subagent Spawning & Multi-Agent Collaboration**
    - **`subagent` Tool**: Spawns independent subagent processes with isolated state, targeted goals, and specific personas (e.g. `architect`, `reviewer`, `coder` instructions loaded from `state/personas/{persona}.json`). Supports **synchronous** and **asynchronous** (`async_mode: true`) modes; async mode returns a `job_id` for polling status later.
    - **Persona format**: Create `state/personas/<name>.json` with an `instructions` key. Example:
      ```json
      { "instructions": "You are a strict code auditor. Focus only on real bugs and security issues. Do not report style preferences." }
      ```
    - **Process & Depth Isolation**: Prevents execution overflow using environment-variable depth tracking (`AURA_SUBAGENT_DEPTH`). The default max recursion depth is 3 (configurable via `AURA_SUBAGENT_MAX_DEPTH`).
-   - **Shared Blackboard Bus (共享数据黑板)**: A key-value bus via the `blackboard` tool (actions: `read`, `write`, `lock`, `release`, `list`, `delete`), allowing parallel subagents to pass structured data without polluting the main agent's prompt context. Keys are stored in `state/bus/`. ⚠️ **Session isolation**: blackboard keys are namespaced by the active session name (`AURA_SESSION_NAME`). Ensure all agents share the same session when reading/writing shared keys.
+   - **Shared Blackboard Bus**: A key-value bus via the `blackboard` tool (actions: `read`, `write`, `lock`, `release`, `list`, `delete`), allowing parallel subagents to pass structured data without polluting the main agent's prompt context. Keys are stored in `state/bus/`. ⚠️ **Session isolation**: blackboard keys are namespaced by the active session name (`AURA_SESSION_NAME`). Ensure all agents share the same session when reading/writing shared keys.
    - **Execution & Trace Logs**: Exports execution trajectories to `state/subagents/{parent_id}/{child_id}/trajectory.txt` for tracing and auditing.
 
-5. **Autonomous Loop Controls (Ralph Loop 双智能体循环控制)**
+5. **Autonomous Loop Controls (Ralph Loop)**
    - **`ralph` Loop Mode**: Starts a stateful, iterative developer-critic loop running up to `max_steps`. Each step runs in an isolated SQLite session, dynamically swapping database connections to prevent context and memory bloat.
    - **Verification Modes**:
      - *Physical command*: Set `ralph.verify_command` in `.aura-workspace/config/config.yml` (or `.aura/config/config.yml` fallback) to a shell command (e.g. `bundle exec rspec`). The loop passes only when this command exits with code 0.
@@ -61,7 +61,7 @@ Aura provides several native mechanisms to construct dynamic execution constrain
        - **Use Ralph Loop** when the task is highly iterative, algorithmic, or error-prone (e.g. fixing test failures, optimizing performance hotspots, refactoring core interfaces) and has a clear, automated test or verification command (e.g. `rake test`, `pytest`, a custom script) to run after every change.
        - **Use Direct Execution** (running directly in the main agent workspace or spawning one-off subagents) when the task is exploratory, documentation-based, requires user feedback, or does not have a reliable programmatic verification script.
 
-6. **Shadow Backups & Git Snapshots (系统快照与变更恢复)**
+6. **Shadow Backups & Git Snapshots**
    - **Shadow Backup**: Background system that records file modifications, additions, and deletions after each tool call to track exact filesystem state transitions.
    - **Git Snapshots**: Auto-commits changes to local git version control upon successful tool runs when `security.git_snapshots` is enabled, establishing recovery points.
 

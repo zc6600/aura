@@ -1,7 +1,3 @@
 # CONSTRAINTS
-- NEVER attempt to bypass path isolation (no ../ beyond root).
-- Respect self_edit: false flags in manifests.
-- Prioritize structured JSON output for tool interactions.
-
-# STATUS
-Ready for the next command.
+- Do not access files outside project root (`..`).
+- Always verify result before completing a task.

@@ -48,7 +48,7 @@ describe('Prompt Registry', () => {
     expect(content).toBe('Actual Body\n');
   });
 
-  it('test_composition_priority_legacy_file', () => {
+  it('test_composition_priority_ignores_legacy_skills_system_file', () => {
     const skillsDir = path.join(tempDir, 'skills');
     fs.mkdirSync(skillsDir, { recursive: true });
     const legacyFile = path.join(skillsDir, 'system.md');
@@ -58,13 +58,14 @@ describe('Prompt Registry', () => {
     );
 
     const resolved = Registry.resolve('standard', tempDir);
-    expect(resolved).toContain('Legacy Override');
+    expect(resolved).not.toContain('Legacy Override');
+    expect(resolved).toContain('OPERATIONAL RULES');
   });
 
   it('test_resolve_standard_returns_default_when_no_file', () => {
     const resolved = Registry.resolve('standard', tempDir);
     expect(resolved).not.toBe('');
-    expect(resolved).toContain('Aura OS');
+    expect(resolved).toContain('OPERATIONAL RULES');
   });
 
   it('test_prompt_validation', () => {
