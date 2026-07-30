@@ -306,12 +306,18 @@ export class WebServer {
               res.writeHead(404, jsonHeaders);
               res.end(JSON.stringify({ status: "error", message: "Simulation script not found." }));
             }
-          } else if (pathname === '/state/town_interaction_network.png') {
-            const imgPath = path.join(process.cwd(), 'aura_test', 'smallville', 'state', 'town_interaction_network.png');
-            if (fs.existsSync(imgPath)) {
-              res.writeHead(200, { 'Content-Type': 'image/png' });
-              res.end(fs.readFileSync(imgPath));
-              return;
+          } else if (pathname === '/state/town_interaction_network.png' || pathname === '/town_interaction_network.png') {
+            const possiblePaths = [
+              path.join(process.cwd(), 'aura_test', 'smallville', 'state', 'town_interaction_network.png'),
+              path.join(process.cwd(), 'state', 'town_interaction_network.png'),
+              '/Users/frank/Desktop/project/Towards AGI/aura/aura_test/smallville/state/town_interaction_network.png'
+            ];
+            for (const p of possiblePaths) {
+              if (fs.existsSync(p)) {
+                res.writeHead(200, { 'Content-Type': 'image/png' });
+                res.end(fs.readFileSync(p));
+                return;
+              }
             }
           } else if (pathname === '/api/tinyville/render-graph' && req.method === 'POST') {
             const scriptPath = path.join(process.cwd(), 'aura_test', 'smallville', 'visualize_town_graph.py');

@@ -158,7 +158,7 @@
             <button class="badge-teal-btn" onclick="regenerateGraphImage()">🎨 Re-Draw Graph</button>
           </div>
           <div class="graph-image-container">
-            <img src="/state/town_interaction_network.png" id="graph-img" alt="Smallville Interaction Network Graph" style="width:100%; border-radius:10px; border:1px solid var(--border-color);" />
+            <img src="/town_interaction_network.png" id="graph-img" alt="Smallville Interaction Network Graph" style="width:100%; border-radius:10px; border:1px solid var(--border-color); display:block;" onerror="if(!this.dataset.tried){this.dataset.tried=1;this.src='/state/town_interaction_network.png';}" />
           </div>
           <div class="social-links-list" style="margin-top: 1rem;">
             <div class="social-link-item" onclick="inspectThread('maria_klaus')">
