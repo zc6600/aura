@@ -450,12 +450,12 @@ class DaemonCommand extends BaseCommand {
 }
 
 class WebCommand extends BaseCommand {
-  static paths = [['web']];
+  static paths = [['web'], ['dashboard']];
   static usage = Command.Usage({
-    description: 'Start the Aura web interface server',
+    description: 'Start the Aura web interface & developer dashboard server',
     examples: [
       ['Start on default port 9299', 'aura web'],
-      ['Start on custom port', 'aura web -p 8080'],
+      ['Start dashboard on custom port', 'aura dashboard -p 7788'],
       ['Bind to all interfaces', 'aura web --host 0.0.0.0'],
     ],
   });
