@@ -356,7 +356,7 @@ security:
 ### What happens when a command is blocked
 
 * **First few attempts** at an out-of-sandbox path return a recoverable error to the agent (`status: blocked`) — the agent is told the path was denied and encouraged to try another approach. This does not stop the run.
-* **Repeated attempts at the same path** (default: 3 in a row, `security.sandbox.unattended_retry_threshold`) are treated as a real blocker a human needs to resolve, not something the agent can route around. The run stops (`status: sandbox_locked`), and for `aura kernel loop` a checkpoint is saved so the run can continue once fixed.
+* **Repeated attempts at the same path** (default: 3 in a row, `security.sandbox.unattended_retry_threshold`) are treated as a real blocker a human needs to resolve, not something the agent can route around. The run stops (`status: sandbox_locked`) and a checkpoint is saved so the run can continue once fixed.
 
 The stopped run prints exactly what to do:
 
@@ -380,7 +380,11 @@ After adding the path to `allow_paths`, resume with:
 aura kernel loop --resume
 ```
 
-This continues the same goal from where it stopped, rather than starting over. `aura kernel ralph` and `aura kernel workflow` report the same `sandbox_locked` failure and guidance, but do not yet support `--resume` — rerun the command after updating the config.
+This continues the same goal from where it stopped, rather than starting over — the step count and error budgets are restored too, so a resumed run cannot silently start over with fresh retries. Note that the sandbox retry counter itself is in-memory and does reset, so a resumed run gets a fresh 3-attempt budget for the same path.
+
+The checkpoint uses the same mechanism as a user-initiated suspend (`Ctrl+C` in `aura agent`, then `/resume`) — see [Suspend and Resume](../reference/kernel.md#suspend-and-resume). It is stored per session, so resume from the session that hit the guard.
+
+`aura kernel ralph` and `aura kernel workflow` report the same `sandbox_locked` failure and guidance, but do not support `--resume` — rerun the command after updating the config.
 
 ### Disabling the guard
 

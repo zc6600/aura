@@ -18,8 +18,35 @@ The unified central orchestrator for the agent's goal execution.
 - **Planner Execution**: Calls the LLM planner, handles plain text or raw string responses, extracting the final answer directly upon natural stops (finish_reason: 'stop') rather than wrapping them as tool calls.
 - **Robust Error Tolerance**: Retries malformed JSON responses up to 5 times (configurable via `system.max_format_errors`) and handles blocked tools (up to 3 times, configurable via `system.max_tool_errors`) with feedback injections so the agent can self-correct
 - **Exception Boundary**: Catches and standardizes execution errors into standard JavaScript Error instances, and wraps tool execution subprocess crashes into structured `ToolResult` failure objects to prevent the entire runner daemon from terminating.
+- **Suspend & Resume**: Polls an optional `pauseSignal` at each iteration boundary and can park a run into a resumable `LoopCheckpoint` (see below).
 
 **Usage**: AgentLoop wraps Runner for complex goal-based execution. For simpler interactions, Runner can be used directly.
+
+#### Suspend and Resume
+
+Implemented by `LoopCheckpoint` in `src/core/kernel/checkpoint.ts`. A run can be parked and continued later instead of only being killed. `AgentLoopResult.status` therefore has three values: `completed`, `failed`, and `suspended`.
+
+**Where a run parks.** The pause check sits at the top of the loop iteration, next to the max-steps check — after the previous step finished observing and before the next planner call. Consequences worth knowing:
+
+- Pausing is **not** immediate: the in-flight LLM call and tool run to completion first, and the finished step is recorded before parking. A pause during a long `bash_command` only takes effect when that command returns.
+- Nothing mid-execution is ever serialized, so there is no "half-finished tool" state to restore.
+
+**What the checkpoint carries.** `{ version, goal, ctx, stepCount, steps, formatErrors, toolErrors, reason, blockedPath?, sessionName, createdAt }` — plain JSON, written atomically to `<env>/state/kernel_checkpoints/<session>.json`. One slot per session: resuming means "continue what this session was doing", so a new run in the same session replaces the previous snapshot.
+
+Restoring `steps` and the two error counters matters — without them a resumed run would silently start over with a fresh format/tool error budget and lose its step history. The restored `stepCount` also counts against `max_steps`, so resuming cannot buy extra steps.
+
+**What is rebuilt rather than restored.** The engine, LSP/MCP managers, and session DB handle are recreated on resume; durable conversational memory lives in the session SQLite DB. Two deliberate gaps: `ExecutionEngine`'s in-memory `sandboxPathAttempts` counter resets, so a resumed run gets a fresh retry budget, and any PTY processes are gone.
+
+**Two triggers**, both producing the same checkpoint shape via `reason`:
+
+| `reason` | Trigger |
+|---|---|
+| `user_paused` | The user asked to stop (`agent/pause`, or Ctrl+C in the shell) |
+| `sandbox_path_blocked` | The sandbox path guard escalated after repeated attempts |
+
+On resume the context is prefixed with a `[RESUMED]` banner that tells the model it was interrupted and that files may have changed while it was parked — re-checking is safer than assuming the snapshot still holds.
+
+**Not supported yet:** Ralph mode. It deletes its per-step session DBs in teardown (`cleanTemporarySessionFiles`), so there is nothing to resume; `agent/pause` rejects a Ralph job with an explanation rather than silently doing nothing.
 
 ### 2. The Ralph Loop (`RalphLoop` in `src/core/kernel/ralphLoop.ts`)
 

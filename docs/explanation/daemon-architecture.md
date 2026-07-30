@@ -140,7 +140,38 @@ Starts executing a plan/goal.
 }
 ```
 
-### 3) Streamed Notification: `agent/onProgress`
+The result carries `status: "completed" | "failed" | "suspended"`. A suspended run also returns `stepCount`, `goal`, and `resumable: true`.
+
+To continue a suspended run, send `runGoal` with `resume: true` and no `goal` — the goal is read back off the checkpoint, so the client does not have to remember it:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "agent/runGoal",
+  "params": { "resume": true, "mode": "classic" }
+}
+```
+This fails with `-32602` if the session has no suspended run.
+
+### 3) Request: `agent/pause`
+
+Asks the running loop to park itself at its next step boundary and write a resumable checkpoint. Takes no params.
+
+```json
+{ "jsonrpc": "2.0", "id": 4, "method": "agent/pause" }
+```
+Replies `{ "pausing": true }`. This is distinct from abort-on-disconnect: aborting unwinds and discards the run, whereas pausing lets the current step finish and preserves the state.
+
+**Sent on the same connection as the in-flight `runGoal`.** No second socket is needed — the daemon's per-connection reader dispatches every line independently, so a request can arrive while another is still pending. This matters because the interactive shell has no other channel available while a goal is running.
+
+Rejected with `-32603` when:
+- no goal loop is running;
+- the caller is not the client that started the job (mirrors the identity check on disconnect-abort, so an observer cannot suspend someone else's run);
+- the running job is Ralph mode, which has no resumable state.
+
+A suspended job releases the daemon: `activeLoopJob` returns to `idle` and the idle-shutdown timer re-arms. Because the checkpoint is on disk, the daemon may exit during a pause and a later `resume` still works.
+
+### 4) Streamed Notification: `agent/onProgress`
 Emitted by the server during task execution. Can stream thoughts, tokens, tool status, warnings, and results.
 ```json
 {

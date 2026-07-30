@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Suspend and resume for agent runs. `Ctrl+C` in `aura agent` now parks the run at
+  the next step boundary instead of killing it, and `/resume` continues it without
+  re-stating the goal. State is written to a per-session `LoopCheckpoint` under
+  `<env>/state/kernel_checkpoints/`, so a parked run survives quitting the shell and
+  the daemon idling out. Not supported in Ralph mode.
+- `agent/pause` daemon RPC, accepted on the same connection as the in-flight
+  `agent/runGoal`. Only the client that started the job may pause it. `agent/runGoal`
+  gained a `resume` parameter and a `suspended` result status.
 - CI/CD pipeline with test matrix (Ruby 3.0-3.3)
 - Code coverage tracking with SimpleCov
 - RuboCop linting (non-blocking)
@@ -15,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CHANGELOG.md with automated release notes generation
 
 ### Changed
+- The sandbox path guard's checkpoint is now the shared suspend/resume mechanism
+  rather than a `kernel loop`-only special case. Resuming restores the step count,
+  step history, and format/tool error budgets, so a resumed run no longer silently
+  starts over with fresh retries.
 - Updated RuboCop configuration to use current parameter names
 - Improved CI artifact retention policies
 

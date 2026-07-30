@@ -417,6 +417,26 @@ aura agent "Find the count of files in the current folder"
 - `--max-steps <num>` - Maximum steps limit for loops
 - `--no-daemon` - Run the agent locally in the current process rather than routing execution through the background daemon
 
+**Suspending and resuming a run:**
+
+While the agent is working, press `Ctrl+C` once to suspend it instead of killing it:
+
+```
+⏸  Suspending after the current step finishes… (Ctrl+C again to force quit)
+⏸  Suspended after 3 step(s). Type /resume to continue.
+```
+
+The pause takes effect at the next step boundary, so the in-flight tool call finishes first — a long-running command can delay it. Press `Ctrl+C` a second time to force quit and discard the run.
+
+`/resume` continues from the saved step count without re-stating the goal. The checkpoint is stored per session under `<env>/state/kernel_checkpoints/<session>.json`, so it survives quitting the shell and the daemon idling out — reopening `aura agent` in that session reports the parked run:
+
+```
+⏸  Suspended run in this session (3 step(s), 2026-07-30T01:12:44.021Z): refactor the parser
+   Type /resume to continue.
+```
+
+Because files may have changed while a run was parked, the resumed agent is explicitly told it was interrupted and asked to re-verify state rather than assume its old snapshot still holds. Ralph mode (`--mode ralph`) cannot be suspended; `Ctrl+C` there reports that and leaves the abort path unchanged.
+
 #### `aura chat`
 
 Directly query the active LLM from any workspace without agent wrappers. Supports conversation memory.
@@ -574,8 +594,9 @@ aura kernel once . --call '{"tool":"read_file","args":{"file_path":"README.md"}}
 # Run the planner-executor loop
 aura kernel loop . --goal "Fix all TODO comments" --max-steps 10 --human
 
-# Resume a loop that stopped because a command needed a path outside the
-# sandbox (see "Sandbox Path Guard" in the configuration how-to guide)
+# Resume this session's suspended run — one stopped by the sandbox path guard
+# (see "Sandbox Path Guard" in the configuration how-to guide), or one you
+# suspended with Ctrl+C in `aura agent`
 aura kernel loop . --resume
 
 # Run a declared workflow contract through the kernel
@@ -606,7 +627,7 @@ aura kernel ralph . --goal "Fix failing tests" --verify "npm test" --max-steps 5
 - `plan [projectPath]` - Produce the next planned step; supports `--goal`, `--human`, and `--preview-lines`.
 - `run_call <tool> <args_json> [projectPath]` - Execute one tool call; supports `--pretty`.
 - `once [projectPath]` - Run one kernel pass; supports `--call`, `--input`, `--ask`, `--human`, `--verbose`, and `--preview-lines`.
-- `loop [projectPath]` - Run an autonomous planner-executor loop; supports `--goal`, `--human`, `--verbose`, `--max-steps`, and `--resume` (continue a run that stopped on the sandbox path guard — see [Sandbox Path Guard](../how-to/configure-aura.md#sandbox-path-guard)).
+- `loop [projectPath]` - Run an autonomous planner-executor loop; supports `--goal`, `--human`, `--verbose`, `--max-steps`, and `--resume` (continue this session's suspended run — either one stopped by the [Sandbox Path Guard](../how-to/configure-aura.md#sandbox-path-guard) or one you suspended from `aura agent`; the goal, step count, and error budgets are restored from the checkpoint, so `--goal` is not needed).
 - `workflow [name] [projectPath]` - Load `workflow.yml` or `workflows/<name>.yml`, validate it, compile its declared goal, and execute it through the kernel agent loop.
 - `ralph [projectPath]` - Run `RalphLoop` without the daemon or agent session UI; supports `--goal`, `--verify`, `--critic`, `--critic-mode`, and `--max-steps`.
 
