@@ -3,38 +3,171 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aura OS - Developer Console</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <title>Aura OS — AI Agent Showcase & Developer Console</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <svg class="svg-defs">
-    <defs>
-      <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#0d9488" />
-        <stop offset="100%" stop-color="#5eead4" />
-      </linearGradient>
-    </defs>
-  </svg>
-
+  <!-- Header -->
   <header>
     <div class="header-logo">
-      <svg class="logo-icon" viewBox="0 0 24 24">
-        <path d="M12 2L2 22h20L12 2zm0 3.99L19.53 19H4.47L12 5.99zM11 16h2v2h-2v-2zm0-6h2v4h-2v-4z" />
-      </svg>
-      <span>AURA OS</span>
+      <div class="brand-icon">A</div>
+      <div class="brand-text">
+        <span class="brand-title">AURA OS</span>
+        <span class="brand-sub">Showcase & Control Center</span>
+      </div>
     </div>
-    <div class="connection-status">
-      <span class="status-indicator-dot disconnected" id="connection-dot"></span>
-      <span id="connection-text">Connecting...</span>
-    </div>
-    <div class="project-badge">
-      <div class="pulse-dot"></div>
-      <span>Workspace: <strong id="workspace-name">-</strong></span>
+
+    <!-- Main Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" id="tab-tinyville" onclick="switchNavTab('tinyville')">
+        🎪 Tinyville 25-Agent Showcase
+      </button>
+      <button class="nav-tab" id="tab-console" onclick="switchNavTab('console')">
+        💻 Developer Live Console
+      </button>
+    </nav>
+
+    <div class="header-actions">
+      <div class="connection-status">
+        <span class="status-indicator-dot disconnected" id="connection-dot"></span>
+        <span id="connection-text">Connecting...</span>
+      </div>
+      <div class="project-badge">
+        <div class="pulse-dot"></div>
+        <span>Workspace: <strong id="workspace-name">smallville</strong></span>
+      </div>
     </div>
   </header>
 
-  <div class="dashboard-body">
+  <!-- Section 1: Tinyville Showcase Theater (Active View) -->
+  <main id="view-tinyville" class="showcase-container">
+    <div class="showcase-banner">
+      <div class="banner-title-area">
+        <h1>🏘️ Tinyville 25-Agent Simulation Showcase</h1>
+        <p>Exact Stanford Generative Agents Replication with Physical Subagent DB Isolation & Zero-Prompt-Leakage Town Host Orchestration.</p>
+      </div>
+      <div class="showcase-stats">
+        <div class="stat-pill"><span class="stat-num">25</span> Agents</div>
+        <div class="stat-pill"><span class="stat-num">100%</span> Emergent</div>
+        <div class="stat-pill"><span class="stat-num">0.99<sup>Δt</sup></span> Recency</div>
+      </div>
+    </div>
+
+    <!-- Interactive Grid -->
+    <div class="showcase-grid">
+      <!-- Left: Map & Residents -->
+      <aside class="showcase-sidebar">
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>Town Locations</span>
+            <span class="badge-teal">5 Hubs</span>
+          </div>
+          <div class="location-list">
+            <div class="location-box active" onclick="filterByLocation('Hobbs Cafe')">
+              <span class="loc-icon">☕</span>
+              <div>
+                <div class="loc-title">Hobbs Cafe</div>
+                <div class="loc-desc">Isabella, Maria, Eddy</div>
+              </div>
+            </div>
+            <div class="location-box" onclick="filterByLocation('Willows Market')">
+              <span class="loc-icon">🏪</span>
+              <div>
+                <div class="loc-title">Willows Market</div>
+                <div class="loc-desc">Tom, John Lin</div>
+              </div>
+            </div>
+            <div class="location-box" onclick="filterByLocation('Library')">
+              <span class="loc-icon">📚</span>
+              <div>
+                <div class="loc-title">Smallville Library</div>
+                <div class="loc-desc">Klaus, Ayesha</div>
+              </div>
+            </div>
+            <div class="location-box" onclick="filterByLocation('Park')">
+              <span class="loc-icon">🌳</span>
+              <div>
+                <div class="loc-title">Johnson Park</div>
+                <div class="loc-desc">Arthur, Francisco</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>Subagent Resident Roster</span>
+            <span class="badge-cyan">25 Total</span>
+          </div>
+          <div class="roster-grid">
+            <div class="roster-item" onclick="inspectAgent('isabella_rodriguez')">
+              <span class="roster-avatar">👩‍🍳</span>
+              <div class="roster-info">
+                <div class="roster-name">Isabella</div>
+                <div class="roster-role">Cafe Owner</div>
+              </div>
+            </div>
+            <div class="roster-item" onclick="inspectAgent('maria_lopez')">
+              <span class="roster-avatar">🎓</span>
+              <div class="roster-info">
+                <div class="roster-name">Maria</div>
+                <div class="roster-role">Student</div>
+              </div>
+            </div>
+            <div class="roster-item" onclick="inspectAgent('klaus_mueller')">
+              <span class="roster-avatar">📚</span>
+              <div class="roster-info">
+                <div class="roster-name">Klaus</div>
+                <div class="roster-role">Researcher</div>
+              </div>
+            </div>
+            <div class="roster-item" onclick="inspectAgent('tom_moreno')">
+              <span class="roster-avatar">🏪</span>
+              <div class="roster-info">
+                <div class="roster-name">Tom</div>
+                <div class="roster-role">Store Clerk</div>
+              </div>
+            </div>
+            <div class="roster-item" onclick="inspectAgent('eddy_lin')">
+              <span class="roster-avatar">🎸</span>
+              <div class="roster-info">
+                <div class="roster-name">Eddy</div>
+                <div class="roster-role">Musician</div>
+              </div>
+            </div>
+            <div class="roster-item" onclick="inspectAgent('sam_moore')">
+              <span class="roster-avatar">🗳️</span>
+              <div class="roster-info">
+                <div class="roster-name">Sam</div>
+                <div class="roster-role">Candidate</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right: Main Timeline & Feed -->
+      <section class="showcase-feed-area">
+        <!-- 24H Time Selector Bar -->
+        <div class="timeline-bar">
+          <button class="time-btn active" onclick="selectTimeSlot('08:00')">🕒 08:00 AM (Morning)</button>
+          <button class="time-btn" onclick="selectTimeSlot('11:00')">🕒 11:00 AM (Midday)</button>
+          <button class="time-btn" onclick="selectTimeSlot('14:00')">🕒 14:00 PM (Afternoon)</button>
+          <button class="time-btn" onclick="selectTimeSlot('17:00')">🕒 17:00 PM (Party Peak)</button>
+          <button class="time-btn" onclick="selectTimeSlot('21:00')">🕒 21:00 PM (Reflection)</button>
+        </div>
+
+        <!-- Cards Feed -->
+        <div class="event-cards-container" id="tinyville-feed">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Section 2: Developer Console View (Hidden by default) -->
+  <main id="view-console" class="dashboard-body" style="display: none;">
     <aside class="sidebar">
       <div class="sidebar-section">
         <h3>Active Session</h3>
@@ -57,128 +190,29 @@
         </div>
       </div>
 
-      <div class="sidebar-section">
-        <h3>Featured Usecases</h3>
-        <div class="filter-pills">
-          <a href="/tinyville" target="_blank" class="filter-pill" style="text-decoration:none; display:inline-block; border-color:var(--accent-teal); color:var(--accent-teal); font-weight:700;">🎪 Tinyville Showcase (25-Agent)</a>
-        </div>
-      </div>
-
       <div class="sidebar-section flex-grow">
         <h3>Controls</h3>
         <div class="control-grid">
-          <button class="btn btn-secondary" onclick="clearConsole()">🧹 Clear View</button>
-          <button class="btn btn-secondary" onclick="fetchDiff()">🔄 Refresh Diff</button>
-          <button class="btn btn-secondary" onclick="exportLogs()">📥 Export Logs</button>
-          <div class="toggle-container">
-            <span>Auto-Scroll</span>
-            <label class="switch">
-              <input type="checkbox" id="autoscroll-toggle" checked>
-              <span class="slider"></span>
-            </label>
-          </div>
+          <button class="btn btn-secondary" onclick="toggleAutoScroll()" id="autoscroll-btn">
+            📜 Auto-scroll: ON
+          </button>
+          <button class="btn btn-secondary" onclick="clearEventLogs()">
+            🧹 Clear View
+          </button>
         </div>
-      </div>
-
-      <div class="sidebar-section system-mini-card">
-        <div>Database: <span id="db-session-name" class="highlight-text">-</span></div>
-        <div>LLM Model: <span id="sidebar-model-badge" class="model-badge">-</span></div>
       </div>
     </aside>
 
     <main class="main-content">
-      <div class="tab-header">
-        <button class="tab-btn active" id="btn-tab-logs" onclick="switchTab('tab-logs')">Timeline & Logs</button>
-        <button class="tab-btn" id="btn-tab-diff" onclick="switchTab('tab-diff')">Workspace Diff</button>
-        <button class="tab-btn" id="btn-tab-status" onclick="switchTab('tab-status')">System Status</button>
+      <div class="log-stream-header">
+        <h2>Telemetry Stream</h2>
+        <span class="event-count-badge" id="event-count">0 events</span>
       </div>
-
-      <div class="tab-content active" id="tab-logs">
-        <div class="log-search-container">
-          <input type="text" id="log-search" placeholder="Search event logs (text, tools, thoughts...)" oninput="filterSearch()">
-        </div>
-        <div class="timeline-container" id="timeline">
-          <div class="no-events-msg">Waiting for events to stream...</div>
-        </div>
-      </div>
-
-      <div class="tab-content" id="tab-diff">
-        <div class="diff-actions">
-          <button class="btn btn-primary" onclick="fetchDiff()">Refresh Git Diff</button>
-          <button class="btn btn-secondary" onclick="copyWholeDiff()">Copy Diff</button>
-        </div>
-        <div class="diff-container" id="diff-files-container">
-          <div class="no-diff-msg">Loading shadow workspace diffs...</div>
-        </div>
-      </div>
-
-      <div class="tab-content" id="tab-status">
-        <div class="status-grid">
-          <div class="status-card">
-            <h3>Workspace Directory</h3>
-            <div class="status-card-body">
-              <div class="status-item">
-                <span class="label">Project Name:</span>
-                <span class="val" id="stat-project-name">-</span>
-              </div>
-              <div class="status-item">
-                <span class="label">Project Path:</span>
-                <span class="val path-text" id="stat-project-path">-</span>
-              </div>
-              <div class="status-item">
-                <span class="label">Active Session:</span>
-                <span class="val" id="stat-session-name">-</span>
-              </div>
-              <div class="status-item">
-                <span class="label">Database Size:</span>
-                <span class="val" id="stat-db-size">-</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="status-card">
-            <h3>LLM Parameters</h3>
-            <div class="status-card-body">
-              <div class="status-item">
-                <span class="label">LLM Provider:</span>
-                <span class="val" id="stat-provider">-</span>
-              </div>
-              <div class="status-item">
-                <span class="label">Model ID:</span>
-                <span class="val model-badge" id="stat-model">-</span>
-              </div>
-              <div class="status-item">
-                <span class="label">Temperature:</span>
-                <span class="val" id="stat-temp">-</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="status-card">
-            <h3>OS Environment</h3>
-            <div class="status-card-body">
-              <div class="status-item">
-                <span class="label">Total Events Logged:</span>
-                <span class="val" id="stat-total-events">-</span>
-              </div>
-              <div class="status-item">
-                <span class="label">Total Sessions:</span>
-                <span class="val" id="stat-total-sessions">-</span>
-              </div>
-              <div class="status-item">
-                <span class="label">Aura CLI Version:</span>
-                <span class="val" id="stat-aura-version">-</span>
-              </div>
-              <div class="status-item">
-                <span class="label">Node.js Engine:</span>
-                <span class="val" id="stat-ruby-version">-</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div class="log-container" id="log-container">
+        <div class="empty-state">Waiting for Aura OS telemetry stream...</div>
       </div>
     </main>
-  </div>
+  </main>
 
   <script src="/app.js"></script>
 </body>
