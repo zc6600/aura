@@ -1,6 +1,6 @@
 {
   "name": "groupchat",
-  "description": "Send and read messages in a named multi-agent channel (many-to-many), backed by an append-only shared channel file. Use this for coordination among 3+ agents; use mailbox for a private 1:1 conversation.",
+  "description": "Send and read messages in a named multi-agent channel (many-to-many), backed by an append-only shared channel file. Use this for coordination among 3+ agents; use mailbox for a private 1:1 conversation. Posting to a given channel can be restricted by workspace config.collaboration.channels (see config/config.yml) — default is unrestricted if that config is absent.",
   "runtime": "python3",
   "entry": "logic.py",
   "auto_load": false,
@@ -12,7 +12,10 @@
       "./.aura-workspace/state",
       "./.aura-workspace/state/bus",
       "./.aura/state",
-      "./.aura/state/bus"
+      "./.aura/state/bus",
+      "./config",
+      "./.aura-workspace/config",
+      "./.aura/config"
     ]
   },
   "input_schema": {

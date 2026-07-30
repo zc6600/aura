@@ -8,17 +8,20 @@ import datetime
 CHANNEL_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 
 
+def resolve_env_root():
+    base_dir = os.getcwd()
+    if os.path.exists(os.path.join(base_dir, ".aura-workspace")):
+        return os.path.join(base_dir, ".aura-workspace")
+    if os.path.exists(os.path.join(base_dir, ".aura")):
+        return os.path.join(base_dir, ".aura")
+    return base_dir
+
+
 def resolve_bus_dir(subdir):
     # Same session-scoping convention as the blackboard/mailbox tools, plus
     # a dedicated subdirectory of the shared bus for this tool's data.
     session_name = os.environ.get("AURA_SESSION_NAME")
-    base_dir = os.getcwd()
-    if os.path.exists(os.path.join(base_dir, ".aura-workspace")):
-        state_root = os.path.join(base_dir, ".aura-workspace", "state")
-    elif os.path.exists(os.path.join(base_dir, ".aura")):
-        state_root = os.path.join(base_dir, ".aura", "state")
-    else:
-        state_root = os.path.join(base_dir, "state")
+    state_root = os.path.join(resolve_env_root(), "state")
 
     if not session_name:
         active_txt = os.path.join(state_root, "active_session.txt")
@@ -38,6 +41,110 @@ def resolve_bus_dir(subdir):
 
 def current_agent_id():
     return os.environ.get("AURA_AGENT_ID", "unknown")
+
+
+def _parse_inline_list(val):
+    val = val.strip()
+    if val.startswith("[") and val.endswith("]"):
+        inner = val[1:-1]
+        return [v.strip().strip("'\"") for v in inner.split(",") if v.strip()]
+    return []
+
+
+def _parse_collaboration_block_fallback(text):
+    # Deliberately narrow parser for just the `collaboration:` block, used
+    # when PyYAML isn't installed (not guaranteed in this repo — verified by
+    # hand that a plain `python3` has no `yaml` module). Only understands the
+    # subset this tool's own docs tell users to write:
+    #   collaboration:
+    #     enabled: true
+    #     can_talk_to:
+    #       agent-a: [agent-b, agent-c]
+    #     channels:
+    #       channel-name: [agent-a]
+    # Anything fancier (comments mid-line, block-style "- item" lists,
+    # multiline strings) isn't supported here — install PyYAML for that.
+    result = {}
+    in_collab = False
+    collab_indent = None
+    current_map = None
+
+    def indent_of(line):
+        return len(line) - len(line.lstrip(" "))
+
+    for raw in text.splitlines():
+        if not raw.strip() or raw.strip().startswith("#"):
+            continue
+        ind = indent_of(raw)
+        stripped = raw.strip()
+
+        if not in_collab:
+            if stripped == "collaboration:":
+                in_collab = True
+                collab_indent = ind
+            continue
+
+        if ind <= collab_indent:
+            break
+
+        if current_map is not None and ind > collab_indent + 2 and ":" in stripped:
+            key, _, val = stripped.partition(":")
+            current_map[key.strip().strip("'\"")] = _parse_inline_list(val)
+            continue
+
+        if ":" in stripped:
+            key, _, val = stripped.partition(":")
+            key = key.strip()
+            val = val.strip()
+            if key in ("can_talk_to", "channels"):
+                current_map = {}
+                result[key] = current_map
+            else:
+                current_map = None
+                if key == "enabled":
+                    result["enabled"] = val.lower() in ("true", "yes", "1")
+
+    return result
+
+
+def load_collaboration_config():
+    cfg_path = os.path.join(resolve_env_root(), "config", "config.yml")
+    if not os.path.exists(cfg_path):
+        return {}
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            raw = f.read()
+    except Exception:
+        return {}
+
+    try:
+        import yaml
+    except ImportError:
+        return _parse_collaboration_block_fallback(raw)
+
+    try:
+        data = yaml.safe_load(raw) or {}
+        return data.get("collaboration") or {}
+    except Exception:
+        return {}
+
+
+def check_channel_allowed(me, channel):
+    collab = load_collaboration_config()
+    if collab.get("enabled") is False:
+        return False, "Collaboration is disabled by workspace config (collaboration.enabled: false)."
+
+    channels = collab.get("channels")
+    if isinstance(channels, dict) and channel in channels:
+        # Only channels explicitly listed here are restricted; an unlisted
+        # channel stays open to any agent.
+        allowed = channels.get(channel) or []
+        if me not in allowed:
+            return False, (
+                f"'{me}' is not allowed to post in channel '{channel}' per "
+                "workspace config.collaboration.channels."
+            )
+    return True, None
 
 
 def validate_channel(name):
@@ -87,6 +194,10 @@ def groupchat_send(channel, content, mentions=None):
     validate_channel(channel)
     if content is None or (isinstance(content, str) and not content.strip()):
         return {"status": "failed", "error": "Missing 'content' for send action"}
+
+    allowed, reason = check_channel_allowed(me, channel)
+    if not allowed:
+        return {"status": "failed", "error": reason}
 
     groupchat_dir = resolve_bus_dir("groupchat")
     path = channel_path(groupchat_dir, channel)

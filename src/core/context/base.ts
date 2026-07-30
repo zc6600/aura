@@ -12,6 +12,7 @@ import {
 } from './payload.js';
 import { AnchorProvider } from './providers/anchorProvider.js';
 import { BackgroundProcessProvider } from './providers/backgroundProcessProvider.js';
+import { CollabProvider } from './providers/collabProvider.js';
 import { DirectiveProvider } from './providers/directiveProvider.js';
 import { DirectoryTreeProvider } from './providers/directoryTreeProvider.js';
 import { GardenProvider } from './providers/gardenProvider.js';
@@ -56,6 +57,7 @@ export class ContextBase {
   private toolProvider: ToolProvider;
   private stateProvider: StateProvider;
   private backgroundProcessProvider: BackgroundProcessProvider;
+  private collabProvider: CollabProvider;
 
   // ... other providers
 
@@ -110,6 +112,7 @@ export class ContextBase {
       this.projectPath,
       envOpts,
     );
+    this.collabProvider = new CollabProvider(this.projectPath, envOpts);
   }
 
   public assemble(): ContextPayload {
@@ -438,6 +441,11 @@ ${userTask}`);
     const backgroundProcesses = this.backgroundProcessProvider.provide();
     if (backgroundProcesses) {
       sections.push(backgroundProcesses);
+    }
+
+    const collab = this.collabProvider.provide();
+    if (collab) {
+      sections.push(collab);
     }
 
     if (sections.length <= 1) {

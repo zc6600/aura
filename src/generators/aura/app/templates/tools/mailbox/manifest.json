@@ -1,6 +1,6 @@
 {
   "name": "mailbox",
-  "description": "Send and read direct 1:1 messages with another named agent (letters and replies), backed by an append-only shared thread file.",
+  "description": "Send and read direct 1:1 messages with another named agent (letters and replies), backed by an append-only shared thread file. Sends can be restricted by workspace config.collaboration.can_talk_to (see config/config.yml) — default is unrestricted if that config is absent.",
   "runtime": "python3",
   "entry": "logic.py",
   "auto_load": false,
@@ -12,7 +12,10 @@
       "./.aura-workspace/state",
       "./.aura-workspace/state/bus",
       "./.aura/state",
-      "./.aura/state/bus"
+      "./.aura/state/bus",
+      "./config",
+      "./.aura-workspace/config",
+      "./.aura/config"
     ]
   },
   "input_schema": {
@@ -34,6 +37,16 @@
       "reply_to": {
         "type": "string",
         "description": "Optional id of the message this is replying to — keeps the reply attached to the original letter in the same thread (used with action='send')."
+      },
+      "wait": {
+        "type": "boolean",
+        "description": "If true, block after sending until the recipient replies or 'timeout' seconds elapse. This polls the shared thread file for a reply — it is NOT live inter-process messaging, so it only works if the recipient agent actually runs and replies during the wait window. The letter is delivered either way. Used with action='send'.",
+        "default": false
+      },
+      "timeout": {
+        "type": "integer",
+        "description": "Max seconds to wait for a reply when wait=true (also bounds this tool call's own execution time). Used with action='send'.",
+        "default": 30
       },
       "with": {
         "type": "string",

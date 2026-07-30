@@ -2,23 +2,27 @@ import os
 import re
 import json
 import sys
+import time
 import uuid
 import datetime
 
 NAME_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 
 
+def resolve_env_root():
+    base_dir = os.getcwd()
+    if os.path.exists(os.path.join(base_dir, ".aura-workspace")):
+        return os.path.join(base_dir, ".aura-workspace")
+    if os.path.exists(os.path.join(base_dir, ".aura")):
+        return os.path.join(base_dir, ".aura")
+    return base_dir
+
+
 def resolve_bus_dir(subdir):
     # Same session-scoping convention as the blackboard tool, plus a
     # dedicated subdirectory of the shared bus for this tool's data.
     session_name = os.environ.get("AURA_SESSION_NAME")
-    base_dir = os.getcwd()
-    if os.path.exists(os.path.join(base_dir, ".aura-workspace")):
-        state_root = os.path.join(base_dir, ".aura-workspace", "state")
-    elif os.path.exists(os.path.join(base_dir, ".aura")):
-        state_root = os.path.join(base_dir, ".aura", "state")
-    else:
-        state_root = os.path.join(base_dir, "state")
+    state_root = os.path.join(resolve_env_root(), "state")
 
     if not session_name:
         active_txt = os.path.join(state_root, "active_session.txt")
@@ -38,6 +42,115 @@ def resolve_bus_dir(subdir):
 
 def current_agent_id():
     return os.environ.get("AURA_AGENT_ID", "unknown")
+
+
+def _parse_inline_list(val):
+    val = val.strip()
+    if val.startswith("[") and val.endswith("]"):
+        inner = val[1:-1]
+        return [v.strip().strip("'\"") for v in inner.split(",") if v.strip()]
+    return []
+
+
+def _parse_collaboration_block_fallback(text):
+    # Deliberately narrow parser for just the `collaboration:` block, used
+    # when PyYAML isn't installed (not guaranteed in this repo — verified by
+    # hand that a plain `python3` has no `yaml` module). Only understands the
+    # subset this tool's own docs tell users to write:
+    #   collaboration:
+    #     enabled: true
+    #     can_talk_to:
+    #       agent-a: [agent-b, agent-c]
+    #     channels:
+    #       channel-name: [agent-a]
+    # Anything fancier (comments mid-line, block-style "- item" lists,
+    # multiline strings) isn't supported here — install PyYAML for that.
+    result = {}
+    in_collab = False
+    collab_indent = None
+    current_map = None
+
+    def indent_of(line):
+        return len(line) - len(line.lstrip(" "))
+
+    for raw in text.splitlines():
+        if not raw.strip() or raw.strip().startswith("#"):
+            continue
+        ind = indent_of(raw)
+        stripped = raw.strip()
+
+        if not in_collab:
+            if stripped == "collaboration:":
+                in_collab = True
+                collab_indent = ind
+            continue
+
+        if ind <= collab_indent:
+            break
+
+        if current_map is not None and ind > collab_indent + 2 and ":" in stripped:
+            key, _, val = stripped.partition(":")
+            current_map[key.strip().strip("'\"")] = _parse_inline_list(val)
+            continue
+
+        if ":" in stripped:
+            key, _, val = stripped.partition(":")
+            key = key.strip()
+            val = val.strip()
+            if key in ("can_talk_to", "channels"):
+                current_map = {}
+                result[key] = current_map
+            else:
+                current_map = None
+                if key == "enabled":
+                    result["enabled"] = val.lower() in ("true", "yes", "1")
+
+    return result
+
+
+def load_collaboration_config():
+    cfg_path = os.path.join(resolve_env_root(), "config", "config.yml")
+    if not os.path.exists(cfg_path):
+        return {}
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            raw = f.read()
+    except Exception:
+        return {}
+
+    try:
+        import yaml
+    except ImportError:
+        return _parse_collaboration_block_fallback(raw)
+
+    try:
+        data = yaml.safe_load(raw) or {}
+        return data.get("collaboration") or {}
+    except Exception:
+        return {}
+
+
+def check_mailbox_allowed(me, to):
+    collab = load_collaboration_config()
+    if collab.get("enabled") is False:
+        return False, "Collaboration is disabled by workspace config (collaboration.enabled: false)."
+
+    allow_map = collab.get("can_talk_to")
+    if isinstance(allow_map, dict):
+        # Presence of this map makes it an opt-in allowlist: any sender with
+        # no entry defaults to deny, not "allow all".
+        allowed = allow_map.get(me)
+        if not allowed:
+            return False, (
+                f"'{me}' has no can_talk_to entry in workspace config.collaboration; "
+                "default is deny once an allowlist is configured."
+            )
+        if to not in allowed:
+            return False, (
+                f"'{me}' is not allowed to message '{to}' per "
+                "workspace config.collaboration.can_talk_to."
+            )
+    return True, None
 
 
 def validate_name(name, label="agent id"):
@@ -84,11 +197,15 @@ def read_jsonl(path, limit=None):
     return messages
 
 
-def mailbox_send(to, content, reply_to=None):
+def mailbox_send(to, content, reply_to=None, wait=False, timeout=30):
     me = current_agent_id()
     validate_name(to, "recipient agent id")
     if content is None or (isinstance(content, str) and not content.strip()):
         return {"status": "failed", "error": "Missing 'content' for send action"}
+
+    allowed, reason = check_mailbox_allowed(me, to)
+    if not allowed:
+        return {"status": "failed", "error": reason}
 
     mailbox_dir = resolve_bus_dir("mailbox")
     path = thread_path(mailbox_dir, me, to)
@@ -104,9 +221,58 @@ def mailbox_send(to, content, reply_to=None):
 
     try:
         append_jsonl(path, message)
-        return {"status": "success", "id": message["id"], "thread": os.path.basename(path)}
     except Exception as e:
         return {"status": "failed", "error": f"Send failed: {str(e)}"}
+
+    if not wait:
+        return {"status": "success", "id": message["id"], "thread": os.path.basename(path)}
+
+    return _wait_for_reply(path, me, to, message, timeout)
+
+
+def _wait_for_reply(path, me, to, sent_message, timeout):
+    # NOTE: this polls the shared thread *file* — there is no live socket/RPC
+    # into whatever process `to` might be running as. It only surfaces a
+    # reply if some process acting as `to` happens to call mailbox(send) to
+    # this same thread while we're polling. If `to` never runs, this simply
+    # times out; the original letter was still delivered (written) either way.
+    try:
+        budget = max(1, int(timeout))
+    except (TypeError, ValueError):
+        budget = 30
+    # Leave headroom below the tool subprocess's own kill timeout (this
+    # tool's `timeout` arg doubles as that timeout via the engine's generic
+    # timeout_seconds/timeout convention), so we return gracefully instead
+    # of getting killed mid-poll.
+    deadline = time.time() + max(1, budget - 2)
+    poll_interval = 0.5
+
+    while time.time() < deadline:
+        time.sleep(poll_interval)
+        for m in read_jsonl(path, 0):
+            if m.get("id") == sent_message["id"]:
+                continue
+            if m.get("from") != to or m.get("to") != me:
+                continue
+            if m.get("reply_to") == sent_message["id"] or m.get("at", "") > sent_message["at"]:
+                return {
+                    "status": "success",
+                    "id": sent_message["id"],
+                    "thread": os.path.basename(path),
+                    "replied": True,
+                    "reply": m,
+                }
+
+    return {
+        "status": "success",
+        "id": sent_message["id"],
+        "thread": os.path.basename(path),
+        "replied": False,
+        "note": (
+            f"No reply from '{to}' within {budget}s. The letter was still delivered — "
+            f"'{to}' may reply later; check back with action='read'."
+        ),
+    }
 
 
 def mailbox_read(with_agent=None, limit=20):
@@ -168,7 +334,13 @@ def main():
         action = args.get("action")
 
         if action == "send":
-            result = mailbox_send(args.get("to"), args.get("content"), args.get("reply_to"))
+            result = mailbox_send(
+                args.get("to"),
+                args.get("content"),
+                args.get("reply_to"),
+                wait=bool(args.get("wait", False)),
+                timeout=args.get("timeout", args.get("timeout_seconds", 30)),
+            )
         elif action == "read":
             result = mailbox_read(args.get("with"), args.get("limit", 20))
         elif action == "list":

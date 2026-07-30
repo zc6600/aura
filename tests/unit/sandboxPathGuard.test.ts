@@ -36,11 +36,9 @@ describe('findOutsideSandboxPath', () => {
   it('respects configured allow_paths', () => {
     const allowRoot = '/tmp/other-allowed';
     expect(
-      findOutsideSandboxPath(
-        `cat ${allowRoot}/file.txt`,
-        projectPath,
-        [allowRoot],
-      ),
+      findOutsideSandboxPath(`cat ${allowRoot}/file.txt`, projectPath, [
+        allowRoot,
+      ]),
     ).toBeNull();
   });
 

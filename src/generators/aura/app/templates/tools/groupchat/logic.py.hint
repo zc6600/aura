@@ -16,3 +16,7 @@ JSON Lines 格式），发送者身份取自 AURA_AGENT_ID 环境变量。频道
 跟 mailbox 的区别：
 - mailbox 是两个 agent 之间的私聊，信和回信都在同一个线程文件里。
 - groupchat 是多个 agent 共同可见的频道，适合需要多方都同步进展的协作场景。
+
+权限：
+- 如果 config/config.yml 里配置了 collaboration.channels，某个频道一旦出现在这个配置里，
+  就只有列出的 agent 能往里发；没配置这一项、或者这个频道没被列出，则默认谁都能发。

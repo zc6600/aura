@@ -19,13 +19,7 @@ describe('CollabProvider (mailbox + groupchat)', () => {
 
   beforeEach(() => {
     projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'aura-temp-collab-'));
-    busDir = path.join(
-      projectPath,
-      'state',
-      'sessions',
-      'default',
-      'bus',
-    );
+    busDir = path.join(projectPath, 'state', 'sessions', 'default', 'bus');
   });
 
   afterEach(() => {
@@ -35,23 +29,26 @@ describe('CollabProvider (mailbox + groupchat)', () => {
   });
 
   it('surfaces mailbox threads the current agent is a party to, and skips others', () => {
-    writeJsonl(path.join(busDir, 'mailbox', 'data-scientist--software-engineer.jsonl'), [
-      {
-        id: '1',
-        from: 'data-scientist',
-        to: 'software-engineer',
-        at: '2026-07-29T10:00:00',
-        content: 'ETL 里有异常值，能查一下吗？',
-      },
-      {
-        id: '2',
-        from: 'software-engineer',
-        to: 'data-scientist',
-        at: '2026-07-29T10:05:00',
-        content: '是时区转换的 bug，已修。',
-        reply_to: '1',
-      },
-    ]);
+    writeJsonl(
+      path.join(busDir, 'mailbox', 'data-scientist--software-engineer.jsonl'),
+      [
+        {
+          id: '1',
+          from: 'data-scientist',
+          to: 'software-engineer',
+          at: '2026-07-29T10:00:00',
+          content: 'ETL 里有异常值，能查一下吗？',
+        },
+        {
+          id: '2',
+          from: 'software-engineer',
+          to: 'data-scientist',
+          at: '2026-07-29T10:05:00',
+          content: '是时区转换的 bug，已修。',
+          reply_to: '1',
+        },
+      ],
+    );
     writeJsonl(path.join(busDir, 'mailbox', 'pm--software-engineer.jsonl'), [
       {
         id: '3',

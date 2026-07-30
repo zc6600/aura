@@ -255,6 +255,31 @@ export const DirectoryTreeConfigSchema = z
 export type DirectoryTreeConfig = z.infer<typeof DirectoryTreeConfigSchema>;
 
 // ---------------------------------------------------------------------------
+// Collaboration config (mailbox / groupchat tools)
+// ---------------------------------------------------------------------------
+
+export const CollaborationConfigSchema = z
+  .object({
+    /** Master switch; mailbox/groupchat sends are blocked when false. Default: true. */
+    enabled: z.boolean().optional(),
+    /**
+     * Optional allowlist of agent id -> agent ids it may mailbox. Once this
+     * map is present, any sender id with no entry defaults to deny (not
+     * "allow all") — it's an opt-in restriction, absent by default.
+     */
+    can_talk_to: z.record(z.array(z.string())).optional(),
+    /**
+     * Optional per-channel poster allowlist for groupchat. A channel name
+     * not listed here stays open to any agent; listing a channel restricts
+     * posting to the named agent ids.
+     */
+    channels: z.record(z.array(z.string())).optional(),
+  })
+  .passthrough();
+
+export type CollaborationConfig = z.infer<typeof CollaborationConfigSchema>;
+
+// ---------------------------------------------------------------------------
 // Root config
 // ---------------------------------------------------------------------------
 
@@ -272,6 +297,7 @@ export const AuraConfigSchema = z
     image_generation: ImageGenerationConfigSchema.optional(),
     knowledge_db: KnowledgeDbConfigSchema.optional(),
     directory_tree: DirectoryTreeConfigSchema.optional(),
+    collaboration: CollaborationConfigSchema.optional(),
   })
   .passthrough();
 

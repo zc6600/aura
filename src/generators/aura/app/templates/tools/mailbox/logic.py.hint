@@ -9,9 +9,21 @@
 示例：
 {"action": "send", "to": "software-engineer", "content": "数据里有异常值，能查一下 ETL 那段吗？"}
 {"action": "send", "to": "data-scientist", "content": "查到了，是时区转换的 bug，已经修了。", "reply_to": "<上一条的 id>"}
+{"action": "send", "to": "software-engineer", "content": "现在方便说话吗？", "wait": true, "timeout": 20}
 {"action": "read", "with": "software-engineer", "limit": 10}
 {"action": "read"}
 {"action": "list"}
+
+wait 参数（同步等回复）：
+- wait=true 时，发完信会轮询同一个线程文件，最多等 timeout 秒，等到对方的回信就带着
+  "replied": true 和 "reply" 内容一起返回；等不到就 "replied": false，但信本身已经送达。
+- 注意：这不是进程间通讯，没有真的连到对方进程——只有当"software-engineer"这个身份
+  确实有进程在跑、并且真的调用了 mailbox(send) 回信，wait 才能等到东西。对方完全不跑的话
+  一定会超时。
+
+权限：
+- 如果 config/config.yml 里配置了 collaboration.can_talk_to，发信会按这个白名单校验，
+  不在名单里会失败并返回原因；不配置这一项则默认不限制。
 
 协作模式：
 - 明确提问：给需要特定专家判断的问题发信，对方下次运行时（或被同步唤起时）会看到。

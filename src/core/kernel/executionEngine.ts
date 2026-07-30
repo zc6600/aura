@@ -27,6 +27,8 @@ export interface ExecutionOptions {
   sessionDbPath?: string;
   /** If provided, overrides process.env.AURA_SESSION_NAME for this execution only */
   sessionName?: string;
+  /** If provided, overrides process.env.AURA_AGENT_ID for this execution only */
+  agentId?: string;
 }
 
 export class ExecutionEngine extends EventEmitter {
@@ -548,6 +550,7 @@ export class ExecutionEngine extends EventEmitter {
             ...(options.sessionName
               ? { AURA_SESSION_NAME: options.sessionName }
               : {}),
+            AURA_AGENT_ID: this.resolveAgentId(options),
           },
         });
         // Write JSON payload as first stdin line (same contract as non-PTY)
@@ -706,6 +709,7 @@ export class ExecutionEngine extends EventEmitter {
             ...(options.sessionName
               ? { AURA_SESSION_NAME: options.sessionName }
               : {}),
+            AURA_AGENT_ID: this.resolveAgentId(options),
           },
         });
 
@@ -798,6 +802,7 @@ export class ExecutionEngine extends EventEmitter {
           ...(options.sessionName
             ? { AURA_SESSION_NAME: options.sessionName }
             : {}),
+          AURA_AGENT_ID: this.resolveAgentId(options),
         },
       });
 
@@ -886,6 +891,25 @@ export class ExecutionEngine extends EventEmitter {
         clearTimeout(timerId);
       }
     }
+  }
+
+  /**
+   * Resolves the identity a tool subprocess should see as AURA_AGENT_ID
+   * (read by the blackboard/mailbox/groupchat/subagent tools for sender
+   * attribution). Computed fresh per spawn rather than written back to
+   * process.env — that global-mutation approach was tried and reverted
+   * because it leaked across unrelated Runner instances sharing the same
+   * Node process (e.g. concurrent test files), silently changing which
+   * "agent" older code paths appeared to be running as.
+   */
+  private resolveAgentId(options: ExecutionOptions): string {
+    return (
+      options.agentId ||
+      process.env.AURA_AGENT_ID ||
+      options.sessionName ||
+      process.env.AURA_SESSION_NAME ||
+      'default'
+    );
   }
 
   private resolveRuntime(key: unknown, cfg: AuraConfig): string {
@@ -1091,6 +1115,8 @@ export class ExecutionEngine extends EventEmitter {
           `AURA_STATE_DB_PATH=${containerDbPath}`,
           '-e',
           `AURA_SESSION_NAME=${sessionName}`,
+          '-e',
+          `AURA_AGENT_ID=${this.resolveAgentId(options)}`,
           '-v',
           `${realProject}:/app`,
           ...extraMounts,
