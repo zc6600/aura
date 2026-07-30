@@ -113,6 +113,23 @@ async function triggerRealSimulation() {
   }
 }
 
+// Regenerate Interaction Graph Image API
+async function regenerateGraphImage() {
+  const img = document.getElementById("graph-img");
+  if (img) img.style.opacity = "0.4";
+
+  try {
+    const res = await fetch("/api/tinyville/render-graph", { method: "POST" });
+    const data = await res.json();
+    if (img) {
+      img.src = "/state/town_interaction_network.png?t=" + new Date().getTime();
+      img.style.opacity = "1";
+    }
+  } catch (e) {
+    if (img) img.style.opacity = "1";
+  }
+}
+
 // Time Slot Selector
 function selectTimeSlot(timeStr) {
   currentTimeSlot = timeStr;

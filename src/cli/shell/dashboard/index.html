@@ -155,9 +155,12 @@
         <div class="panel-card">
           <div class="panel-header">
             <span>🕸️ Social Relationship Map</span>
-            <span class="badge-teal">Click Thread</span>
+            <button class="badge-teal-btn" onclick="regenerateGraphImage()">🎨 Re-Draw Graph</button>
           </div>
-          <div class="social-links-list">
+          <div class="graph-image-container">
+            <img src="/state/town_interaction_network.png" id="graph-img" alt="Smallville Interaction Network Graph" style="width:100%; border-radius:10px; border:1px solid var(--border-color);" />
+          </div>
+          <div class="social-links-list" style="margin-top: 1rem;">
             <div class="social-link-item" onclick="inspectThread('maria_klaus')">
               <div class="link-agents">🎓 Maria ➔ 📚 Klaus</div>
               <span class="link-badge crush">❤️ Secret Crush</span>

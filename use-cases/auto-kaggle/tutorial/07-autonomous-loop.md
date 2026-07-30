@@ -44,11 +44,12 @@ if __name__ == "__main__":
 import argparse
 import json
 import subprocess
+import sys
 import time
 
 def call_tool(tool_path, payload):
     proc = subprocess.run(
-        ["python", tool_path],
+        [sys.executable, tool_path],
         input=json.dumps(payload),
         text=True,
         stdout=subprocess.PIPE,

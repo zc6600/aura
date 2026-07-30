@@ -306,6 +306,25 @@ export class WebServer {
               res.writeHead(404, jsonHeaders);
               res.end(JSON.stringify({ status: "error", message: "Simulation script not found." }));
             }
+          } else if (pathname === '/state/town_interaction_network.png') {
+            const imgPath = path.join(process.cwd(), 'aura_test', 'smallville', 'state', 'town_interaction_network.png');
+            if (fs.existsSync(imgPath)) {
+              res.writeHead(200, { 'Content-Type': 'image/png' });
+              res.end(fs.readFileSync(imgPath));
+              return;
+            }
+          } else if (pathname === '/api/tinyville/render-graph' && req.method === 'POST') {
+            const scriptPath = path.join(process.cwd(), 'aura_test', 'smallville', 'visualize_town_graph.py');
+            if (fs.existsSync(scriptPath)) {
+              execa('python3', [scriptPath], { cwd: path.dirname(scriptPath) }).then(() => {
+                res.writeHead(200, jsonHeaders);
+                res.end(JSON.stringify({ status: "success", message: "Interaction graph regenerated successfully!" }));
+              }).catch(() => {
+                res.writeHead(500, jsonHeaders);
+                res.end(JSON.stringify({ status: "error", message: "Failed to render graph." }));
+              });
+              return;
+            }
           } else if (pathname in DASHBOARD_ASSETS) {
             const asset = DASHBOARD_ASSETS[pathname];
             res.writeHead(200, { 'Content-Type': asset.contentType });

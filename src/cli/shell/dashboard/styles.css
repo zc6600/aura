@@ -351,6 +351,23 @@ header {
   font-size: 0.75rem;
 }
 
+.badge-teal-btn {
+  background: rgba(20, 184, 166, 0.2);
+  color: var(--accent-teal);
+  border: 1px solid var(--border-color);
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.badge-teal-btn:hover {
+  background: var(--accent-teal);
+  color: #0b0f19;
+}
+
 .badge-cyan {
   background: rgba(6, 182, 212, 0.15);
   color: var(--accent-cyan);

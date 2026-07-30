@@ -487,7 +487,7 @@ def submit(args):
     run_id = args.get("run_id", "unknown")
     msg = f"autokaggle {run_id}"
     proc = subprocess.run(
-        ["python", "tools/ak_competition/logic.py"],
+        [sys.executable, "tools/ak_competition/logic.py"],
         input=json.dumps({"action": "submit", "submission_path": path, "message": msg}),
         text=True,
         stdout=subprocess.PIPE,
