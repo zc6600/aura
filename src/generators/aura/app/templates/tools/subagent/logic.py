@@ -118,21 +118,43 @@ def run_subagent(goal, subagent_id=None, max_steps=None, timeout=None, name=None
             AtomicWriter.write(paths["status_path"], err_res)
             return err_res
 
-    # Synchronous execution
+    # Synchronous execution with real-time stdout streaming
     error_msg = None
-    proc = None
+    stdout_lines = []
+    stderr_lines = []
+    return_code = 0
     
     try:
-        proc = subprocess.run(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout)
-        if proc.stdout and (os.environ.get("VERBOSE") == "true" or os.environ.get("AURA_VERBOSE") == "true"):
-            sys.stdout.write(proc.stdout)
-        if proc.stderr and (os.environ.get("VERBOSE") == "true" or os.environ.get("AURA_VERBOSE") == "true" or proc.returncode != 0):
-            sys.stderr.write(proc.stderr)
-    except subprocess.TimeoutExpired as e:
+        proc = subprocess.Popen(
+            cmd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1
+        )
+        
+        if proc.stdout:
+            for line in iter(proc.stdout.readline, ''):
+                stdout_lines.append(line)
+                trimmed = line.rstrip()
+                if trimmed:
+                    sys.stdout.write(f"\x1b[36m[Subagent: {sid}]\x1b[0m {trimmed}\n")
+                    sys.stdout.flush()
+        
+        proc.wait(timeout=timeout)
+        return_code = proc.returncode
+        
+        if proc.stderr:
+            err_output = proc.stderr.read()
+            stderr_lines.append(err_output)
+            if return_code != 0 and err_output:
+                sys.stderr.write(f"\x1b[31m[Subagent Error: {sid}]\x1b[0m {err_output}\n")
+                sys.stderr.flush()
+    except subprocess.TimeoutExpired:
         error_msg = f"Subagent execution timed out after {timeout}s"
-        stdout_partial = e.stdout if isinstance(e.stdout, str) else (e.stdout.decode('utf-8', errors='ignore') if e.stdout else "")
-        stderr_partial = e.stderr if isinstance(e.stderr, str) else (e.stderr.decode('utf-8', errors='ignore') if e.stderr else "")
-        proc = subprocess.CompletedProcess(cmd, -1, stdout_partial, stderr_partial)
+        if proc:
+            proc.kill()
     except Exception as e:
         error_msg = f"Execution failed: {str(e)}"
 
