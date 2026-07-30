@@ -447,6 +447,48 @@ describe('Planner', () => {
     expect(call.options).toHaveProperty('tools');
   });
 
+  it('translates a sanitized tool name back via context.resolveToolName', async () => {
+    mockClient.responses = [
+      {
+        raw: '{"tool": "aura_registry_record", "args": {"run_id": "1"}}',
+        finish_reason: 'tool_calls',
+      },
+    ];
+
+    const planner = createPlanner();
+    const mockContext = {
+      toMessages: () => [{ role: 'user' as const, content: 'test' }],
+      toToolSchemas: () => [
+        {
+          name: 'aura_registry_record',
+          description: 'dummy',
+          input_schema: {},
+        },
+      ],
+      resolveToolName: (name: string) =>
+        name === 'aura_registry_record' ? 'aura.registry.record' : name,
+    };
+
+    const result = (await planner.plan(mockContext)) as any;
+
+    expect(result.type).toBe('tool_call');
+    expect(result.tool).toBe('aura.registry.record');
+  });
+
+  it('leaves the tool name untouched when the context has no resolveToolName', async () => {
+    mockClient.responses = [
+      {
+        raw: '{"tool": "bash", "args": {}}',
+        finish_reason: 'tool_calls',
+      },
+    ];
+
+    const planner = createPlanner();
+    const result = (await planner.plan('goal', 'context')) as any;
+
+    expect(result.tool).toBe('bash');
+  });
+
   it('test_config_error_tolerance', async () => {
     fs.writeFileSync(path.join(configDir, 'config.yml'), 'invalid: yaml: {{{');
 

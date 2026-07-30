@@ -47,6 +47,7 @@ export class Planner {
 
     const out = await this.client.complete(messages, options);
     const parsed = ResponseParser.parse(out.raw || out.content);
+    this.resolveToolName(context, parsed);
 
     this.validateParsedPlan(parsed, out.content);
 
@@ -82,6 +83,7 @@ export class Planner {
     });
 
     const parsed = ResponseParser.parse(res.raw || res.content || buf);
+    this.resolveToolName(context, parsed);
     if (onEvent) {
       onEvent({ type: 'plan', plan: parsed });
     }
@@ -91,6 +93,22 @@ export class Planner {
       finish_reason: res.finish_reason || null,
     } as ParseResult & { finish_reason?: string | null };
     return result;
+  }
+
+  /**
+   * Tool names sent to the model may have been sanitized to satisfy native
+   * tool-calling name restrictions (see ContextPayload.toToolSchemas). Map
+   * the model's response back to the original (possibly dotted) tool name
+   * before dispatch sees it.
+   */
+  private resolveToolName(
+    context: PromptsCompose.ContextPayload | string,
+    parsed: ParseResult,
+  ): void {
+    if (parsed.type !== 'tool_call') return;
+    if (typeof context !== 'object' || !context) return;
+    if (typeof context.resolveToolName !== 'function') return;
+    parsed.tool = context.resolveToolName(parsed.tool);
   }
 
   private validateParsedPlan(parsed: ParseResult, rawBody: string): void {

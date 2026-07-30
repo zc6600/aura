@@ -29,6 +29,17 @@ export class ContextPayload {
   public readonly options: Record<string, unknown>;
   public readonly sections: Record<string, string>;
 
+  /**
+   * Native tool-calling APIs (OpenAI, Anthropic) restrict tool names to
+   * `^[a-zA-Z0-9_-]{1,64}$` — no dots. Several tool names in this codebase
+   * are dotted (e.g. `aura.registry.record`, or MCP's `mcp.<server>.<tool>`)
+   * because internal dispatch (ExecutionEngine, MCPManager.parseTool) splits
+   * on '.'. Rather than rename those, toToolSchemas() sanitizes names for
+   * the wire and this map lets callers translate a model's tool_call name
+   * back to the original before dispatch.
+   */
+  private toolNameMap: Map<string, string> = new Map();
+
   constructor(
     promptOrSections: ContextPrompt | Record<string, string>,
     envProviderOrTools: ContextEnvProvider | StructuredTool[] = [],
@@ -147,17 +158,38 @@ export class ContextPayload {
   public toToolSchemas(): ToolSchema[] {
     if (!this.tools || this.tools.length === 0) return [];
 
+    this.toolNameMap.clear();
+
     return this.tools.map((tool) => {
       let schema = tool.input_schema || {};
       schema = this.processSchema(schema);
       schema = this.normalizeSchema(schema);
 
+      const name = this.sanitizeToolName(tool.name);
+      if (name !== tool.name) {
+        this.toolNameMap.set(name, tool.name);
+      }
+
       return {
-        name: tool.name,
+        name,
         description: tool.description || '',
         input_schema: schema,
       };
     });
+  }
+
+  /**
+   * Translates a tool name returned by the model back to the original
+   * (possibly dotted) internal tool name. No-op for names that were never
+   * sanitized — see toolNameMap.
+   */
+  public resolveToolName(name: string): string {
+    return this.toolNameMap.get(name) ?? name;
+  }
+
+  private sanitizeToolName(name: string): string {
+    const cleaned = (name || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    return cleaned.slice(0, 64) || 'tool';
   }
 
   private buildUserContent(goal?: string | null): string {

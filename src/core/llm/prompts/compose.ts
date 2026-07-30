@@ -33,6 +33,7 @@ You can either call a tool or finish the task:
 export interface ContextPayload {
   toMessages(options?: { goal?: string | null }): ChatMessage[];
   toToolSchemas(): ToolSchema[];
+  resolveToolName?(name: string): string;
 }
 
 export function messagesAndTools(
