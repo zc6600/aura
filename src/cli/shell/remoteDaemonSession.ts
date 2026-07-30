@@ -243,18 +243,36 @@ export class RemoteDaemonSession {
     payload: Record<string, unknown>,
   ): void {
     switch (type) {
+      case 'token':
       case 'on_token':
-        renderer.onToken(payload.token as string);
+        renderer.onToken(
+          (payload.text as string) || (payload.token as string) || '',
+        );
         break;
+      case 'stream_end':
       case 'on_stream_end':
         renderer.onStreamEnd();
         break;
-      case 'on_thought':
-        renderer.onThought(
-          payload.thought as string,
-          payload.elapsed as number | null,
+      case 'waiting':
+        renderer.onWaiting(
+          payload.duration !== undefined
+            ? (payload.duration as number)
+            : payload.startTimeMs !== undefined
+              ? (Date.now() - (payload.startTimeMs as number)) / 1000
+              : 0,
         );
         break;
+      case 'clear_waiting':
+        renderer.onClearWaiting();
+        break;
+      case 'thought':
+      case 'on_thought':
+        renderer.onThought(
+          (payload.content as string) || (payload.thought as string) || '',
+          (payload.duration as number) ?? (payload.elapsed as number) ?? null,
+        );
+        break;
+      case 'tool_start':
       case 'on_tool_start':
         renderer.onToolStart(
           payload.tool as string,
@@ -262,15 +280,19 @@ export class RemoteDaemonSession {
           payload.args as Record<string, unknown> | undefined,
         );
         break;
+      case 'tool_executing':
       case 'on_tool_executing':
         renderer.onToolExecuting();
         break;
+      case 'tool_result':
       case 'on_tool_result':
         renderer.onToolResult(payload.result as never);
         break;
+      case 'warning':
       case 'on_warning':
         renderer.onWarning(payload.message as string);
         break;
+      case 'error':
       case 'on_error':
         renderer.onError(payload.message as string);
         break;
