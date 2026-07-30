@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 
 
 PARAMS = "params/autokaggle.yml"
-SAMPLE = "data/raw/sample_submission.csv"
 STATE = "reports/submit_guard_state.json"
 REGISTRY = ".aura-workspace/state/experiments.db"
 
@@ -102,13 +101,18 @@ def registry_run(run_id):
     return dict(row) if row else None
 
 
+def sample_path():
+    return nested_value("data", "sample_submission_file", "data/raw/sample_submission.csv")
+
+
 def format_checks(path):
     failed = []
     if not path or not os.path.exists(path):
         return ["submission_missing"]
-    if not os.path.exists(SAMPLE):
+    sample_file = sample_path()
+    if not os.path.exists(sample_file):
         return ["sample_submission_missing"]
-    sample = read_csv(SAMPLE)
+    sample = read_csv(sample_file)
     sub = read_csv(path)
     if not sample or not sub or sample[0] != sub[0]:
         failed.append("columns")

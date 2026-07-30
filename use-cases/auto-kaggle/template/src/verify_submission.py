@@ -6,9 +6,7 @@ import os
 import sys
 
 from ak_registry import get
-
-
-SAMPLE = "data/raw/sample_submission.csv"
+from data import sample_path
 
 
 def read_csv(path):
@@ -18,13 +16,14 @@ def read_csv(path):
 
 def verify(submission, run_id):
     problems = []
+    sample_file = sample_path()
     if not os.path.exists(submission):
         problems.append(f"submission missing: {submission}")
-    if not os.path.exists(SAMPLE):
-        problems.append(f"sample submission missing: {SAMPLE}")
+    if not os.path.exists(sample_file):
+        problems.append(f"sample submission missing: {sample_file}")
 
     if not problems:
-        sample = read_csv(SAMPLE)
+        sample = read_csv(sample_file)
         sub = read_csv(submission)
         if sample[0] != sub[0]:
             problems.append("columns do not match sample submission")

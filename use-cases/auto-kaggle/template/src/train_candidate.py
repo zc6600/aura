@@ -6,7 +6,7 @@ import os
 import time
 
 from ak_registry import record
-from data import as_float_matrix, feature_columns, load_data, target
+from data import as_float_matrix, feature_columns, id_column, load_data, target, target_column
 from metric import accuracy_from_probs
 from model import fit_logreg, leave_one_out_cv, predict_proba
 
@@ -21,10 +21,11 @@ def sha256_file(path):
 
 def write_submission(path, sample_rows, probs):
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    id_col, target_col = id_column(), target_column()
     with open(path, "w", encoding="utf-8") as f:
-        f.write("id,target\n")
+        f.write(f"{id_col},{target_col}\n")
         for row, p in zip(sample_rows, probs):
-            f.write(f"{row['id']},{p:.8f}\n")
+            f.write(f"{row[id_col]},{p:.8f}\n")
 
 
 def main():
