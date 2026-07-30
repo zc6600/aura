@@ -171,38 +171,36 @@ export class Chat {
     const stateDir = auraDir
       ? path.join(auraDir, 'state')
       : path.join(GlobalConfig.repoPath(), 'state');
-    const sessionsDir = path.join(stateDir, 'chat_sessions');
     let sessionName = options.session || 'default';
 
     // Sanitize session name
     try {
       sessionName = PathResolver.sanitizeSessionName(sessionName);
+      PathResolver.assertSessionNameNotReserved(sessionName);
     } catch (e: unknown) {
       throw new UI.CliError(`Invalid session name: ${(e as Error).message}`);
     }
-    let historyFile = path.join(sessionsDir, `${sessionName}.json`);
+    let chatHistory = new ChatHistory(stateDir, sessionName);
 
     if (options.clear) {
       try {
-        if (fs.existsSync(historyFile)) {
-          fs.unlinkSync(historyFile);
-        }
+        chatHistory.clear();
         console.log(
           picocolors.yellow(`Memory cleared for session '${sessionName}'.`),
         );
-      } catch {}
-    }
-
-    let history: ChatMessage[] = [];
-    if (fs.existsSync(historyFile)) {
-      try {
-        history = JSON.parse(fs.readFileSync(historyFile, 'utf-8')) || [];
-      } catch {}
+      } catch (e: unknown) {
+        console.warn(
+          picocolors.yellow(
+            `⚠️ Warning: Failed to clear session history: ${(e as Error).message}`,
+          ),
+        );
+      }
     }
 
     // --- Single question context printing ---
     if (question && question.trim().toLowerCase() === 'context') {
-      Chat.printHistory(history, sessionName);
+      Chat.printHistory(chatHistory.messages(), sessionName);
+      chatHistory.close();
       return;
     }
 
@@ -282,29 +280,35 @@ export class Chat {
 
             if (['clear', '/clear', '/c'].includes(cmd)) {
               try {
-                if (fs.existsSync(historyFile)) fs.unlinkSync(historyFile);
-                history = [];
+                chatHistory.clear();
                 console.log(
                   picocolors.yellow(
                     `Memory cleared for session '${sessionName}'.`,
                   ),
                 );
-              } catch {}
+                console.log(
+                  picocolors.dim(
+                    '   (sessions are shared with the agent — any agent turns in this session were cleared too)',
+                  ),
+                );
+              } catch (e: unknown) {
+                console.warn(
+                  picocolors.yellow(
+                    `⚠️ Warning: Failed to clear session history: ${(e as Error).message}`,
+                  ),
+                );
+              }
               return false;
             }
 
             if (['context', '/context', '/history'].includes(cmd)) {
-              Chat.printHistory(history, sessionName);
+              Chat.printHistory(chatHistory.messages(), sessionName);
               return false;
             }
 
             if (['undo', '/undo'].includes(cmd)) {
-              if (history.length >= 2) {
-                history.splice(-2, 2);
-                try {
-                  Chat.saveHistoryAtomically(historyFile, history);
-                  console.log('✅ Undid last turn.');
-                } catch {}
+              if (chatHistory.undo()) {
+                console.log('✅ Undid last turn.');
               } else {
                 console.log(picocolors.yellow('⚠️ Nothing to undo.'));
               }
@@ -321,12 +325,13 @@ export class Chat {
                         `Present (masked: ${apiKey.trim().substring(0, 4)}...${apiKey.trim().substring(apiKey.trim().length - 4)})`,
                       );
               }
+              const stored = chatHistory.messages();
               console.log('Current Chat Settings:');
               console.log(
-                `  Active Session:  ${picocolors.yellow(sessionName)} (stored in: ${historyFile})`,
+                `  Active Session:  ${picocolors.yellow(sessionName)} (stored in: ${chatHistory.dbPath})`,
               );
               console.log(
-                `  History size:    ${Math.floor(history.length / 2)} turns (${history.length} messages)`,
+                `  History size:    ${Math.floor(stored.length / 2)} turns (${stored.length} messages)`,
               );
               console.log(`  LLM Provider:    ${picocolors.yellow(provider)}`);
               console.log(
@@ -393,15 +398,10 @@ export class Chat {
               } else {
                 try {
                   const newSess = PathResolver.sanitizeSessionName(args.trim());
+                  PathResolver.assertSessionNameNotReserved(newSess);
+                  chatHistory.close();
                   sessionName = newSess;
-                  historyFile = path.join(sessionsDir, `${sessionName}.json`);
-                  history = [];
-                  if (fs.existsSync(historyFile)) {
-                    try {
-                      history =
-                        JSON.parse(fs.readFileSync(historyFile, 'utf-8')) || [];
-                    } catch {}
-                  }
+                  chatHistory = new ChatHistory(stateDir, sessionName);
                   console.log(
                     `Switched to session: ${picocolors.yellow(sessionName)}`,
                   );
@@ -420,11 +420,9 @@ export class Chat {
             return false;
           }
 
-          const messages: ChatMessage[] = [];
-          const recentHistory = history.slice(-10);
-          recentHistory.forEach((msg) => {
-            messages.push({ role: msg.role, content: msg.content });
-          });
+          const messages: ChatMessage[] = chatHistory
+            .messages(CONTEXT_MESSAGE_LIMIT)
+            .map((msg) => ({ role: msg.role, content: msg.content }));
 
           const systemInstruction = options.system || '';
           const qContent = systemInstruction
@@ -460,12 +458,8 @@ export class Chat {
             console.log(`\n${picocolors.dim(`(${elapsed}s)`)}\n`);
 
             if (responseText.trim().length > 0) {
-              history.push({ role: 'user', content: inputStr });
-              history.push({ role: 'assistant', content: responseText });
-              history = history.slice(-100);
-
               try {
-                Chat.saveHistoryAtomically(historyFile, history);
+                chatHistory.appendTurn(inputStr, responseText);
               } catch (e: unknown) {
                 console.warn(
                   picocolors.yellow(
@@ -535,6 +529,7 @@ export class Chat {
         });
       });
 
+      chatHistory.close();
       return;
     }
 
@@ -543,11 +538,9 @@ export class Chat {
     if (options.provider) llmCfgSingle.provider = options.provider;
     if (options.model) llmCfgSingle.model = options.model;
     const client = Client.fromConfig(llmCfgSingle, projectPath);
-    const messages: ChatMessage[] = [];
-    const recentHistory = history.slice(-10);
-    recentHistory.forEach((msg) => {
-      messages.push({ role: msg.role, content: msg.content });
-    });
+    const messages: ChatMessage[] = chatHistory
+      .messages(CONTEXT_MESSAGE_LIMIT)
+      .map((msg) => ({ role: msg.role, content: msg.content }));
 
     const systemInstruction = options.system || '';
     const qContent = systemInstruction
@@ -582,12 +575,8 @@ export class Chat {
       console.log(`\n${picocolors.dim(`(${elapsed}s)`)}`);
 
       if (responseText.trim().length > 0) {
-        history.push({ role: 'user', content: question });
-        history.push({ role: 'assistant', content: responseText });
-        history = history.slice(-100);
-
         try {
-          Chat.saveHistoryAtomically(historyFile, history);
+          chatHistory.appendTurn(question, responseText);
         } catch (e: unknown) {
           console.warn(
             picocolors.yellow(
@@ -599,11 +588,13 @@ export class Chat {
     } catch (e: unknown) {
       process.stdout.write('\r\x1b[K');
       throw new UI.CliError(`Error calling LLM: ${(e as Error).message}`);
+    } finally {
+      chatHistory.close();
     }
   }
 
   private static printHistory(
-    history: ChatMessage[],
+    history: TranscriptMessage[],
     sessionName: string,
   ): void {
     if (history.length === 0) {
@@ -624,16 +615,5 @@ export class Chat {
       console.log(msg.content);
       console.log('-'.repeat(50));
     });
-  }
-
-  private static saveHistoryAtomically(
-    filePath: string,
-    history: ChatMessage[],
-  ): void {
-    const dir = path.dirname(filePath);
-    fs.mkdirSync(dir, { recursive: true });
-    const tempPath = `${filePath}.tmp`;
-    fs.writeFileSync(tempPath, JSON.stringify(history, null, 2), 'utf-8');
-    fs.renameSync(tempPath, filePath);
   }
 }

@@ -5,6 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
 import { type ExecaReturnValue, execa } from 'execa';
 import yaml from 'yaml';
+import {
+  MemoryProvider,
+  type TranscriptMessage,
+} from '../../../src/core/memory/provider.js';
+import { SQLiteStore } from '../../../src/core/memory/sqliteStore.js';
 import { initializeWorkspaceInPlace } from '../../../src/utils/workspaceInitializer.js';
 import { rmRetry } from '../../utils/rmRetry.js';
 
@@ -193,6 +198,30 @@ export async function runAura(
       },
     },
   );
+}
+
+/**
+ * Path to a session's event log. Chat and the agent share one store per
+ * session, so this is where chat transcripts live too.
+ */
+export function sessionDbPath(
+  workspace: SystemWorkspace,
+  session = 'default',
+): string {
+  return path.join(workspace.auraDir, 'state', 'sessions', `${session}.db`);
+}
+
+/** Reads back the plain user/assistant transcript from a session event log. */
+export function readSessionTranscript(
+  workspace: SystemWorkspace,
+  session = 'default',
+): TranscriptMessage[] {
+  const store = new SQLiteStore({ dbPath: sessionDbPath(workspace, session) });
+  try {
+    return new MemoryProvider(store).toChatMessages();
+  } finally {
+    store.close();
+  }
 }
 
 export function parseJsonOutput<T = Record<string, unknown>>(

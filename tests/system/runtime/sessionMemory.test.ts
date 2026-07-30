@@ -1,8 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createSystemWorkspace,
+  readSessionTranscript,
   requireSystemLlmConfig,
   runAura,
   runSystemTests,
@@ -48,16 +47,7 @@ describeSystem('System session memory', { timeout: 180000 }, () => {
     expect(second.exitCode).toBe(0);
     expect(second.stdout).toContain(token);
 
-    const historyPath = path.join(
-      workspace.auraDir,
-      'state',
-      'chat_sessions',
-      `${session}.json`,
-    );
-    const history = JSON.parse(fs.readFileSync(historyPath, 'utf-8')) as Array<{
-      role: string;
-      content: string;
-    }>;
+    const history = readSessionTranscript(workspace, session);
     expect(history.length).toBeGreaterThanOrEqual(4);
     expect(history.filter((item) => item.role === 'user')).toHaveLength(2);
     expect(history.filter((item) => item.role === 'assistant')).toHaveLength(2);
@@ -90,20 +80,11 @@ describeSystem('System session memory', { timeout: 180000 }, () => {
     expect(isolated.stdout).not.toContain(token);
     expect(isolated.stdout).toMatch(/UNKNOWN/i);
 
-    const sourceHistoryPath = path.join(
-      workspace.auraDir,
-      'state',
-      'chat_sessions',
-      `${sourceSession}.json`,
-    );
-    const isolatedHistoryPath = path.join(
-      workspace.auraDir,
-      'state',
-      'chat_sessions',
-      `${isolatedSession}.json`,
-    );
-
-    expect(fs.readFileSync(sourceHistoryPath, 'utf-8')).toContain(token);
-    expect(fs.readFileSync(isolatedHistoryPath, 'utf-8')).not.toContain(token);
+    expect(
+      JSON.stringify(readSessionTranscript(workspace, sourceSession)),
+    ).toContain(token);
+    expect(
+      JSON.stringify(readSessionTranscript(workspace, isolatedSession)),
+    ).not.toContain(token);
   });
 });

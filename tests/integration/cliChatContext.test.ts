@@ -4,6 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { MemoryRecorder } from '../../src/core/memory/recorder.js';
+import { SQLiteStore } from '../../src/core/memory/sqliteStore.js';
 import { initializeWorkspaceInPlace } from '../../src/utils/workspaceInitializer.js';
 import { rmRetry } from '../utils/rmRetry.js';
 
@@ -407,7 +409,124 @@ describe('CLI Chat Context & Commands Integration', { timeout: 60000 }, () => {
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toContain('Undid last turn.');
 
-    const currentHistory = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
-    expect(currentHistory).toEqual([]);
+    // History now lives in the shared event log, so read it back through the
+    // CLI rather than off disk.
+    const after = await execa('npx', ['tsx', auraBinPath, 'chat', 'context'], {
+      cwd: tempWorkspace,
+    });
+    expect(after.stdout).toContain(
+      "No conversation history found for session 'default'.",
+    );
+  });
+
+  it('migrates a legacy chat_sessions JSON transcript into the session event log', async () => {
+    const sessionDir = path.join(
+      tempWorkspace,
+      '.aura-workspace',
+      'state',
+      'chat_sessions',
+    );
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const historyFile = path.join(sessionDir, 'default.json');
+    fs.writeFileSync(
+      historyFile,
+      JSON.stringify(
+        [
+          { role: 'user', content: 'legacy question' },
+          { role: 'assistant', content: 'legacy answer' },
+        ],
+        null,
+        2,
+      ),
+    );
+
+    const res = await execa('npx', ['tsx', auraBinPath, 'chat', 'context'], {
+      cwd: tempWorkspace,
+    });
+
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toContain('legacy question');
+    expect(res.stdout).toContain('legacy answer');
+
+    // The legacy file is retired, and the transcript now lives in the session DB.
+    expect(fs.existsSync(historyFile)).toBe(false);
+    expect(fs.existsSync(`${historyFile}.migrated`)).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(
+          tempWorkspace,
+          '.aura-workspace',
+          'state',
+          'sessions',
+          'default.db',
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it('leaves a legacy transcript in place when the session already has events', async () => {
+    // Seed the unified store first, so the legacy file would land out of order.
+    const store = new SQLiteStore({
+      dbPath: path.join(
+        tempWorkspace,
+        '.aura-workspace',
+        'state',
+        'sessions',
+        'default.db',
+      ),
+    });
+    new MemoryRecorder(store).recordUser('agent-era turn');
+    store.close();
+
+    const sessionDir = path.join(
+      tempWorkspace,
+      '.aura-workspace',
+      'state',
+      'chat_sessions',
+    );
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const historyFile = path.join(sessionDir, 'default.json');
+    fs.writeFileSync(
+      historyFile,
+      JSON.stringify([{ role: 'user', content: 'legacy question' }], null, 2),
+    );
+
+    const res = await execa('npx', ['tsx', auraBinPath, 'chat', 'context'], {
+      cwd: tempWorkspace,
+    });
+
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toContain('agent-era turn');
+    expect(res.stdout).not.toContain('legacy question');
+    expect(fs.existsSync(historyFile)).toBe(true);
+  });
+
+  it('surfaces agent turns from the same session in chat context', async () => {
+    const store = new SQLiteStore({
+      dbPath: path.join(
+        tempWorkspace,
+        '.aura-workspace',
+        'state',
+        'sessions',
+        'shared.db',
+      ),
+    });
+    const recorder = new MemoryRecorder(store);
+    const userId = recorder.recordUser('build the thing');
+    recorder.recordExecution('write_file', { status: 'ok' }, userId);
+    recorder.recordAssistant('Built it.', userId);
+    store.close();
+
+    const res = await execa(
+      'npx',
+      ['tsx', auraBinPath, 'chat', 'context', '--session', 'shared'],
+      { cwd: tempWorkspace },
+    );
+
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toContain('build the thing');
+    expect(res.stdout).toContain('Built it.');
+    // Tool activity stays out of the plain chat transcript.
+    expect(res.stdout).not.toContain('write_file');
   });
 });

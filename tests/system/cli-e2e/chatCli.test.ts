@@ -2,6 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  MemoryProvider,
+  type TranscriptMessage,
+} from '../../../src/core/memory/provider.js';
+import { SQLiteStore } from '../../../src/core/memory/sqliteStore.js';
+import {
   createSystemWorkspace,
   runAura,
   runSystemTests,
@@ -9,6 +14,20 @@ import {
 } from '../utils/systemHarness.js';
 
 const describeSystem = runSystemTests ? describe : describe.skip;
+
+function sessionDbPath(workspace: SystemWorkspace, session: string): string {
+  return path.join(workspace.auraDir, 'state', 'sessions', `${session}.db`);
+}
+
+/** Chat history now lives in the session event log, not a flat JSON file. */
+function readTranscript(dbPath: string): TranscriptMessage[] {
+  const store = new SQLiteStore({ dbPath });
+  try {
+    return new MemoryProvider(store).toChatMessages();
+  } finally {
+    store.close();
+  }
+}
 
 describeSystem('System chat CLI', { timeout: 180000 }, () => {
   let workspace: SystemWorkspace;
@@ -51,18 +70,10 @@ describeSystem('System chat CLI', { timeout: 180000 }, () => {
     expect(cleared.stdout).not.toContain(token);
     expect(cleared.stdout).toMatch(/UNKNOWN/i);
 
-    const historyPath = path.join(
-      workspace.auraDir,
-      'state',
-      'chat_sessions',
-      `${session}.json`,
-    );
-    expect(fs.existsSync(historyPath)).toBe(true);
+    const dbPath = sessionDbPath(workspace, session);
+    expect(fs.existsSync(dbPath)).toBe(true);
 
-    const history = JSON.parse(fs.readFileSync(historyPath, 'utf-8')) as Array<{
-      role: string;
-      content: string;
-    }>;
+    const history = readTranscript(dbPath);
     expect(history).toHaveLength(2);
     expect(history.at(0)?.role).toBe('user');
     expect(history.at(1)?.role).toBe('assistant');
@@ -98,12 +109,7 @@ describeSystem('System chat CLI', { timeout: 180000 }, () => {
 
   it('fails clearly for an invalid provider override without persisting chat history', async () => {
     const session = 'chat_invalid_provider';
-    const historyPath = path.join(
-      workspace.auraDir,
-      'state',
-      'chat_sessions',
-      `${session}.json`,
-    );
+    const dbPath = sessionDbPath(workspace, session);
 
     const result = await runAura(workspace, [
       'chat',
@@ -118,6 +124,7 @@ describeSystem('System chat CLI', { timeout: 180000 }, () => {
 
     expect(result.exitCode).not.toBe(0);
     expect(`${result.stdout}\n${result.stderr}`).toMatch(/Error calling LLM/i);
-    expect(fs.existsSync(historyPath)).toBe(false);
+    // A failed turn must not even bring the session database into existence.
+    expect(fs.existsSync(dbPath)).toBe(false);
   });
 });
