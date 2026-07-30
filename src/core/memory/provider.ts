@@ -146,7 +146,14 @@ export class MemoryProvider {
       if (!content?.trim()) continue;
 
       const ts = Number(s.timestamp || 0);
-      const seq = Number(s.source_event_id || s.id || 0);
+      // source_event_id lives in the events table's id space; summaries.id
+      // (this row's own primary key) is a separate, unrelated counter and is
+      // NOT comparable to it — mixing the two as a single sort key silently
+      // scrambles ordering (see legacy rows from before source_event_id
+      // existed, which have it NULL). Falling back to 0 sorts an
+      // unattributed summary to the front instead of at a misleading
+      // position borrowed from the wrong table.
+      const seq = Number(s.source_event_id || 0);
       const body = content.replace(/\s+/g, ' ').trim();
       historyEntries.push({
         ts,
@@ -369,12 +376,15 @@ export class MemoryProvider {
         }
 
         body = body.replace(/\s+/g, ' ').trim();
-        const seq =
-          typeof pl === 'object' &&
-          (pl as { call_seq?: number }).call_seq !== undefined &&
-          (pl as { call_seq?: number }).call_seq !== null
-            ? Number((pl as { call_seq?: number }).call_seq)
-            : Number(e.id);
+        // Use this event's own id, not call_seq. call_seq is pinned to the
+        // turn's originating user event and stays identical across every
+        // tool call in that turn — with multiple calls per turn that gave
+        // every Tool Result the same seq, so the sort fell through to the
+        // `order` tiebreaker and bunched all Tool Results before all
+        // Summaries instead of interleaving them chronologically. e.id is
+        // unique per call and is what recordSummary's source_event_id now
+        // anchors to, so a call and its own summary share the same seq.
+        const seq = Number(e.id);
         return {
           ts,
           seq,
