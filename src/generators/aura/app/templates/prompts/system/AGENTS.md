@@ -1,7 +1,3 @@
-# Operating Instructions (AGENTS)
-
-This file defines the operational rules and guidelines for this Aura agent.
-
 ## Workspace and Memory
 - The workspace is the project root (default cwd). It is not a hard sandbox.
 - Isolation is enforced by `security.strict_path_isolation` and sandbox settings.

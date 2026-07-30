@@ -18,8 +18,8 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 
 export const USER_SECTIONS = [
-  'AGENTS.md',
   'SOUL.md',
+  'AGENTS.md',
   'USER.md',
   'TOOLS.md',
   'IDENTITY.md',

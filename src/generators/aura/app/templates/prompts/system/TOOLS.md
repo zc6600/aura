@@ -1,7 +1,3 @@
-# Tool Guidelines (TOOLS)
-
-This file provides tips and context for using the available tools effectively.
-
 ## General
 - Use `ls` to explore directories before guessing paths.
 - Use `read_file` to understand existing code before modifying it.
