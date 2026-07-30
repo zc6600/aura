@@ -187,18 +187,7 @@ export function resolve(
   const m = mode.toLowerCase();
 
   if (m === 'standard') {
-    const systemPath = findFileInWorkspace(projectPath, [
-      'skills/system.md',
-      '.aura-workspace/skills/system.md',
-      '.aura/skills/system.md',
-      'prompts/system.md',
-      '.aura-workspace/prompts/system.md',
-      '.aura/prompts/system.md',
-    ]);
-
-    return systemPath
-      ? readFileCached(systemPath) || ''
-      : composeModularSystemPrompt(projectPath);
+    return composeModularSystemPrompt(projectPath);
   }
 
   if (m === 'ralph_developer') {

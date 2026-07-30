@@ -365,9 +365,9 @@ export const Doctor = {
     const legacy = path.join(workspacePath, 'skills', 'system.md');
     if (fs.existsSync(legacy)) {
       console.log('\n[Workspace Prompt Sync]');
-      console.log('  Found legacy system override at skills/system.md.');
+      console.log('  ⚠️  skills/system.md is deprecated and ignored.');
       console.log(
-        '  💡 Note: Modular prompt section overrides (prompts/system/*.md) will be ignored because skills/system.md takes precedence.',
+        '  💡 Tip: Customize modular prompt sections in prompts/system/*.md (AGENTS.md, SOUL.md, TOOLS.md, USER.md) instead.',
       );
     }
 
