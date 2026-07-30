@@ -59,6 +59,13 @@ describe('ConsoleRenderer', () => {
     expect(stdoutWriteSpy).toHaveBeenCalledWith('hello');
   });
 
+  it('test_suppress_raw_json_tool_call', () => {
+    const renderer = new ConsoleRenderer();
+    renderer.onToken('```json\n{\n  "tool": "write_file"\n}\n```');
+    // Should NOT have written the JSON block to stdout
+    expect(stdoutWriteSpy).not.toHaveBeenCalledWith(expect.stringContaining('write_file'));
+  });
+
   it('test_on_stream_end', () => {
     const renderer = new ConsoleRenderer();
     renderer.onToken('hello');

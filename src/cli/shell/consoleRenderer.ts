@@ -16,6 +16,8 @@ export class ConsoleRenderer {
   private verbose: boolean;
   private lastStreamed = false;
   private spinner: Spinner | null = null;
+  private tokenBuffer = '';
+  private isSuppressingJson = false;
 
   constructor(options: { verbose?: boolean } = {}) {
     this.verbose = options.verbose || false;
@@ -26,6 +28,44 @@ export class ConsoleRenderer {
       this.spinner.stop('');
       this.spinner = null;
     }
+
+    this.tokenBuffer += text;
+
+    // Detect if we are starting a raw JSON tool call block
+    const trimmed = this.tokenBuffer.trimStart();
+    if (
+      !this.isSuppressingJson &&
+      (trimmed.startsWith('```json') ||
+        trimmed.startsWith('{\n  "tool":') ||
+        trimmed.startsWith('{"tool":') ||
+        trimmed.startsWith('{\n"tool":') ||
+        trimmed.startsWith('```\n{\n  "tool":'))
+    ) {
+      this.isSuppressingJson = true;
+    }
+
+    if (this.isSuppressingJson) {
+      // If the JSON block has finished and non-JSON text follows, resume printing
+      if (
+        this.tokenBuffer.includes('```\n') &&
+        !this.tokenBuffer.endsWith('```\n')
+      ) {
+        const parts = this.tokenBuffer.split('```\n');
+        if (parts.length > 1) {
+          const remainingText = parts.slice(1).join('```\n');
+          this.isSuppressingJson = false;
+          this.tokenBuffer = '';
+          this.writeText(remainingText);
+        }
+      }
+      return;
+    }
+
+    this.writeText(text);
+  }
+
+  private writeText(text: string): void {
+    if (!text) return;
     if (!this.lastStreamed) {
       this.lastStreamed = true;
       process.stdout.write('\r\x1b[K'); // Clear waiting line
@@ -42,6 +82,8 @@ export class ConsoleRenderer {
       process.stdout.write('\n');
     }
     this.lastStreamed = false;
+    this.tokenBuffer = '';
+    this.isSuppressingJson = false;
   }
 
   public onWaiting(elapsedSeconds: number): void {
