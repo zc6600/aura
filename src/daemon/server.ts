@@ -6,6 +6,7 @@ import type { PauseSignal } from '../core/kernel/agentLoop.js';
 import { RalphLoop } from '../core/kernel/ralphLoop.js';
 import type { Runner } from '../core/kernel/runner.js';
 import { SessionManager } from '../core/memory/sessionManager.js';
+import { WorkspaceWatcherService } from '../core/workspace/watcher.js';
 import { resolveIpcPath } from './ipc.js';
 import { dispatchRequest } from './router.js';
 
@@ -19,6 +20,13 @@ export class DaemonServer {
   public readonly socketPath: string;
   public runner: Runner | null = null;
   public readonly sessionManager: SessionManager;
+  /**
+   * One watcher for the Daemon's whole lifetime, shared by every Runner it
+   * creates. It only makes sense here — a long-lived process — not in
+   * one-shot CLI invocations, which is why it's created lazily on first use
+   * rather than unconditionally in start().
+   */
+  private watcher: WorkspaceWatcherService | null = null;
   public activeLoopJob: {
     status: 'running' | 'idle';
     goal?: string;
@@ -44,6 +52,14 @@ export class DaemonServer {
     this.projectPath = path.resolve(projectPath);
     this.socketPath = resolveIpcPath(this.projectPath);
     this.sessionManager = new SessionManager(this.projectPath);
+  }
+
+  public getOrCreateWatcher(): WorkspaceWatcherService {
+    if (!this.watcher) {
+      this.watcher = new WorkspaceWatcherService(this.projectPath);
+      this.watcher.start();
+    }
+    return this.watcher;
   }
 
   public async start(): Promise<void> {
@@ -147,6 +163,12 @@ export class DaemonServer {
         this.runner.destroy();
       } catch {}
       this.runner = null;
+    }
+    if (this.watcher) {
+      try {
+        this.watcher.close();
+      } catch {}
+      this.watcher = null;
     }
     if (this.server) {
       try {

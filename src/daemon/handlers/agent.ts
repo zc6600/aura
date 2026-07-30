@@ -49,7 +49,9 @@ export const pause: HandlerFunction = async (ctx) => {
 export const runGoal: HandlerFunction = async (ctx) => {
   const server = ctx.server;
   if (!server.runner) {
-    server.runner = new Runner(server.projectPath);
+    server.runner = new Runner(server.projectPath, {
+      watcher: server.getOrCreateWatcher(),
+    });
   }
   const engine = server.runner.getEngine();
   if (engine.listenerCount('interactive_prompt') === 0) {

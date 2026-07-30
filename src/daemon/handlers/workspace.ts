@@ -29,7 +29,9 @@ export const initialize: HandlerFunction = async (ctx) => {
       server.runner.destroy();
     } catch {}
   }
-  const runner = new Runner(server.projectPath);
+  const runner = new Runner(server.projectPath, {
+    watcher: server.getOrCreateWatcher(),
+  });
   server.runner = runner;
   if (sessionName) {
     runner.reconnectSession(sessionName as string);
