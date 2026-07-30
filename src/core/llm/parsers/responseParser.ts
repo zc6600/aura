@@ -229,6 +229,14 @@ export class ResponseParser {
 
   public static extractPreJsonText(s: string): string | null {
     const jsonBlockIndex = s.indexOf('```');
+    if (jsonBlockIndex === 0) {
+      // The response starts directly with a fence — there is no real
+      // preamble, just fence/language-tag syntax (e.g. "```json") sitting
+      // before the JSON. Don't fall through to the brace-based fallback
+      // below, which would otherwise capture that syntax itself as if it
+      // were the model's reasoning. No preamble means no thought to report.
+      return null;
+    }
     if (jsonBlockIndex > 0) {
       const preText = s.substring(0, jsonBlockIndex).trim();
       if (preText) return preText;

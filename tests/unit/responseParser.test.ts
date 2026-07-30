@@ -90,6 +90,21 @@ describe('ResponseParser', () => {
     }
   });
 
+  it('leaves thought unset when the response is a fenced JSON block with no preamble', () => {
+    // Regression: a response that opens directly with ```json (no leading
+    // reasoning text) used to have the fence marker itself ("```json")
+    // mistaken for the model's thought. With no real preamble, there is no
+    // thought to report — it should stay unset, not be filled with syntax.
+    const body =
+      '```json\n{\n  "tool": "bash_command",\n  "args": {"command": "ls"},\n  "summary": "list files"\n}\n```';
+    const res = ResponseParser.parse(body);
+    expect(res.type).toBe('tool_call');
+    if (res.type === 'tool_call') {
+      expect(res.tool).toBe('bash_command');
+      expect(res.thought).toBeFalsy();
+    }
+  });
+
   it('should normalize different argument shapes', () => {
     expect(ResponseParser.normalizeArgs(null)).toEqual({});
     expect(ResponseParser.normalizeArgs('string_arg')).toEqual({
@@ -149,4 +164,3 @@ describe('ResponseParser', () => {
     }
   });
 });
-
