@@ -441,6 +441,10 @@ Because files may have changed while a run was parked, the resumed agent is expl
 
 Directly query the active LLM from any workspace without agent wrappers. Supports conversation memory.
 
+Chat shares its storage with the agent: turns are appended to the same session event log at `.aura-workspace/state/sessions/<name>.db`, so a chat turn and an autonomous agent turn taken in the same session sit on one timeline. What stays specific to chat is the *context* — it replays only plain user/assistant messages, never tool output or context providers.
+
+Transcripts written by earlier versions to `state/chat_sessions/<name>.json` are imported automatically the first time the session is read, after which the file is renamed to `.json.migrated`. If the target session already holds events, the import is skipped and the file left in place, since replaying old turns would misorder the timeline.
+
 **Examples:**
 ```bash
 # Ask a question
@@ -458,8 +462,8 @@ aura chat "Start over" --session user_info --clear
 ```
 
 **Options:**
-- `--session <name>` or `-s <name>` - Save/load conversation history (default: `default`)
-- `--clear` or `-c` - Clear memory for the specified session
+- `--session <name>` or `-s <name>` - Save/load conversation history (default: `default`). Names starting with `ralph_` are rejected; that prefix is reserved for the scratch sessions Ralph mode creates and garbage-collects.
+- `--clear` or `-c` - Clear memory for the specified session. This clears the *whole* session transcript, including any agent turns recorded in it — sessions are shared. Tool status variables are kept.
 - `--system <text>` - Provide a custom system prompt
 - `--model <name>` - Specify the LLM model to use
 - `--provider <name>` - Specify the LLM provider to use

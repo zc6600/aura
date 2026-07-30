@@ -79,13 +79,15 @@ The memory module is decoupled from the Kernel layer and is divided into modular
 
 ### 2. Recorder (Write Side)
 - **Location**: `src/core/memory/recorder.ts`
-- Provides structured methods to record events for various phases (`recordUser`, `recordPlan`, `recordExecution`, `recordInterception`, `recordCustom`) and summaries (`recordSummary`).
+- Provides structured methods to record events for various phases (`recordUser`, `recordAssistant`, `recordPlan`, `recordExecution`, `recordInterception`, `recordCustom`) and summaries (`recordSummary`).
+- `recordAssistant` writes a plain spoken reply — one with no tool call — as a `plan` event carrying the `final` pseudo-tool, the same shape the AgentLoop produces when it answers directly. Reusing that shape rather than inventing a phase is what keeps chat replies visible to the retention policy and the metabolizer.
 - Supports atomic transaction recording of batch events (`recordBatch`).
 
 ### 3. Provider (Read Side)
 - **Location**: `src/core/memory/provider.ts`
 - Reads recent events, summaries, and variables from the memory store.
 - Formats active variables and converts chronological histories into markdown prompts for LLM consumption.
+- `toChatMessages()` rebuilds a plain user/assistant transcript at full fidelity, skipping tool calls and their results. It is deliberately separate from `toMarkdown()`, which truncates final answers to 200 characters because it feeds a context summary — replaying that back to a model would silently corrupt history.
 
 ### 4. Metabolizer Class (Event Lifecycle)
 - **Location**: `src/core/memory/metabolizer.ts`  

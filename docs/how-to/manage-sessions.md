@@ -23,6 +23,10 @@ Aura uses a **"one session, one database"** architecture:
 - No complex multi-tenant logic needed
 - Small SQLite files (typically < 10MB)
 
+Every execution path shares this store. `aura chat` and the agent both append to the session's event log, so a session holds one timeline regardless of which mode produced a given turn — and `aura session delete`, `export`, and `duplicate` act on all of it at once.
+
+Two name spaces are off limits: session names beginning with `ralph_` are reserved for the scratch databases Ralph mode creates per iteration and deletes after 24 hours.
+
 ---
 
 ## Session Commands

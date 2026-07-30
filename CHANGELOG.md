@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   re-stating the goal. State is written to a per-session `LoopCheckpoint` under
   `<env>/state/kernel_checkpoints/`, so a parked run survives quitting the shell and
   the daemon idling out. Not supported in Ralph mode.
+- Automatic one-shot import of pre-existing `state/chat_sessions/<name>.json`
+  transcripts into the session event log on first read; the source file is renamed
+  to `.json.migrated`. The import is skipped, and the file left untouched for manual
+  recovery, when the target session already holds events.
 - `agent/pause` daemon RPC, accepted on the same connection as the in-flight
   `agent/runGoal`. Only the client that started the job may pause it. `agent/runGoal`
   gained a `resume` parameter and a `suspended` result status.
@@ -23,6 +27,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CHANGELOG.md with automated release notes generation
 
 ### Changed
+- `aura chat` now reads and writes the same session event log as the agent
+  (`<env>/state/sessions/<name>.db`) instead of keeping a separate flat JSON
+  transcript. A chat turn and an autonomous agent turn taken in the same session
+  now sit on one timeline. Chat still assembles no tool or provider context; only
+  the storage is shared.
+  - **Breaking:** `--clear` and `/clear` now clear the whole session transcript,
+    including agent turns recorded in that session. Tool status variables are kept.
+  - Chat history is now subject to memory metabolism, so old turns are replaced by
+    summaries instead of being retained raw indefinitely.
+  - A turn that fails (for example an invalid provider) no longer creates the
+    session database.
+  - Session names beginning with `ralph_` are now rejected at user-facing entry
+    points. That prefix belongs to the scratch sessions Ralph mode creates per
+    iteration and garbage-collects after 24 hours, which would otherwise delete a
+    user session silently.
 - The sandbox path guard's checkpoint is now the shared suspend/resume mechanism
   rather than a `kernel loop`-only special case. Resuming restores the step count,
   step history, and format/tool error budgets, so a resumed run no longer silently
