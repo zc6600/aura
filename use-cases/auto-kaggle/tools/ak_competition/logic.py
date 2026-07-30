@@ -24,6 +24,19 @@ def read_params_text():
         return f.read()
 
 
+def parse_scalar(raw):
+    raw = raw.strip()
+    if raw.startswith('"'):
+        end = raw.find('"', 1)
+        return raw[1:end] if end != -1 else raw.strip('"')
+    if raw.startswith("'"):
+        end = raw.find("'", 1)
+        return raw[1:end] if end != -1 else raw.strip("'")
+    if "#" in raw:
+        raw = raw.split("#", 1)[0]
+    return raw.strip()
+
+
 def nested_value(text, section, key, default=""):
     current = None
     for raw in text.splitlines():
@@ -34,7 +47,7 @@ def nested_value(text, section, key, default=""):
             current = line[:-1].strip()
             continue
         if current == section and line.strip().startswith(key + ":"):
-            return line.split(":", 1)[1].strip().strip('"').strip("'")
+            return parse_scalar(line.split(":", 1)[1])
     return default
 
 

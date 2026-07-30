@@ -300,15 +300,16 @@ export class RemoteDaemonSession {
     }
   }
 
-  private announceSuspendedRun(sessionName: string): void {
+  private announceSuspendedRun(sessionName: string | null): void {
+    if (!sessionName) return;
     const cpFile = checkpointPath(this.projectPath, sessionName);
     const cp = loadCheckpoint(cpFile);
     if (!cp) return;
 
     console.log(
       picocolors.yellow(
-        `\n⏸  Found a suspended run from ${new Date(cp.updated_at).toLocaleString()} (` +
-          `${cp.completed_steps.length} step${cp.completed_steps.length === 1 ? '' : 's'} completed).`,
+        `\n⏸  Found a suspended run from ${new Date(cp.createdAt).toLocaleString()} (` +
+          `${cp.steps.length} step${cp.steps.length === 1 ? '' : 's'} completed).`,
       ),
     );
     console.log(

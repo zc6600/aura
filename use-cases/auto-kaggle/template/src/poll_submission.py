@@ -2,12 +2,13 @@
 import argparse
 import json
 import subprocess
+import sys
 import time
 
 
 def call_tool(payload):
     proc = subprocess.run(
-        ["python", "tools/ak_competition/logic.py"],
+        [sys.executable, "tools/ak_competition/logic.py"],
         input=json.dumps(payload),
         text=True,
         stdout=subprocess.PIPE,

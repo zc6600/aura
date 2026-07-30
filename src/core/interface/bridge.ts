@@ -58,21 +58,6 @@ export class Bridge {
   }
 
   /**
-   * Alias for backward compatibility. Directs to runTurn.
-   */
-  public async chat(
-    input: string,
-    options: {
-      auto_mode?: boolean;
-      max_steps?: number | null;
-      pauseSignal?: PauseSignal | null;
-      checkpoint?: LoopCheckpoint | null;
-    } = {},
-  ): Promise<void> {
-    return this.runTurn(input, options);
-  }
-
-  /**
    * Main entry point for processing a user turn
    */
   public async runTurn(

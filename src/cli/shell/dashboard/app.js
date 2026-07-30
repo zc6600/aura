@@ -133,17 +133,67 @@ function filterByLocation(locName) {
   renderTinyvilleEvents();
 }
 
-// Inspect Resident Subagent Modal
-function inspectAgent(agentId) {
-  const info = agentPersonas[agentId];
+// Inspect Relationship & Mailbox Communication Thread
+function inspectThread(threadId) {
+  const threadsData = {
+    "maria_klaus": {
+      title: "🎓 Maria Lopez ➔ 📚 Klaus Mueller",
+      relationship: "❤️ Secret Crush & Study Partner",
+      avatar: "❤️",
+      role: "Inter-Agent Mailbox Thread",
+      instructions: "Maria has a secret crush on Klaus Mueller. She takes initiative to invite him to Isabella's Valentine's Day party at Hobbs Cafe.",
+      messages: `
+• [08:30 AM] Maria -> Klaus: "Hi Klaus! Are you planning to go to Isabella's Valentine's party at Hobbs Cafe today?"
+• [14:15 PM] Klaus -> Maria: "Hi Maria! Yes, I will take a study break from the library and come over at 5 PM."
+• [17:05 PM] Maria -> Klaus: "So glad you made it! Let's grab a coffee together."
+`
+    },
+    "isabella_maria": {
+      title: "👩‍🍳 Isabella Rodriguez ➔ 🎓 Maria Lopez",
+      relationship: "👯‍♀️ Best Friends & Party Decorators",
+      avatar: "👯‍♀️",
+      role: "Inter-Agent Mailbox Thread",
+      instructions: "Isabella coordinates with her close friend Maria to decorate Hobbs Cafe for the Valentine's Day party.",
+      messages: `
+• [08:00 AM] Isabella -> Maria: "Good morning Maria! Could you come by Hobbs Cafe around 11 to help with decorations?"
+• [08:15 AM] Maria -> Isabella: "I'd love to! Can I bring Klaus Mueller along too?"
+• [08:20 AM] Isabella -> Maria: "Of course! The more the merrier!"
+`
+    },
+    "tom_sam": {
+      title: "🏪 Tom Moreno ➔ 🗳️ Sam Moore",
+      relationship: "🗳️ Election Allies & Political Discussion",
+      avatar: "🗳️",
+      role: "Inter-Agent Mailbox Thread",
+      instructions: "Tom Moreno is active in local elections and supports Sam Moore's town council campaign.",
+      messages: `
+• [11:00 AM] Tom -> Sam: "Hi Sam! John Lin and I were discussing the community election plans at Willows Market today."
+• [11:30 AM] Sam -> Tom: "Thanks Tom! Let's organize a town hall meeting next week to talk about local gentrification."
+`
+    },
+    "isabella_klaus": {
+      title: "👩‍🍳 Isabella Rodriguez ➔ 📚 Klaus Mueller",
+      relationship: "☕ Cafe Owner & Regular Patron",
+      avatar: "☕",
+      role: "Inter-Agent Mailbox Thread",
+      instructions: "Klaus is a regular customer at Hobbs Cafe during his afternoon library research breaks.",
+      messages: `
+• [14:00 PM] Isabella -> Klaus: "Hi Klaus! Sending you a quick note — hope to see you at 5 PM for our Valentine's celebration!"
+• [14:20 PM] Klaus -> Isabella: "Thank you Isabella, I will definitely be there."
+`
+    }
+  };
+
+  const info = threadsData[threadId];
   if (!info) return;
-  
-  document.getElementById("modal-avatar").textContent = info.icon;
-  document.getElementById("modal-name").textContent = info.name;
-  document.getElementById("modal-role").textContent = info.role;
+
+  document.getElementById("modal-avatar").textContent = info.avatar;
+  document.getElementById("modal-name").textContent = info.title;
+  document.getElementById("modal-role").textContent = info.relationship;
   document.getElementById("modal-instructions").textContent = info.instructions;
-  document.getElementById("modal-db-path").textContent = `.aura-workspace/state/subagents/${agentId}/state.db`;
-  
+  document.getElementById("modal-db-path").textContent = `.aura-workspace/state/sessions/default/bus/mailbox/${threadId}.jsonl`;
+  document.getElementById("modal-mailbox-threads").textContent = info.messages;
+
   const modal = document.getElementById("agent-modal");
   modal.classList.add("active");
 }

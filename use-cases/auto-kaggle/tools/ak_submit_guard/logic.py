@@ -28,6 +28,19 @@ def read_params_text():
         return f.read()
 
 
+def parse_scalar(raw):
+    raw = raw.strip()
+    if raw.startswith('"'):
+        end = raw.find('"', 1)
+        return raw[1:end] if end != -1 else raw.strip('"')
+    if raw.startswith("'"):
+        end = raw.find("'", 1)
+        return raw[1:end] if end != -1 else raw.strip("'")
+    if "#" in raw:
+        raw = raw.split("#", 1)[0]
+    return raw.strip()
+
+
 def nested_value(section, key, default=None):
     text = read_params_text()
     current = None
@@ -39,7 +52,7 @@ def nested_value(section, key, default=None):
             current = line[:-1].strip()
             continue
         if current == section and line.strip().startswith(key + ":"):
-            val = line.split(":", 1)[1].strip().strip('"').strip("'")
+            val = parse_scalar(line.split(":", 1)[1])
             if val == "true":
                 return True
             if val == "false":
@@ -172,7 +185,7 @@ def validate(args):
 
 def call_competition_submit(path, message, run_id):
     proc = subprocess.run(
-        ["python", "tools/ak_competition/logic.py"],
+        [sys.executable, "tools/ak_competition/logic.py"],
         input=json.dumps({"action": "submit", "submission_path": path, "message": message, "run_id": run_id}),
         text=True,
         stdout=subprocess.PIPE,

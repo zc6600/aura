@@ -7,6 +7,7 @@ import json
 import subprocess
 import sys
 import datetime
+import threading
 
 # Import all helpers from the scripts package
 from scripts import (
@@ -123,7 +124,9 @@ def run_subagent(goal, subagent_id=None, max_steps=None, timeout=None, name=None
     stdout_lines = []
     stderr_lines = []
     return_code = 0
-    
+    proc = None
+    timed_out = threading.Event()
+
     try:
         proc = subprocess.Popen(
             cmd,
@@ -133,59 +136,76 @@ def run_subagent(goal, subagent_id=None, max_steps=None, timeout=None, name=None
             text=True,
             bufsize=1
         )
-        
-        if proc.stdout:
-            for line in iter(proc.stdout.readline, ''):
-                stdout_lines.append(line)
-                trimmed = line.rstrip()
-                if trimmed:
-                    sys.stdout.write(f"\x1b[36m[Subagent: {sid}]\x1b[0m {trimmed}\n")
-                    sys.stdout.flush()
-        
-        proc.wait(timeout=timeout)
-        return_code = proc.returncode
-        
+
+        def _on_timeout():
+            timed_out.set()
+            try:
+                proc.kill()
+            except Exception:
+                pass
+
+        timer = threading.Timer(timeout, _on_timeout)
+        timer.start()
+        try:
+            if proc.stdout:
+                for line in iter(proc.stdout.readline, ''):
+                    stdout_lines.append(line)
+                    trimmed = line.rstrip()
+                    if trimmed:
+                        sys.stdout.write(f"\x1b[36m[Subagent: {sid}]\x1b[0m {trimmed}\n")
+                        sys.stdout.flush()
+
+            proc.wait()
+            return_code = proc.returncode
+        finally:
+            timer.cancel()
+
         if proc.stderr:
             err_output = proc.stderr.read()
-            stderr_lines.append(err_output)
+            if err_output:
+                stderr_lines.append(err_output)
             if return_code != 0 and err_output:
                 sys.stderr.write(f"\x1b[31m[Subagent Error: {sid}]\x1b[0m {err_output}\n")
                 sys.stderr.flush()
-    except subprocess.TimeoutExpired:
-        error_msg = f"Subagent execution timed out after {timeout}s"
-        if proc:
-            proc.kill()
+
+        if timed_out.is_set():
+            error_msg = f"Subagent execution timed out after {timeout}s"
     except Exception as e:
         error_msg = f"Execution failed: {str(e)}"
 
+    # Popen's stdout/stderr are pipes, already fully drained above — the
+    # captured text lives in stdout_lines/stderr_lines, not on proc itself.
+    stdout_text = ''.join(stdout_lines)
+    stderr_text = ''.join(stderr_lines)
+
     # Export trajectory regardless of success/failure
     trajectory_file = export_trajectory(paths["db_path"], paths["trajectory_path"])
-    
+
     result = {
         "subagent_id": sid,
         "db_path": paths["db_path"]
     }
     if trajectory_file:
         result["trajectory_path"] = trajectory_file
-        
+
     if error_msg:
         result["status"] = "failed"
         result["error"] = error_msg
-        if proc and proc.stdout:
-             result["stdout_partial"] = proc.stdout[:500]
+        if stdout_text:
+            result["stdout_partial"] = stdout_text[:500]
         AtomicWriter.write(paths["status_path"], result)
         return result
-        
-    if proc.returncode != 0:
+
+    if return_code != 0:
         result["status"] = "failed"
-        result["error"] = f"Subagent process exited with code {proc.returncode}"
-        result["stderr"] = proc.stderr[:500] if (proc and proc.stderr) else ""
+        result["error"] = f"Subagent process exited with code {return_code}"
+        result["stderr"] = stderr_text[:500]
         AtomicWriter.write(paths["status_path"], result)
         return result
-        
+
     # Parse output
     try:
-        output_json = json.loads(proc.stdout)
+        output_json = json.loads(stdout_text)
         result["status"] = "success"
         
         # Get full report
@@ -227,7 +247,7 @@ def run_subagent(goal, subagent_id=None, max_steps=None, timeout=None, name=None
     except json.JSONDecodeError:
         result["status"] = "failed"
         result["error"] = "Failed to parse subagent JSON output"
-        result["raw_output"] = proc.stdout[:500]
+        result["raw_output"] = stdout_text[:500]
         
     AtomicWriter.write(paths["status_path"], result)
     return result

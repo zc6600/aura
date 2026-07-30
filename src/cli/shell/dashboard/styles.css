@@ -412,9 +412,46 @@ header {
   background: rgba(6, 182, 212, 0.08);
 }
 
-.roster-avatar { font-size: 1.1rem; }
-.roster-name { font-size: 0.8rem; font-weight: 600; }
-.roster-role { font-size: 0.68rem; color: var(--text-muted); }
+.social-links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.social-link-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.social-link-item:hover {
+  border-color: var(--accent-teal);
+  background: rgba(20, 184, 166, 0.08);
+  transform: translateX(3px);
+}
+
+.link-agents {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.link-badge {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.link-badge.crush { background: rgba(244, 63, 94, 0.15); color: #f43f5e; }
+.link-badge.friends { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+.link-badge.politics { background: rgba(234, 179, 8, 0.15); color: #facc15; }
+.link-badge.patron { background: rgba(20, 184, 166, 0.15); color: var(--accent-teal); }
 
 /* Timeline Bar & Feed */
 .showcase-feed-area {
