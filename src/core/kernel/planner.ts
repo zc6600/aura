@@ -1,5 +1,4 @@
 import path from 'node:path';
-import * as ConfigManager from '../../utils/configManager.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import { LLMClient } from '../llm/client.js';
 import {
@@ -7,6 +6,7 @@ import {
   ResponseParser,
 } from '../llm/parsers/responseParser.js';
 import * as PromptsCompose from '../llm/prompts/compose.js';
+import { KernelConfig } from './config.js';
 import type { PlanEvent } from './interfaces.js';
 
 export class Planner {
@@ -23,10 +23,9 @@ export class Planner {
       PathResolver.environmentPath(this.projectPath) ||
       this.projectPath;
 
-    const cfg = this.loadConfig();
-    const llmCfg = (cfg.llm as Record<string, unknown>) || {};
-    this.temp = llmCfg.temperature as number;
-    this.maxTokens = llmCfg.max_tokens as number;
+    const llmCfg = KernelConfig.fromFile(this.envPath).llm;
+    this.temp = llmCfg?.temperature;
+    this.maxTokens = llmCfg?.max_tokens;
 
     this.client = LLMClient.fromConfig(llmCfg, this.projectPath);
   }
@@ -140,14 +139,6 @@ export class Planner {
   private silencePlannerWarnings(): boolean {
     if (process.env.AURA_SILENCE_PLANNER_WARNINGS === '1') return true;
     return process.env.NODE_ENV === 'test';
-  }
-
-  private loadConfig(): Record<string, unknown> {
-    try {
-      return ConfigManager.load(this.envPath) || {};
-    } catch (_e) {
-      return {};
-    }
   }
 }
 

@@ -19,6 +19,7 @@ import {
   runWorkflow,
   type WorkflowRunOptions,
 } from '../workflow/runner.js';
+import { KernelConfig } from './config.js';
 import { ExecutionEngine } from './executionEngine.js';
 import { Hooks } from './hooks.js';
 import type {
@@ -521,8 +522,7 @@ export class Runner extends EventEmitter implements IRunner {
   }
 
   private fetchCallSummaryMax(): number | null {
-    const limit = this.loadConfig().tool_protocol?.call_summary?.max_chars;
-    return typeof limit === 'number' ? limit : null;
+    return new KernelConfig(this.loadConfig()).toolProtocol.callSummaryMaxChars;
   }
 
   private async trackFileModifications(

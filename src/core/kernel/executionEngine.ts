@@ -16,6 +16,7 @@ import {
   runRegistryBest,
   runRegistryRecord,
 } from '../workflow/runner.js';
+import { KernelConfig, type SandboxConfigView } from './config.js';
 import { GitState } from './gitState.js';
 import type { ToolResult } from './interfaces.js';
 import { ToolRegistry } from './registry.js';
@@ -486,7 +487,7 @@ export class ExecutionEngine extends EventEmitter {
     if (manifest.permissions?.shell === true) {
       const guardResult = this.checkSandboxPath(
         typeof cleanArgs.command === 'string' ? cleanArgs.command : '',
-        cfg,
+        new KernelConfig(cfg).sandbox,
       );
       if (guardResult) {
         return guardResult;
@@ -513,7 +514,7 @@ export class ExecutionEngine extends EventEmitter {
 
     const payload = JSON.stringify(cleanArgs);
     const [cmd, finalArgs] = this.applySandbox(
-      cfg,
+      new KernelConfig(cfg).sandbox,
       runtime,
       logic,
       payload,
@@ -991,14 +992,13 @@ export class ExecutionEngine extends EventEmitter {
    */
   private checkSandboxPath(
     command: string,
-    cfg: AuraConfig,
+    sandboxCfg: SandboxConfigView,
   ): ToolResult | null {
     if (!command) return null;
 
-    const sandboxCfg = cfg.security?.sandbox;
-    if (sandboxCfg?.unattended_full_access === true) return null;
+    if (sandboxCfg.unattendedFullAccess) return null;
 
-    const allowRoots = (sandboxCfg?.allow_paths || []).map((p: string) =>
+    const allowRoots = sandboxCfg.allowPaths.map((p: string) =>
       path.resolve(this.projectPath, p),
     );
     const violation = findOutsideSandboxPath(
@@ -1008,7 +1008,7 @@ export class ExecutionEngine extends EventEmitter {
     );
     if (!violation) return null;
 
-    const threshold = sandboxCfg?.unattended_retry_threshold ?? 3;
+    const threshold = sandboxCfg.unattendedRetryThreshold;
     const attempts = (this.sandboxPathAttempts.get(violation) || 0) + 1;
     this.sandboxPathAttempts.set(violation, attempts);
 
@@ -1035,19 +1035,18 @@ export class ExecutionEngine extends EventEmitter {
   }
 
   private applySandbox(
-    cfg: AuraConfig,
+    sandbox: SandboxConfigView,
     runtime: string,
     logic: string,
     _payload: string,
     options: ExecutionOptions = {},
   ): [string[], string[]] {
-    const sandbox = cfg.security?.sandbox;
-    if (!sandbox?.enabled) {
+    if (!sandbox.enabled) {
       return [[runtime, logic], []];
     }
 
     if (sandbox.provider === 'docker') {
-      const image = sandbox.image || 'aura-sandbox:latest';
+      const image = sandbox.image;
       const extraMounts: string[] = [];
       let containerLogic = logic;
       const realLogic = fs.existsSync(logic) ? fs.realpathSync(logic) : logic;

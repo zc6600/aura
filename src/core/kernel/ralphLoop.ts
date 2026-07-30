@@ -13,6 +13,7 @@ import {
 import { ResponseParser } from '../llm/parsers/responseParser.js';
 import type { ChatMessage, ToolSchema } from '../llm/types.js';
 import { AgentLoop, type AgentLoopResult } from './agentLoop.js';
+import { KernelConfig } from './config.js';
 import type { HookFn, IEventBus, IRalphRunner } from './interfaces.js';
 
 interface CriticResponse {
@@ -111,8 +112,6 @@ export class RalphLoop {
     }
   }
 
-  public static readonly DEFAULT_MAX_STEPS = 100;
-  public static readonly DEFAULT_TIMEOUT = 45; // seconds
   public static readonly MAX_UNTRACKED_FILES = 15;
   public static readonly MAX_FILE_SIZE_BYTES = 20480; // 20KB
 
@@ -153,17 +152,12 @@ export class RalphLoop {
     const eb = options.eventBus as IEventBus | undefined;
     this.eventBus = eb ?? { emit: () => {} };
 
-    const cfg = this.runner.loadConfig();
-    const ralphCfg = (cfg.ralph ?? {}) as Record<string, unknown>;
-    this.maxSteps = Number(
-      this.options.max_steps ??
-        ralphCfg.max_steps ??
-        RalphLoop.DEFAULT_MAX_STEPS,
-    );
+    const ralphCfg = new KernelConfig(this.runner.loadConfig()).ralph;
+    this.maxSteps = Number(this.options.max_steps ?? ralphCfg.max_steps);
     this.verifyCommand = (this.options.verify_command ??
       ralphCfg.verify_command) as string | undefined;
     this.criticMode = String(
-      this.options.critic_mode ?? ralphCfg.critic_mode ?? 'light',
+      this.options.critic_mode ?? ralphCfg.critic_mode,
     ).toLowerCase();
     this.useCritic = Boolean(
       this.options.critic ?? ralphCfg.use_critic ?? this.criticMode === 'heavy',
@@ -471,11 +465,8 @@ export class RalphLoop {
       };
     }
 
-    const cfg = this.runner.loadConfig();
-    const ralphCfg = (cfg.ralph ?? {}) as Record<string, unknown>;
-    const timeoutSec = Number(
-      this.options.timeout ?? ralphCfg.timeout ?? RalphLoop.DEFAULT_TIMEOUT,
-    );
+    const ralphCfg = new KernelConfig(this.runner.loadConfig()).ralph;
+    const timeoutSec = Number(this.options.timeout ?? ralphCfg.timeout);
 
     try {
       const execPromise = execa('sh', ['-c', this.verifyCommand], {

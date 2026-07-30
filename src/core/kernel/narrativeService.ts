@@ -1,13 +1,17 @@
-import * as ConfigManager from '../../utils/configManager.js';
-import { asRecord, errorMessage } from '../../utils/typing.js';
+import { loadTyped } from '../../utils/configManager.js';
+import * as PathResolver from '../../utils/pathResolver.js';
+import { errorMessage } from '../../utils/typing.js';
 import { LLMClient } from '../llm/client.js';
 import type { EventRecord } from '../memory/sqliteStore.js';
+import { KernelConfig } from './config.js';
 
 export class NarrativeService {
   private projectPath: string;
+  private envPath: string;
 
   constructor(projectPath: string) {
     this.projectPath = projectPath;
+    this.envPath = PathResolver.environmentPath(projectPath) || projectPath;
   }
 
   public async synthesize(events: EventRecord[]): Promise<string> {
@@ -17,11 +21,9 @@ export class NarrativeService {
 
     let client: LLMClient;
     try {
-      const cfg = asRecord(ConfigManager.load(this.projectPath) || {});
-      const llmCfg = { ...asRecord(cfg.llm) };
-      const stateManagement = asRecord(cfg.state_management);
-      const summarization = asRecord(stateManagement.summarization);
-      const sumModel = summarization.model;
+      const cfg = loadTyped(this.envPath);
+      const llmCfg = { ...(new KernelConfig(cfg).llm ?? {}) };
+      const sumModel = cfg.state_management?.summarization?.model;
       if (sumModel && typeof sumModel === 'string') {
         llmCfg.model = sumModel;
       }

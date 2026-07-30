@@ -6,17 +6,8 @@ import type {
   LoopStep,
 } from './checkpoint.js';
 import { resumeBanner } from './checkpoint.js';
+import { KernelConfig } from './config.js';
 import type { IEventBus, IRunner, ToolCall, ToolResult } from './interfaces.js';
-
-interface SystemConfig {
-  max_steps?: number;
-  max_format_errors?: number;
-  max_tool_errors?: number;
-  /** Max consecutive empty/blank tool results before aborting (default: 5). */
-  max_empty_results?: number;
-  /** Max consecutive calls to the same tool (by name+normalized-argument fingerprint) before aborting (default: 4). */
-  max_repeat_calls?: number;
-}
 
 /**
  * A pause request the loop polls at each iteration boundary.
@@ -77,12 +68,12 @@ export class AgentLoop {
       typeof this.runner.loadConfig === 'function'
         ? this.runner.loadConfig()
         : {};
-    const systemConfig = (cfg.system || {}) as SystemConfig;
-    const limitSteps = options.max_steps ?? systemConfig.max_steps ?? 30;
-    const maxFmtErrs = systemConfig.max_format_errors ?? 5;
-    const maxToolErrs = systemConfig.max_tool_errors ?? 3;
-    const maxEmptyResults = systemConfig.max_empty_results ?? 5;
-    const maxRepeatCalls = systemConfig.max_repeat_calls ?? 4;
+    const systemConfig = new KernelConfig(cfg).system;
+    const limitSteps = options.max_steps ?? systemConfig.max_steps;
+    const maxFmtErrs = systemConfig.max_format_errors;
+    const maxToolErrs = systemConfig.max_tool_errors;
+    const maxEmptyResults = systemConfig.max_empty_results;
+    const maxRepeatCalls = systemConfig.max_repeat_calls;
 
     // Resuming restores the full loop state, not just the prompt: dropping
     // steps/error budgets would silently hand the run a fresh set of retries

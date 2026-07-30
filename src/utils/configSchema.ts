@@ -160,6 +160,8 @@ export const SystemConfigSchema = z
     max_steps: z.number().int().positive().optional(),
     max_format_errors: z.number().int().positive().optional(),
     max_tool_errors: z.number().int().positive().optional(),
+    max_empty_results: z.number().int().positive().optional(),
+    max_repeat_calls: z.number().int().positive().optional(),
   })
   .passthrough();
 
