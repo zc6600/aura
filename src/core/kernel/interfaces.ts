@@ -7,8 +7,13 @@
  */
 
 import type { ContextPayload } from '../context/payload.js';
+import type { IEventBus } from '../events.js';
 import type { CompletionOptions, LLMMessage } from '../llm/adapters/base.js';
 import type { ParseResult } from '../llm/parsers/responseParser.js';
+import type { ToolRegistry } from './registry.js';
+
+/** Re-exported for existing kernel-internal call sites; canonical definition lives in ../events.js. */
+export type { IEventBus };
 
 // ---------------------------------------------------------------------------
 // Tool execution types
@@ -58,12 +63,22 @@ export type PlanEvent =
 export type PlanResult = ParseResult & { finish_reason?: string | null };
 
 // ---------------------------------------------------------------------------
-// Event bus interface
+// Workspace watcher interface
 // ---------------------------------------------------------------------------
 
-/** Minimal event bus contract. Satisfied by Runner (EventEmitter), MemoryEventBus, NullEventBus, etc. */
-export interface IEventBus {
-  emit(event: string, data?: unknown): void;
+/**
+ * Contract for a persistent, in-memory file-change tracker, satisfied by
+ * WorkspaceWatcherService. Lets Runner query "what changed" without a full
+ * recursive filesystem scan on every tool call. Optional: Runner instances
+ * without one (e.g. one-shot CLI invocations) fall back to a sync scan.
+ */
+export interface IWorkspaceWatcher {
+  /** Marks the current point in the change log; returns a token to diff from later. */
+  markSnapshot(): number;
+  /** Resolves to the relative paths added/changed/removed since the given snapshot. */
+  getModifiedFilesSince(snapshotId: number): Promise<string[]>;
+  /** Stops watching and releases resources. */
+  close(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +115,13 @@ export interface IRunner {
 
   /** Assembles the current context (memory + workspace state) as a ContextPayload. */
   observe(): Promise<ContextPayload>;
+
+  /**
+   * The tool registry, if this runner has one — pass it to ContextAssembler.assemble()
+   * so Tool/Skill context providers reuse it instead of scanning the tools directory
+   * again. Optional so lightweight test doubles aren't required to implement it.
+   */
+  getRegistry?(): ToolRegistry;
 
   /** Single-shot planning call. */
   plan(goal?: string | null, context?: unknown): Promise<PlanResult>;

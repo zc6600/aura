@@ -23,7 +23,7 @@ import { LSPProvider } from './providers/lspProvider.js';
 import { SkillProvider } from './providers/skillProvider.js';
 import { StateProvider } from './providers/stateProvider.js';
 import { TaskProvider } from './providers/taskProvider.js';
-import { ToolProvider } from './providers/toolProvider.js';
+import { ToolProvider, type ToolRegistryLike } from './providers/toolProvider.js';
 import { WorkspaceProvider } from './providers/workspaceProvider.js';
 
 export class ContextOverflowError extends Error {
@@ -69,6 +69,9 @@ export class ContextBase {
     this.options = options || {};
 
     const envOpts = { ...this.options, envPath: this.envPath };
+    // Shared with Kernel's Runner when supplied, so Tool/Skill providers don't
+    // each scan the tools directory from disk on their own.
+    const registry = this.options.registry as ToolRegistryLike | undefined;
 
     this.directiveProvider = new DirectiveProvider(
       this.projectPath,
@@ -86,7 +89,10 @@ export class ContextBase {
       this.options,
     );
     this.hintProvider = new HintProvider(this.projectPath, envOpts);
-    this.skillProvider = new SkillProvider(this.projectPath, envOpts);
+    this.skillProvider = new SkillProvider(this.projectPath, {
+      ...envOpts,
+      registry,
+    });
     this.gardenProvider = new GardenProvider(this.projectPath, envOpts);
     this.anchorProvider = new AnchorProvider(this.projectPath, {
       ...envOpts,
@@ -98,7 +104,10 @@ export class ContextBase {
       this.options.lsp_manager as LSPManager | undefined,
     );
     this.knowledgeProvider = new KnowledgeProvider(this.projectPath, envOpts);
-    this.toolProvider = new ToolProvider(this.projectPath, this.options);
+    this.toolProvider = new ToolProvider(this.projectPath, {
+      ...this.options,
+      registry,
+    });
 
     this.stateProvider = new StateProvider(this.session, this.options);
     this.backgroundProcessProvider = new BackgroundProcessProvider(

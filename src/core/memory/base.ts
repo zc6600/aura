@@ -1,11 +1,11 @@
-import type { IEventBus } from '../kernel/interfaces.js';
-import type { ToolRegistry } from '../kernel/registry.js';
+import type { IEventBus } from '../events.js';
 import type { MemoryConfig } from './config.js';
 import { MemoryMetabolizer, type MetabolismResult } from './metabolizer.js';
 import {
   MemoryPolicy,
   type RetentionConfig,
   type TierConfig,
+  type ToolManifestSource,
 } from './policy.js';
 import { MemoryProvider, type TranscriptMessage } from './provider.js';
 import { MemoryRecorder } from './recorder.js';
@@ -30,7 +30,7 @@ export class MemoryBase implements MemorySession {
     config: MemoryConfig;
     store?: SQLiteStore | null;
     eventBus?: IEventBus;
-    registry?: ToolRegistry;
+    registry?: ToolManifestSource;
   }) {
     this.config = options.config;
     this.store = options.store || this.defaultStore();

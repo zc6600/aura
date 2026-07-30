@@ -24,6 +24,7 @@ import { Hooks } from './hooks.js';
 import type {
   IEventBus,
   IRunner,
+  IWorkspaceWatcher,
   PlanEvent,
   PlanResult,
   ToolCall,
@@ -52,6 +53,12 @@ export class Runner extends EventEmitter implements IRunner {
   private configCache: AuraConfig | null = null;
   private lastUserEventId: number | null = null;
   private _autoMode: boolean = false;
+  /**
+   * Optional persistent watcher (only set by long-lived hosts like the
+   * Daemon). When present, file-change tracking is a cheap in-memory diff
+   * instead of a recursive filesystem scan — see trackFileModifications().
+   */
+  private watcher?: IWorkspaceWatcher;
   /** Optional abort signal set by the Daemon on socket disconnect. */
   public abortSignal: AbortSignal | null = null;
 
@@ -91,6 +98,7 @@ export class Runner extends EventEmitter implements IRunner {
       contextManager?: ContextManager;
       hooks?: Hooks;
       planner?: Planner;
+      watcher?: IWorkspaceWatcher;
     } = {},
   ) {
     super();
@@ -116,6 +124,7 @@ export class Runner extends EventEmitter implements IRunner {
     this.planner =
       options.planner ||
       new Planner(this.projectPath, { envPath: this.envPath });
+    this.watcher = options.watcher;
   }
 
   public getRegistry(): ToolRegistry {
@@ -221,6 +230,7 @@ export class Runner extends EventEmitter implements IRunner {
     await this.memory.metabolizeIfNeeded();
     return ContextAssembler.assemble(this.projectPath, this.memory, {
       lsp_manager: this.lspManager,
+      registry: this.registry,
     });
   }
 
@@ -518,6 +528,12 @@ export class Runner extends EventEmitter implements IRunner {
   private async trackFileModifications(
     fn: () => Promise<void>,
   ): Promise<string[]> {
+    if (this.watcher) {
+      const snapshotId = this.watcher.markSnapshot();
+      await fn();
+      return this.watcher.getModifiedFilesSince(snapshotId);
+    }
+
     const beforeState = this.getFileState();
     await fn();
     const afterState = this.getFileState();

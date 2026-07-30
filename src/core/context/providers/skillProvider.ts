@@ -1,28 +1,38 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
+// Only imported for the standalone-usage fallback below (no registry injected) —
+// the type surface this class depends on is ToolRegistryLike, declared locally
+// so Context doesn't carry a type-level dependency on Kernel's registry.
 import { ToolRegistry } from '../../kernel/registry.js';
+
+/** Structural port for tool lookup — satisfied by Kernel's ToolRegistry without importing it. */
+export interface ToolRegistryLike {
+  allTools(): string[];
+}
 
 interface SkillProviderOptions {
   envPath?: string;
+  registry?: ToolRegistryLike;
 }
 
 export class SkillProvider {
   private projectPath: string;
   private envPath: string;
   private skillsPath: string;
+  private registry: ToolRegistryLike;
 
   constructor(projectPath: string, options: SkillProviderOptions = {}) {
     this.projectPath = path.resolve(projectPath);
     this.envPath = options.envPath || this.projectPath;
     this.skillsPath = path.join(this.envPath, 'skills');
+    this.registry = options.registry ?? new ToolRegistry(this.envPath);
   }
 
   public provide(): string | null {
     let availableTools: string[] = [];
     try {
-      const registry = new ToolRegistry(this.envPath);
-      availableTools = registry.allTools();
+      availableTools = this.registry.allTools();
     } catch (_e) {}
 
     let content = '';

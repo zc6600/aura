@@ -436,7 +436,10 @@ export class RalphLoop {
   private assembleContext(options: Record<string, unknown>): ContextPayload {
     const session = this.runner.memory;
     if (session) {
-      return ContextAssembler.assemble(this.projectPath, session, options);
+      return ContextAssembler.assemble(this.projectPath, session, {
+        registry: this.runner.getRegistry?.(),
+        ...options,
+      });
     }
     // Fallback: build a minimal ContextPayload from sections only (no db needed)
     return new ContextPayload({}, [], options);

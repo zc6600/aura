@@ -93,7 +93,9 @@ export class SlashCommandManager {
 
   private handleContext(): void {
     const root = path.resolve(this.projectPath);
-    const out = ContextAssembler.assemble(root, this.runner.memory);
+    const out = ContextAssembler.assemble(root, this.runner.memory, {
+      registry: this.runner.getRegistry(),
+    });
     console.log(out.toMarkdown());
   }
 

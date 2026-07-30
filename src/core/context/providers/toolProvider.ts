@@ -4,7 +4,10 @@ import * as ConfigManager from '../../../utils/configManager.js';
 import { environmentPath } from '../../../utils/pathResolver.js';
 import { asRecord } from '../../../utils/typing.js';
 import { MCPManager, type MCPTool } from '../../ext/mcp/manager.js';
-import { type ToolManifest, ToolRegistry } from '../../kernel/registry.js';
+// Only imported for the standalone-usage fallback below (no registry injected) —
+// the type surface this class actually depends on is ToolRegistryLike, declared
+// locally so Context doesn't carry a type-level dependency on Kernel's registry.
+import { ToolRegistry } from '../../kernel/registry.js';
 import { type ContextItem, ContextManager } from '../manager.js';
 
 export interface StructuredTool {
@@ -15,15 +18,35 @@ export interface StructuredTool {
   hint: string;
 }
 
+/** Structural shape of a tool manifest, as consumed by this provider. */
+export interface ToolManifestLike {
+  requires_context?: string;
+  creates_context?: string;
+  description?: string;
+  permissions?: Record<string, unknown>;
+  input_schema?: Record<string, unknown>;
+  input?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** Structural port for tool lookup — satisfied by Kernel's ToolRegistry without importing it. */
+export interface ToolRegistryLike {
+  allTools(): string[];
+  find(
+    toolName: string,
+  ): { path: string; manifest: ToolManifestLike } | null;
+}
+
 interface ToolProviderOptions {
   current_turn?: number;
+  registry?: ToolRegistryLike;
 }
 
 export class ToolProvider {
   private workspaceRoot: string;
   private envPath: string;
   private currentTurn: number;
-  private registry: ToolRegistry;
+  private registry: ToolRegistryLike;
   private manager: ContextManager;
   private mcpManager: MCPManager;
   private activeToolsList: StructuredTool[] = [];
@@ -36,7 +59,7 @@ export class ToolProvider {
     this.workspaceRoot = path.resolve(workspacePath);
     this.options = options || {};
     this.currentTurn = options.current_turn || 0;
-    this.registry = new ToolRegistry(this.envPath);
+    this.registry = options.registry ?? new ToolRegistry(this.envPath);
     this.manager = new ContextManager(this.envPath);
     this.mcpManager = new MCPManager(this.envPath);
   }
@@ -134,7 +157,7 @@ export class ToolProvider {
   private processSubtool(
     name: string,
     dir: string,
-    manifest: ToolManifest,
+    manifest: ToolManifestLike,
     activeContexts: Record<string, ContextItem>,
   ): void {
     const reqContext = manifest.requires_context;
@@ -170,7 +193,7 @@ export class ToolProvider {
   private processTopLevelTool(
     name: string,
     dir: string,
-    manifest: ToolManifest,
+    manifest: ToolManifestLike,
   ): void {
     if (name === 'anchor_submit' && !this.anchorsHasFiles()) {
       return;
@@ -210,7 +233,7 @@ export class ToolProvider {
   private buildFullDescription(
     name: string,
     dir: string,
-    manifest: ToolManifest,
+    manifest: ToolManifestLike,
   ): string {
     const hint = this.loadHint(dir);
     const desc = manifest.description || '';

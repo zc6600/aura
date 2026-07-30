@@ -1,7 +1,6 @@
-import type { IEventBus } from '../kernel/interfaces.js';
-import type { ToolRegistry } from '../kernel/registry.js';
+import type { IEventBus } from '../events.js';
 import { MemoryEventBus } from './eventBus.js';
-import type { MemoryPolicy } from './policy.js';
+import type { MemoryPolicy, ToolManifestSource } from './policy.js';
 import type { EventRecord as Event, SQLiteStore } from './sqliteStore.js';
 import type { MemorySummarizer } from './summarizer.js';
 
@@ -28,7 +27,7 @@ export class MemoryMetabolizer {
   private summarizer: MemorySummarizer;
   private metabolismConfig: MetabolismConfig;
   private eventBus?: MemoryEventBus;
-  private registry?: ToolRegistry;
+  private registry?: ToolManifestSource;
 
   constructor(options: {
     store: SQLiteStore;
@@ -36,7 +35,7 @@ export class MemoryMetabolizer {
     summarizer: MemorySummarizer;
     metabolismConfig?: MetabolismConfig;
     eventBus?: IEventBus;
-    registry?: ToolRegistry;
+    registry?: ToolManifestSource;
   }) {
     this.store = options.store;
     this.policy = options.policy;

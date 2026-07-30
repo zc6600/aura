@@ -14,6 +14,15 @@
 import type { ToolResult } from './kernel/interfaces.js';
 
 // ---------------------------------------------------------------------------
+// IEventBus — minimal event bus contract shared across domains
+// ---------------------------------------------------------------------------
+
+/** Minimal event bus contract. Satisfied by Runner (EventEmitter), MemoryEventBus, NullEventBus, etc. */
+export interface IEventBus {
+  emit(event: string, data?: unknown): void;
+}
+
+// ---------------------------------------------------------------------------
 // Aura event map — exhaustive list of all events emitted in the system
 // ---------------------------------------------------------------------------
 

@@ -1,5 +1,16 @@
-import type { ToolRegistry } from '../kernel/registry.js';
 import type { EventRecord as Event } from './sqliteStore.js';
+
+/**
+ * Structural port for the tool lookup Memory needs — deliberately declared
+ * here instead of importing kernel's ToolRegistry class, so Memory doesn't
+ * depend on Kernel's concrete implementation. Kernel's real ToolRegistry
+ * satisfies this by shape; no adapter is required.
+ */
+export interface ToolManifestSource {
+  find(
+    toolName: string,
+  ): { manifest?: Record<string, unknown> | null } | null;
+}
 
 export interface RetentionConfig {
   max_steps?: number;
@@ -43,13 +54,13 @@ export class MemoryPolicy {
 
   private tiers: Record<string, TierConfig>;
   private retention: Record<string, RetentionConfig>;
-  private registry?: ToolRegistry;
+  private registry?: ToolManifestSource;
 
   constructor(
     config: {
       tiers?: Record<string, TierConfig>;
       retention?: Record<string, RetentionConfig>;
-      registry?: ToolRegistry;
+      registry?: ToolManifestSource;
     } = {},
   ) {
     this.tiers = config.tiers || MemoryPolicy.DEFAULT_TIERS;
@@ -109,7 +120,7 @@ export class MemoryPolicy {
     return { to_summarize, to_delete, to_keep };
   }
 
-  public getRegistry(): ToolRegistry | undefined {
+  public getRegistry(): ToolManifestSource | undefined {
     return this.registry;
   }
 
