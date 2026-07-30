@@ -293,7 +293,16 @@ export class WebServer {
             res.writeHead(200, { 'Content-Type': asset.contentType });
             res.end(this.readDashboardAsset(asset.file));
           } else {
-            // Serve dashboard HTML (SPA-style fallback for any other path)
+            if (pathname === '/tinyville') {
+              const tinyvillePath = path.join(process.cwd(), 'aura_test', 'smallville', 'tinyville_usecase.html');
+              if (fs.existsSync(tinyvillePath)) {
+                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+                res.end(fs.readFileSync(tinyvillePath, 'utf-8'));
+                return;
+              }
+            }
+
+          // Serve dashboard HTML (SPA-style fallback for any other path)
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(this.readDashboardAsset('index.html'));
           }
