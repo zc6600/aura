@@ -316,7 +316,8 @@ export class WebServer {
           } else if (pathname === '/api/tinyville/render-graph' && req.method === 'POST') {
             const scriptPath = path.join(process.cwd(), 'aura_test', 'smallville', 'visualize_town_graph.py');
             if (fs.existsSync(scriptPath)) {
-              execa('python3', [scriptPath], { cwd: path.dirname(scriptPath) }).then(() => {
+              const envPath = `${process.env.HOME}/.local/bin:${process.env.PATH}`;
+              execa('uv', ['run', scriptPath], { cwd: path.dirname(scriptPath), env: { PATH: envPath } }).then(() => {
                 res.writeHead(200, jsonHeaders);
                 res.end(JSON.stringify({ status: "success", message: "Interaction graph regenerated successfully!" }));
               }).catch(() => {

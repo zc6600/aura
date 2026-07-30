@@ -2,21 +2,13 @@
 import argparse
 import hashlib
 import json
-import math
 import os
 import time
 
 from ak_registry import record
 from data import as_float_matrix, feature_columns, load_data, target
 from metric import accuracy_from_probs
-
-
-def sigmoid(x):
-    return 1.0 / (1.0 + math.exp(-x))
-
-
-def simple_score(row):
-    return sigmoid(4.0 * (row[0] - row[1]))
+from model import fit_logreg, leave_one_out_cv, predict_proba
 
 
 def sha256_file(path):
@@ -38,18 +30,24 @@ def write_submission(path, sample_rows, probs):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-id", default=f"candidate_{int(time.time())}")
-    parser.add_argument("--hypothesis", default="baseline deterministic score")
+    parser.add_argument("--hypothesis", default="logistic regression baseline")
+    parser.add_argument("--lr", type=float, default=0.5, help="gradient descent learning rate")
+    parser.add_argument("--epochs", type=int, default=500, help="gradient descent epochs")
+    parser.add_argument("--l2", type=float, default=0.0, help="L2 regularization strength")
+    parser.add_argument("--seed", type=int, default=42, help="weight init / CV seed")
     args = parser.parse_args()
 
     train, test, sample = load_data()
     cols = feature_columns(train)
     x_train = as_float_matrix(train, cols)
     y = target(train)
-    train_probs = [simple_score(r) for r in x_train]
-    cv = accuracy_from_probs(y, train_probs)
 
+    oof_probs = leave_one_out_cv(x_train, y, lr=args.lr, epochs=args.epochs, l2=args.l2, seed=args.seed)
+    cv = accuracy_from_probs(y, oof_probs)
+
+    w, b = fit_logreg(x_train, y, lr=args.lr, epochs=args.epochs, l2=args.l2, seed=args.seed)
     x_test = as_float_matrix(test, cols)
-    test_probs = [simple_score(r) for r in x_test]
+    test_probs = predict_proba(x_test, w, b)
     sub_path = f"submissions/{args.run_id}.csv"
     write_submission(sub_path, sample, test_probs)
     sub_hash = sha256_file(sub_path)
@@ -62,7 +60,8 @@ def main():
         "cv_score": cv,
         "cv_std": 0.0,
         "higher_is_better": True,
-        "model_family": "toy_baseline",
+        "model_family": "logreg_gd",
+        "params": {"lr": args.lr, "epochs": args.epochs, "l2": args.l2, "seed": args.seed, "features": cols},
         "submission_path": sub_path,
         "submission_sha256": sub_hash,
         "changed_files": ["src/train_candidate.py"],
