@@ -35,6 +35,20 @@ export class Bridge {
     ) => unknown;
   }
 
+  /**
+   * Register a one-time callback for a UI event
+   */
+  public once<T extends unknown[]>(
+    event: string,
+    callback: (...args: T) => unknown,
+  ): void {
+    const wrapper = (...args: T) => {
+      delete this.callbacks[event];
+      callback(...args);
+    };
+    this.on(event, wrapper as unknown as (...args: T) => unknown);
+  }
+
   private notify(event: string, ...args: unknown[]): void {
     if (this.callbacks[event]) {
       (this.callbacks[event] as unknown as (...args: unknown[]) => unknown)(
