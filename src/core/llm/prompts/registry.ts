@@ -17,14 +17,23 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
-export const SECTIONS = [
-  '01_mission.md',
+export const USER_SECTIONS = [
+  'AGENTS.md',
+  'SOUL.md',
+  'USER.md',
+  'TOOLS.md',
+  'IDENTITY.md',
+];
+
+export const CORE_SECTIONS = [
   '02_workspace.md',
   '03_operational_rules.md',
   '04_tool_spec.md',
   '05_skill_spec.md',
   '06_constraints.md',
 ];
+
+export const SECTIONS = [...USER_SECTIONS, ...CORE_SECTIONS];
 
 /**
  * Finds the package root dynamically by climbing up looking for package.json.
@@ -146,29 +155,58 @@ export function findFileInWorkspace(
 
 /**
  * Composes the modular system prompt by merging sections.
+ * User-level prompt modules (AGENTS.md, SOUL.md, etc.) are loaded FIRST at top,
+ * followed by framework core operational rules below.
  */
 export function composeModularSystemPrompt(projectPath: string): string {
   const defaultDir = getDefaultSystemPromptDir();
   const prompts: string[] = [];
 
-  for (const section of SECTIONS) {
+  // 1. Load user/project-level prompt sections first
+  for (const section of USER_SECTIONS) {
     const sectionOverride = findFileInWorkspace(projectPath, [
       `prompts/system/${section}`,
       `.aura-workspace/prompts/system/${section}`,
       `.aura/prompts/system/${section}`,
-      `skills/system/${section}`,
-      `.aura-workspace/skills/system/${section}`,
-      `.aura/skills/system/${section}`,
+      `${section}`,
     ]);
 
     if (sectionOverride) {
       const content = readFileCached(sectionOverride);
-      if (content) prompts.push(content);
+      if (content && content.trim().length > 0) {
+        prompts.push(content);
+      }
     } else {
       const defaultPath = path.join(defaultDir, section);
       if (fs.existsSync(defaultPath)) {
         const content = readFileCached(defaultPath);
-        if (content) prompts.push(content);
+        if (content && content.trim().length > 0) {
+          prompts.push(content);
+        }
+      }
+    }
+  }
+
+  // 2. Append core framework operational rules below
+  for (const section of CORE_SECTIONS) {
+    const sectionOverride = findFileInWorkspace(projectPath, [
+      `prompts/system/${section}`,
+      `.aura-workspace/prompts/system/${section}`,
+      `.aura/prompts/system/${section}`,
+    ]);
+
+    if (sectionOverride) {
+      const content = readFileCached(sectionOverride);
+      if (content && content.trim().length > 0) {
+        prompts.push(content);
+      }
+    } else {
+      const defaultPath = path.join(defaultDir, section);
+      if (fs.existsSync(defaultPath)) {
+        const content = readFileCached(defaultPath);
+        if (content && content.trim().length > 0) {
+          prompts.push(content);
+        }
       }
     }
   }
