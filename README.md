@@ -45,6 +45,40 @@ my_project/                 <-- Clean User Workspace (Files visible to LLM)
 
 ---
 
+## 🎪 Showcase: Stanford Smallville 25-Agent Simulation (Generative Agents Replicant)
+
+Aura OS features an exact, 100% genuine replication of the famous **Stanford Smallville Paper (Generative Agents: Interactive Simulacra of Human Behavior)** showcasing multi-agent orchestrations, memory streams, and pure emergent social dynamics.
+
+```text
+               ┌─────────────────────────────────────────────────────────┐
+               │    Town Host Agent (Clock Simulator & State Broadcast)  │
+               └────────────────────────────┬────────────────────────────┘
+                                            │ Hourly Clock Broadcast (No Script Leakage)
+           ┌────────────────────────────────┼────────────────────────────────┐
+           ▼                                ▼                                ▼
+┌──────────────────────┐        ┌──────────────────────┐        ┌──────────────────────┐
+│ Subagent: Isabella   │        │   Subagent: Klaus    │        │    Subagent: Tom     │
+│ (Isolated State.db)  │        │ (Isolated State.db)  │        │ (Isolated State.db)  │
+└──────────┬───────────┘        └──────────┬───────────┘        └──────────┬───────────┘
+           └────────────────────────────────┼────────────────────────────────┘
+                                            ▼
+                    Asynchronous Mailbox & Blackboard Communication Bus
+```
+
+### 🌟 Key Engineering Innovations
+1. **Zero-Prompt-Leakage Town Host Mode**: The host agent only broadcasts objective time (`08:00 AM`) and location state without hardcoding narrative hints. All party invites and election chats emerge 100% autonomously.
+2. **Isolated Subagent DB Memory Streams**: Each of the 25 residents operates in a sandboxed Subagent environment (`state/subagents/<id>/state.db`), preventing memory cross-contamination.
+3. **Paper-Exact Mathematical Parameters**: Features exact retrieval scoring ($Score = \alpha_{recency} \cdot 0.99^{\Delta t} + Importance + Relevance$) and $150$-point reflection thresholds.
+4. **Physical Tool Whitelisting**: Restricted via `config.yml` (`tools.allowed: [mailbox, blackboard]`) to ensure resident agents interact exclusively through physical town mechanisms.
+
+```bash
+# Clone & run the 25-agent Smallville simulation live:
+cd aura_test/smallville
+python3 run_real_25_town.py
+```
+
+---
+
 ## 📋 Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a complete list of changes, features, and releases.
