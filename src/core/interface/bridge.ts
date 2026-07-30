@@ -77,8 +77,8 @@ export class Bridge {
     // Start a new job for this turn
     this.runner.startJob({ input, auto_mode: autoMode });
 
-    // Use unified AgentEventBus on Runner or fallback for mocks
-    const bus = this.runner.eventBus || new AgentEventBus();
+    // Create per-turn isolated EventBus for AgentLoop to prevent event listener leak
+    const bus = new AgentEventBus();
 
     // Track streaming state for UI waiting indicator
     let streamed = false;

@@ -47,7 +47,7 @@ export class RemoteDaemonSession {
     this.announceSuspendedRun(currentSession);
 
     if (goal && goal.trim().length > 0) {
-      client.onNotification((method, params) => {
+      const removeListener = client.onNotification((method, params) => {
         if (method === 'agent/onProgress') {
           const { type, payload } = params as {
             type: string;
@@ -73,6 +73,7 @@ export class RemoteDaemonSession {
           throw new UI.CliError('Agent run did not complete successfully.');
         }
       } finally {
+        removeListener();
         client.disconnect();
       }
       return;
