@@ -110,16 +110,17 @@ describe('Context Engineering Integration', { timeout: 15000 }, () => {
       path.join(projectPath, 'config', 'config.yml'),
       yaml.stringify({
         state_management: {
-          max_state_chars: 1000,
+          max_state_chars: 2500,
         },
       }),
     );
 
     // Create directive and task.md
     fs.mkdirSync(path.join(projectPath, 'skills'), { recursive: true });
+    fs.mkdirSync(path.join(projectPath, 'prompts', 'system'), { recursive: true });
     fs.writeFileSync(
-      path.join(projectPath, 'skills', 'system.md'),
-      '# AURA OS OPERATING PROTOCOL\nCORE_AURA_DIRECTIVE_RULE',
+      path.join(projectPath, 'prompts', 'system', 'AGENTS.md'),
+      '# AURA OPERATING PROTOCOL\nCORE_AURA_DIRECTIVE_RULE',
     );
     fs.writeFileSync(path.join(projectPath, 'task.md'), 'URGENT_TASK_NAME');
 
