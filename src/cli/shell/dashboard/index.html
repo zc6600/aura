@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aura OS — AI Agent Showcase & Developer Console</title>
+  <title>Tinyville Showcase & Aura OS Control Center</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
 </head>
@@ -11,46 +11,45 @@
   <!-- Header -->
   <header>
     <div class="header-logo">
-      <div class="brand-icon">A</div>
+      <div class="brand-icon">T</div>
       <div class="brand-text">
-        <span class="brand-title">AURA OS</span>
-        <span class="brand-sub">Showcase & Control Center</span>
+        <span class="brand-title">TINYVILLE</span>
+        <span class="brand-sub">Stanford 25-Agent Emergent Simulation</span>
       </div>
     </div>
 
     <!-- Main Navigation Tabs -->
     <nav class="nav-tabs">
       <button class="nav-tab active" id="tab-tinyville" onclick="switchNavTab('tinyville')">
-        🎪 Tinyville 25-Agent Showcase
+        🎪 Tinyville Showcase
       </button>
       <button class="nav-tab" id="tab-console" onclick="switchNavTab('console')">
-        💻 Developer Live Console
+        💻 Live Console & Logs
       </button>
     </nav>
 
     <div class="header-actions">
+      <button class="run-sim-btn" onclick="triggerRealSimulation()" id="run-sim-btn">
+        🚀 Run Live 24H Simulation
+      </button>
       <div class="connection-status">
         <span class="status-indicator-dot disconnected" id="connection-dot"></span>
         <span id="connection-text">Connecting...</span>
       </div>
-      <div class="project-badge">
-        <div class="pulse-dot"></div>
-        <span>Workspace: <strong id="workspace-name">smallville</strong></span>
-      </div>
     </div>
   </header>
 
-  <!-- Section 1: Tinyville Showcase Theater (Active View) -->
+  <!-- Section 1: Tinyville Showcase Theater -->
   <main id="view-tinyville" class="showcase-container">
     <div class="showcase-banner">
       <div class="banner-title-area">
-        <h1>🏘️ Tinyville 25-Agent Simulation Showcase</h1>
-        <p>Exact Stanford Generative Agents Replication with Physical Subagent DB Isolation & Zero-Prompt-Leakage Town Host Orchestration.</p>
+        <h1>🏘️ Tinyville 25-Agent Emergent Town Theater</h1>
+        <p>Interactive Stanford Generative Agents Replication. Click any location, resident, or timeline node to inspect live emergent behavior.</p>
       </div>
       <div class="showcase-stats">
-        <div class="stat-pill"><span class="stat-num">25</span> Agents</div>
-        <div class="stat-pill"><span class="stat-num">100%</span> Emergent</div>
-        <div class="stat-pill"><span class="stat-num">0.99<sup>Δt</sup></span> Recency</div>
+        <div class="stat-pill"><span class="stat-num" id="active-filter-label">All Locations</span> Filter</div>
+        <div class="stat-pill"><span class="stat-num">25</span> Residents</div>
+        <div class="stat-pill"><span class="stat-num">SQLite</span> Memory DB</div>
       </div>
     </div>
 
@@ -60,32 +59,39 @@
       <aside class="showcase-sidebar">
         <div class="panel-card">
           <div class="panel-header">
-            <span>Town Locations</span>
+            <span>Clickable Town Locations</span>
             <span class="badge-teal">5 Hubs</span>
           </div>
           <div class="location-list">
-            <div class="location-box active" onclick="filterByLocation('Hobbs Cafe')">
+            <div class="location-box active" id="loc-all" onclick="filterByLocation('All')">
+              <span class="loc-icon">🌐</span>
+              <div>
+                <div class="loc-title">All Town Locations</div>
+                <div class="loc-desc">Entire Smallville Town</div>
+              </div>
+            </div>
+            <div class="location-box" id="loc-hobbs" onclick="filterByLocation('Hobbs Cafe')">
               <span class="loc-icon">☕</span>
               <div>
                 <div class="loc-title">Hobbs Cafe</div>
                 <div class="loc-desc">Isabella, Maria, Eddy</div>
               </div>
             </div>
-            <div class="location-box" onclick="filterByLocation('Willows Market')">
+            <div class="location-box" id="loc-market" onclick="filterByLocation('Willows Market')">
               <span class="loc-icon">🏪</span>
               <div>
                 <div class="loc-title">Willows Market</div>
                 <div class="loc-desc">Tom, John Lin</div>
               </div>
             </div>
-            <div class="location-box" onclick="filterByLocation('Library')">
+            <div class="location-box" id="loc-library" onclick="filterByLocation('Library')">
               <span class="loc-icon">📚</span>
               <div>
                 <div class="loc-title">Smallville Library</div>
                 <div class="loc-desc">Klaus, Ayesha</div>
               </div>
             </div>
-            <div class="location-box" onclick="filterByLocation('Park')">
+            <div class="location-box" id="loc-park" onclick="filterByLocation('Park')">
               <span class="loc-icon">🌳</span>
               <div>
                 <div class="loc-title">Johnson Park</div>
@@ -97,8 +103,8 @@
 
         <div class="panel-card">
           <div class="panel-header">
-            <span>Subagent Resident Roster</span>
-            <span class="badge-cyan">25 Total</span>
+            <span>Resident Subagent Roster</span>
+            <span class="badge-cyan">Click to Inspect</span>
           </div>
           <div class="roster-grid">
             <div class="roster-item" onclick="inspectAgent('isabella_rodriguez')">
@@ -151,11 +157,12 @@
       <section class="showcase-feed-area">
         <!-- 24H Time Selector Bar -->
         <div class="timeline-bar">
-          <button class="time-btn active" onclick="selectTimeSlot('08:00')">🕒 08:00 AM (Morning)</button>
-          <button class="time-btn" onclick="selectTimeSlot('11:00')">🕒 11:00 AM (Midday)</button>
-          <button class="time-btn" onclick="selectTimeSlot('14:00')">🕒 14:00 PM (Afternoon)</button>
-          <button class="time-btn" onclick="selectTimeSlot('17:00')">🕒 17:00 PM (Party Peak)</button>
-          <button class="time-btn" onclick="selectTimeSlot('21:00')">🕒 21:00 PM (Reflection)</button>
+          <button class="time-btn active" id="t-all" onclick="selectTimeSlot('ALL')">🌐 All Hours</button>
+          <button class="time-btn" id="t-0800" onclick="selectTimeSlot('08:00')">🕒 08:00 AM</button>
+          <button class="time-btn" id="t-1100" onclick="selectTimeSlot('11:00')">🕒 11:00 AM</button>
+          <button class="time-btn" id="t-1400" onclick="selectTimeSlot('14:00')">🕒 14:00 PM</button>
+          <button class="time-btn" id="t-1700" onclick="selectTimeSlot('17:00')">🕒 17:00 PM</button>
+          <button class="time-btn" id="t-2100" onclick="selectTimeSlot('21:00')">🕒 21:00 PM</button>
         </div>
 
         <!-- Cards Feed -->
@@ -166,7 +173,37 @@
     </div>
   </main>
 
-  <!-- Section 2: Developer Console View (Hidden by default) -->
+  <!-- Agent Detail Modal -->
+  <div class="modal-overlay" id="agent-modal" onclick="closeModal(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-agent-title">
+          <span class="modal-avatar" id="modal-avatar">👤</span>
+          <div>
+            <h2 id="modal-name">Agent Name</h2>
+            <span class="modal-role" id="modal-role">Role</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-section">
+          <h3>🧠 Persona & Memory Stream</h3>
+          <p id="modal-instructions" class="modal-text">Loading instructions...</p>
+        </div>
+        <div class="modal-section">
+          <h3>🔒 Physical Subagent Storage</h3>
+          <code id="modal-db-path" class="modal-code">.aura-workspace/state/subagents/id/state.db</code>
+        </div>
+        <div class="modal-section">
+          <h3>📬 Recent Mailbox Threads</h3>
+          <div id="modal-mailbox-threads" class="modal-threads">No unread messages.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 2: Developer Console View -->
   <main id="view-console" class="dashboard-body" style="display: none;">
     <aside class="sidebar">
       <div class="sidebar-section">
@@ -186,19 +223,6 @@
           <button class="filter-pill" data-filter="user" onclick="setFilter('user')">User Messages</button>
           <button class="filter-pill" data-filter="plan" onclick="setFilter('plan')">Agent Plans</button>
           <button class="filter-pill" data-filter="execution" onclick="setFilter('execution')">Tool Executions</button>
-          <button class="filter-pill" data-filter="interception" onclick="setFilter('interception')">Interceptions</button>
-        </div>
-      </div>
-
-      <div class="sidebar-section flex-grow">
-        <h3>Controls</h3>
-        <div class="control-grid">
-          <button class="btn btn-secondary" onclick="toggleAutoScroll()" id="autoscroll-btn">
-            📜 Auto-scroll: ON
-          </button>
-          <button class="btn btn-secondary" onclick="clearEventLogs()">
-            🧹 Clear View
-          </button>
         </div>
       </div>
     </aside>

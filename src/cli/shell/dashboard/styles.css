@@ -103,10 +103,112 @@ header {
   box-shadow: 0 0 12px rgba(20, 184, 166, 0.3);
 }
 
-.header-actions {
+.run-sim-btn {
+  background: linear-gradient(135deg, #10b981, #14b8a6);
+  color: #0b0f19;
+  font-weight: 700;
+  border: none;
+  padding: 0.5rem 1.1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+  transition: all 0.2s ease;
+}
+
+.run-sim-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+}
+
+/* Modal Overlay & Card */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(9, 13, 22, 0.85);
+  backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-bright);
+  border-radius: 20px;
+  width: 540px;
+  max-width: 90vw;
+  padding: 1.75rem;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 1rem;
+}
+
+.modal-agent-title {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.modal-avatar { font-size: 2rem; }
+.modal-agent-title h2 { font-size: 1.3rem; font-weight: 800; }
+.modal-role { font-size: 0.85rem; color: var(--text-muted); }
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.modal-section h3 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-teal);
+}
+
+.modal-text {
+  font-size: 0.9rem;
+  color: var(--text-main);
+  line-height: 1.5;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.75rem;
+  border-radius: 8px;
+}
+
+.modal-code {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.1);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
 }
 
 .connection-status {

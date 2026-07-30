@@ -288,6 +288,24 @@ export class WebServer {
             const status = await this.getStatusInfo();
             res.writeHead(200, jsonHeaders);
             res.end(JSON.stringify(status));
+          } else if (pathname === '/api/tinyville/logs') {
+            const logPath = path.join(process.cwd(), 'aura_test', 'smallville', 'state', 'rich_emergence_simulation.log');
+            let logContent = "";
+            if (fs.existsSync(logPath)) {
+              logContent = fs.readFileSync(logPath, 'utf-8');
+            }
+            res.writeHead(200, jsonHeaders);
+            res.end(JSON.stringify({ status: "success", log: logContent }));
+          } else if (pathname === '/api/tinyville/run' && req.method === 'POST') {
+            const scriptPath = path.join(process.cwd(), 'aura_test', 'smallville', 'run_real_25_town.py');
+            if (fs.existsSync(scriptPath)) {
+              execa('python3', [scriptPath], { cwd: path.dirname(scriptPath) }).catch(() => {});
+              res.writeHead(200, jsonHeaders);
+              res.end(JSON.stringify({ status: "started", message: "Real simulation started in background." }));
+            } else {
+              res.writeHead(404, jsonHeaders);
+              res.end(JSON.stringify({ status: "error", message: "Simulation script not found." }));
+            }
           } else if (pathname in DASHBOARD_ASSETS) {
             const asset = DASHBOARD_ASSETS[pathname];
             res.writeHead(200, { 'Content-Type': asset.contentType });
