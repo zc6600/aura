@@ -1,0 +1,25 @@
+{
+  "paper": {
+    "title": "Generative Agents: Interactive Simulacra of Human Behavior",
+    "arxiv_id": "2304.03442",
+    "authors": ["Joon Sung Park", "Joseph C. O'Brien", "Carrie J. Cai", "Meredith Ringel Morris", "Percy Liang", "Michael S. Bernstein"]
+  },
+  "retrieval": {
+    "alpha_recency": 1.0,
+    "alpha_importance": 1.0,
+    "alpha_relevance": 1.0,
+    "recency_decay_factor": 0.99,
+    "importance_range": [1, 10]
+  },
+  "reflection": {
+    "importance_threshold_sum": 150,
+    "top_k_memories_for_reflection": 100,
+    "questions_to_generate": 3
+  },
+  "time_and_planning": {
+    "seconds_per_tick": 15,
+    "coarse_schedule_grain_minutes": 60,
+    "fine_schedule_grain_minutes": 15,
+    "replan_on_interaction": true
+  }
+}

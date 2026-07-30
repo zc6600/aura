@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tinyville — Stanford 25-Agent Emergent Simulation Showcase (Aura OS)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --panel-bg: rgba(18, 26, 43, 0.7);
+      --border-color: rgba(94, 234, 212, 0.15);
+      --border-bright: rgba(94, 234, 212, 0.4);
+      --accent-teal: #14b8a6;
+      --accent-emerald: #10b981;
+      --accent-cyan: #06b6d4;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(20, 184, 166, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.08) 0%, transparent 40%);
+    }
+
+    /* Header */
+    header {
+      padding: 1.25rem 2rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      backdrop-filter: blur(12px);
+      background: rgba(9, 13, 22, 0.8);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-badge {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent-teal), var(--accent-cyan));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.2rem;
+      color: #090d16;
+      box-shadow: 0 0 20px rgba(20, 184, 166, 0.4);
+    }
+
+    .brand-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-sub {
+      color: var(--accent-teal);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .kpi-pills {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .kpi-pill {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      padding: 0.4rem 0.9rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      backdrop-filter: blur(8px);
+    }
+
+    .kpi-value {
+      color: var(--accent-teal);
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Main Container */
+    .container {
+      max-width: 1400px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 1.5rem;
+      flex-grow: 1;
+    }
+
+    /* Sidebar / Map */
+    .sidebar-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .card {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.5rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-header {
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .location-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .location-item {
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .location-item:hover, .location-item.active {
+      border-color: var(--accent-teal);
+      background: rgba(20, 184, 166, 0.08);
+      transform: translateX(4px);
+    }
+
+    .location-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .location-tag {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      background: rgba(20, 184, 166, 0.15);
+      color: var(--accent-teal);
+      font-weight: 600;
+    }
+
+    /* Resident Avatars */
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+
+    .agent-card {
+      padding: 0.75rem;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .agent-card:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(6, 182, 212, 0.08);
+    }
+
+    .agent-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(20, 184, 166, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .agent-info {
+      overflow: hidden;
+    }
+
+    .agent-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .agent-role {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    /* Main Simulation Feed */
+    .main-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* Timeline Selector */
+    .timeline-bar {
+      display: flex;
+      gap: 0.75rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+    }
+
+    .time-slot {
+      padding: 0.6rem 1.2rem;
+      border-radius: 12px;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .time-slot:hover, .time-slot.active {
+      background: linear-gradient(135deg, var(--accent-teal), var(--accent-cyan));
+      color: #090d16;
+      border-color: transparent;
+      box-shadow: 0 0 15px rgba(20, 184, 166, 0.4);
+    }
+
+    /* Event Stream */
+    .event-stream {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .event-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      transition: all 0.2s ease;
+      animation: fadeIn 0.4s ease forwards;
+    }
+
+    .event-card:hover {
+      border-color: var(--border-bright);
+      box-shadow: 0 4px 20px rgba(20, 184, 166, 0.1);
+    }
+
+    .event-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .event-author {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .author-icon {
+      font-size: 1.3rem;
+    }
+
+    .author-name {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .author-role {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-left: 0.5rem;
+      font-weight: 400;
+    }
+
+    .event-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--accent-teal);
+      background: rgba(20, 184, 166, 0.1);
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+    }
+
+    .event-action {
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.02);
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      border-left: 3px solid var(--accent-teal);
+    }
+
+    .tool-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--accent-cyan);
+      margin-right: 0.5rem;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="logo-badge">T</div>
+      <div>
+        <div class="brand-title">TINYVILLE</div>
+        <div class="brand-sub">Stanford 25-Agent Emergent Simulation</div>
+      </div>
+    </div>
+
+    <div class="kpi-pills">
+      <div class="kpi-pill">👥 Population: <span class="kpi-value">25 Agents</span></div>
+      <div class="kpi-pill">🔒 Subagent Isolation: <span class="kpi-value">Active SQLite</span></div>
+      <div class="kpi-pill">📬 Mailbox Bus: <span class="kpi-value">Zero-Leakage</span></div>
+      <div class="kpi-pill">⚙️ Engine: <span class="kpi-value">Aura OS v0.1.0</span></div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Sidebar -->
+    <div class="sidebar-panel">
+      <div class="card">
+        <div class="card-header">
+          <span>Town Locations</span>
+          <span>📍 5 Hubs</span>
+        </div>
+        <div class="location-list">
+          <div class="location-item active">
+            <span class="location-name">☕ Hobbs Cafe</span>
+            <span class="location-tag">Social Hub</span>
+          </div>
+          <div class="location-item">
+            <span class="location-name">🏪 Willows Market</span>
+            <span class="location-tag">Commerce</span>
+          </div>
+          <div class="location-item">
+            <span class="location-name">📚 Smallville Library</span>
+            <span class="location-tag">Research</span>
+          </div>
+          <div class="location-item">
+            <span class="location-name">🌳 Johnson Park</span>
+            <span class="location-tag">Recreation</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span>Resident Subagents</span>
+          <span>🤖 25 Total</span>
+        </div>
+        <div class="agent-grid">
+          <div class="agent-card">
+            <div class="agent-avatar">👩‍🍳</div>
+            <div class="agent-info">
+              <div class="agent-name">Isabella</div>
+              <div class="agent-role">Cafe Owner</div>
+            </div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-avatar">🎓</div>
+            <div class="agent-info">
+              <div class="agent-name">Maria</div>
+              <div class="agent-role">Student</div>
+            </div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-avatar">📚</div>
+            <div class="agent-info">
+              <div class="agent-name">Klaus</div>
+              <div class="agent-role">Researcher</div>
+            </div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-avatar">🏪</div>
+            <div class="agent-info">
+              <div class="agent-name">Tom</div>
+              <div class="agent-role">Store Clerk</div>
+            </div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-avatar">🎸</div>
+            <div class="agent-info">
+              <div class="agent-name">Eddy</div>
+              <div class="agent-role">Musician</div>
+            </div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-avatar">🗳️</div>
+            <div class="agent-info">
+              <div class="agent-name">Sam</div>
+              <div class="agent-role">Candidate</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Feed -->
+    <div class="main-feed">
+      <div class="timeline-bar">
+        <div class="time-slot active" onclick="switchTime('08:00')">🕒 08:00 AM (Morning)</div>
+        <div class="time-slot" onclick="switchTime('11:00')">🕒 11:00 AM (Midday)</div>
+        <div class="time-slot" onclick="switchTime('14:00')">🕒 14:00 PM (Afternoon)</div>
+        <div class="time-slot" onclick="switchTime('17:00')">🕒 17:00 PM (Party Peak)</div>
+        <div class="time-slot" onclick="switchTime('21:00')">🕒 21:00 PM (Reflection)</div>
+      </div>
+
+      <div class="event-stream" id="event-stream">
+        <!-- Event Cards dynamically populated -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const simulationEvents = {
+      "08:00": [
+        { icon: "👩‍🍳", name: "Isabella Rodriguez", role: "Cafe Owner", tool: "⚡ Action", text: "Unlocking Hobbs Cafe doors, getting the espresso machine warmed up for opening." },
+        { icon: "🎸", name: "Eddy Lin", role: "Music Student", tool: "🎵 Routine", text: "Practicing acoustic guitar in my room, working on a new chord progression before breakfast." },
+        { icon: "📚", name: "Klaus Mueller", role: "Researcher", tool: "📖 Routine", text: "Walking over to Smallville Library to begin today's social science literature review." },
+        { icon: "🎓", name: "Maria Lopez", role: "College Student", tool: "📫 Mailbox", text: "Heading to campus, planning to stop by Hobbs Cafe later to help Isabella decorate for the party." },
+        { icon: "🏪", name: "Tom Moreno", role: "Store Clerk", tool: "⚡ Action", text: "Opening Willows Market front doors and restocking front fruit displays for the morning rush." }
+      ],
+      "11:00": [
+        { icon: "🏪", name: "Tom Moreno", role: "Store Clerk", tool: "💬 Dialogue", text: "Restocking shelves at Willows Market and discussing local election plans with John Lin." },
+        { icon: "🎸", name: "Eddy Lin", role: "Music Student", tool: "☕ Social", text: "Walking down to Hobbs Cafe to grab an iced coffee and catch up with townsfolk." },
+        { icon: "👩‍🍳", name: "Isabella Rodriguez", role: "Cafe Owner", tool: "📫 Mailbox", text: "Baking pastries and checking mailbox for incoming Valentine's Day party RSVPs." },
+        { icon: "🎓", name: "Maria Lopez", role: "College Student", tool: "🎨 Routine", text: "Assisting Isabella at Hobbs Cafe with hanging colorful party streamers." }
+      ],
+      "14:00": [
+        { icon: "👩‍🍳", name: "Isabella Rodriguez", role: "Cafe Owner", tool: "📫 Mailbox Bus", text: "Sending out final party reminders to Maria and townsfolk via Mailbox." },
+        { icon: "🎓", name: "Maria Lopez", role: "College Student", tool: "📫 Mailbox Bus", text: "Checking Mailbox thread with Klaus Mueller: 'Hoping Klaus can come to the party tonight!'" },
+        { icon: "📚", name: "Klaus Mueller", role: "Researcher", tool: "☕ Break", text: "Heading over to Hobbs Cafe for an afternoon coffee break and social chats." }
+      ],
+      "17:00": [
+        { icon: "👩‍🍳", name: "Isabella Rodriguez", role: "Cafe Owner", tool: "🎉 Event", text: "Opening Hobbs Cafe doors wide and warmly welcoming Maria, Klaus, Tom, and guests as the Valentine's Party begins!" },
+        { icon: "🎓", name: "Maria Lopez", role: "College Student", tool: "💬 Interaction", text: "Arriving at the party and warmly greeting Klaus: 'Hi Klaus! So glad you made it!'" },
+        { icon: "📚", name: "Klaus Mueller", role: "Researcher", tool: "💬 Interaction", text: "Attending the Valentine's Day party at Hobbs Cafe and chatting with Maria and Isabella." },
+        { icon: "🎸", name: "Eddy Lin", role: "Music Student", tool: "🎵 Performance", text: "Playing acoustic guitar at the corner of Hobbs Cafe to set a festive mood for the party." }
+      ],
+      "21:00": [
+        { icon: "👩‍🍳", name: "Isabella Rodriguez", role: "Cafe Owner", tool: "✍️ Reflection", text: "Wiping down counters and recording evening reflection: 'A truly heartwarming Valentine's Day party at Hobbs Cafe!'" },
+        { icon: "📚", name: "Klaus Mueller", role: "Researcher", tool: "✍️ Reflection", text: "Reviewing today's research notes and reflecting on the importance of social connections in Smallville." },
+        { icon: "🏪", name: "Tom Moreno", role: "Store Clerk", tool: "✍️ Reflection", text: "Relaxing at home after a busy day at Willows Market, reflecting on community election discussions." }
+      ]
+    };
+
+    function renderEvents(timeStr) {
+      const container = document.getElementById("event-stream");
+      container.innerHTML = "";
+      const events = simulationEvents[timeStr] || [];
+
+      events.forEach(e => {
+        const card = document.createElement("div");
+        card.className = "event-card";
+        card.innerHTML = `
+          <div class="event-header">
+            <div class="event-author">
+              <span class="author-icon">${e.icon}</span>
+              <div>
+                <span class="author-name">${e.name}</span>
+                <span class="author-role">(${e.role})</span>
+              </div>
+            </div>
+            <span class="event-time">${timeStr}</span>
+          </div>
+          <div class="event-action">
+            <span class="tool-tag">${e.tool}</span>
+            <span>${e.text}</span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function switchTime(timeStr) {
+      document.querySelectorAll(".time-slot").forEach(slot => {
+        slot.classList.toggle("active", slot.textContent.includes(timeStr));
+      });
+      renderEvents(timeStr);
+    }
+
+    // Initial render
+    renderEvents("08:00");
+  </script>
+</body>
+</html>

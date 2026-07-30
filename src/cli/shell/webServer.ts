@@ -288,17 +288,39 @@ export class WebServer {
             const status = await this.getStatusInfo();
             res.writeHead(200, jsonHeaders);
             res.end(JSON.stringify(status));
+          } else if (pathname === '/tinyville') {
+            const tinyvillePaths = [
+              path.join(process.cwd(), 'use-cases', 'smallville-town', 'tinyville_usecase.html'),
+              path.join(process.cwd(), 'aura_test', 'smallville', 'tinyville_usecase.html')
+            ];
+            for (const p of tinyvillePaths) {
+              if (fs.existsSync(p)) {
+                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+                res.end(fs.readFileSync(p, 'utf-8'));
+                return;
+              }
+            }
           } else if (pathname === '/api/tinyville/logs') {
-            const logPath = path.join(process.cwd(), 'aura_test', 'smallville', 'state', 'rich_emergence_simulation.log');
+            const logPaths = [
+              path.join(process.cwd(), 'use-cases', 'smallville-town', 'state', 'rich_emergence_simulation.log'),
+              path.join(process.cwd(), 'aura_test', 'smallville', 'state', 'rich_emergence_simulation.log')
+            ];
             let logContent = "";
-            if (fs.existsSync(logPath)) {
-              logContent = fs.readFileSync(logPath, 'utf-8');
+            for (const lp of logPaths) {
+              if (fs.existsSync(lp)) {
+                logContent = fs.readFileSync(lp, 'utf-8');
+                break;
+              }
             }
             res.writeHead(200, jsonHeaders);
             res.end(JSON.stringify({ status: "success", log: logContent }));
           } else if (pathname === '/api/tinyville/run' && req.method === 'POST') {
-            const scriptPath = path.join(process.cwd(), 'aura_test', 'smallville', 'run_real_25_town.py');
-            if (fs.existsSync(scriptPath)) {
+            const scriptPaths = [
+              path.join(process.cwd(), 'use-cases', 'smallville-town', 'run_real_25_town.py'),
+              path.join(process.cwd(), 'aura_test', 'smallville', 'run_real_25_town.py')
+            ];
+            let scriptPath = scriptPaths.find(p => fs.existsSync(p));
+            if (scriptPath) {
               execa('python3', [scriptPath], { cwd: path.dirname(scriptPath) }).catch(() => {});
               res.writeHead(200, jsonHeaders);
               res.end(JSON.stringify({ status: "started", message: "Real simulation started in background." }));
@@ -308,6 +330,7 @@ export class WebServer {
             }
           } else if (pathname === '/state/town_interaction_network.png' || pathname === '/town_interaction_network.png') {
             const possiblePaths = [
+              path.join(process.cwd(), 'use-cases', 'smallville-town', 'state', 'town_interaction_network.png'),
               path.join(process.cwd(), 'aura_test', 'smallville', 'state', 'town_interaction_network.png'),
               path.join(process.cwd(), 'state', 'town_interaction_network.png'),
               '/Users/frank/Desktop/project/Towards AGI/aura/aura_test/smallville/state/town_interaction_network.png'
@@ -320,8 +343,12 @@ export class WebServer {
               }
             }
           } else if (pathname === '/api/tinyville/render-graph' && req.method === 'POST') {
-            const scriptPath = path.join(process.cwd(), 'aura_test', 'smallville', 'visualize_town_graph.py');
-            if (fs.existsSync(scriptPath)) {
+            const scriptPaths = [
+              path.join(process.cwd(), 'use-cases', 'smallville-town', 'visualize_town_graph.py'),
+              path.join(process.cwd(), 'aura_test', 'smallville', 'visualize_town_graph.py')
+            ];
+            let scriptPath = scriptPaths.find(p => fs.existsSync(p));
+            if (scriptPath) {
               const envPath = `${process.env.HOME}/.local/bin:${process.env.PATH}`;
               execa('uv', ['run', scriptPath], { cwd: path.dirname(scriptPath), env: { PATH: envPath } }).then(() => {
                 res.writeHead(200, jsonHeaders);

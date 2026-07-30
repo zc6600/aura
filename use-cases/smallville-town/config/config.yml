@@ -1,0 +1,9 @@
+project_name: smallville
+
+# Standard Tool Isolation & Allowlist Filter
+tools:
+  allowed:
+    - mailbox
+    - blackboard
+    - read_file
+    - write_file
