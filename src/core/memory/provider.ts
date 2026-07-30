@@ -272,13 +272,13 @@ export class MemoryProvider {
         )
           .replace(/\s+/g, ' ')
           .trim();
-        const seq =
-          typeof pl === 'object' &&
-          pl.call_seq !== undefined &&
-          pl.call_seq !== null
-            ? Number(pl.call_seq)
-            : Number(e.id);
-        return { ts, seq, order: 0, id: Number(e.id), body: `User: ${txt}` };
+        return {
+          ts,
+          seq: Number(e.id),
+          order: 0,
+          id: Number(e.id),
+          body: `User: ${txt}`,
+        };
       }
       case 'plan': {
         const planData = typeof pl === 'object' && pl !== null ? pl : {};
@@ -376,14 +376,10 @@ export class MemoryProvider {
         }
 
         body = body.replace(/\s+/g, ' ').trim();
-        // Use this event's own id, not call_seq. call_seq is pinned to the
-        // turn's originating user event and stays identical across every
-        // tool call in that turn — with multiple calls per turn that gave
-        // every Tool Result the same seq, so the sort fell through to the
-        // `order` tiebreaker and bunched all Tool Results before all
-        // Summaries instead of interleaving them chronologically. e.id is
-        // unique per call and is what recordSummary's source_event_id now
-        // anchors to, so a call and its own summary share the same seq.
+        // Every entry's timeline position is its own events-table id — the
+        // append log's natural order is already a total order, so there is
+        // nothing to derive it from. recordSummary anchors a call's summary
+        // to this same e.id, which is what pairs them under the same seq.
         const seq = Number(e.id);
         return {
           ts,

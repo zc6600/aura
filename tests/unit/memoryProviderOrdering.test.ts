@@ -42,18 +42,17 @@ describe('MemoryProvider.toMarkdown ordering', () => {
   }
 
   it('interleaves each tool call with its own summary across a multi-call turn', () => {
-    const userEventId = recorder.recordUser('do three things');
+    recorder.recordUser('do three things');
 
-    // Mirrors Runner.runCall: every tool call in this turn is recorded with
-    // the same call_seq (the turn's originating user event id) — that part
-    // hasn't changed. What changed is that the call summary is anchored to
-    // this specific execution's own event id, not to the shared call_seq.
+    // Mirrors Runner.runCall: each tool call's summary is anchored to that
+    // specific execution's own event id, so a turn with several tool calls
+    // still produces distinct, correctly ordered seq values instead of
+    // every pair colliding on one shared key.
     for (let i = 1; i <= 3; i++) {
-      const eventId = recorder.recordExecution(
-        `tool${i}`,
-        { status: 'ok', output: `result${i}` },
-        userEventId,
-      );
+      const eventId = recorder.recordExecution(`tool${i}`, {
+        status: 'ok',
+        output: `result${i}`,
+      });
       recorder.recordSummary(`did step ${i}`, eventId);
     }
 

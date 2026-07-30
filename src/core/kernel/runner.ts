@@ -405,8 +405,7 @@ export class Runner extends EventEmitter implements IRunner {
 
     this.emit('tool_result', { tool, result: res });
 
-    const callSeq = this.lastUserEventId;
-    const eventId = this.memory.recorder.recordExecution(tool, res, callSeq);
+    const eventId = this.memory.recorder.recordExecution(tool, res);
     if (this.currentJob) {
       this.currentJob.addEvent(eventId);
     }
@@ -420,13 +419,10 @@ export class Runner extends EventEmitter implements IRunner {
         s = s.substring(0, maxc);
       }
       if (s) {
-        // Anchor to this specific execution's own event id, not the
-        // turn-shared callSeq — MemoryProvider.toMarkdown() pairs a summary
-        // with its execution by matching seq, and a turn with multiple tool
-        // calls would otherwise give every execution/summary pair the same
-        // callSeq, collapsing distinct pairs onto one sort key. eventId
-        // still falls inside [lastUserEventId, nextUserEventId), so
-        // undo/redo's range-based turn lookup in sqliteStore.ts is unaffected.
+        // Anchor to this specific execution's own event id — every entry's
+        // position in MemoryProvider.toMarkdown()'s timeline is its own
+        // events-table id (see formatEvent), so a call's summary must
+        // reference that same call's id to sort next to it.
         this.memory.recorder.recordSummary(s, eventId);
       }
     } catch (_e) {}

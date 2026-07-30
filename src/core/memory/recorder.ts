@@ -8,8 +8,8 @@ export class MemoryRecorder {
     this.store = store;
   }
 
-  public recordUser(content: string, callSeq?: number | null): number {
-    const payload = { content, call_seq: callSeq, phase: 'user' };
+  public recordUser(content: string): number {
+    const payload = { content, phase: 'user' };
     return this.store.insertEvent({
       timestamp: Math.floor(Date.now() / 1000),
       phase: 'user',
@@ -57,13 +57,12 @@ export class MemoryRecorder {
    * reply exactly like any other agent turn. Introducing a separate phase here
    * would make chat history invisible to metabolism and let it grow unbounded.
    */
-  public recordAssistant(content: string, callSeq?: number | null): number {
+  public recordAssistant(content: string): number {
     const payload = {
       tool: 'final',
       args: { content },
       summary: null,
       thought: null,
-      call_seq: callSeq ?? null,
       phase: 'plan',
     };
     return this.store.insertEvent({
@@ -77,7 +76,6 @@ export class MemoryRecorder {
   public recordExecution(
     toolName: string,
     result: Record<string, unknown>,
-    callSeq?: number | null,
   ): number {
     const resultPayload =
       result && typeof result === 'object' && !Array.isArray(result)
@@ -85,7 +83,6 @@ export class MemoryRecorder {
         : { output: String(result) };
     const payload = {
       result: resultPayload,
-      call_seq: callSeq,
       phase: 'execution',
       tool: toolName,
     };
@@ -145,13 +142,10 @@ export class MemoryRecorder {
         const type = event.type ?? event.phase;
         switch (type) {
           case 'user':
-            this.recordUser(event.content as string, event.call_seq as number);
+            this.recordUser(event.content as string);
             break;
           case 'assistant':
-            this.recordAssistant(
-              event.content as string,
-              event.call_seq as number,
-            );
+            this.recordAssistant(event.content as string);
             break;
           case 'plan':
             this.recordPlan(
@@ -162,7 +156,6 @@ export class MemoryRecorder {
             this.recordExecution(
               String(event.tool ?? event.tool_name ?? ''),
               (event.result as Record<string, unknown>) || {},
-              event.call_seq as number,
             );
             break;
           case 'interception':

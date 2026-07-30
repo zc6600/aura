@@ -31,10 +31,10 @@ describe('unified chat transcript', () => {
   describe('MemoryProvider.toChatMessages', () => {
     it('rebuilds user and assistant turns in order', () => {
       const recorder = new MemoryRecorder(store);
-      const first = recorder.recordUser('hello');
-      recorder.recordAssistant('hi there', first);
-      const second = recorder.recordUser('and again');
-      recorder.recordAssistant('still here', second);
+      recorder.recordUser('hello');
+      recorder.recordAssistant('hi there');
+      recorder.recordUser('and again');
+      recorder.recordAssistant('still here');
 
       expect(new MemoryProvider(store).toChatMessages()).toEqual([
         { role: 'user', content: 'hello' },
@@ -47,8 +47,8 @@ describe('unified chat transcript', () => {
     it('preserves long replies that toMarkdown would truncate', () => {
       const long = 'x'.repeat(5000);
       const recorder = new MemoryRecorder(store);
-      const id = recorder.recordUser('give me a long answer');
-      recorder.recordAssistant(long, id);
+      recorder.recordUser('give me a long answer');
+      recorder.recordAssistant(long);
 
       const messages = new MemoryProvider(store).toChatMessages();
       expect(messages.at(-1)?.content).toHaveLength(5000);
@@ -56,15 +56,15 @@ describe('unified chat transcript', () => {
 
     it('omits tool calls and their results', () => {
       const recorder = new MemoryRecorder(store);
-      const id = recorder.recordUser('build it');
+      recorder.recordUser('build it');
       recorder.recordPlan({
         type: 'tool_call',
         tool: 'write_file',
         args: { path: 'a.txt' },
         summary: 'writing a file',
       } as never);
-      recorder.recordExecution('write_file', { status: 'ok' }, id);
-      recorder.recordAssistant('done', id);
+      recorder.recordExecution('write_file', { status: 'ok' });
+      recorder.recordAssistant('done');
 
       expect(new MemoryProvider(store).toChatMessages()).toEqual([
         { role: 'user', content: 'build it' },
@@ -87,8 +87,8 @@ describe('unified chat transcript', () => {
     it('keeps the newest events when limited', () => {
       const recorder = new MemoryRecorder(store);
       for (let i = 0; i < 5; i++) {
-        const id = recorder.recordUser(`ask ${i}`);
-        recorder.recordAssistant(`reply ${i}`, id);
+        recorder.recordUser(`ask ${i}`);
+        recorder.recordAssistant(`reply ${i}`);
       }
 
       const messages = new MemoryProvider(store).toChatMessages({ limit: 4 });
@@ -105,7 +105,7 @@ describe('unified chat transcript', () => {
     it('drops the transcript but keeps tool variables', () => {
       const recorder = new MemoryRecorder(store);
       const id = recorder.recordUser('hello');
-      recorder.recordAssistant('hi', id);
+      recorder.recordAssistant('hi');
       recorder.recordSummary('a summary', id);
       store.setVariable('tool:read_file', 'ok');
 
@@ -121,10 +121,10 @@ describe('unified chat transcript', () => {
   describe('undoLastTurn over a chat turn', () => {
     it('removes the user message and its reply together', () => {
       const recorder = new MemoryRecorder(store);
-      const first = recorder.recordUser('keep me');
-      recorder.recordAssistant('kept', first);
-      const second = recorder.recordUser('drop me');
-      recorder.recordAssistant('dropped', second);
+      recorder.recordUser('keep me');
+      recorder.recordAssistant('kept');
+      recorder.recordUser('drop me');
+      recorder.recordAssistant('dropped');
 
       expect(store.undoLastTurn()).toBe(true);
       expect(new MemoryProvider(store).toChatMessages()).toEqual([

@@ -512,9 +512,9 @@ describe('CLI Chat Context & Commands Integration', { timeout: 60000 }, () => {
       ),
     });
     const recorder = new MemoryRecorder(store);
-    const userId = recorder.recordUser('build the thing');
-    recorder.recordExecution('write_file', { status: 'ok' }, userId);
-    recorder.recordAssistant('Built it.', userId);
+    recorder.recordUser('build the thing');
+    recorder.recordExecution('write_file', { status: 'ok' });
+    recorder.recordAssistant('Built it.');
     store.close();
 
     const res = await execa(
