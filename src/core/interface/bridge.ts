@@ -11,6 +11,7 @@ interface LoopAbortedPayload {
 interface MetabolismPayload {
   event_count?: number;
   total_chars?: number;
+  deleted_count?: number;
 }
 
 export class Bridge {
@@ -76,8 +77,8 @@ export class Bridge {
     // Start a new job for this turn
     this.runner.startJob({ input, auto_mode: autoMode });
 
-    // Use unified AgentEventBus on Runner
-    const bus = this.runner.eventBus;
+    // Use unified AgentEventBus on Runner or fallback for mocks
+    const bus = this.runner.eventBus || new AgentEventBus();
 
     // Track streaming state for UI waiting indicator
     let streamed = false;
