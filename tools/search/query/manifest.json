@@ -1,0 +1,25 @@
+{
+  "description": "Runs a real web search and returns the top results (title, url, snippet). Requires an open search_session context from search_open.",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": false,
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "context_id": {
+        "type": "string"
+      },
+      "query": {
+        "type": "string"
+      },
+      "max_results": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "query"
+    ]
+  },
+  "name": "search_query",
+  "requires_context": "search_session"
+}

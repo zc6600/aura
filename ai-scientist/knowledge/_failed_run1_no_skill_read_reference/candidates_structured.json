@@ -1,0 +1,18 @@
+{
+  "subfield": "Multi-Armed Bandits / Online Learning",
+  "recency_window": "2024-2026",
+  "candidates": [
+    {
+      "id": "cand_001",
+      "title": "Robust and Computationally Efficient Linear Contextual Bandits under Adversarial Corruption and Heavy-Tailed Noise",
+      "source_citation": "arXiv:2603.15596: 'We study linear contextual bandits under adversarial corruption and heavy-tailed noise with finite $(1+\epsilon)$-th moments for some $\epsilon\in (0,1]$. Existing work that addresses both adversarial corruption and heavy-tailed noise relies on a finite variance (i.e., finite second-moment) assumption and suffers from computational inefficiency.'",
+      "claimed_gap": "Existing work relies on finite variance assumptions and suffers from computational inefficiency under simultaneous adversarial corruption and heavy-tailed noise with finite (1+eps)-th moments."
+    },
+    {
+      "id": "cand_002",
+      "title": "Online Learning of Whittle Indices for Restless Bandits with Non-Stationary Transition Kernels",
+      "source_citation": "arXiv:2506.18186: 'This paper introduced an online/reinforcement learning algorithm for estimating the Whittle index for restless bandit problems with unknown and non-stationary transition kernels using sliding window and upper confidence bound approaches.'",
+      "claimed_gap": "Whittle index policies require access to stationary transition kernels - an unrealistic assumption in many networked systems, demanding sliding window and UCB adaptations for non-stationary dynamics."
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "description": "Description for search_open",
+  "runtime": "python3",
+  "entry": "logic.py",
+  "auto_load": true,
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "context_id": {
+        "type": "string"
+      }
+    },
+    "required": []
+  },
+  "name": "search_open",
+  "creates_context": "search_session"
+}

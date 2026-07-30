@@ -1,0 +1,74 @@
+[
+  {
+    "id": "cand_001",
+    "source": "Shisher, Tripathi, Chiang, Brinton — arXiv:2506.18186 (2025)",
+    "quote": "Other future directions include extending this work to infinite or continuous state spaces, and designing algorithms that achieve sub-linear dynamic regret even for large V_n (rapidly varying kernels).",
+    "claimed_gap": "No known algorithm achieves sub-linear dynamic regret for restless-bandit Whittle-index learning when the transition kernel varies rapidly (variation budget V_n not o(T)).",
+    "proposed_verifier": "Simulate small finite-state restless bandits (2-5 states/arm, 3-8 arms) with synthetically controlled kernel variation rate V_n. Implement paper's online Whittle-index baseline and a proposed variation-adaptive estimator (e.g. sliding-window / forgetting-factor index update). Compare empirical dynamic regret across a sweep of V_n values, especially the high-V_n regime the paper flags as unresolved.",
+    "estimated_compute": "pure numpy/python, small finite MDPs, well under 1s per episode, full sweep in low minutes on CPU",
+    "is_recent": true
+  },
+  {
+    "id": "cand_002",
+    "source": "arXiv:2510.16208 (2025)",
+    "quote": "A natural direction for future work is to move beyond open-loop policies toward adaptive strategies.",
+    "claimed_gap": "Existing explore-then-commit algorithm for nonstationary linear bandits with latent dynamics uses a fixed, open-loop action sequence; no adaptive/closed-loop policy has been tested against it.",
+    "proposed_verifier": "Reimplement the paper's open-loop ETC baseline for a simplified latent-AR-dynamics linear bandit environment. Implement a candidate adaptive policy (e.g. recursive-least-squares state tracking + adaptive re-commit triggering). Run both over >=30 random seeds across several latent-dynamics regimes; compare cumulative regret with a paired significance test.",
+    "estimated_compute": "pure numpy, low-dimensional linear bandit simulation, seconds per run, CPU only",
+    "is_recent": true
+  },
+  {
+    "id": "cand_003",
+    "source": "arXiv:2603.16755 (2026)",
+    "quote": "While this work contributes to the practical side of bandit algorithms, future works should include obtaining a non-stationary bound that extends the stationary regret bound in Theorem 3.",
+    "claimed_gap": "The C3 algorithm (transductive learning + importance-weighted estimator) for feature-rich bandits has a stationary regret bound (Theorem 3) but no non-stationary extension has been tested.",
+    "proposed_verifier": "Implement a simplified version of C3 (or the closest faithful reimplementation obtainable from the published method section), run it on a synthetic feature-rich bandit with injected non-stationary reward drift, with and without a candidate adaptation mechanism (e.g. sliding-window importance weighting). Compare empirical regret growth curves.",
+    "estimated_compute": "likely CPU-feasible for a scaled-down synthetic setting, but algorithm complexity (transductive learning, importance weighting) raises implementation risk — needs full paper read before compute estimate is reliable",
+    "is_recent": true
+  },
+  {
+    "id": "cand_004",
+    "source": "arXiv:2604.10177 (AISTATS 2026 Spotlight)",
+    "quote": null,
+    "claimed_gap": "unverified — WebFetch of abstract page found no explicit stated limitation",
+    "proposed_verifier": null,
+    "estimated_compute": null,
+    "is_recent": true
+  },
+  {
+    "id": "cand_005",
+    "source": "arXiv:2505.18871 (2025)",
+    "quote": null,
+    "claimed_gap": "unverified — WebFetch of abstract page found no explicit stated limitation",
+    "proposed_verifier": null,
+    "estimated_compute": null,
+    "is_recent": true
+  },
+  {
+    "id": "cand_006",
+    "source": "arXiv:2303.00950 (COLT workshop open-problem note, 2023)",
+    "quote": null,
+    "claimed_gap": "unverified for currency — outside ~2yr recency window, no recent source confirming still open",
+    "proposed_verifier": null,
+    "estimated_compute": null,
+    "is_recent": false
+  },
+  {
+    "id": "cand_007",
+    "source": "OpenReview id kXdW2KySK5",
+    "quote": null,
+    "claimed_gap": "unverified — WebFetch blocked by OpenReview login/verification wall, could not confirm quote",
+    "proposed_verifier": null,
+    "estimated_compute": null,
+    "is_recent": true
+  },
+  {
+    "id": "cand_008",
+    "source": "arXiv:2505.15643 (2025)",
+    "quote": null,
+    "claimed_gap": "unverified — WebFetch of abstract page found no explicit stated limitation",
+    "proposed_verifier": null,
+    "estimated_compute": null,
+    "is_recent": true
+  }
+]
