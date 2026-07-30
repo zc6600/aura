@@ -160,12 +160,13 @@ export class ToolProvider {
     }
 
     this.loadedToolsList.push(desc);
+    const hint = this.loadHint(dir);
     this.activeToolsList.push({
       name,
-      description: manifest.description || '',
+      description: this.composeDescription(manifest.description || '', hint),
       input_schema: manifest.input_schema || manifest.input || {},
       permissions: manifest.permissions || {},
-      hint: this.loadHint(dir),
+      hint,
     });
   }
 
@@ -192,12 +193,13 @@ export class ToolProvider {
     }
 
     this.loadedToolsList.push(desc);
+    const hint = this.loadHint(dir);
     this.activeToolsList.push({
       name,
-      description: manifest.description || '',
+      description: this.composeDescription(manifest.description || '', hint),
       input_schema: manifest.input_schema || manifest.input || {},
       permissions: manifest.permissions || {},
-      hint: this.loadHint(dir),
+      hint,
     });
   }
 
@@ -232,6 +234,20 @@ export class ToolProvider {
     ].filter(Boolean);
 
     return lines.join('\n');
+  }
+
+  /**
+   * Native tool schemas only expose `description` to the model (see
+   * ContextPayload.toToolSchemas) — the free-text tool block that would
+   * otherwise carry the hint gets excluded from the prompt whenever native
+   * tool calling is active. Fold the hint in here so usage guidance still
+   * reaches the model.
+   */
+  private composeDescription(description: string, hint: string): string {
+    if (!hint || hint === 'No specific guidance provided.') {
+      return description;
+    }
+    return [description, hint].filter(Boolean).join('\n\n');
   }
 
   private loadHint(dir: string): string {
@@ -324,12 +340,13 @@ export class ToolProvider {
       const tools = this.mcpManager.listTools();
       for (const tool of tools) {
         this.loadedToolsList.push(this.buildMcpDescription(tool));
+        const hint = tool.hint || 'No specific guidance provided.';
         this.activeToolsList.push({
           name: tool.name,
-          description: tool.description || '',
+          description: this.composeDescription(tool.description || '', hint),
           input_schema: tool.input_schema || {},
           permissions: {},
-          hint: tool.hint || 'No specific guidance provided.',
+          hint,
         });
       }
     } catch (_e) {}
@@ -372,13 +389,16 @@ export class ToolProvider {
         ].join('\n'),
       );
 
+      const hint = 'Use this tool to get real-time feedback on code changes.';
       this.activeToolsList.push({
         name: 'lsp_diagnostics',
-        description:
+        description: this.composeDescription(
           'Retrieve diagnostics warning and compile errors for files in workspace.',
+          hint,
+        ),
         input_schema: schema,
         permissions: {},
-        hint: 'Use this tool to get real-time feedback on code changes.',
+        hint,
       });
     } catch (_e) {}
   }
@@ -418,8 +438,10 @@ export class ToolProvider {
       );
       this.activeToolsList.push({
         name: 'wait_for_process',
-        description:
+        description: this.composeDescription(
           'Wait for (or poll) a background process. Returns result when done or {status: "running", pid} if still alive.',
+          hint,
+        ),
         input_schema: schema,
         permissions: {},
         hint,
@@ -461,8 +483,10 @@ export class ToolProvider {
       );
       this.activeToolsList.push({
         name: 'sleep_and_wake',
-        description:
+        description: this.composeDescription(
           'Pause for N seconds and auto-resume. Use while waiting for background tasks.',
+          hint,
+        ),
         input_schema: schema,
         permissions: {},
         hint,
@@ -505,8 +529,10 @@ export class ToolProvider {
       );
       this.activeToolsList.push({
         name: 'send_process_input',
-        description:
+        description: this.composeDescription(
           'Send stdin input to a PTY background process that is waiting for user input.',
+          hint,
+        ),
         input_schema: schema,
         permissions: {},
         hint,
@@ -610,7 +636,10 @@ export class ToolProvider {
       );
       this.activeToolsList.push({
         name: 'aura.registry.record',
-        description: 'Record an experiment run in the registry.',
+        description: this.composeDescription(
+          'Record an experiment run in the registry.',
+          hint,
+        ),
         input_schema: schema,
         permissions: {},
         hint,
@@ -644,7 +673,10 @@ export class ToolProvider {
       );
       this.activeToolsList.push({
         name: 'aura.registry.best',
-        description: 'Retrieve the best recorded run in the registry.',
+        description: this.composeDescription(
+          'Retrieve the best recorded run in the registry.',
+          hint,
+        ),
         input_schema: schema,
         permissions: {},
         hint,
@@ -688,7 +720,10 @@ export class ToolProvider {
       );
       this.activeToolsList.push({
         name: 'aura.csv.validate',
-        description: 'Validate CSV structure alignment against a sample.',
+        description: this.composeDescription(
+          'Validate CSV structure alignment against a sample.',
+          hint,
+        ),
         input_schema: schema,
         permissions: {},
         hint,
