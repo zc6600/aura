@@ -1,13 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import Database from 'better-sqlite3';
 import yaml from 'yaml';
 import * as ConfigManager from '../../../utils/configManager.js';
 import * as PathResolver from '../../../utils/pathResolver.js';
+import {
+  type MemorySession,
+  memorySessionExists,
+  openMemorySession,
+} from '../../memory/session.js';
 
 interface AnchorProviderOptions {
   envPath?: string;
-  state?: unknown;
+  state?: MemorySession | null;
 }
 
 interface AnchorConfig {
@@ -41,89 +45,56 @@ interface AnchorProgress {
 export class AnchorProvider {
   private projectPath: string;
   private envPath: string;
-  private state?: unknown;
+  private state?: MemorySession | null;
 
   constructor(projectPath: string, options: AnchorProviderOptions = {}) {
     this.projectPath = path.resolve(projectPath);
     this.envPath = options.envPath || this.projectPath;
-    this.state = options.state;
+    this.state = options.state ?? null;
   }
 
   public provide(): string | null {
     let planText: string | null = null;
     let progress: AnchorProgress | null = null;
 
-    // 1. Try to read from state object
-    if (this.state) {
-      if (
-        (this.state as { store: { getVariable: (key: string) => string } })
-          .store &&
-        typeof (
-          this.state as { store: { getVariable: (key: string) => string } }
-        ).store.getVariable === 'function'
-      ) {
-        planText = (
-          this.state as { store: { getVariable: (key: string) => string } }
-        ).store.getVariable('plan');
-      } else if (
-        typeof (this.state as { getVariable: (key: string) => string })
-          .getVariable === 'function'
-      ) {
-        planText = (
-          this.state as { getVariable: (key: string) => string }
-        ).getVariable('plan');
-      } else if (
-        typeof (this.state as { getFirstValue: (query: string) => string })
-          .getFirstValue === 'function'
-      ) {
-        try {
-          planText = (
-            this.state as { getFirstValue: (query: string) => string }
-          ).getFirstValue(
-            "SELECT value FROM variables WHERE key = 'plan' LIMIT 1",
-          );
-        } catch (_e) {}
-      }
-    }
+    // A live session was handed in (the normal path — see ContextBase);
+    // otherwise resolve and open this project's session ourselves (used
+    // when the provider runs standalone, e.g. some CLI/daemon paths).
+    let session = this.state ?? null;
+    let ownsSession = false;
 
-    // 2. Try to read directly from database file if not resolved yet
-    let dbPath = 'state/aura.db';
-    try {
-      dbPath = PathResolver.sessionDbPath(this.projectPath);
-    } catch (_e) {
+    if (!session) {
+      let dbPath = 'state/aura.db';
       try {
-        const config: AnchorConfig = ConfigManager.load(this.envPath) || {};
-        const p = config.state_management?.db_path;
-        dbPath = p
-          ? path.resolve(this.envPath, p)
-          : path.join(this.envPath, 'state', 'aura.db');
-      } catch (_err) {
-        dbPath = path.join(this.envPath, 'state', 'aura.db');
-      }
-    }
-
-    if (
-      planText === null &&
-      fs.existsSync(dbPath) &&
-      fs.statSync(dbPath).isFile()
-    ) {
-      let db: Database.Database | null = null;
-      try {
-        db = new Database(dbPath);
-        const row = db
-          .prepare("SELECT value FROM variables WHERE key = 'plan' LIMIT 1")
-          .get() as { value: string } | undefined;
-        if (row) {
-          planText = String(row.value);
-        }
-        progress = this.readAnchorProgressFromDb(db);
+        dbPath = PathResolver.sessionDbPath(this.projectPath);
       } catch (_e) {
-        // Ignore errors reading database file if not initialized yet
+        try {
+          const config: AnchorConfig = ConfigManager.load(this.envPath) || {};
+          const p = config.state_management?.db_path;
+          dbPath = p
+            ? path.resolve(this.envPath, p)
+            : path.join(this.envPath, 'state', 'aura.db');
+        } catch (_err) {
+          dbPath = path.join(this.envPath, 'state', 'aura.db');
+        }
+      }
+      if (memorySessionExists(dbPath) && fs.statSync(dbPath).isFile()) {
+        try {
+          session = openMemorySession({ dbPath });
+          ownsSession = true;
+        } catch (_e) {
+          // Ignore errors opening the database file if not initialized yet
+        }
+      }
+    }
+
+    if (session) {
+      try {
+        planText = session.getVariable('plan');
+        progress = this.readAnchorProgress(session);
       } finally {
-        if (db) {
-          try {
-            db.close();
-          } catch (_e) {}
+        if (ownsSession) {
+          session.close();
         }
       }
     }
@@ -270,19 +241,13 @@ export class AnchorProvider {
     return [];
   }
 
-  private readAnchorProgressFromDb(
-    db: Database.Database,
-  ): AnchorProgress | null {
+  private readAnchorProgress(session: MemorySession): AnchorProgress | null {
     try {
-      const row = db
-        .prepare(
-          "SELECT payload FROM events WHERE tool = 'anchor_submit' ORDER BY id DESC LIMIT 1",
-        )
-        .get() as { payload: string } | undefined;
-      if (!row?.payload) {
+      const latest = session.latestEventForTool('anchor_submit');
+      if (!latest) {
         return null;
       }
-      const payload = JSON.parse(row.payload) as Record<string, unknown>;
+      const payload = latest.payload;
       const lastCompleted =
         typeof payload.anchor_id === 'string' && payload.anchor_id.trim()
           ? payload.anchor_id.trim()

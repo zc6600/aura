@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
-import { SQLiteStore } from '../../core/memory/sqliteStore.js';
+import {
+  memorySessionExists,
+  openMemorySession,
+} from '../../core/memory/session.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 
 export interface AnchorInfo {
@@ -85,13 +88,13 @@ export function loadCompletedAnchorMap(
   dbPath: string,
 ): Map<string, CompletedAnchorInfo> {
   const completedMap = new Map<string, CompletedAnchorInfo>();
-  if (!fs.existsSync(dbPath)) {
+  if (!memorySessionExists(dbPath)) {
     return completedMap;
   }
 
-  const store = new SQLiteStore({ dbPath });
+  const session = openMemorySession({ dbPath });
   try {
-    const events = store.fetchAnchorSubmitEvents();
+    const events = session.eventsForTool('anchor_submit');
     for (const event of events) {
       if (event.payload.anchor_id) {
         completedMap.set(event.payload.anchor_id as string, {
@@ -107,7 +110,7 @@ export function loadCompletedAnchorMap(
       }
     }
   } finally {
-    store.close();
+    session.close();
   }
 
   return completedMap;
@@ -242,7 +245,7 @@ export function submitAnchorEvent(options: {
   notes?: unknown;
   anchorRuntimeUpdate?: unknown;
 }): void {
-  const store = new SQLiteStore({ dbPath: options.dbPath });
+  const session = openMemorySession({ dbPath: options.dbPath });
   try {
     const selectedNext = clampString(
       options.selectedNext,
@@ -251,21 +254,16 @@ export function submitAnchorEvent(options: {
     const summary = clampString(options.summary, MAX_SUMMARY_LENGTH);
     const notes = clampString(options.notes, MAX_NOTES_LENGTH);
     const runtime = sanitizeAnchorRuntimeUpdate(options.anchorRuntimeUpdate);
-    store.insertEvent({
-      timestamp: Math.floor(Date.now() / 1000),
-      phase: 'tool',
-      tool: 'anchor_submit',
-      payload: {
-        anchor_id: options.anchorId,
-        summary,
-        notes,
-        selected_next: selectedNext,
-        next_stage: selectedNext,
-        runtime,
-      },
+    session.appendCustomEvent('tool', 'anchor_submit', {
+      anchor_id: options.anchorId,
+      summary,
+      notes,
+      selected_next: selectedNext,
+      next_stage: selectedNext,
+      runtime,
     });
   } finally {
-    store.close();
+    session.close();
   }
 }
 
@@ -273,25 +271,16 @@ export function revokeAnchorEvents(options: {
   dbPath: string;
   anchorId: string;
 }): void {
-  const store = new SQLiteStore({ dbPath: options.dbPath });
+  const session = openMemorySession({ dbPath: options.dbPath });
   try {
-    const rows = store
-      .getRawDb()
-      .prepare("SELECT id, payload FROM events WHERE tool = 'anchor_submit'")
-      .all() as { id: number; payload: string }[];
-    const toDelete: number[] = [];
-    for (const row of rows) {
-      try {
-        const payload = JSON.parse(row.payload) as Record<string, unknown>;
-        if (payload.anchor_id === options.anchorId) {
-          toDelete.push(row.id);
-        }
-      } catch {}
-    }
+    const events = session.eventsForTool('anchor_submit');
+    const toDelete = events
+      .filter((event) => event.payload.anchor_id === options.anchorId)
+      .map((event) => event.id);
     if (toDelete.length > 0) {
-      store.deleteEvents(toDelete);
+      session.deleteEvents(toDelete);
     }
   } finally {
-    store.close();
+    session.close();
   }
 }

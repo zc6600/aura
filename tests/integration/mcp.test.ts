@@ -84,9 +84,7 @@ rl.on('line', (line) => {
 
   it('test_tool_provider_includes_mcp_tools_and_calls_successfully', async () => {
     // 1. Check ToolProvider lists the MCP tool
-    const provider = new ToolProvider(projectPath, {
-      state: runner.memory.store,
-    });
+    const provider = new ToolProvider(projectPath);
     const text = provider.provide();
 
     expect(text).toContain('mcp.test.ping');

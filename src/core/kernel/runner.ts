@@ -149,9 +149,9 @@ export class Runner extends EventEmitter implements IRunner {
   public reconnectSession(sessionName: string): void {
     this.sessionName = sessionName;
     process.env.AURA_SESSION_NAME = sessionName;
-    if (this.memory?.store) {
+    if (this.memory) {
       try {
-        this.memory.store.close();
+        this.memory.close();
       } catch (_e) {}
     }
     this.memory = this.defaultMemory(sessionName);
@@ -170,9 +170,9 @@ export class Runner extends EventEmitter implements IRunner {
         this.engine.destroy();
       } catch {}
     }
-    if (this.memory?.store) {
+    if (this.memory) {
       try {
-        this.memory.store.close();
+        this.memory.close();
       } catch {}
     }
   }
@@ -219,7 +219,7 @@ export class Runner extends EventEmitter implements IRunner {
   public async observe(): Promise<ContextPayload> {
     this.memory.recorder.recordCustom('observe', {});
     await this.memory.metabolizeIfNeeded();
-    return ContextAssembler.assemble(this.projectPath, this.memory.store.db, {
+    return ContextAssembler.assemble(this.projectPath, this.memory, {
       lsp_manager: this.lspManager,
     });
   }
@@ -381,7 +381,7 @@ export class Runner extends EventEmitter implements IRunner {
       }
     }
 
-    const dbPath = this.memory.store?.dbPath;
+    const dbPath = this.memory.dbPath;
     const modifiedFiles = await this.trackFileModifications(async () => {
       // For sleep_and_wake: inject the current abort signal so disconnects
       // cancel the sleep immediately rather than blocking for the full duration.

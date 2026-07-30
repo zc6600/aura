@@ -158,18 +158,18 @@ describe('Lifecycle Cleanup Tests', () => {
     const mockEngine = {
       destroy: vi.fn(),
     };
-    const mockStore = {
+    const mockMemory = {
       close: vi.fn(),
     };
 
     (runner as any).lspManager = mockLspManager;
     (runner as any).engine = mockEngine;
-    (runner as any).memory = { store: mockStore };
+    (runner as any).memory = mockMemory;
 
     runner.destroy();
 
     expect(mockLspManager.stopAll).toHaveBeenCalled();
     expect(mockEngine.destroy).toHaveBeenCalled();
-    expect(mockStore.close).toHaveBeenCalled();
+    expect(mockMemory.close).toHaveBeenCalled();
   });
 });

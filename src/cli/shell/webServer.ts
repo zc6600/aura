@@ -3,9 +3,12 @@ import fsPromises from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Database from 'better-sqlite3';
 import { execa } from 'execa';
 import yaml from 'yaml';
+import {
+  type MemorySession,
+  openMemorySession,
+} from '../../core/memory/session.js';
 import { VERSION } from '../../index.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import { errorMessage } from '../../utils/typing.js';
@@ -59,7 +62,7 @@ export class WebServer {
   private dbPath: string;
   private projectName: string;
   private server?: http.Server;
-  private dbInstance: Database.Database | null = null;
+  private sessionInstance: MemorySession | null = null;
   private cachedDbPath: string | null = null;
   private dashboardAssetCache = new Map<string, string>();
 
@@ -78,24 +81,27 @@ export class WebServer {
     return this.dbPath;
   }
 
-  private getDb(): Database.Database | null {
+  private getSession(): MemorySession | null {
     const currentPath = this.getDbPath();
     if (!fs.existsSync(currentPath)) {
-      if (this.dbInstance) {
+      if (this.sessionInstance) {
         this.closeDb();
       }
       return null;
     }
 
-    if (this.dbInstance && this.cachedDbPath === currentPath) {
-      return this.dbInstance;
+    if (this.sessionInstance && this.cachedDbPath === currentPath) {
+      return this.sessionInstance;
     }
 
     this.closeDb();
     try {
-      this.dbInstance = new Database(currentPath, { readonly: true });
+      this.sessionInstance = openMemorySession({
+        dbPath: currentPath,
+        readonly: true,
+      });
       this.cachedDbPath = currentPath;
-      return this.dbInstance;
+      return this.sessionInstance;
     } catch (err) {
       console.error(`Failed to open database at ${currentPath}:`, err);
       return null;
@@ -103,13 +109,13 @@ export class WebServer {
   }
 
   private closeDb(): void {
-    if (this.dbInstance) {
+    if (this.sessionInstance) {
       try {
-        this.dbInstance.close();
+        this.sessionInstance.close();
       } catch (_err) {
         // ignore
       }
-      this.dbInstance = null;
+      this.sessionInstance = null;
     }
     this.cachedDbPath = null;
   }
@@ -183,16 +189,13 @@ export class WebServer {
         try {
           if (pathname === '/events') {
             let body = '';
-            const db = this.getDb();
-            if (db) {
+            const session = this.getSession();
+            if (session) {
               try {
-                const rows = db
-                  .prepare(
-                    'SELECT payload FROM events ORDER BY id DESC LIMIT 50',
-                  )
-                  .all() as { payload: string }[];
-                const lines = rows.map((r) => r.payload);
-                body = lines.reverse().join('\n');
+                body = session
+                  .eventTail(50)
+                  .map((row) => row.payload)
+                  .join('\n');
               } catch (_err) {
                 // ignore
               }
@@ -221,14 +224,10 @@ export class WebServer {
                 }
                 return;
               }
-              const db = this.getDb();
-              if (db) {
+              const session = this.getSession();
+              if (session) {
                 try {
-                  const rows = db
-                    .prepare(
-                      'SELECT id, payload FROM events WHERE id > ? ORDER BY id ASC',
-                    )
-                    .all(lastId) as { id: number; payload: string }[];
+                  const rows = session.eventsSince(lastId);
                   for (const row of rows) {
                     if (res.destroyed) {
                       break;
@@ -255,15 +254,10 @@ export class WebServer {
             setTimeout(() => this.stop(), 200);
           } else if (pathname === '/api/sessions') {
             let sessions: string[] = [];
-            const db = this.getDb();
-            if (db) {
+            const session = this.getSession();
+            if (session) {
               try {
-                const rows = db
-                  .prepare(
-                    "SELECT DISTINCT phase FROM events WHERE phase IS NOT NULL AND phase != '' ORDER BY phase DESC LIMIT 20",
-                  )
-                  .all() as { phase: string }[];
-                sessions = rows.map((r) => r.phase);
+                sessions = session.distinctPhases(20);
               } catch (_err) {
                 // ignore
               }
@@ -273,14 +267,10 @@ export class WebServer {
           } else if (pathname.startsWith('/api/sessions/')) {
             const sessionId = pathname.substring('/api/sessions/'.length);
             let events: unknown[] = [];
-            const db = this.getDb();
-            if (db) {
+            const session = this.getSession();
+            if (session) {
               try {
-                const rows = db
-                  .prepare(
-                    'SELECT payload FROM events WHERE phase = ? ORDER BY id ASC',
-                  )
-                  .all(sessionId) as { payload: string }[];
+                const rows = session.eventsByPhase(sessionId);
                 events = rows.map((r) => {
                   try {
                     return JSON.parse(r.payload);
@@ -373,19 +363,11 @@ export class WebServer {
     const currentPath = this.getDbPath();
     const dbExists = await this.fileExists(currentPath);
     if (dbExists) {
-      const db = this.getDb();
-      if (db) {
+      const session = this.getSession();
+      if (session) {
         try {
-          const countRow = db
-            .prepare('SELECT COUNT(*) as count FROM events')
-            .get() as { count: number };
-          totalEvents = countRow?.count || 0;
-          const sessionsRow = db
-            .prepare(
-              "SELECT DISTINCT phase FROM events WHERE phase IS NOT NULL AND phase != ''",
-            )
-            .all() as { phase: string }[];
-          totalSessions = sessionsRow.length;
+          totalEvents = session.stats().eventCount;
+          totalSessions = session.distinctPhases().length;
         } catch {
           // ignore
         }

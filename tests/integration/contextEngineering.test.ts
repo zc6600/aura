@@ -8,16 +8,22 @@ import { ContextAssembler } from '../../src/core/context/assembler.js';
 import { ContextBase } from '../../src/core/context/base.js';
 import { KnowledgeProvider } from '../../src/core/context/providers/knowledgeProvider.js';
 import { ToolProvider } from '../../src/core/context/providers/toolProvider.js';
+import { MemoryProvider } from '../../src/core/memory/provider.js';
 
 import type {
   EventRecord,
+  SQLiteStore,
   SummaryRecord,
 } from '../../src/core/memory/sqliteStore.js';
 
+// A minimal stand-in for a MemorySession, backed by MemoryProvider the same
+// way SqliteMemorySession is — these tests only need renderTimeline/state,
+// not a real db file.
 class DummyContextDb {
   public variables: Record<string, string> = {};
   public summaries: SummaryRecord[] = [];
   public events: EventRecord[] = [];
+  public readonly dbPath = '';
 
   public allVariables(): Record<string, string> {
     return this.variables;
@@ -39,6 +45,37 @@ class DummyContextDb {
 
   public countEvents(): number {
     return this.events.length;
+  }
+
+  public getVariable(key: string): string | null {
+    return this.variables[key] ?? null;
+  }
+
+  public setVariable(key: string, value: string): void {
+    this.variables[key] = value;
+  }
+
+  public latestEventForTool(tool: string): {
+    id: number;
+    payload: Record<string, unknown>;
+    timestamp: number;
+  } | null {
+    const matches = this.events.filter((e) => e.tool === tool);
+    if (matches.length === 0) return null;
+    const last = matches[matches.length - 1];
+    return { id: last.id, payload: last.payload, timestamp: last.timestamp };
+  }
+
+  public renderTimeline(
+    options: {
+      summary_limit?: number | null;
+      event_limit?: number | null;
+      event_time_gap_seconds?: number;
+    } = {},
+  ): string {
+    return new MemoryProvider(this as unknown as SQLiteStore).toMarkdown(
+      options,
+    );
   }
 }
 

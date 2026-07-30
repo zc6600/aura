@@ -23,6 +23,10 @@ import type {
   ChatMessage,
   CompletionOptions,
 } from '../../src/core/llm/types.js';
+import {
+  type MemorySession,
+  openMemorySession,
+} from '../../src/core/memory/session.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,15 +98,7 @@ class MockRunner {
   public toolCalls: ResponseParser[] = [];
   public observeCalls: boolean[] = [];
   public sessionConnected: string | null = null;
-  public memory: {
-    store: { db: any; dbPath?: string; close?(): void };
-    recorder: { recordCustom(phase: string, payload: unknown): void };
-    metabolizeIfNeeded?(): Promise<void>;
-  } = {
-    store: { db: null as unknown as import('better-sqlite3').Database },
-    recorder: { recordCustom: () => {} },
-    metabolizeIfNeeded: async () => {},
-  };
+  public memory: MemorySession;
 
   constructor(client: MockLLMClient, projectPath: string) {
     this.projectPath = projectPath;
@@ -118,6 +114,9 @@ class MockRunner {
         provider: 'local',
       },
     };
+    this.memory = openMemorySession({
+      dbPath: path.join(this.envPath, 'state', 'sessions', 'mock.db'),
+    });
   }
 
   public reconnectSession(sessionName: string): void {

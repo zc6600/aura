@@ -16,14 +16,12 @@ export interface StructuredTool {
 }
 
 interface ToolProviderOptions {
-  state?: unknown;
   current_turn?: number;
 }
 
 export class ToolProvider {
   private workspaceRoot: string;
   private envPath: string;
-  private state: unknown;
   private currentTurn: number;
   private registry: ToolRegistry;
   private manager: ContextManager;
@@ -37,7 +35,6 @@ export class ToolProvider {
     this.envPath = path.resolve(resolvedEnv);
     this.workspaceRoot = path.resolve(workspacePath);
     this.options = options || {};
-    this.state = options.state;
     this.currentTurn = options.current_turn || 0;
     this.registry = new ToolRegistry(this.envPath);
     this.manager = new ContextManager(this.envPath);

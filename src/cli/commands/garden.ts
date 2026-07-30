@@ -1,9 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import Database from 'better-sqlite3';
 import picocolors from 'picocolors';
 import yaml from 'yaml';
 import { HintProvider } from '../../core/context/providers/hintProvider.js';
+import {
+  memorySessionExists,
+  openMemorySession,
+} from '../../core/memory/session.js';
 import * as GlobalConfig from '../../utils/globalConfig.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import * as UI from '../ui.js';
@@ -126,49 +129,19 @@ export class Garden {
     let completedIds: string[] = [];
     const pendingAnchors: string[] = [];
 
-    // Open DB once to read all needed data
-    if (fs.existsSync(dbPath)) {
-      let db: Database.Database | undefined;
+    // Open the session once to read all needed data
+    if (memorySessionExists(dbPath)) {
+      const session = openMemorySession({ dbPath });
       try {
-        db = new Database(dbPath);
-
-        // Check if events table exists
-        const tableRow = db
-          .prepare(
-            "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='events'",
-          )
-          .get() as { count: number } | undefined;
-        if (tableRow && tableRow.count > 0) {
-          // Total events count
-          const countRow = db
-            .prepare('SELECT COUNT(*) as count FROM events')
-            .get() as { count: number } | undefined;
-          totalEvents = countRow ? Number(countRow.count) : 0;
-
-          // Completed anchor IDs
-          const anchorRows = db
-            .prepare("SELECT payload FROM events WHERE tool = 'anchor_submit'")
-            .all();
-          completedIds = anchorRows
-            .map((r: unknown) => {
-              try {
-                const row = r as { payload: string };
-                const payload = JSON.parse(row.payload);
-                return payload.anchor_id;
-              } catch {
-                return null;
-              }
-            })
-            .filter(Boolean);
-        }
+        totalEvents = session.stats().eventCount;
+        completedIds = session
+          .eventsForTool('anchor_submit')
+          .map((event) => event.payload.anchor_id as string)
+          .filter(Boolean);
       } catch (e: unknown) {
         console.warn(`Error querying database: ${(e as Error).message}`);
       } finally {
-        if (db) {
-          try {
-            db.close();
-          } catch {}
-        }
+        session.close();
       }
     }
 

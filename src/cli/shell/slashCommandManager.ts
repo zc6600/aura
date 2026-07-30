@@ -93,7 +93,7 @@ export class SlashCommandManager {
 
   private handleContext(): void {
     const root = path.resolve(this.projectPath);
-    const out = ContextAssembler.assemble(root, this.runner.memory.store.db);
+    const out = ContextAssembler.assemble(root, this.runner.memory);
     console.log(out.toMarkdown());
   }
 

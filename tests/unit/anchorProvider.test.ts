@@ -4,6 +4,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnchorProvider } from '../../src/core/context/providers/anchorProvider.js';
+import { openMemorySession } from '../../src/core/memory/session.js';
 
 describe('AnchorProvider', () => {
   let tempDir: string;
@@ -32,40 +33,20 @@ describe('AnchorProvider', () => {
     expect(provider.provide()).toBeNull();
   });
 
-  it('should read plan from state getVariable function', () => {
-    const mockState = {
-      getVariable: (key: string) => (key === 'plan' ? 'State plan text' : ''),
-    };
-    const provider = new AnchorProvider(projectPath, {
-      envPath,
-      state: mockState,
+  it('should read plan from a MemorySession passed in as state', () => {
+    const stateDir = path.join(projectPath, 'state', 'sessions');
+    fs.mkdirSync(stateDir, { recursive: true });
+    const session = openMemorySession({
+      dbPath: path.join(stateDir, 'default.db'),
     });
-    expect(provider.provide()).toContain('### Overall Task\nState plan text');
-  });
+    session.setVariable('plan', 'Session plan text');
 
-  it('should read plan from state store getVariable function', () => {
-    const mockState = {
-      store: {
-        getVariable: (key: string) => (key === 'plan' ? 'Store plan text' : ''),
-      },
-    };
     const provider = new AnchorProvider(projectPath, {
       envPath,
-      state: mockState,
+      state: session,
     });
-    expect(provider.provide()).toContain('### Overall Task\nStore plan text');
-  });
-
-  it('should read plan from state getFirstValue function', () => {
-    const mockState = {
-      getFirstValue: (query: string) =>
-        query.includes("WHERE key = 'plan'") ? 'SQL plan text' : '',
-    };
-    const provider = new AnchorProvider(projectPath, {
-      envPath,
-      state: mockState,
-    });
-    expect(provider.provide()).toContain('### Overall Task\nSQL plan text');
+    expect(provider.provide()).toContain('### Overall Task\nSession plan text');
+    session.close();
   });
 
   it('should read plan directly from SQLite database', () => {

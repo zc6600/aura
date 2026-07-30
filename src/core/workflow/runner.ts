@@ -7,6 +7,7 @@ import { asRecord, errorMessage } from '../../utils/typing.js';
 import { AgentLoop } from '../kernel/agentLoop.js';
 import { ToolRegistry } from '../kernel/registry.js';
 import type { Runner } from '../kernel/runner.js';
+import { memorySessionExists, openMemorySession } from '../memory/session.js';
 import {
   type LoadedWorkflow,
   loadWorkflow,
@@ -390,36 +391,17 @@ export function anchorId(root: string, anchorPath?: string): string | null {
 
 function completedAnchorIds(root: string): string[] {
   const dbPath = PathResolver.sessionDbPath(root);
-  if (!fs.existsSync(dbPath)) return [];
-  let db: Database.Database | undefined;
+  if (!memorySessionExists(dbPath)) return [];
+  const session = openMemorySession({ dbPath });
   try {
-    db = new Database(dbPath);
-    const tableRow = db
-      .prepare(
-        "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='events'",
-      )
-      .get() as { count: number } | undefined;
-    if (!tableRow || tableRow.count === 0) return [];
-    return db
-      .prepare("SELECT payload FROM events WHERE tool = 'anchor_submit'")
-      .all()
-      .map((r: unknown) => {
-        try {
-          const row = r as { payload: string };
-          return JSON.parse(row.payload).anchor_id;
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean) as string[];
+    return session
+      .eventsForTool('anchor_submit')
+      .map((event) => event.payload.anchor_id as string)
+      .filter(Boolean);
   } catch {
     return [];
   } finally {
-    if (db) {
-      try {
-        db.close();
-      } catch {}
-    }
+    session.close();
   }
 }
 

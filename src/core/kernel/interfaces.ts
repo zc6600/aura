@@ -126,16 +126,8 @@ export interface IRunner {
 export interface IRalphRunner extends IRunner {
   /** Switches the active memory session in-place. */
   reconnectSession(sessionName: string): void;
-  /** Access to the raw memory store (for context assembly). */
-  readonly memory: {
-    store?: {
-      db?: import('better-sqlite3').Database | null;
-      dbPath?: string;
-      close?(): void;
-    };
-    recorder: { recordCustom(phase: string, payload: unknown): void };
-    metabolizeIfNeeded?(): Promise<unknown>;
-  };
+  /** The active session, for context assembly — not a raw store or db handle. */
+  readonly memory: import('../memory/session.js').MemorySession | null;
   /** Direct access to the LLM planner for critic single-turn calls. */
   readonly planner: {
     readonly temp?: number;

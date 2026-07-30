@@ -7,6 +7,8 @@ export interface SQLiteStoreConfig {
   dbPath?: string;
   projectPath?: string;
   db?: import('better-sqlite3').Database;
+  /** Opens an existing db strictly read-only — skips pragma writes and schema setup, so the file must already exist. */
+  readonly?: boolean;
 }
 
 export interface EventRecord {
@@ -22,6 +24,20 @@ export interface SummaryRecord {
   timestamp: number;
   content: string;
   source_event_id?: number | null;
+}
+
+/** A stored event's identity, tool-execution payload, and timestamp — the shape callers outside Memory get instead of a raw db row. */
+export interface StoredToolEvent {
+  id: number;
+  payload: Record<string, unknown>;
+  timestamp: number;
+}
+
+export interface SessionStats {
+  eventCount: number;
+  summaryCount: number;
+  /** Unix seconds of the most recent event, or null if the session is empty. */
+  lastEventAt: number | null;
 }
 
 export class SQLiteStore {
@@ -51,44 +67,122 @@ export class SQLiteStore {
         }
       }
 
-      this.db = new Database(this.dbPath);
+      this.db = new Database(
+        this.dbPath,
+        config.readonly ? { readonly: true } : undefined,
+      );
     }
 
-    this.db.pragma('journal_mode=WAL');
-    this.db.pragma('synchronous=NORMAL');
+    if (!config.readonly) {
+      this.db.pragma('journal_mode=WAL');
+      this.db.pragma('synchronous=NORMAL');
 
-    this.createTables();
-    this.migrateTables();
+      this.createTables();
+      this.migrateTables();
+    }
   }
 
   public getRawDb(): Database.Database {
     return this.db;
   }
 
-  public fetchAnchorSubmitEvents(): {
-    payload: Record<string, unknown>;
-    timestamp: number;
-  }[] {
+  /**
+   * All events recorded under a given tool name, oldest first. General
+   * enough to serve any "look up executions of tool X" need (anchor
+   * submissions today) without Memory having to know what that tool means.
+   */
+  public eventsForTool(tool: string): StoredToolEvent[] {
     try {
       const rows = this.db
         .prepare(
-          "SELECT payload, timestamp FROM events WHERE tool = 'anchor_submit'",
+          'SELECT id, payload, timestamp FROM events WHERE tool = ? ORDER BY id ASC',
         )
-        .all() as { payload: string; timestamp: number }[];
-      return rows.map((row) => {
-        let parsedPayload: Record<string, unknown> = {};
-        try {
-          parsedPayload = JSON.parse(row.payload);
-        } catch {
-          // Ignore
-        }
-        return {
-          payload: parsedPayload,
-          timestamp: row.timestamp,
-        };
-      });
+        .all(tool) as { id: number; payload: string; timestamp: number }[];
+      return rows.map((row) => ({
+        id: row.id,
+        payload: this.parseJsonPayload(row.payload),
+        timestamp: row.timestamp,
+      }));
     } catch {
       return [];
+    }
+  }
+
+  /** The most recent event recorded under a given tool name, or null. */
+  public latestEventForTool(tool: string): StoredToolEvent | null {
+    try {
+      const row = this.db
+        .prepare(
+          'SELECT id, payload, timestamp FROM events WHERE tool = ? ORDER BY id DESC LIMIT 1',
+        )
+        .get(tool) as
+        | { id: number; payload: string; timestamp: number }
+        | undefined;
+      if (!row) return null;
+      return {
+        id: row.id,
+        payload: this.parseJsonPayload(row.payload),
+        timestamp: row.timestamp,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** The newest `limit` events' raw payload strings, oldest first. */
+  public eventTail(limit: number): { id: number; payload: string }[] {
+    const rows = this.db
+      .prepare('SELECT id, payload FROM events ORDER BY id DESC LIMIT ?')
+      .all(limit) as { id: number; payload: string }[];
+    return rows.reverse();
+  }
+
+  /** Events inserted after `id`, oldest first — for live-tailing a session. */
+  public eventsSince(id: number): { id: number; payload: string }[] {
+    return this.db
+      .prepare('SELECT id, payload FROM events WHERE id > ? ORDER BY id ASC')
+      .all(id) as { id: number; payload: string }[];
+  }
+
+  /** Raw payload strings for every event recorded under a given phase, oldest first. */
+  public eventsByPhase(phase: string): { payload: string }[] {
+    return this.db
+      .prepare('SELECT payload FROM events WHERE phase = ? ORDER BY id ASC')
+      .all(phase) as { payload: string }[];
+  }
+
+  /** Distinct non-empty phase values in use, optionally capped. */
+  public distinctPhases(limit?: number): string[] {
+    let query =
+      "SELECT DISTINCT phase FROM events WHERE phase IS NOT NULL AND phase != '' ORDER BY phase DESC";
+    const args: unknown[] = [];
+    if (limit !== undefined) {
+      query += ' LIMIT ?';
+      args.push(limit);
+    }
+    const rows = this.db.prepare(query).all(...args) as { phase: string }[];
+    return rows.map((row) => row.phase);
+  }
+
+  public sessionStats(): SessionStats {
+    const summaryCountRow = this.db
+      .prepare('SELECT COUNT(*) as count FROM summaries')
+      .get() as { count: number };
+    const lastRow = this.db
+      .prepare('SELECT MAX(timestamp) as max_ts FROM events')
+      .get() as { max_ts: number | null } | undefined;
+    return {
+      eventCount: this.countEvents(),
+      summaryCount: Number(summaryCountRow?.count || 0),
+      lastEventAt: lastRow?.max_ts ?? null,
+    };
+  }
+
+  private parseJsonPayload(raw: string): Record<string, unknown> {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return {};
     }
   }
 

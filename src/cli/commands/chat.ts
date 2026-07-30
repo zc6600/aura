@@ -9,11 +9,11 @@ import {
   importLegacyChatHistory,
   legacyChatHistoryPath,
 } from '../../core/memory/legacyChatImport.js';
+import type { TranscriptMessage } from '../../core/memory/provider.js';
 import {
-  MemoryProvider,
-  type TranscriptMessage,
-} from '../../core/memory/provider.js';
-import { MemoryRecorder } from '../../core/memory/recorder.js';
+  type MemorySession,
+  SqliteMemorySession,
+} from '../../core/memory/session.js';
 import { SQLiteStore } from '../../core/memory/sqliteStore.js';
 import * as ConfigManager from '../../utils/configManager.js';
 import type { AuraConfig } from '../../utils/configSchema.js';
@@ -39,7 +39,7 @@ const CONTEXT_MESSAGE_LIMIT = 10;
  */
 class ChatHistory {
   public readonly dbPath: string;
-  private store: SQLiteStore | null = null;
+  private session: MemorySession | null = null;
   private pendingNotice: string | null = null;
 
   constructor(
@@ -50,22 +50,27 @@ class ChatHistory {
   }
 
   /**
-   * Opening a store creates the database file, so read-only callers pass
+   * Opening a session creates the database file, so read-only callers pass
    * `create: false` to avoid littering empty sessions across the workspace
    * just because someone ran `chat context` on a name that does not exist.
+   *
+   * Constructs SQLiteStore directly (rather than going through
+   * openMemorySession) only because the one-time legacy-JSON migration
+   * below needs that concrete type; every other operation goes through the
+   * MemorySession it's immediately wrapped into.
    */
-  private open(create: boolean): SQLiteStore | null {
-    if (this.store) return this.store;
+  private open(create: boolean): MemorySession | null {
+    if (this.session) return this.session;
 
     const hasHistory =
       fs.existsSync(this.dbPath) ||
       fs.existsSync(legacyChatHistoryPath(this.stateDir, this.sessionName));
     if (!create && !hasHistory) return null;
 
-    this.store = new SQLiteStore({ dbPath: this.dbPath });
+    const store = new SQLiteStore({ dbPath: this.dbPath });
 
     const migration = importLegacyChatHistory(
-      this.store,
+      store,
       this.stateDir,
       this.sessionName,
     );
@@ -77,7 +82,8 @@ class ChatHistory {
       this.pendingNotice = `⚠️ Could not read legacy chat history at ${migration.legacyPath}; it was left untouched.`;
     }
 
-    return this.store;
+    this.session = new SqliteMemorySession(store);
+    return this.session;
   }
 
   /** Emits any one-time migration warning; safe to call repeatedly. */
@@ -89,22 +95,17 @@ class ChatHistory {
   }
 
   public messages(limit?: number): TranscriptMessage[] {
-    const store = this.open(false);
-    if (!store) return [];
+    const session = this.open(false);
+    if (!session) return [];
     this.flushNotice();
-    return new MemoryProvider(store).toChatMessages({ limit });
+    return session.chatMessages({ limit });
   }
 
   public appendTurn(userContent: string, assistantContent: string): void {
-    const store = this.open(true);
-    if (!store) return;
-    const recorder = new MemoryRecorder(store);
-    store.transaction(() => {
-      // Tying the reply to the user event id matches how the kernel groups a
-      // turn (see Runner.recordExecution), keeping undo and metabolism honest.
-      const userEventId = recorder.recordUser(userContent);
-      recorder.recordAssistant(assistantContent, userEventId);
-    });
+    const session = this.open(true);
+    if (!session) return;
+    session.appendUserTurn(userContent);
+    session.appendAssistantTurn(assistantContent);
   }
 
   public clear(): void {
@@ -117,11 +118,11 @@ class ChatHistory {
 
   public close(): void {
     try {
-      this.store?.close();
+      this.session?.close();
     } catch {
       // A failed close only matters at process exit, where it is harmless.
     }
-    this.store = null;
+    this.session = null;
   }
 }
 

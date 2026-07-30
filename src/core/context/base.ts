@@ -1,9 +1,9 @@
 import * as path from 'node:path';
-import type { Database } from 'better-sqlite3';
 import * as ConfigManager from '../../utils/configManager.js';
 import { type AuraConfig, parseAuraConfig } from '../../utils/configSchema.js';
 import * as PathResolver from '../../utils/pathResolver.js';
 import type { LSPManager } from '../ext/lsp/manager.js';
+import type { MemorySession } from '../memory/session.js';
 import {
   ContextEnvProvider,
   ContextMemory,
@@ -33,14 +33,10 @@ export class ContextOverflowError extends Error {
   }
 }
 
-interface CustomDatabase extends Database {
-  commitSummary(summary: string): void;
-}
-
 export class ContextBase {
   private projectPath: string;
   private envPath: string;
-  private db: Database;
+  private session: MemorySession;
   private options: Record<string, unknown>;
 
   private directiveProvider: DirectiveProvider;
@@ -63,13 +59,13 @@ export class ContextBase {
 
   constructor(
     projectPath: string,
-    db: Database,
+    session: MemorySession,
     options: Record<string, unknown> = {},
   ) {
     this.projectPath = path.resolve(projectPath);
     this.envPath =
       PathResolver.environmentPath(this.projectPath) || this.projectPath;
-    this.db = db;
+    this.session = session;
     this.options = options || {};
 
     const envOpts = { ...this.options, envPath: this.envPath };
@@ -94,7 +90,7 @@ export class ContextBase {
     this.gardenProvider = new GardenProvider(this.projectPath, envOpts);
     this.anchorProvider = new AnchorProvider(this.projectPath, {
       ...envOpts,
-      state: this.db,
+      state: this.session,
     });
 
     this.lspProvider = new LSPProvider(
@@ -102,12 +98,9 @@ export class ContextBase {
       this.options.lsp_manager as LSPManager | undefined,
     );
     this.knowledgeProvider = new KnowledgeProvider(this.projectPath, envOpts);
-    this.toolProvider = new ToolProvider(this.projectPath, {
-      ...this.options,
-      state: db,
-    });
+    this.toolProvider = new ToolProvider(this.projectPath, this.options);
 
-    this.stateProvider = new StateProvider(db, this.options);
+    this.stateProvider = new StateProvider(this.session, this.options);
     this.backgroundProcessProvider = new BackgroundProcessProvider(
       this.projectPath,
       envOpts,
@@ -217,14 +210,6 @@ export class ContextBase {
     const finalLen = calcTotal(compressed);
     if (finalLen > limit) {
       const errorMsg = `Compressed context length ${finalLen} exceeds max_state_chars ${limit}`;
-      if (
-        this.db &&
-        typeof (this.db as CustomDatabase).commitSummary === 'function'
-      ) {
-        (this.db as CustomDatabase).commitSummary(
-          `Context assembly failed: ${errorMsg}`,
-        );
-      }
       throw new ContextOverflowError(errorMsg);
     }
 
@@ -289,8 +274,10 @@ export class ContextBase {
 
     // Truncate individual events
     if (perEventCap > 0) {
-      const dbRelPath = this.db.name
-        ? path.relative(this.projectPath, this.db.name).replace(/\\/g, '/')
+      const dbRelPath = this.session.dbPath
+        ? path
+            .relative(this.projectPath, this.session.dbPath)
+            .replace(/\\/g, '/')
         : '.aura/state/sessions/default.db';
       events = events.map((line) => {
         if (line && line.length > perEventCap) {

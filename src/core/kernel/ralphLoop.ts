@@ -434,9 +434,9 @@ export class RalphLoop {
    * the memory store's db is unavailable (e.g., in unit tests with mocks).
    */
   private assembleContext(options: Record<string, unknown>): ContextPayload {
-    const db = this.runner.memory?.store?.db;
-    if (db) {
-      return ContextAssembler.assemble(this.projectPath, db, options);
+    const session = this.runner.memory;
+    if (session) {
+      return ContextAssembler.assemble(this.projectPath, session, options);
     }
     // Fallback: build a minimal ContextPayload from sections only (no db needed)
     return new ContextPayload({}, [], options);
