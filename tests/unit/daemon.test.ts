@@ -454,8 +454,13 @@ describe('Daemon IPC Protocol', () => {
       sessionName: 'default',
     });
 
-    // Manually set loop job to running to simulate active job
+    // Manually set loop job to running to simulate active job. The owning
+    // socket has to be live too: workspace/initialize treats a running job
+    // with no reachable client as an orphan and reclaims it instead of
+    // blocking, so without this the guard under test is never exercised.
     server.activeLoopJob = { status: 'running', goal: 'test' };
+    server.activeJobSocket = [...server.connections][0] ?? null;
+    expect(server.activeJobSocket?.destroyed).toBe(false);
 
     // 1. workspace/initialize should fail
     await expect(

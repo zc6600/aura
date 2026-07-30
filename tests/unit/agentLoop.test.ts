@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AgentLoop } from '../../src/core/kernel/agentLoop.js';
+import type { LoopCheckpoint } from '../../src/core/kernel/checkpoint.js';
 import type {
   PlanResult,
   ToolCall,
@@ -298,8 +299,8 @@ describe('AgentLoop', () => {
   });
 
   it('test_resume_continues_step_count_and_keeps_history', async () => {
-    const checkpoint = {
-      version: 1 as const,
+    const checkpoint: LoopCheckpoint = {
+      version: 1,
       goal: 'finish the job',
       ctx: 'context as of the pause',
       stepCount: 2,
@@ -350,8 +351,8 @@ describe('AgentLoop', () => {
   it('test_resume_respects_total_step_budget', async () => {
     // Restored stepCount counts against max_steps, so a resumed run cannot
     // silently buy itself a fresh budget.
-    const checkpoint = {
-      version: 1 as const,
+    const checkpoint: LoopCheckpoint = {
+      version: 1,
       goal: 'long job',
       ctx: 'saved ctx',
       stepCount: 5,
@@ -501,13 +502,18 @@ describe('AgentLoop', () => {
   });
 
   it('test_uses_default_max_steps', async () => {
-    runner.config = { system: { max_repeat_calls: 100, max_empty_results: 100 } };
+    runner.config = {
+      system: { max_repeat_calls: 100, max_empty_results: 100 },
+    };
     runner.plans = Array.from({ length: 35 }, (_, i) => ({
       tool: 'bash',
       args: { cmd: `echo ${i}` },
       finish_reason: 'tool_calls',
     }));
-    runner.toolResults = Array(35).fill({ status: 'ok', output: 'some output' });
+    runner.toolResults = Array(35).fill({
+      status: 'ok',
+      output: 'some output',
+    });
 
     const result = await loop.run('long running');
 
@@ -516,13 +522,18 @@ describe('AgentLoop', () => {
   });
 
   it('test_custom_max_steps_parameter', async () => {
-    runner.config = { system: { max_steps: 100, max_repeat_calls: 100, max_empty_results: 100 } };
+    runner.config = {
+      system: { max_steps: 100, max_repeat_calls: 100, max_empty_results: 100 },
+    };
     runner.plans = Array.from({ length: 10 }, (_, i) => ({
       tool: 'bash',
       args: { cmd: `echo ${i}` },
       finish_reason: 'tool_calls',
     }));
-    runner.toolResults = Array(10).fill({ status: 'ok', output: 'some output' });
+    runner.toolResults = Array(10).fill({
+      status: 'ok',
+      output: 'some output',
+    });
 
     const result = await loop.run('task', { max_steps: 5 });
 

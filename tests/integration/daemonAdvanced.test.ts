@@ -789,9 +789,7 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
 
     it('rejects a pause when no goal is running', async () => {
       const client = await initializedClient();
-      const error = await client
-        .request('agent/pause')
-        .catch((e: Error) => e);
+      const error = await client.request('agent/pause').catch((e: Error) => e);
 
       expect(error).toBeInstanceOf(Error);
       expect((error as Error).message).toMatch(/no goal loop is running/i);
