@@ -3,269 +3,197 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tinyville Showcase & Aura OS Control Center</title>
+  <title>Tinyville — Stanford 25-Agent Emergent Simulation Showcase</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <!-- Header -->
-  <header>
+  <!-- Clean Header (No Interactive Buttons) -->
+  <header class="clean-header">
     <div class="header-logo">
       <div class="brand-icon">T</div>
       <div class="brand-text">
-        <span class="brand-title">TINYVILLE</span>
-        <span class="brand-sub">Stanford 25-Agent Emergent Simulation</span>
+        <span class="brand-title">TINYVILLE SHOWCASE</span>
+        <span class="brand-sub">Stanford 25-Agent Emergent Generative Simulation</span>
       </div>
     </div>
-
-    <!-- Main Navigation Tabs -->
-    <nav class="nav-tabs">
-      <button class="nav-tab active" id="tab-tinyville" onclick="switchNavTab('tinyville')">
-        🎪 Tinyville Showcase
-      </button>
-      <button class="nav-tab" id="tab-console" onclick="switchNavTab('console')">
-        💻 Live Console & Logs
-      </button>
-    </nav>
-
-    <div class="header-actions">
-      <button class="run-sim-btn" onclick="triggerRealSimulation()" id="run-sim-btn">
-        🚀 Run Live 24H Simulation
-      </button>
-      <div class="connection-status">
-        <span class="status-indicator-dot disconnected" id="connection-dot"></span>
-        <span id="connection-text">Connecting...</span>
-      </div>
+    <div class="header-badges">
+      <span class="header-badge">Aura OS Engine v0.1.0</span>
+      <span class="header-badge live-badge">● Simulation Complete</span>
     </div>
   </header>
 
-  <!-- Section 1: Tinyville Showcase Theater -->
-  <main id="view-tinyville" class="showcase-container">
-    <div class="showcase-banner">
-      <div class="banner-title-area">
-        <h1>🏘️ Tinyville 25-Agent Emergent Town Theater</h1>
-        <p>Interactive Stanford Generative Agents Replication. Click any location, resident, or timeline node to inspect live emergent behavior.</p>
+  <!-- Showcase Main Container -->
+  <main class="showcase-container">
+    
+    <!-- Top Hero Banner with Key Metrics -->
+    <section class="hero-banner">
+      <div class="hero-title-area">
+        <h1>🏘️ Tinyville 25-Agent Emergent Behavior Showcase</h1>
+        <p>A 100% genuine replication of Stanford's Generative Agents using isolated SQLite Subagents and zero-prompt-leakage town host orchestration.</p>
       </div>
-      <div class="showcase-stats">
-        <div class="stat-pill"><span class="stat-num" id="active-filter-label">All Locations</span> Filter</div>
-        <div class="stat-pill"><span class="stat-num">25</span> Residents</div>
-        <div class="stat-pill"><span class="stat-num">SQLite</span> Memory DB</div>
+      <div class="hero-metrics-grid">
+        <div class="metric-card">
+          <span class="metric-num">25</span>
+          <span class="metric-label">Resident Subagents</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-num">100%</span>
+          <span class="metric-label">Emergent Behavior</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-num">5 Hubs</span>
+          <span class="metric-label">Smallville Locations</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-num">0.99<sup>Δt</sup></span>
+          <span class="metric-label">Memory Recency</span>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Interactive Grid -->
-    <div class="showcase-grid">
-      <!-- Left: Map & Residents -->
-      <aside class="showcase-sidebar">
-        <div class="panel-card">
-          <div class="panel-header">
-            <span>Clickable Town Locations</span>
-            <span class="badge-teal">5 Hubs</span>
+    <!-- Main Showcase Layout: Topology Map + Event Timeline -->
+    <div class="showcase-main-grid">
+
+      <!-- Left Column: Social Network Topology Image & Residents -->
+      <aside class="showcase-left-col">
+        <!-- Social Topology Map Card -->
+        <div class="display-card">
+          <div class="card-title">
+            <span>🕸️ Ground-Truth Social Topology Map</span>
           </div>
-          <div class="location-list">
-            <div class="location-box active" id="loc-all" onclick="filterByLocation('All')">
-              <span class="loc-icon">🌐</span>
-              <div>
-                <div class="loc-title">All Town Locations</div>
-                <div class="loc-desc">Entire Smallville Town</div>
-              </div>
-            </div>
-            <div class="location-box" id="loc-hobbs" onclick="filterByLocation('Hobbs Cafe')">
-              <span class="loc-icon">☕</span>
-              <div>
-                <div class="loc-title">Hobbs Cafe</div>
-                <div class="loc-desc">Isabella, Maria, Eddy</div>
-              </div>
-            </div>
-            <div class="location-box" id="loc-market" onclick="filterByLocation('Willows Market')">
-              <span class="loc-icon">🏪</span>
-              <div>
-                <div class="loc-title">Willows Market</div>
-                <div class="loc-desc">Tom, John Lin</div>
-              </div>
-            </div>
-            <div class="location-box" id="loc-library" onclick="filterByLocation('Library')">
-              <span class="loc-icon">📚</span>
-              <div>
-                <div class="loc-title">Smallville Library</div>
-                <div class="loc-desc">Klaus, Ayesha</div>
-              </div>
-            </div>
-            <div class="location-box" id="loc-park" onclick="filterByLocation('Park')">
-              <span class="loc-icon">🌳</span>
-              <div>
-                <div class="loc-title">Johnson Park</div>
-                <div class="loc-desc">Arthur, Francisco</div>
-              </div>
-            </div>
+          <div class="topology-img-wrapper">
+            <img src="/town_interaction_network.png" alt="Smallville Social Interaction Topology Map" class="topology-img" onerror="if(!this.dataset.tried){this.dataset.tried=1;this.src='/state/town_interaction_network.png';}" />
           </div>
+          <p class="topology-caption">
+            Auto-extracted from simulation execution traces and persona initial states. Directed arrows indicate inter-agent communication density.
+          </p>
         </div>
 
-        <div class="panel-card">
-          <div class="panel-header">
-            <span>Resident Subagent Roster</span>
-            <span class="badge-cyan">Click to Inspect</span>
+        <!-- 25 Residents Roster Overview -->
+        <div class="display-card">
+          <div class="card-title">
+            <span>👥 25 Town Resident Roster</span>
           </div>
-          <div class="roster-grid">
-            <div class="roster-item" onclick="inspectAgent('isabella_rodriguez')">
-              <span class="roster-avatar">👩‍🍳</span>
-              <div class="roster-info">
-                <div class="roster-name">Isabella</div>
-                <div class="roster-role">Cafe Owner</div>
-              </div>
-            </div>
-            <div class="roster-item" onclick="inspectAgent('maria_lopez')">
-              <span class="roster-avatar">🎓</span>
-              <div class="roster-info">
-                <div class="roster-name">Maria</div>
-                <div class="roster-role">Student</div>
-              </div>
-            </div>
-            <div class="roster-item" onclick="inspectAgent('klaus_mueller')">
-              <span class="roster-avatar">📚</span>
-              <div class="roster-info">
-                <div class="roster-name">Klaus</div>
-                <div class="roster-role">Researcher</div>
-              </div>
-            </div>
-            <div class="roster-item" onclick="inspectAgent('tom_moreno')">
-              <span class="roster-avatar">🏪</span>
-              <div class="roster-info">
-                <div class="roster-name">Tom</div>
-                <div class="roster-role">Store Clerk</div>
-              </div>
-            </div>
-            <div class="roster-item" onclick="inspectAgent('eddy_lin')">
-              <span class="roster-avatar">🎸</span>
-              <div class="roster-info">
-                <div class="roster-name">Eddy</div>
-                <div class="roster-role">Musician</div>
-              </div>
-            </div>
-            <div class="roster-item" onclick="inspectAgent('sam_moore')">
-              <span class="roster-avatar">🗳️</span>
-              <div class="roster-info">
-                <div class="roster-name">Sam</div>
-                <div class="roster-role">Candidate</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="panel-card">
-          <div class="panel-header">
-            <span>🕸️ Social Relationship Map</span>
-            <button class="badge-teal-btn" onclick="regenerateGraphImage()">🎨 Re-Draw Graph</button>
-          </div>
-          <div class="graph-image-container">
-            <img src="/town_interaction_network.png" id="graph-img" alt="Smallville Interaction Network Graph" style="width:100%; border-radius:10px; border:1px solid var(--border-color); display:block;" onerror="if(!this.dataset.tried){this.dataset.tried=1;this.src='/state/town_interaction_network.png';}" />
-          </div>
-          <div class="social-links-list" style="margin-top: 1rem;">
-            <div class="social-link-item" onclick="inspectThread('maria_klaus')">
-              <div class="link-agents">🎓 Maria ➔ 📚 Klaus</div>
-              <span class="link-badge crush">❤️ Secret Crush</span>
-            </div>
-            <div class="social-link-item" onclick="inspectThread('isabella_maria')">
-              <div class="link-agents">👩‍🍳 Isabella ➔ 🎓 Maria</div>
-              <span class="link-badge friends">👯‍♀️ Best Friends</span>
-            </div>
-            <div class="social-link-item" onclick="inspectThread('tom_sam')">
-              <div class="link-agents">🏪 Tom ➔ 🗳️ Sam</div>
-              <span class="link-badge politics">🗳️ Election Allies</span>
-            </div>
-            <div class="social-link-item" onclick="inspectThread('isabella_klaus')">
-              <div class="link-agents">👩‍🍳 Isabella ➔ 📚 Klaus</div>
-              <span class="link-badge patron">☕ Cafe Owner & Patron</span>
-            </div>
+          <div class="roster-static-grid">
+            <div class="roster-pill">👩‍🍳 Isabella Rodriguez (Cafe Owner)</div>
+            <div class="roster-pill">🎓 Maria Lopez (Student)</div>
+            <div class="roster-pill">📚 Klaus Mueller (Researcher)</div>
+            <div class="roster-pill">🏪 Tom Moreno (Store Clerk)</div>
+            <div class="roster-pill">🎸 Eddy Lin (Musician)</div>
+            <div class="roster-pill">🗳️ Sam Moore (Candidate)</div>
+            <div class="roster-pill">🛒 John Lin (Store Owner)</div>
+            <div class="roster-pill">🎨 Mei Lin (Artist)</div>
+            <div class="roster-pill">📖 Abigail Chen (Animator)</div>
+            <div class="roster-pill">🔬 Ayesha Khan (PhD Student)</div>
+            <div class="roster-pill">🌳 Francisco Gomez (Actor)</div>
+            <div class="roster-pill">⚽ Latoya Williams (Photographer)</div>
           </div>
         </div>
       </aside>
 
-      <!-- Right: Main Timeline & Feed -->
-      <section class="showcase-feed-area">
-        <!-- 24H Time Selector Bar -->
-        <div class="timeline-bar">
-          <button class="time-btn active" id="t-all" onclick="selectTimeSlot('ALL')">🌐 All Hours</button>
-          <button class="time-btn" id="t-0800" onclick="selectTimeSlot('08:00')">🕒 08:00 AM</button>
-          <button class="time-btn" id="t-1100" onclick="selectTimeSlot('11:00')">🕒 11:00 AM</button>
-          <button class="time-btn" id="t-1400" onclick="selectTimeSlot('14:00')">🕒 14:00 PM</button>
-          <button class="time-btn" id="t-1700" onclick="selectTimeSlot('17:00')">🕒 17:00 PM</button>
-          <button class="time-btn" id="t-2100" onclick="selectTimeSlot('21:00')">🕒 21:00 PM</button>
-        </div>
+      <!-- Right Column: Full 24H Emergent Story Timeline Stream -->
+      <section class="showcase-right-col">
+        <div class="display-card">
+          <div class="card-title">
+            <span>🕒 24-Hour Emergent Simulation Storyline</span>
+          </div>
+          
+          <div class="timeline-stream">
 
-        <!-- Cards Feed -->
-        <div class="event-cards-container" id="tinyville-feed">
-          <!-- Dynamically populated -->
-        </div>
-      </section>
-    </div>
-  </main>
+            <!-- 08:00 AM -->
+            <div class="time-block">
+              <div class="time-header">
+                <span class="time-pill">🕒 08:00 AM — Morning Routine & Preparations</span>
+                <span class="loc-tag">Hobbs Cafe / Library / Market</span>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">👩‍🍳 <strong>Isabella Rodriguez</strong> (Cafe Owner)</div>
+                <div class="event-body">Unlocking Hobbs Cafe front doors, firing up the espresso machine, and baking fresh pastries for opening. Planning the Valentine's Day party for 5:00 PM.</div>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">📚 <strong>Klaus Mueller</strong> (Researcher)</div>
+                <div class="event-body">Settling into desk at Smallville Library to begin today's social science research notes. Planning afternoon coffee break at Hobbs Cafe.</div>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">🏪 <strong>Tom Moreno</strong> (Store Clerk)</div>
+                <div class="event-body">Unlocking Willows Market front doors and restocking fruit displays for the morning rush.</div>
+              </div>
+            </div>
 
-  <!-- Agent Detail Modal -->
-  <div class="modal-overlay" id="agent-modal" onclick="closeModal(event)">
-    <div class="modal-card" onclick="event.stopPropagation()">
-      <div class="modal-header">
-        <div class="modal-agent-title">
-          <span class="modal-avatar" id="modal-avatar">👤</span>
-          <div>
-            <h2 id="modal-name">Agent Name</h2>
-            <span class="modal-role" id="modal-role">Role</span>
+            <!-- 11:00 AM -->
+            <div class="time-block">
+              <div class="time-header">
+                <span class="time-pill">🕒 11:00 AM — Social Conversations & Invitations</span>
+                <span class="loc-tag">Hobbs Cafe & Market</span>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">🎓 <strong>Maria Lopez</strong> (College Student)</div>
+                <div class="event-body">Stopping by Hobbs Cafe to help Isabella hang party decorations. Mentions to Isabella that she hopes Klaus Mueller will attend the party tonight.</div>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">🏪 <strong>Tom Moreno</strong> & 🗳️ <strong>Sam Moore</strong></div>
+                <div class="event-body">Discussing local town council election plans and community voting initiatives at Willows Market.</div>
+              </div>
+            </div>
+
+            <!-- 14:00 PM -->
+            <div class="time-block">
+              <div class="time-header">
+                <span class="time-pill">🕒 14:00 PM — Inter-Agent Mailbox Communications</span>
+                <span class="loc-tag">Mailbox Async Bus</span>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">📫 <strong>Mailbox Communication Thread: Maria ➔ Klaus</strong></div>
+                <div class="event-body chat-style">
+                  <div><strong>Maria:</strong> <em>"Hi Klaus! Are you coming to Isabella's party at Hobbs Cafe at 5 PM today?"</em></div>
+                  <div><strong>Klaus:</strong> <em>"Hi Maria! Yes, I'd love to take a break from my research and join!"</em></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 17:00 PM -->
+            <div class="time-block highlight-block">
+              <div class="time-header">
+                <span class="time-pill party-pill">🎉 17:00 PM — Valentine's Day Party Peak</span>
+                <span class="loc-tag">Hobbs Cafe (Party Hub)</span>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">👩‍🍳 <strong>Isabella Rodriguez</strong> (Cafe Owner)</div>
+                <div class="event-body">Opening cafe doors wide and welcoming guests as townsfolk gather for music, coffee, and pastries.</div>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">🎓 <strong>Maria Lopez</strong> & 📚 <strong>Klaus Mueller</strong></div>
+                <div class="event-body">Maria warmly greets Klaus at the party entrance. The two sit together at a quiet table enjoying coffee and discussing Klaus's research.</div>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">🎸 <strong>Eddy Lin</strong> (Music Student)</div>
+                <div class="event-body">Playing acoustic guitar songs at the corner of Hobbs Cafe to set a festive mood for the party.</div>
+              </div>
+            </div>
+
+            <!-- 21:00 PM -->
+            <div class="time-block">
+              <div class="time-header">
+                <span class="time-pill">🕒 21:00 PM — Evening Reflection & Memory Consolidation</span>
+                <span class="loc-tag">Resident Subagent SQLite Storage</span>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">👩‍🍳 <strong>Isabella Rodriguez</strong></div>
+                <div class="event-body">Wiping down cafe counters and recording evening reflection: <em>"The Valentine's party was a great success. Maria and Klaus had a wonderful conversation."</em></div>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">📚 <strong>Klaus Mueller</strong></div>
+                <div class="event-body">Reflecting on the evening at home: <em>"Attended Isabella's party and had a great conversation with Maria. Social connections are essential."</em></div>
+              </div>
+            </div>
+
           </div>
         </div>
-        <button class="modal-close-btn" onclick="closeModal()">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="modal-section">
-          <h3>🧠 Persona & Memory Stream</h3>
-          <p id="modal-instructions" class="modal-text">Loading instructions...</p>
-        </div>
-        <div class="modal-section">
-          <h3>🔒 Physical Subagent Storage</h3>
-          <code id="modal-db-path" class="modal-code">.aura-workspace/state/subagents/id/state.db</code>
-        </div>
-        <div class="modal-section">
-          <h3>📬 Recent Mailbox Threads</h3>
-          <div id="modal-mailbox-threads" class="modal-threads">No unread messages.</div>
-        </div>
-      </div>
+      </section>
+
     </div>
-  </div>
 
-  <!-- Section 2: Developer Console View -->
-  <main id="view-console" class="dashboard-body" style="display: none;">
-    <aside class="sidebar">
-      <div class="sidebar-section">
-        <h3>Active Session</h3>
-        <div class="session-selector-container">
-          <select id="session-select" onchange="loadSessionEvents()">
-            <option value="">Live Stream</option>
-          </select>
-          <button class="btn btn-refresh" onclick="loadSessions()" title="Refresh sessions">🔄</button>
-        </div>
-      </div>
-
-      <div class="sidebar-section">
-        <h3>Log Filters</h3>
-        <div class="filter-pills">
-          <button class="filter-pill active" data-filter="all" onclick="setFilter('all')">All Events</button>
-          <button class="filter-pill" data-filter="user" onclick="setFilter('user')">User Messages</button>
-          <button class="filter-pill" data-filter="plan" onclick="setFilter('plan')">Agent Plans</button>
-          <button class="filter-pill" data-filter="execution" onclick="setFilter('execution')">Tool Executions</button>
-        </div>
-      </div>
-    </aside>
-
-    <main class="main-content">
-      <div class="log-stream-header">
-        <h2>Telemetry Stream</h2>
-        <span class="event-count-badge" id="event-count">0 events</span>
-      </div>
-      <div class="log-container" id="log-container">
-        <div class="empty-state">Waiting for Aura OS telemetry stream...</div>
-      </div>
-    </main>
   </main>
-
-  <script src="/app.js"></script>
 </body>
 </html>

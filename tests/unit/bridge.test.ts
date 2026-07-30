@@ -117,10 +117,16 @@ describe('Bridge', () => {
     );
   });
 
-  it('does not emit on_thought for text already streamed live via on_token', async () => {
+  it('still emits on_thought for a tool_call plan even when its JSON streamed live', async () => {
+    // A tool_call plan's raw JSON (including its embedded `thought` field) is
+    // exactly what JSON-suppressing renderers (e.g. the CLI's ConsoleRenderer)
+    // hide during streaming — "some delta tokens arrived" does not mean "the
+    // user actually saw this text", so on_thought must still fire as the
+    // fallback. (Previously this dedup incorrectly suppressed it whenever any
+    // delta streamed, silently dropping the agent's reasoning on tool calls.)
     const runner = new MockRunner();
     runner.planStream = async (_goal, _ctx, onEvent) => {
-      onEvent?.({ type: 'delta', text: 'reading the file' });
+      onEvent?.({ type: 'delta', text: '{"tool": "read_file"' });
       return {
         type: 'tool_call',
         tool: 'read_file',
@@ -138,7 +144,32 @@ describe('Bridge', () => {
 
     await bridge.runTurn('read a file', { auto_mode: true, max_steps: 1 });
 
-    expect(thoughts).toHaveLength(0);
+    expect(thoughts).toContain('reading the file');
+  });
+
+  it('skips on_thought for a plain text plan already streamed live via on_token', async () => {
+    // Unlike a tool_call plan, a `text` plan's content is literally what
+    // streamed on screen with nothing suppressed in between, so the dedup
+    // here is still correct and must be preserved.
+    const runner = new MockRunner();
+    runner.planStream = async (_goal, _ctx, onEvent) => {
+      onEvent?.({ type: 'delta', text: 'just thinking out loud' });
+      return {
+        type: 'text',
+        content: 'just thinking out loud',
+        finish_reason: 'tool_calls',
+      } as PlanResult;
+    };
+    const bridge = new Bridge('/tmp/project', { runner: runner as any });
+
+    const thoughts: string[] = [];
+    bridge.on('on_thought', (content: string) => {
+      thoughts.push(content);
+    });
+
+    await bridge.runTurn('read a file', { auto_mode: true, max_steps: 1 });
+
+    expect(thoughts).not.toContain('just thinking out loud');
   });
 
   it('emits on_thought when the plan text was not streamed live', async () => {
