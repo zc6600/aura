@@ -32,7 +32,7 @@ export class Executor {
   ): Promise<void> {
     this.killTimer();
     try {
-      await this.bridge.chat(input, {
+      await this.bridge.runTurn(input, {
         auto_mode: autoMode,
         max_steps: options.max_steps,
       });
@@ -50,12 +50,12 @@ export class Executor {
   ): Promise<string | null> {
     this.killTimer();
     let resultSummary: string | null = null;
-    this.bridge.on('on_final_answer', (content: string) => {
+    this.bridge.once('on_final_answer', (content: string) => {
       resultSummary = content;
     });
 
     try {
-      await this.bridge.chat(goal, {
+      await this.bridge.runTurn(goal, {
         auto_mode: true,
         max_steps: options.max_steps,
       });
@@ -70,6 +70,10 @@ export class Executor {
       this.killTimer();
     }
     return resultSummary;
+  }
+
+  public destroy(): void {
+    this.killTimer();
   }
 
   private killTimer(): void {

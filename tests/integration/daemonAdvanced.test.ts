@@ -76,7 +76,7 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
   }
 
   it('streams agent progress notifications and returns final content over IPC', async () => {
-    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+    vi.spyOn(Bridge.prototype, 'runTurn').mockImplementation(async function (
       this: Bridge,
     ) {
       const callbacks = (this as unknown as { callbacks: BridgeCallbackMap })
@@ -128,7 +128,7 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
   });
 
   it('aborts an active daemon goal when the client socket disconnects', async () => {
-    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+    vi.spyOn(Bridge.prototype, 'runTurn').mockImplementation(async function (
       this: Bridge,
     ) {
       const signal = this.runner.abortSignal;
@@ -169,7 +169,7 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
 
   it('rejects a concurrent goal while another daemon goal is running', async () => {
     let releaseGoal: () => void = () => {};
-    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+    vi.spyOn(Bridge.prototype, 'runTurn').mockImplementation(async function (
       this: Bridge,
     ) {
       await new Promise<void>((resolve) => {
@@ -207,7 +207,7 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
   });
 
   it('broadcasts agent progress notifications to all connected daemon clients', async () => {
-    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+    vi.spyOn(Bridge.prototype, 'runTurn').mockImplementation(async function (
       this: Bridge,
     ) {
       const callbacks = (this as unknown as { callbacks: BridgeCallbackMap })
@@ -260,7 +260,7 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
 
   it('does not abort the active daemon goal when an observer disconnects', async () => {
     let releaseGoal: () => void = () => {};
-    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+    vi.spyOn(Bridge.prototype, 'runTurn').mockImplementation(async function (
       this: Bridge,
     ) {
       await new Promise<void>((resolve) => {
@@ -297,7 +297,7 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
   });
 
   it('relays dangerous tool confirmation requests through the daemon client', async () => {
-    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+    vi.spyOn(Bridge.prototype, 'runTurn').mockImplementation(async function (
       this: Bridge,
     ) {
       const bridgeState = this as unknown as {
@@ -352,7 +352,7 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
   });
 
   it('forwards interactive process prompt notifications over daemon IPC', async () => {
-    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+    vi.spyOn(Bridge.prototype, 'runTurn').mockImplementation(async function (
       this: Bridge,
     ) {
       const bridgeState = this as unknown as {
@@ -393,7 +393,7 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
 
   it('rejects workspace and session mutations while a daemon goal loop is running', async () => {
     let releaseGoal: () => void = () => {};
-    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+    vi.spyOn(Bridge.prototype, 'runTurn').mockImplementation(async function (
       this: Bridge,
     ) {
       await new Promise<void>((resolve) => {
@@ -626,7 +626,7 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
   });
 
   it('rejects pending client requests when the daemon socket closes', async () => {
-    vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async () => {
+    vi.spyOn(Bridge.prototype, 'runTurn').mockImplementation(async () => {
       await new Promise<void>(() => {});
     });
 
@@ -656,7 +656,7 @@ describe('Daemon advanced integration', { timeout: 30000 }, () => {
      * signal, and reports the checkpoint the way AgentLoop does.
      */
     function mockPausableChat(stepCount = 2): void {
-      vi.spyOn(Bridge.prototype, 'chat').mockImplementation(async function (
+      vi.spyOn(Bridge.prototype, 'runTurn').mockImplementation(async function (
         this: Bridge,
         input: string,
         options: any = {},

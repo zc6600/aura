@@ -1,12 +1,8 @@
-import {
-  AgentLoop,
-  type AgentLoopResult,
-  type PauseSignal,
-} from '../kernel/agentLoop.js';
-import type { LoopCheckpoint } from '../kernel/checkpoint.js';
-import type { PlanEvent, ToolCall, ToolResult } from '../kernel/interfaces.js';
+import type { AgentLoopResult, PauseSignal } from '../kernel/agentLoop.js';
+import type { LoopCheckpoint, LoopStep } from '../kernel/checkpoint.js';
+import type { PlanEvent, ToolResult } from '../kernel/interfaces.js';
 import { Runner } from '../kernel/runner.js';
-import { MemoryEventBus } from '../memory/eventBus.js';
+import { AgentEventBus } from '../kernel/eventBus.js';
 
 interface LoopAbortedPayload {
   reason: string;
@@ -15,14 +11,12 @@ interface LoopAbortedPayload {
 interface MetabolismPayload {
   event_count?: number;
   total_chars?: number;
-  deleted_count?: number;
 }
 
 export class Bridge {
   public readonly runner: Runner;
   public lastResult: AgentLoopResult | null = null;
   private callbacks: Record<string, (...args: never[]) => unknown> = {};
-  private subscribed = false;
 
   constructor(projectPath: string, options: { runner?: Runner } = {}) {
     this.runner = options.runner || new Runner(projectPath);
@@ -49,9 +43,24 @@ export class Bridge {
   }
 
   /**
-   * Main entry point for processing a user turn
+   * Alias for backward compatibility. Directs to runTurn.
    */
   public async chat(
+    input: string,
+    options: {
+      auto_mode?: boolean;
+      max_steps?: number | null;
+      pauseSignal?: PauseSignal | null;
+      checkpoint?: LoopCheckpoint | null;
+    } = {},
+  ): Promise<void> {
+    return this.runTurn(input, options);
+  }
+
+  /**
+   * Main entry point for processing a user turn
+   */
+  public async runTurn(
     input: string,
     options: {
       auto_mode?: boolean;
@@ -67,10 +76,8 @@ export class Bridge {
     // Start a new job for this turn
     this.runner.startJob({ input, auto_mode: autoMode });
 
-    this.setupRunnerSubscriptions();
-
-    // Create EventBus for AgentLoop
-    const bus = new MemoryEventBus();
+    // Use unified AgentEventBus on Runner
+    const bus = this.runner.eventBus;
 
     // Track streaming state for UI waiting indicator
     let streamed = false;
@@ -118,6 +125,11 @@ export class Bridge {
     bus.on('tool_result', (payload: unknown) => {
       const p = payload as { tool: string; result: ToolResult };
       this.notify('on_tool_result', p.result);
+    });
+
+    bus.on('tool_blocked', (payload: unknown) => {
+      const p = payload as { reason: string };
+      this.notify('on_warning', `Tool blocked: ${p.reason || ''}`);
     });
 
     bus.on('tool_halted', (payload: unknown) => {
@@ -199,11 +211,9 @@ export class Bridge {
       );
     });
 
-    // Instantiate and run AgentLoop
-    const agentLoop = new AgentLoop(this.runner, { eventBus: bus });
-
     try {
-      const res = await agentLoop.run(input, {
+      const res = await this.runner.runAgentLoop(input, {
+        eventBus: bus,
         max_steps: options.max_steps,
         pauseSignal: options.pauseSignal,
         checkpoint: options.checkpoint,
@@ -228,7 +238,8 @@ export class Bridge {
         this.runner.endJob('failed', new Error('Interrupted by user'));
         this.lastResult = {
           status: 'failed',
-          steps: agentLoop.completedSteps,
+          steps: (e as Error & { completedSteps?: LoopStep[] })
+            .completedSteps ?? [],
           failure_reason: 'Interrupted by user',
         };
       } else {
@@ -275,27 +286,5 @@ export class Bridge {
         return true;
       },
     );
-  }
-
-  private setupRunnerSubscriptions(): void {
-    if (this.subscribed) return;
-
-    this.runner.on('tool_start', (payload: ToolCall) => {
-      this.notify('on_tool_start', payload.tool, payload.summary, payload.args);
-    });
-
-    this.runner.on('tool_executing', () => {
-      this.notify('on_tool_executing');
-    });
-
-    this.runner.on('tool_blocked', (payload: { reason: string }) => {
-      this.notify('on_warning', `Tool blocked: ${payload.reason || ''}`);
-    });
-
-    this.runner.on('tool_result', (payload: { result: ToolResult }) => {
-      this.notify('on_tool_result', payload.result);
-    });
-
-    this.subscribed = true;
   }
 }

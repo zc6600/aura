@@ -1,9 +1,8 @@
-import { EventEmitter } from 'node:events';
-import fs from 'node:fs';
-import path from 'node:path';
+import { AgentEventBus } from './eventBus.js';
 import { loadTyped } from '../../utils/configManager.js';
 import type { AuraConfig } from '../../utils/configSchema.js';
 import * as PathResolver from '../../utils/pathResolver.js';
+import { Workspace } from '../../utils/workspace.js';
 import { ContextAssembler } from '../context/assembler.js';
 import { ContextManager } from '../context/manager.js';
 import type { ContextPayload } from '../context/payload.js';
@@ -17,6 +16,12 @@ import {
   type WorkflowRunOptions,
 } from '../workflow/runner.js';
 import { SyncScanWatcher } from '../workspace/syncScanWatcher.js';
+import {
+  AgentLoop,
+  type AgentLoopResult,
+  type PauseSignal,
+} from './agentLoop.js';
+import type { LoopCheckpoint, LoopStep } from './checkpoint.js';
 import { KernelConfig } from './config.js';
 import { ExecutionEngine } from './executionEngine.js';
 import { Hooks } from './hooks.js';
@@ -35,11 +40,13 @@ import { ProcessRuntime } from './processRuntime.js';
 import { ToolRegistry } from './registry.js';
 import { WorkspaceRuntime } from './workspaceRuntime.js';
 
-export class Runner extends EventEmitter implements IRunner {
+export class Runner implements IRunner {
+  public readonly eventBus: AgentEventBus;
   public readonly hooks: Hooks;
   public currentJob: Job | null = null;
   public memory: MemoryBase;
   public planner: Planner;
+  public readonly workspace: Workspace;
   public readonly projectPath: string;
   public readonly envPath: string;
   public sessionName: string;
@@ -65,6 +72,7 @@ export class Runner extends EventEmitter implements IRunner {
   constructor(
     projectPath: string,
     options: {
+      eventBus?: AgentEventBus;
       memory?: MemoryBase;
       registry?: ToolRegistry;
       lspManager?: LSPManager;
@@ -75,12 +83,10 @@ export class Runner extends EventEmitter implements IRunner {
       watcher?: IWorkspaceWatcher;
     } = {},
   ) {
-    super();
-    this.projectPath = fs.existsSync(projectPath)
-      ? fs.realpathSync(projectPath)
-      : path.resolve(projectPath);
-    this.envPath =
-      PathResolver.environmentPath(this.projectPath) || this.projectPath;
+    this.eventBus = options.eventBus || new AgentEventBus();
+    this.workspace = Workspace.at(projectPath);
+    this.projectPath = this.workspace.projectPath;
+    this.envPath = this.workspace.envPath;
     this.sessionName = process.env.AURA_SESSION_NAME || 'default';
 
     this.registry = options.registry || new ToolRegistry(this.projectPath);
@@ -99,6 +105,25 @@ export class Runner extends EventEmitter implements IRunner {
       options.planner ||
       new Planner(this.projectPath, { envPath: this.envPath });
     this.watcher = options.watcher || new SyncScanWatcher(this.projectPath);
+  }
+
+  public on(event: string, callback: (...args: unknown[]) => void): this {
+    this.eventBus.on(event, callback);
+    return this;
+  }
+
+  public once(event: string, callback: (...args: unknown[]) => void): this {
+    this.eventBus.once(event, callback);
+    return this;
+  }
+
+  public off(event: string, callback?: (...args: unknown[]) => void): this {
+    this.eventBus.off(event, callback);
+    return this;
+  }
+
+  public emit(event: string, data: Record<string, unknown> = {}): void {
+    this.eventBus.emit(event, data);
   }
 
   public getRegistry(): ToolRegistry {
@@ -213,6 +238,46 @@ export class Runner extends EventEmitter implements IRunner {
     options: WorkflowRunOptions = {},
   ) {
     return runWorkflow(this, workflow, options);
+  }
+
+  /**
+   * Drives a single AgentLoop (plan-execute cycle) over this runner's own
+   * resources (observe/planStream/runCall). Composing the loop here — rather
+   * than in each caller — keeps Runner the one kernel-facing type callers
+   * like Bridge need to know about; AgentLoop stays an internal detail.
+   *
+   * Callers that need multiple loop instances with custom choreography
+   * between them (e.g. RalphLoop's developer/critic phases) still construct
+   * AgentLoop directly — this method only covers the common single-loop case.
+   */
+  public async runAgentLoop(
+    goal: string,
+    options: {
+      eventBus?: IEventBus;
+      max_steps?: number | null;
+      pauseSignal?: PauseSignal | null;
+      checkpoint?: LoopCheckpoint | null;
+    } = {},
+  ): Promise<AgentLoopResult> {
+    const loop = new AgentLoop(this, { eventBus: options.eventBus });
+    try {
+      return await loop.run(goal, {
+        max_steps: options.max_steps,
+        pauseSignal: options.pauseSignal,
+        checkpoint: options.checkpoint,
+      });
+    } catch (err: unknown) {
+      // The loop unwinds via exception on interrupt (see AgentLoop.executeTool's
+      // rethrow of disconnect/abort/Interrupted errors) rather than returning a
+      // normal result, so the steps completed before the throw would otherwise
+      // be lost to the caller. Carry them on the error instead of requiring
+      // callers to hold their own reference to the loop instance.
+      if (err instanceof Error) {
+        (err as Error & { completedSteps?: LoopStep[] }).completedSteps =
+          loop.completedSteps;
+      }
+      throw err;
+    }
   }
 
   public async plan(

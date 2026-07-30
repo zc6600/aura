@@ -8,11 +8,12 @@ import * as PathResolver from './pathResolver.js';
 import * as ProjectRegistry from './projectRegistry.js';
 
 /**
- * A bootstrapped Aura workspace: a project directory paired with its hidden
- * `.aura-workspace` environment. The two static factories are the only ways
- * to get one — construction always means "the environment now exists on
- * disk and is registered," never "build a handle to something that might
- * exist yet."
+ * An Aura workspace: a project directory paired with its hidden environment
+ * directory (`.aura-workspace`, or a legacy `.aura`, or the project root
+ * itself if neither exists yet — see PathResolver.environmentPath(), the
+ * single resolution rule all three factories below share). Always go
+ * through one of the static factories rather than tracking projectPath/
+ * envPath separately by hand.
  */
 export class Workspace {
   public readonly projectPath: string;
@@ -20,7 +21,21 @@ export class Workspace {
 
   private constructor(projectPath: string) {
     this.projectPath = projectPath;
-    this.envPath = path.join(projectPath, '.aura-workspace');
+    this.envPath = PathResolver.environmentPath(projectPath) || projectPath;
+  }
+
+  /**
+   * References an already-bootstrapped workspace at `targetDir` — no git
+   * clone, no registry write, just identity resolution (realpath'd project
+   * root + its env directory). Use this anywhere a workspace is assumed to
+   * already exist (e.g. Runner opening one), as opposed to atDirectory()/
+   * sandbox() which create one.
+   */
+  static at(targetDir: string): Workspace {
+    const projectPath = fs.existsSync(targetDir)
+      ? fs.realpathSync(targetDir)
+      : path.resolve(targetDir);
+    return new Workspace(projectPath);
   }
 
   /**

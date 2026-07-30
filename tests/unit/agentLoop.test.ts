@@ -535,6 +535,35 @@ describe('AgentLoop', () => {
     expect(result.steps[1].tool).toBe('read_file');
   });
 
+  it('test_injects_stdout_when_tool_error_has_no_advice_or_error', async () => {
+    // Regression test: bash_command reports failure purely via
+    // stdout/stderr/exit_code — it never sets `advice` or `error`. Before
+    // the fix, injectToolError() only checked those two fields, so the model
+    // was fed a blank "No explanation provided." instead of the actual
+    // failure reason (e.g. an HTTP 429 buried in a Python traceback),
+    // leaving it unable to tell a rate limit apart from any other failure.
+    runner.plans = [
+      {
+        tool: 'bash_command',
+        args: { command: 'curl https://export.arxiv.org/api/query' },
+        finish_reason: 'tool_calls',
+      },
+      { finish_reason: 'stop', content: 'done' },
+    ];
+    runner.toolResults = [
+      {
+        status: 'failed',
+        stdout: 'urllib.error.HTTPError: HTTP Error 429: Too Many Requests',
+        exit_code: 1,
+      } as unknown as ToolResult,
+    ];
+
+    await loop.run('surface real failure reason');
+
+    expect(runner.planCalls[1].ctx).toMatch(/429: Too Many Requests/);
+    expect(runner.planCalls[1].ctx).not.toMatch(/No explanation provided/);
+  });
+
   it('test_tool_error_counter_resets_on_success', async () => {
     runner.config = { system: { max_tool_errors: 2 } };
     runner.plans = [

@@ -465,8 +465,16 @@ export class AgentLoop {
     toolName: string,
     result: ToolResult,
   ): string {
+    // advice/error cover most failure paths, but tools like bash_command
+    // report failure purely via stdout/stderr + exit_code with neither field
+    // set — falling back to the stringified result (which checks
+    // output/content/stdout/stderr/message) ensures the model actually sees
+    // *why* the command failed (e.g. an HTTP 429 in a Python traceback)
+    // instead of a blank "No explanation provided." that leaves it guessing.
+    const detail =
+      result.advice || result.error || this.stringifyToolResult(result);
     return (
-      `[TOOL ERROR] Tool '${toolName}' was ${result.status}: ${result.advice || result.error || 'No explanation provided.'}\n` +
+      `[TOOL ERROR] Tool '${toolName}' was ${result.status}: ${detail}\n` +
       `Please choose a different approach or tool.\n\n${ctx}`
     );
   }

@@ -284,7 +284,7 @@ export const runGoal: HandlerFunction = async (ctx) => {
       let suspendedAt: number | null = null;
 
       try {
-        await bridge.chat(goal, {
+        await bridge.runTurn(goal, {
           auto_mode: isAuto as boolean,
           max_steps: optionsRecord.max_steps as number | undefined,
           pauseSignal,

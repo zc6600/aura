@@ -8,6 +8,7 @@ You can either call a tool or finish the task:
    Format:
    {"tool": "tool_name", "args": {"key": "value"}, "summary": "brief description"}
 2. To finish the task: output your final answer as plain text. The system will detect this as a natural stop and complete the loop.
+- If the user's request is purely conversational or informational and requires no file/system/data action to satisfy (e.g. a greeting, a question you already know the answer to), skip tool calls entirely and answer directly as plain text on your very first turn. Calling a tool you don't need is not "showing your work" — it's wasted work.
 
 ## Loop Protocol
 - Each turn you receive the current context (state, history) and the user task.

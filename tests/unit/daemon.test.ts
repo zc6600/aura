@@ -367,9 +367,9 @@ describe('Daemon IPC Protocol', () => {
 
     const { Bridge } = await import('../../src/core/interface/bridge.js');
 
-    // Spy/mock Bridge.prototype.chat to manually trigger tool execution hooks
+    // Spy/mock Bridge.prototype.runTurn to manually trigger tool execution hooks
     const chatSpy = vi
-      .spyOn(Bridge.prototype, 'chat')
+      .spyOn(Bridge.prototype, 'runTurn')
       .mockImplementation(async function (this: any) {
         const allowed = await this.runner.hooks.run(
           'before_tool_execution',
