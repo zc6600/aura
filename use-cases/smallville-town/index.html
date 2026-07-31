@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generative Town Simulation via Host-Subagent Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- Clean Academic Header -->
+  <header class="academic-header">
+    <div class="header-logo">
+      <div class="brand-text">
+        <span class="brand-title">Aura Use-Cases Portal</span>
+        <span class="brand-sub">Autonomous Agent Evaluation Benchmarks</span>
+      </div>
+    </div>
+    
+    <!-- Unified Use-Case Navigation Hub Tabs -->
+    <nav class="usecase-tabs">
+      <a href="/smallville" class="usecase-tab active">🏘️ Smallville Town (25 Agents)</a>
+      <a href="/kaggle" class="usecase-tab">🤖 AutoKaggle ML (Titanic)</a>
+    </nav>
+  </header>
+
+  <!-- Showcase Main Container -->
+  <main class="showcase-container">
+    
+    <!-- Top Hero Banner with Key Metrics -->
+    <section class="hero-banner">
+      <div class="hero-title-area">
+        <h1>Generative Town Simulation via Host-Subagent Architecture</h1>
+        <p>An evaluation of isolated state management and mailbox interaction for multi-agent simulation.</p>
+      </div>
+      <div class="hero-metrics-grid">
+        <div class="metric-card">
+          <span class="metric-num">3 Hours</span>
+          <span class="metric-label">Time Step Resolution</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-num">25 Agents</span>
+          <span class="metric-label">Simulation Roster</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-num">Day 1</span>
+          <span class="metric-label">Simulated Scope (08:00 - 21:00)</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-num">SQLite</span>
+          <span class="metric-label">Isolated State Storage</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Showcase Layout: Topology Map + Event Timeline -->
+    <div class="showcase-main-grid">
+
+      <!-- Left Column: Social Network Topology Image & Residents -->
+      <aside class="showcase-left-col">
+        <!-- Social Topology Map Card -->
+        <div class="display-card">
+          <div class="card-title">
+            <span>Agent Interaction & Mention Network</span>
+          </div>
+          <div class="topology-img-wrapper">
+            <img src="/town_interaction_network.png" alt="Smallville Social Interaction Topology Map" class="topology-img" onerror="if(!this.dataset.tried){this.dataset.tried=1;this.src='/state/town_interaction_network.png';}" />
+          </div>
+          <p class="topology-caption">
+            Interaction graph constructed from log execution traces and initial persona configurations. Edges indicate mention density between subagent instances.
+          </p>
+        </div>
+
+        <!-- 25 Residents Roster Overview -->
+        <div class="display-card">
+          <div class="card-title">
+            <span>25 Subagent Resident Instances</span>
+          </div>
+          <div class="roster-static-grid">
+            <div class="roster-pill">Isabella Rodriguez (Cafe Owner)</div>
+            <div class="roster-pill">Maria Lopez (Student)</div>
+            <div class="roster-pill">Klaus Mueller (Researcher)</div>
+            <div class="roster-pill">Tom Moreno (Store Clerk)</div>
+            <div class="roster-pill">Eddy Lin (Musician)</div>
+            <div class="roster-pill">Sam Moore (Candidate)</div>
+            <div class="roster-pill">John Lin (Store Owner)</div>
+            <div class="roster-pill">Mei Lin (Artist)</div>
+            <div class="roster-pill">Abigail Chen (Animator)</div>
+            <div class="roster-pill">Ayesha Khan (PhD Student)</div>
+            <div class="roster-pill">Francisco Gomez (Actor)</div>
+            <div class="roster-pill">Latoya Williams (Photographer)</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Column: Full 24H Emergent Story Timeline Stream -->
+      <section class="showcase-right-col">
+        <div class="display-card">
+          <div class="card-title">
+            <span>Simulation Log Execution Stream (08:00 AM - 21:00 PM)</span>
+          </div>
+          
+          <div class="timeline-stream">
+
+            <!-- 08:00 AM -->
+            <div class="time-block">
+              <div class="time-header">
+                <span class="time-pill">08:00 AM — Host Clock Broadcast & Subagent Initialization</span>
+                <span class="loc-tag">Hobbs Cafe / Library / Market</span>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">Subagent: <strong>isabella_rodriguez</strong></div>
+                <div class="event-body">Unlocking Hobbs Cafe front doors, firing up the espresso machine, and baking fresh pastries for opening. Planning the Valentine's Day party for 5:00 PM.</div>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">Subagent: <strong>klaus_mueller</strong></div>
+                <div class="event-body">Settling into desk at Smallville Library to begin social science research notes. Planning afternoon coffee break at Hobbs Cafe.</div>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">Subagent: <strong>tom_moreno</strong></div>
+                <div class="event-body">Unlocking Willows Market front doors and restocking fruit displays for the morning rush.</div>
+              </div>
+            </div>
+
+            <!-- 11:00 AM -->
+            <div class="time-block">
+              <div class="time-header">
+                <span class="time-pill">11:00 AM — Midday Emergent Interactions</span>
+                <span class="loc-tag">Hobbs Cafe & Market</span>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">Subagent: <strong>maria_lopez</strong></div>
+                <div class="event-body">Stopping by Hobbs Cafe to help Isabella hang party decorations. Mentions to Isabella that she hopes Klaus Mueller will attend the party tonight.</div>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">Subagents: <strong>tom_moreno</strong> & <strong>sam_moore</strong></div>
+                <div class="event-body">Discussing local town council election plans and community voting initiatives at Willows Market.</div>
+              </div>
+            </div>
+
+            <!-- 14:00 PM -->
+            <div class="time-block">
+              <div class="time-header">
+                <span class="time-pill">14:00 PM — Asynchronous Mailbox Bus Communication</span>
+                <span class="loc-tag">Mailbox Bus (.aura-workspace/state/bus/)</span>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">Mailbox Thread: <strong>maria_lopez ➔ klaus_mueller</strong></div>
+                <div class="event-body chat-style">
+                  <div><strong>maria_lopez:</strong> <em>"Hi Klaus! Are you coming to Isabella's party at Hobbs Cafe at 5 PM today?"</em></div>
+                  <div><strong>klaus_mueller:</strong> <em>"Hi Maria! Yes, I'd love to take a break from my research and join!"</em></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 17:00 PM -->
+            <div class="time-block highlight-block">
+              <div class="time-header">
+                <span class="time-pill party-pill">17:00 PM — Event Convergence (Valentine Party)</span>
+                <span class="loc-tag">Hobbs Cafe</span>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">Subagent: <strong>isabella_rodriguez</strong></div>
+                <div class="event-body">Opening cafe doors wide and welcoming guests as townsfolk gather for music, coffee, and pastries.</div>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">Subagents: <strong>maria_lopez</strong> & <strong>klaus_mueller</strong></div>
+                <div class="event-body">Maria warmly greets Klaus at the party entrance. The two sit together at a quiet table enjoying coffee and discussing Klaus's research.</div>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">Subagent: <strong>eddy_lin</strong></div>
+                <div class="event-body">Playing acoustic guitar songs at the corner of Hobbs Cafe to set a festive mood for the party.</div>
+              </div>
+            </div>
+
+            <!-- 21:00 PM -->
+            <div class="time-block">
+              <div class="time-header">
+                <span class="time-pill">21:00 PM — Reflection & State Consolidation</span>
+                <span class="loc-tag">Subagent SQLite Database</span>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">Subagent: <strong>isabella_rodriguez</strong></div>
+                <div class="event-body">Wiping down cafe counters and recording evening reflection: <em>"The Valentine's party was a great success. Maria and Klaus had a wonderful conversation."</em></div>
+              </div>
+              <div class="event-card-item">
+                <div class="event-author">Subagent: <strong>klaus_mueller</strong></div>
+                <div class="event-body">Reflecting on the evening at home: <em>"Attended Isabella's party and had a great conversation with Maria. Social connections are essential."</em></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+</body>
+</html>

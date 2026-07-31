@@ -290,11 +290,12 @@ export class WebServer {
             res.end(JSON.stringify(status));
           } else if (pathname === '/tinyville' || pathname === '/smallville') {
             const tinyvillePaths = [
+              path.join(process.cwd(), 'src', 'cli', 'shell', 'dashboard', 'index.html'),
+              path.join(process.cwd(), 'use-cases', 'smallville-town', 'index.html'),
+              path.join(process.cwd(), '..', 'aura', 'src', 'cli', 'shell', 'dashboard', 'index.html'),
+              path.join(packageRoot, 'dashboard', 'index.html'),
               path.join(process.cwd(), 'use-cases', 'smallville-town', 'tinyville_usecase.html'),
-              path.join(process.cwd(), 'aura_test', 'smallville', 'tinyville_usecase.html'),
-              path.join(process.cwd(), '..', 'aura', 'use-cases', 'smallville-town', 'tinyville_usecase.html'),
-              path.join(packageRoot, 'use-cases', 'smallville-town', 'tinyville_usecase.html'),
-              '/Users/frank/Desktop/project/Towards AGI/aura/aura/use-cases/smallville-town/tinyville_usecase.html'
+              '/Users/frank/Desktop/project/Towards AGI/aura/aura/src/cli/shell/dashboard/index.html'
             ];
             for (const p of tinyvillePaths) {
               if (fs.existsSync(p)) {
