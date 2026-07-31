@@ -176,6 +176,7 @@ export const ContextCompressionConfigSchema = z
     event_max_chars: z.number().int().nonnegative().optional(),
     event_min_count_threshold: z.number().int().nonnegative().optional(),
     summary_trim_step: z.number().int().nonnegative().optional(),
+    recent_uncapped_events: z.number().int().nonnegative().optional(),
   })
   .passthrough();
 

@@ -170,9 +170,10 @@ knowledge_db:
 
 context_compression:
   # State-aware compression policy (主策略)
-  event_max_chars: 800          # 单条事件在上下文中的最大展示长度
-  event_min_count_threshold: 10 # 事件保留条数降到该阈值后，开始裁剪摘要
-  summary_trim_step: 5          # 每次裁剪的摘要行数（近似按行处理）
+  event_max_chars: 4000          # 单条事件在上下文中的最大展示长度
+  event_min_count_threshold: 10  # 事件保留条数降到该阈值后，开始裁剪摘要
+  summary_trim_step: 5           # 每次裁剪的摘要行数（近似按行处理）
+  recent_uncapped_events: 6      # 最近 N 条事件不受 event_max_chars 截断（保证刚读取的文件/工具结果不被腰斩）
 
 # ----------------------------------------------------------------
 # 文件树深度与展现上限 (Directory Tree Configuration)

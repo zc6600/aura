@@ -239,9 +239,15 @@ export class ContextBase {
 
     const cfg = this.loadFullConfig();
     const cc = cfg.context_compression || {};
-    const perEventCap = Number(cc.event_max_chars ?? 800);
+    const perEventCap = Number(cc.event_max_chars ?? 4000);
     const minEventThreshold = Number(cc.event_min_count_threshold ?? 10);
     const summaryTrimStep = Number(cc.summary_trim_step ?? 5);
+    // The agent needs to see, in full, what it just did on this turn (e.g. a
+    // read_file result it's about to act on) -- capping that at the same
+    // rate as 20-turns-ago history means it can request its own instructions
+    // and receive an unusable stub. Only events older than this tail are
+    // subject to the per-event cap below.
+    const recentUncappedEvents = Number(cc.recent_uncapped_events ?? 6);
 
     const historyTag = '### History:';
     const avTag = current.includes('### Variables:')
@@ -281,14 +287,16 @@ export class ContextBase {
     const header = historyLines.shift() || '';
     let events = [...historyLines];
 
-    // Truncate individual events
+    // Truncate individual events (except the most recent tail -- see above)
     if (perEventCap > 0) {
       const dbRelPath = this.session.dbPath
         ? path
             .relative(this.projectPath, this.session.dbPath)
             .replace(/\\/g, '/')
         : '.aura/state/sessions/default.db';
-      events = events.map((line) => {
+      const uncappedFrom = Math.max(0, events.length - recentUncappedEvents);
+      events = events.map((line, idx) => {
+        if (idx >= uncappedFrom) return line;
         if (line && line.length > perEventCap) {
           const notice = `...[truncated; full payload in ${dbRelPath} (events.payload); use sqlite3 to query]`;
           const maxBody = Math.max(0, perEventCap - notice.length);

@@ -291,7 +291,10 @@ export class WebServer {
           } else if (pathname === '/tinyville' || pathname === '/smallville') {
             const tinyvillePaths = [
               path.join(process.cwd(), 'use-cases', 'smallville-town', 'tinyville_usecase.html'),
-              path.join(process.cwd(), 'aura_test', 'smallville', 'tinyville_usecase.html')
+              path.join(process.cwd(), 'aura_test', 'smallville', 'tinyville_usecase.html'),
+              path.join(process.cwd(), '..', 'aura', 'use-cases', 'smallville-town', 'tinyville_usecase.html'),
+              path.join(packageRoot, 'use-cases', 'smallville-town', 'tinyville_usecase.html'),
+              '/Users/frank/Desktop/project/Towards AGI/aura/aura/use-cases/smallville-town/tinyville_usecase.html'
             ];
             for (const p of tinyvillePaths) {
               if (fs.existsSync(p)) {
@@ -300,19 +303,14 @@ export class WebServer {
                 return;
               }
             }
-          } else if (pathname === '/kaggle' || pathname === '/auto-kaggle') {
-            const kagglePath = path.join(process.cwd(), 'use-cases', 'auto-kaggle', 'showcase', 'auto_kaggle_showcase.html');
-            if (fs.existsSync(kagglePath)) {
-              res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-              res.end(fs.readFileSync(kagglePath, 'utf-8'));
-              return;
-            }
-          } else if (pathname === '/autokaggle') {
-            const autokagglePaths = [
+          } else if (pathname === '/kaggle' || pathname === '/auto-kaggle' || pathname === '/autokaggle') {
+            const kagglePaths = [
               path.join(process.cwd(), 'use-cases', 'auto-kaggle', 'showcase', 'auto_kaggle_showcase.html'),
-              path.join(packageRoot, 'use-cases', 'auto-kaggle', 'showcase', 'auto_kaggle_showcase.html')
+              path.join(process.cwd(), '..', 'aura', 'use-cases', 'auto-kaggle', 'showcase', 'auto_kaggle_showcase.html'),
+              path.join(packageRoot, 'use-cases', 'auto-kaggle', 'showcase', 'auto_kaggle_showcase.html'),
+              '/Users/frank/Desktop/project/Towards AGI/aura/aura/use-cases/auto-kaggle/showcase/auto_kaggle_showcase.html'
             ];
-            for (const p of autokagglePaths) {
+            for (const p of kagglePaths) {
               if (fs.existsSync(p)) {
                 res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
                 res.end(fs.readFileSync(p, 'utf-8'));
