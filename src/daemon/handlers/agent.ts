@@ -93,11 +93,12 @@ export const runGoal: HandlerFunction = async (ctx) => {
     }
     goal = resumeCheckpoint.goal;
   } else {
-    if (!p?.goal || typeof p.goal !== 'string') {
+    const rawGoal = p?.goal ?? p?.input;
+    if (!rawGoal || typeof rawGoal !== 'string') {
       server.sendError(ctx.socket, ctx.id, -32602, 'Invalid goal parameter.');
       return;
     }
-    goal = p.goal;
+    goal = rawGoal;
   }
 
   server.activeLoopJob = {
@@ -336,3 +337,6 @@ export const runGoal: HandlerFunction = async (ctx) => {
     server.resetIdleTimer();
   }
 };
+
+export const runTurn: HandlerFunction = runGoal;
+

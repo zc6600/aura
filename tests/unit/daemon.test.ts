@@ -103,6 +103,36 @@ describe('Daemon IPC Protocol', () => {
     server.stop();
   });
 
+  it('should accept agent/runTurn RPC method with input parameter', async () => {
+    const workspacePath = path.join(tempDir, 'test-workspace-turn');
+    if (fs.existsSync(workspacePath)) {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+    }
+    fs.mkdirSync(workspacePath, { recursive: true });
+
+    const server = new DaemonServer(workspacePath);
+    await server.start();
+
+    const client = new DaemonClient(workspacePath);
+    await client.connect(false);
+    await client.request('workspace/initialize', { sessionName: 'default' });
+
+    // Mock bridge runTurn to return success
+    const { Bridge } = await import('../../src/core/interface/bridge.js');
+    vi.spyOn(Bridge.prototype, 'runTurn').mockImplementation(async function (this: InstanceType<typeof Bridge>) {
+      this.lastResult = { status: 'completed', steps: [], final_content: 'ok' };
+    });
+
+    const res = await client.request('agent/runTurn', {
+      input: 'hello daemon',
+      options: { auto_mode: true },
+    });
+    expect(res.status).toBe('completed');
+
+    client.disconnect();
+    server.stop();
+  });
+
   it('should handle Session, Filesystem, and Garden JSON-RPC API requests', async () => {
     const workspacePath = path.join(tempDir, 'test-workspace-rpc');
     if (fs.existsSync(workspacePath)) {

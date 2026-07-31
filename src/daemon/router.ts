@@ -32,6 +32,7 @@ const registry: Record<string, HandlerFunction> = {
   'session/duplicate': sessionHandlers.duplicateSession,
 
   'agent/runGoal': agentHandlers.runGoal,
+  'agent/runTurn': agentHandlers.runTurn,
   'agent/pause': agentHandlers.pause,
 
   'garden/getStatus': gardenHandlers.getStatus,
